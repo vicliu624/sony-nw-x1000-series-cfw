@@ -17,7 +17,11 @@ def tree(folder,prefix=''):
  return result
 def main():
  parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--repository');parser.add_argument('--tag');parser.add_argument('--output',type=Path);parser.add_argument('--skip-bootstrap',action='store_true');a=parser.parse_args()
- os.chdir(ROOT);version=(ROOT/'VERSION').read_text().strip();policy=json.loads((ROOT/'config/release.json').read_text());repo=a.repository or policy['repository'];tag=a.tag or 'v'+version
+ os.chdir(ROOT)
+ # Keep Python's host LD_LIBRARY_PATH for the host interpreter while removing
+ # it from QEMU's guest environment, where it can select incompatible libraries.
+ unset=set(filter(None,os.environ.get('QEMU_UNSET_ENV','').split(',')));unset.update(('LD_LIBRARY_PATH','LD_PRELOAD'));os.environ['QEMU_UNSET_ENV']=','.join(sorted(unset))
+ version=(ROOT/'VERSION').read_text().strip();policy=json.loads((ROOT/'config/release.json').read_text());repo=a.repository or policy['repository'];tag=a.tag or 'v'+version
  if not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+',repo) or '..' in repo:raise ValueError('Invalid repository')
  if tag!='v'+version or not re.fullmatch(r'v[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9.-]+)?',tag):raise ValueError('Tag must equal v<VERSION>')
  out=(a.output or ROOT/'dist'/version/'release').resolve()

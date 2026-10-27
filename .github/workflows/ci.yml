@@ -43,6 +43,9 @@ jobs:
     needs: verify
     runs-on: ubuntu-24.04
     timeout-minutes: 90
+    env:
+      # setup-python's host library path must never reach the Sony ELF loader.
+      QEMU_UNSET_ENV: LD_LIBRARY_PATH,LD_PRELOAD
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
