@@ -20,15 +20,19 @@ def main():
  expected['SHA256SUMS']=hashlib.sha256((folder/'SHA256SUMS').read_bytes()).hexdigest()
  if set(expected)!={p.name for p in folder.iterdir() if p.is_file()}:raise ValueError('Unexpected release file')
  def gh(*args,check=True):return subprocess.run(['gh',*args],capture_output=True,text=True,check=check)
- endpoint='repos/'+a.repository+'/releases/tags/'+a.tag
- result=gh('api',endpoint,check=False)
- if result.returncode:
-  if '404' not in result.stderr:raise RuntimeError(result.stderr)
+ base='repos/'+a.repository+'/releases'
+ releases=json.loads(gh('api',base,'--paginate','--slurp').stdout)
+ matches=[release for page in releases for release in page if release['tag_name']==a.tag]
+ if len(matches)>1:raise ValueError('Ambiguous release tag')
+ if not matches:
   gh('release','create',a.tag,'--repo',a.repository,'--verify-tag','--draft','--prerelease','--title','X1000 '+a.tag+' (experimental)','--notes-file',str(folder/'RELEASE_NOTES.md'))
- else:
-  existing=json.loads(result.stdout)
-  if not existing['draft']:raise FileExistsError('Published release is immutable; use a new version')
-  if not {asset['name'] for asset in existing['assets']}<=set(expected):raise ValueError('Draft has unexpected assets')
+  pages=json.loads(gh('api',base,'--paginate','--slurp').stdout)
+  matches=[release for page in pages for release in page if release['tag_name']==a.tag]
+  if len(matches)!=1:raise ValueError('Cannot identify created draft')
+ existing=matches[0]
+ if not existing['draft']:raise FileExistsError('Published release is immutable; use a new version')
+ if not {asset['name'] for asset in existing['assets']}<=set(expected):raise ValueError('Draft has unexpected assets')
+ endpoint=base+'/'+str(existing['id'])
  files=[str(folder/name) for name in sorted(expected)]
  gh('release','upload',a.tag,'--repo',a.repository,'--clobber',*files)
  release=json.loads(gh('api',endpoint).stdout);assets={x['name']:x for x in release['assets']}
