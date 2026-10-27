@@ -28,7 +28,9 @@ def main():
   print('BUILD',script,flush=True);log=work/(Path(script).stem+'.log');start=time.monotonic()
   with log.open('wb') as f:p=subprocess.run([sys.executable,script,*map(str,args)],cwd=ROOT,stdout=f,stderr=subprocess.STDOUT)
   steps.append({'script':script,'exit':p.returncode,'seconds':round(time.monotonic()-start,2)})
-  if p.returncode:raise RuntimeError('Build failed: '+script+'; see '+str(log))
+  if p.returncode:
+   print(log.read_text(encoding='utf-8',errors='replace')[-16000:],flush=True)
+   raise RuntimeError('Build failed: '+script+'; see '+str(log))
  if not a.skip_bootstrap:run('tools/ci_bootstrap.py')
  bootstrap=json.loads((ROOT/'work/ci/bootstrap.json').read_text())
  for i,sha in enumerate(bootstrap['stock_components']):assert digest((ROOT/f'work/upg-jp/verified-{i}.bin').read_bytes())==sha

@@ -52,9 +52,12 @@ jobs:
         with:
           python-version: '3.12.3'
       - name: Install native build dependencies
+        timeout-minutes: 15
+        env:
+          DEBIAN_FRONTEND: noninteractive
         run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-12 gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi qemu-user p7zip-full make libssl-dev openssl pkg-config
+          sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
+          sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y gcc-12 gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi qemu-user p7zip-full make libssl-dev openssl pkg-config
           python -m pip install -r requirements-ci.txt
       - name: Build firmware, apps and repository from clean inputs
         env:
@@ -69,6 +72,14 @@ jobs:
           path: dist/*/release/upload/*
           if-no-files-found: error
           retention-days: 14
+      - name: Preserve compiler/test diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: x1000-build-diagnostics
+          path: work/ci/release-*/*.log
+          if-no-files-found: ignore
+          retention-days: 7
 
   publish:
     if: startsWith(github.ref, 'refs/tags/v') && (github.event_name == 'push' || inputs.publish)

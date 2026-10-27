@@ -9,9 +9,10 @@ identity/integrity/ELF and owns child lifecycle and display release/reacquisitio
 Default entry and Sony return remain tied to the original manager/proxy protocol.
 
 The store contains local install and network-controller implementations, with
-explicit publisher/trust configuration. A setup/review composition may display
-configuration requirements rather than a usable public catalog. Do not claim
-deployment merely because a local TLS fixture installed a package.
+explicit publisher/trust configuration. CI emits a GitHub Release catalog and
+matching market-source/player-setup files; see ../RELEASES.md. A setup/review
+composition without these files still requires configuration. A local fixture
+installation is software evidence, not physical deployment qualification.
 
 Builders include build_libc_frontend.py, build_store_app.py and
 build_network_store_app.py. Prefer original-libc device/process and librt monotonic

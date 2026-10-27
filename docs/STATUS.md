@@ -20,6 +20,7 @@ qualify ordinary HTTPS certificate dates. Latest QQ work includes Cookie/HTTP
 compatibility and manual retry handling; an old service response is not a permanent
 diagnosis. Do not rotate identities or import cookies to evade unexplained errors.
 
-This maintenance changes computer-side organization only: no VERSION change,
-device deployment, new firmware installation or claim that old hash-bound reports
-validate the reorganized tree.
+Source-based CI now builds an experimental firmware profile, fourteen app packages
+and an explicit GitHub Release repository snapshot. See RELEASES.md for publishing
+and prerequisites. These are computer-side builds: no firmware was flashed or new
+hardware qualification inferred from old reports.

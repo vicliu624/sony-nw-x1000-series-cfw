@@ -36,8 +36,9 @@ HTTP Date. An app-local time basis must cover TLS, Cookies, signatures and media
 consistently, not just one function.
 
 program_config has ensure/cancel/release network callbacks, and program/media
-workers have integration points. At the reviewed baseline main.c did not bind
-them. Existing modules are not the same as completed production startup wiring.
+workers have integration points. The full native composition now binds the helper
+and verified workspace lease. Earlier reviews described the then-unbound entry;
+source wiring still does not establish physical request/ownership qualification.
 Keep the original already-connected hotspot as the first device HTTPS baseline;
 then qualify and bind cold-connect handling.
 
