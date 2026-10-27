@@ -25,11 +25,8 @@ def main():
  matches=[release for page in releases for release in page if release['tag_name']==a.tag]
  if len(matches)>1:raise ValueError('Ambiguous release tag')
  if not matches:
-  gh('release','create',a.tag,'--repo',a.repository,'--verify-tag','--draft','--prerelease','--title','X1000 '+a.tag+' (experimental)','--notes-file',str(folder/'RELEASE_NOTES.md'))
-  pages=json.loads(gh('api',base,'--paginate','--slurp').stdout)
-  matches=[release for page in pages for release in page if release['tag_name']==a.tag]
-  if len(matches)!=1:raise ValueError('Cannot identify created draft')
- existing=matches[0]
+  existing=json.loads(gh('api',base,'--method','POST','-f','tag_name='+a.tag,'-f','name=X1000 '+a.tag+' (experimental)','-f','body='+(folder/'RELEASE_NOTES.md').read_text(),'-F','draft=true','-F','prerelease=true').stdout)
+ else:existing=matches[0]
  if not existing['draft']:raise FileExistsError('Published release is immutable; use a new version')
  if not {asset['name'] for asset in existing['assets']}<=set(expected):raise ValueError('Draft has unexpected assets')
  endpoint=base+'/'+str(existing['id'])
