@@ -20,5 +20,15 @@ int main(void){
  const char *bad="HTTP/1.1 302 Found\r\nLocation: http://example.test/plain\r\n\r\n";
  hb_download_stream_init(&body,3,digest,0,sink,0);hb_http_response_init(&h,&body);h.allow_redirects=1;
  if(!hb_http_response_push(&h,(const unsigned char *)bad,(unsigned)strlen(bad)))return 7;
+ char large[9000];const char *prefix="HTTP/1.1 302 Found\r\nContent-Security-Policy: ";
+ unsigned length=(unsigned)strlen(prefix);memcpy(large,prefix,length);memset(large+length,'a',4000);length+=4000;
+ const char *tail="\r\nLocation: https://example.test/asset\r\n\r\n";memcpy(large+length,tail,strlen(tail));length+=(unsigned)strlen(tail);
+ hb_download_stream_init(&body,3,digest,0,sink,0);hb_http_response_init(&h,&body);h.allow_redirects=1;
+ if(hb_http_response_push(&h,(unsigned char *)large,length)||h.state!=HB_HTTP_REDIRECT)return 8;
+ hb_download_stream_init(&body,3,digest,0,sink,0);hb_http_response_init(&h,&body);h.allow_redirects=1;
+ const char *start="HTTP/1.1 302 Found\r\nX-Large: ";
+ if(hb_http_response_push(&h,(const unsigned char *)start,(unsigned)strlen(start)))return 9;
+ memset(large,'a',sizeof large);
+ if(!hb_http_response_push(&h,(unsigned char *)large,sizeof large))return 10;
  puts("Release catalog, collision-free flat assets and HTTPS redirect parsing passed");return 0;
 }

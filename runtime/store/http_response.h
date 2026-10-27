@@ -8,13 +8,14 @@ struct hb_http_response {
  enum hb_http_state state;
  unsigned used,header_bytes,wire_bytes,remaining;
  int cr,has_length,chunked,error;
- char line[3073];
+ char line[8193];
  unsigned status;int allow_redirects;char location[2400];
 };
 /* Restricted GET response profile: 200 by default; an explicit caller may opt
  * into bounded HTTPS Location parsing for redirect responses. Identity encoding,
  * duplicate Content-Length or chunk extensions. Supports length/chunked/EOF.
- * 1024-byte lines (3072 with redirects), 8192-byte headers+trailers. */
+ * 1024-byte lines (8192 with redirects), bounded 8192-byte headers+trailers
+ * (16384 when redirects are enabled). */
 int hb_http_response_init(struct hb_http_response *,struct hb_download_stream *);
 int hb_http_response_push(struct hb_http_response *,const unsigned char *,unsigned);
 int hb_http_response_finish(struct hb_http_response *);

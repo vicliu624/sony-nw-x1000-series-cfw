@@ -90,14 +90,14 @@ int hb_http_response_push(struct hb_http_response *h,const unsigned char *data,u
   if(h->state==HB_HTTP_COMPLETE||h->state==HB_HTTP_DONE)return fail(h,HB_HTTP_FRAMING_ERROR);
   if(h->state==HB_HTTP_CHUNK_CR){if(c!='\r')return fail(h,HB_HTTP_FRAMING_ERROR);h->state=HB_HTTP_CHUNK_LF;continue;}
   if(h->state==HB_HTTP_CHUNK_LF){if(c!='\n')return fail(h,HB_HTTP_FRAMING_ERROR);h->state=HB_HTTP_CHUNK_SIZE;continue;}
-  if(h->state!=HB_HTTP_CHUNK_SIZE&&++h->header_bytes>8192)return fail(h,HB_HTTP_HEADER_ERROR);
+  if(h->state!=HB_HTTP_CHUNK_SIZE&&++h->header_bytes>(h->allow_redirects?16384u:8192u))return fail(h,HB_HTTP_HEADER_ERROR);
   if(h->cr){
    if(c!='\n')return fail(h,HB_HTTP_HEADER_ERROR);
    h->cr=0;h->line[h->used]=0;
    int result=complete_line(h);h->used=0;if(result)return result;
   }else if(c=='\r')h->cr=1;
   else{
-   if(c=='\n'||(c<32&&c!='\t')||c>126||h->used==(h->allow_redirects?3072u:1024u))return fail(h,HB_HTTP_HEADER_ERROR);
+   if(c=='\n'||(c<32&&c!='\t')||c>126||h->used==(h->allow_redirects?8192u:1024u))return fail(h,HB_HTTP_HEADER_ERROR);
    h->line[h->used++]=(char)c;
   }
  }return 0;
