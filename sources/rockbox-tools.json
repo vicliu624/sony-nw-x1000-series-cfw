@@ -1,0 +1,18 @@
+{
+  "upstream": "https://github.com/Rockbox/rockbox/tree/master/utils/nwztools/upgtools",
+  "copied_from": "Reviewed vendored A910 project sources; individual SHA-256 values bind local inputs; upstream commit not inferred",
+  "files": {
+    "COPYING": "0b383d5a63da644f628d99c33976ea6487ed89aaa59f0b3257992deac1171e6b",
+    "keysig_search.c": "5f34c3cda515636990dff9ffe49c3236df341904d8bd26bbf6a3e46161f7bd9b",
+    "keysig_search.h": "778aa982ce6b276a021390096839d4861e1bb1bb80794d8538db5874d02365af",
+    "Makefile": "121a9d77a82663738269b4f896948137660004102ce8a6300c66128543ddfa92",
+    "mg.cpp": "941a70e2959de6cc172b2345fc1ec3e65c9a4ffd64b4116f68f67ba18957ba34",
+    "mg.h": "61367fec0b27b4044aa4e75f12956c0e76cce0e8f69b25e922ca7cb009a87478",
+    "misc.c": "ea7f29f6d590479f7e063896291aa536126823ad3f7cf5b2a80864b03ef95448",
+    "misc.h": "dfc4e3c7df06b3a514add43d9188dcefc92246ef1daae65513274662041dbc8d",
+    "PROVENANCE.md": "3ae4d5817efa6edb38230944cff6d10b8c1b98f969a65bb33f4ba9a9bf2ff07e",
+    "upg.c": "05e3972d3ae85dd782058186f1007db59083f8dc22ca0487f98224c8104006a2",
+    "upg.h": "9a6e01a93654dcdca140557ca700ab0ee98b0a6e5d66c2c3b9c101697c081b45",
+    "upgtool.c": "9a249bad69c9625042ec4296a2a1b5e4a8ee8df9b31a3aeed593379a1feee7a5"
+  }
+}

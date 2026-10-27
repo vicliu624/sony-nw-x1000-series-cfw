@@ -1,0 +1,8 @@
+* text=auto eol=lf
+# Retain exact upstream bytes used by pinned source manifests.
+third_party/** -text
+assets/** -text
+*.png binary
+*.otf binary
+*.ttf binary
+*.bin binary

@@ -1,0 +1,1 @@
+Public stb_image source reused from the pinned qqmusic-stb dependency snapshot, not QQ Music application code. Header SHA256 1f8c1b6b408f26e3b20cbfbbd4758afb3dc9b837ff1e17c258928f406148a87c. Dual MIT/public-domain license in LICENSE. EPUB build enables JPEG/PNG only, disables stdio, HDR, linear conversion and thread-local state. No QQ account/state code is included.

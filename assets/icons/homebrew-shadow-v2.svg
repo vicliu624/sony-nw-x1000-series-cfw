@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <title>Homebrew — terminal, outlined and shadowed</title>
+  <defs>
+    <g id="terminal" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="11" y="16" width="42" height="34" rx="5"/>
+      <path d="M12 26h40M20 33l6 5-6 5M32 43h10"/>
+    </g>
+  </defs>
+  <g transform="translate(1 2)">
+    <use href="#terminal" stroke="#000000" stroke-width="8" opacity=".12"/>
+    <use href="#terminal" stroke="#000000" stroke-width="6" opacity=".20"/>
+    <use href="#terminal" stroke="#000000" stroke-width="4" opacity=".30"/>
+  </g>
+  <path d="M18 11h28" fill="none" stroke="#252525" stroke-width="5" stroke-linecap="round"/>
+  <path d="M18 11h28" fill="none" stroke="#d3d3d3" stroke-width="3" stroke-linecap="round"/>
+  <use href="#terminal" stroke="#252525" stroke-width="5"/>
+  <use href="#terminal" stroke="#ffffff" stroke-width="3"/>
+  <path d="M20 21h.1M25 21h.1" stroke="#252525" stroke-width="4" stroke-linecap="round"/>
+  <path d="M20 21h.1M25 21h.1" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>
+</svg>

@@ -1,0 +1,24 @@
+{
+  "kind": "OFL derivative renamed Walkman Music UI",
+  "tool": "fonttools",
+  "tool_version": "4.67.0",
+  "source_sha256": "2c76254f6fc379fddfce0a7e84fb5385bb135d3e399294f6eeb6680d0365b74b",
+  "filename": "QQMusicUI.otf",
+  "bytes": 2538560,
+  "sha256": "6348d9e48ba7053d882873a1924f99759bd901def43a675dcd5a4edf3e54bc31",
+  "original_bytes": 16437364,
+  "retained_codepoints": 11576,
+  "coverage": [
+    "GB2312",
+    "Big5 level one common Traditional",
+    "JIS X 0208",
+    "Latin and kana",
+    "common punctuation/symbols",
+    "all available UI codepoints"
+  ],
+  "ui_codepoints_missing_in_original": [],
+  "layout_tables_removed": true,
+  "hinting_removed": true,
+  "missing_characters": "Retained .notdef outline; metadata bytes are never altered.",
+  "real_device_tested": false
+}

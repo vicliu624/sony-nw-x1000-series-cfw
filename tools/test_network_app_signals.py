@@ -1,0 +1,11 @@
+"""Production network app and termination handler with controlled backend/platform."""
+from pathlib import Path
+import runpy,subprocess,json,hashlib
+ROOT=Path(__file__).resolve().parents[1];base=runpy.run_path(str(ROOT/'tools/test_network_app.py'));work=ROOT/'work/network-app-signal-tests';work.mkdir(exist_ok=True)
+sources=['runtime/store/network_app.c','runtime/store/termination.c','runtime/store/canvas.c','runtime/native/frontend.c','tools/test_network_app_signals.c']
+common=base['common']+['-Wl,--wrap=snprintf,--wrap=__snprintf_chk'];subprocess.run(['gcc',*common,*sources,'-o',str(work/'host')],cwd=ROOT,check=True);subprocess.run([str(work/'host')],check=True,timeout=10)
+runtime=base['runtime'];bridge=base['bridge']
+subprocess.run(['arm-linux-gnueabi-gcc',*common,'-Os','-march=armv5te','-marm','-mfloat-abi=soft','-ffreestanding','-fno-builtin','-fno-pie','-nostdlib','-no-pie','-Wl,--hash-style=sysv',*sources,*bridge,str(runtime/'libc-2.3.3.so'),str(runtime/'ld-2.3.3.so'),'-lgcc','-o',str(work/'arm')],cwd=ROOT,check=True)
+run=subprocess.run(['qemu-arm','-cpu','arm926','-strace',str(runtime/'ld-2.3.3.so'),'--library-path',str(runtime),str(work/'arm')],capture_output=True,text=True,timeout=15);assert run.returncode==0,(run.returncode,run.stderr)
+report={'all_bounded_checks_passed':True,'physical_device_access':False,'trace':run.stderr,'source_hashes':{p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in sources+bridge},'cases':['SIGTERM during platform open','SIGTERM during repository load','SIGTERM with active metadata transport cancels before platform close','SIGTERM while error page awaits input','download error after SIGTERM skips error-page submission','SIGTERM during error-page formatting skips submission'],'limits':['Actual network_app.c and termination.c; host and original-libc ARM/QEMU.','Repository/remote transport/platform effects explicitly substituted; cancellation API ordering only.','Self-directed real SIGTERM, not Sony IPC or hardware lifecycle.']}
+(ROOT/'sources/native-network-app-signal-tests.json').write_text(json.dumps(report,indent=2)+'\n');print('Production network app/termination: six real SIGTERM cleanup cases passed on host and ARM.')

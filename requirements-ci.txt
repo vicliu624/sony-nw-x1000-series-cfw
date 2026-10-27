@@ -1,0 +1,3 @@
+-r requirements-research.txt
+fonttools==4.67.0
+PyYAML==6.0.3

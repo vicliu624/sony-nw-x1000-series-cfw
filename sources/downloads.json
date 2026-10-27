@@ -1,0 +1,29 @@
+[
+  {
+    "id": "jp-1.11",
+    "path": "firmware/original/NW-X1000_V1_11.exe",
+    "url": "https://archive.org/download/nw-x-1000-v-1-11/NW-X1000_V1_11.exe",
+    "bytes": 46849232,
+    "sha256": "25c8290dbac1065809f39332614491958ef7c93ce6e2e67e8cb5f815009a5a81",
+    "md5": "fcd7be7af210f71b395750a11d7732ac",
+    "retrieved": "2026-10-22"
+  },
+  {
+    "id": "uboot",
+    "path": "work/downloads/u-boot-1.1.1.local.tgz",
+    "url": "https://prodgpl.blob.core.windows.net/download/Audio/NW-X1050/u-boot-1.1.1.local.tgz",
+    "bytes": 6247178,
+    "sha256": "64ab5dbe068cd2351a571030c97892b1aab59d2875376308ccb199a4f0db21b8",
+    "md5": "759cb0ef3e7efb094b0befa299c12796",
+    "retrieved": "2026-10-22"
+  },
+  {
+    "id": "kernel",
+    "url": "https://prodgpl.blob.core.windows.net/download/Audio/NW-X1050/linux-kernel-2.6.10.local.tgz",
+    "status": "downloaded and inspected as model-listed source; not exact running .config",
+    "bytes": 49088769,
+    "sha256": "286475cbbb0610dab8af914995d3fe1bbc081153b9e0e92698f05a601ef15309",
+    "http_content_md5_verified": true,
+    "device_access": false
+  }
+]

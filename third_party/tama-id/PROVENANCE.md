@@ -1,0 +1,2 @@
+Color iD adapter and core imported from the local Sony NW-A910 CFW project on 2026-10-26. Core provenance and GPL-3.0 are in core/PROVENANCE.md and core/LICENSE. Adapter imported unchanged; original A918 syscall/storage/display code is not compiled. X1000 implements color_* platform callbacks with stock libc. ROM not included.
+Only adapter include path changed from ../vendor/color-core/tc.h to core/tc.h.

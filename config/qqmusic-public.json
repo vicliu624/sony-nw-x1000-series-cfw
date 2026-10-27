@@ -1,0 +1,15 @@
+{
+  "source": "/dev/mtdblock/2",
+  "resources": "/contents/HOMEBREW/apps/qqmusic/resources",
+  "guid": "generated-on-player",
+  "ca_files": ["../work/external-tls-probe/github-ca.der"],
+  "comm": {
+    "ct": "11", "cv": "20090008", "tmeLoginType": "2", "QIMEI36": "",
+    "OpenUDID": "INSTALLATION_ID", "udid": "INSTALLATION_ID", "aid": "100497308",
+    "phonetype": "Sony NW-X1060", "os_ver": "Linux", "chid": "10003505", "tmeAppID": "qqmusic"
+  },
+  "qimei_payload": {
+    "androidId": "INSTALLATION_ID", "model": "NW-X1060", "brand": "Sony", "osVersion": "Linux",
+    "appVersion": "12.1.5.8", "channelId": "10003505", "platformId": 1
+  }
+}

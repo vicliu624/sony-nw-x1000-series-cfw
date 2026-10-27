@@ -1,0 +1,299 @@
+{
+  "sources": {
+    "tremor": {
+      "origin": "https://gitlab.xiph.org/xiph/tremor.git",
+      "revision": "820fb3237ea81af44c9cc468c8b4e20128e3e5ad",
+      "files": {
+        "block.c": {
+          "upstream_sha256": "149e4fcb0a863d3e1b9faae44a016d33dbea86fe6b5186563796b5828750150a",
+          "vendored_sha256": "149e4fcb0a863d3e1b9faae44a016d33dbea86fe6b5186563796b5828750150a"
+        },
+        "codebook.c": {
+          "upstream_sha256": "aead4fa226cf96b4f069207fd430162591811ce9e9f0203508747468cccf8e44",
+          "vendored_sha256": "aead4fa226cf96b4f069207fd430162591811ce9e9f0203508747468cccf8e44"
+        },
+        "floor0.c": {
+          "upstream_sha256": "26d5e38a30f30f777b4918dbf4b2c8cef0cefffe0d08144299b7f35e6dcd6155",
+          "vendored_sha256": "26d5e38a30f30f777b4918dbf4b2c8cef0cefffe0d08144299b7f35e6dcd6155"
+        },
+        "floor1.c": {
+          "upstream_sha256": "6c5ed6a747d8f501459e415da49f86f28e547bf704a6600eac72fcb2d2bb9f6a",
+          "vendored_sha256": "6c5ed6a747d8f501459e415da49f86f28e547bf704a6600eac72fcb2d2bb9f6a"
+        },
+        "info.c": {
+          "upstream_sha256": "5b164ec112f591a6297b98f0de5f5e5e61f6d8428fa90cf8b3be2950fd2904e8",
+          "vendored_sha256": "5b164ec112f591a6297b98f0de5f5e5e61f6d8428fa90cf8b3be2950fd2904e8"
+        },
+        "iseeking_example.c": {
+          "upstream_sha256": "29ca1c12b626f97175a42c8870b23b7bc5dbfa57977fd018f918b5a72fe36e12",
+          "vendored_sha256": "29ca1c12b626f97175a42c8870b23b7bc5dbfa57977fd018f918b5a72fe36e12"
+        },
+        "ivorbisfile_example.c": {
+          "upstream_sha256": "30e608bfbb071036c5c3e93a137dbf7b6cd2305ad37f460e5352d151be83027b",
+          "vendored_sha256": "30e608bfbb071036c5c3e93a137dbf7b6cd2305ad37f460e5352d151be83027b"
+        },
+        "mapping0.c": {
+          "upstream_sha256": "3f29e3958c9c1d2aa6732982946abeeb08b56e8a6690dc5569e37dd81d09c00a",
+          "vendored_sha256": "3f29e3958c9c1d2aa6732982946abeeb08b56e8a6690dc5569e37dd81d09c00a"
+        },
+        "mdct.c": {
+          "upstream_sha256": "a84e82fd8ed1652c2b45df24da4938071ea9a4b2d1742695a4748d55d3a9bf34",
+          "vendored_sha256": "a84e82fd8ed1652c2b45df24da4938071ea9a4b2d1742695a4748d55d3a9bf34"
+        },
+        "registry.c": {
+          "upstream_sha256": "8b41abed5b5f8eb17fe9b3762fe727a834504be2c1a58dd3f64323631e6f9cfd",
+          "vendored_sha256": "8b41abed5b5f8eb17fe9b3762fe727a834504be2c1a58dd3f64323631e6f9cfd"
+        },
+        "res012.c": {
+          "upstream_sha256": "4f19803ca1fff4d91d1122607166c2e302eeddbd19c4fcdf11465ac8d975610b",
+          "vendored_sha256": "4f19803ca1fff4d91d1122607166c2e302eeddbd19c4fcdf11465ac8d975610b"
+        },
+        "sharedbook.c": {
+          "upstream_sha256": "67a46f7e89eac01fec386f90d19e29dcc038f1ba42ab32d02dfa95e39d07652b",
+          "vendored_sha256": "67a46f7e89eac01fec386f90d19e29dcc038f1ba42ab32d02dfa95e39d07652b"
+        },
+        "synthesis.c": {
+          "upstream_sha256": "af2cf850bbf55d9be5062fbd85d3024ce66721eb20fc34643b558d0ebca05ef6",
+          "vendored_sha256": "af2cf850bbf55d9be5062fbd85d3024ce66721eb20fc34643b558d0ebca05ef6"
+        },
+        "vorbisfile.c": {
+          "upstream_sha256": "e9dcd233dd48fe1849dbd1322e98920e249537eebda9dea1355f07ea843765a7",
+          "vendored_sha256": "e9dcd233dd48fe1849dbd1322e98920e249537eebda9dea1355f07ea843765a7"
+        },
+        "window.c": {
+          "upstream_sha256": "a94fc2ffdc96ae0cfd066b52cea2cabc1703ccdbee2560e761610df58385ab4d",
+          "vendored_sha256": "a94fc2ffdc96ae0cfd066b52cea2cabc1703ccdbee2560e761610df58385ab4d"
+        },
+        "asm_arm.h": {
+          "upstream_sha256": "761c24186086168f189e992cda002aacf082b52ec51838fc70356f112722db25",
+          "vendored_sha256": "761c24186086168f189e992cda002aacf082b52ec51838fc70356f112722db25"
+        },
+        "backends.h": {
+          "upstream_sha256": "3c80cabedbb4532372e116dd399e3d2eb230683636757cba4d23a31f5269570a",
+          "vendored_sha256": "3c80cabedbb4532372e116dd399e3d2eb230683636757cba4d23a31f5269570a"
+        },
+        "block.h": {
+          "upstream_sha256": "d3bc6ea0f314e1a869bb5a580a90f101f1cfd7839d3c98724db19d8d86020c87",
+          "vendored_sha256": "d3bc6ea0f314e1a869bb5a580a90f101f1cfd7839d3c98724db19d8d86020c87"
+        },
+        "codebook.h": {
+          "upstream_sha256": "49a58dd56088a1332d954eba606051342ba2d66c9bba8f9d68d94a71879e02b3",
+          "vendored_sha256": "49a58dd56088a1332d954eba606051342ba2d66c9bba8f9d68d94a71879e02b3"
+        },
+        "codec_internal.h": {
+          "upstream_sha256": "0feaff6f2d0c5fba04814e5e5974dd1bd680bd9b4136cf5134ba44a645e8901c",
+          "vendored_sha256": "0feaff6f2d0c5fba04814e5e5974dd1bd680bd9b4136cf5134ba44a645e8901c"
+        },
+        "config_types.h": {
+          "upstream_sha256": "7a0777330975e222afd9e51d720ac3a3369bf437a0b745b085969fffa23973e8",
+          "vendored_sha256": "7a0777330975e222afd9e51d720ac3a3369bf437a0b745b085969fffa23973e8"
+        },
+        "ivorbiscodec.h": {
+          "upstream_sha256": "8b34c1b2cfae68ed900419e1bc0b0488d861124f536d521c23c02d2cb1fff9b9",
+          "vendored_sha256": "8b34c1b2cfae68ed900419e1bc0b0488d861124f536d521c23c02d2cb1fff9b9"
+        },
+        "ivorbisfile.h": {
+          "upstream_sha256": "17284d32a6b92a2a9bb054af94e555030d7efae40ae073530f60255d1f248d85",
+          "vendored_sha256": "17284d32a6b92a2a9bb054af94e555030d7efae40ae073530f60255d1f248d85"
+        },
+        "lsp_lookup.h": {
+          "upstream_sha256": "6161b13a99b7ecee007227b1bfc0f1c1f15dc35a2f9f4531e66a507937b7d460",
+          "vendored_sha256": "6161b13a99b7ecee007227b1bfc0f1c1f15dc35a2f9f4531e66a507937b7d460"
+        },
+        "mdct.h": {
+          "upstream_sha256": "74420691bd83fb01dca8a9d169b1a9f4d124ef84cedbdaab2873246de16857c4",
+          "vendored_sha256": "74420691bd83fb01dca8a9d169b1a9f4d124ef84cedbdaab2873246de16857c4"
+        },
+        "mdct_lookup.h": {
+          "upstream_sha256": "aefc0ac3e71ad9b9c292e7b12a551df0785628637596708dcb8919313fe57924",
+          "vendored_sha256": "aefc0ac3e71ad9b9c292e7b12a551df0785628637596708dcb8919313fe57924"
+        },
+        "misc.h": {
+          "upstream_sha256": "542a79e2382da86f48db07424904586ca6b84aa4d7cf0474a32a443a3347807b",
+          "vendored_sha256": "542a79e2382da86f48db07424904586ca6b84aa4d7cf0474a32a443a3347807b"
+        },
+        "os.h": {
+          "upstream_sha256": "269756cf341d0332fae8d29a24fa7a58cdfa837393a624ef9bab41d9cfb6b7a8",
+          "vendored_sha256": "269756cf341d0332fae8d29a24fa7a58cdfa837393a624ef9bab41d9cfb6b7a8"
+        },
+        "registry.h": {
+          "upstream_sha256": "0ef12187424eee9678bc0edae86b38d79d387576f729a969681e234094148b41",
+          "vendored_sha256": "0ef12187424eee9678bc0edae86b38d79d387576f729a969681e234094148b41"
+        },
+        "window.h": {
+          "upstream_sha256": "e1e9e680bdb7d0798cd5969f64d6c93c28caf9bc27eadb73618f51e953c0a10c",
+          "vendored_sha256": "e1e9e680bdb7d0798cd5969f64d6c93c28caf9bc27eadb73618f51e953c0a10c"
+        },
+        "window_lookup.h": {
+          "upstream_sha256": "8942639aa4880b8191565148cb18b53c6f33fcedd2eedbb6bce23f83e446d932",
+          "vendored_sha256": "8942639aa4880b8191565148cb18b53c6f33fcedd2eedbb6bce23f83e446d932"
+        },
+        "COPYING": {
+          "upstream_sha256": "29460b3b44148114c28cc2480737368428747e68374d16cb8d910949ded03d19",
+          "vendored_sha256": "29460b3b44148114c28cc2480737368428747e68374d16cb8d910949ded03d19"
+        },
+        "README": {
+          "upstream_sha256": "a0dce7b08a349335a96f4fe10b5b2f4f0d7ed9c12283e4b3f477d8056d8bd497",
+          "vendored_sha256": "a0dce7b08a349335a96f4fe10b5b2f4f0d7ed9c12283e4b3f477d8056d8bd497"
+        }
+      }
+    },
+    "ogg": {
+      "origin": "https://gitlab.xiph.org/xiph/ogg.git",
+      "revision": "06a5e0262cdc28aa4ae6797627a783b5010440f0",
+      "files": {
+        "src/bitwise.c": {
+          "upstream_sha256": "f2775114bb4a410bb5cd9d68fe56b7490c4e8242e7bbb3777a947beece57bd53",
+          "vendored_sha256": "f2775114bb4a410bb5cd9d68fe56b7490c4e8242e7bbb3777a947beece57bd53"
+        },
+        "src/framing.c": {
+          "upstream_sha256": "248deffffa06ef290290240a74ff8d40a897f443910f09af46010b74ed341ae7",
+          "vendored_sha256": "248deffffa06ef290290240a74ff8d40a897f443910f09af46010b74ed341ae7"
+        },
+        "src/crctable.h": {
+          "upstream_sha256": "16ea1d38ab17f2b57684185057dff785931f2bffd184e4967170fbb8138bfe5b",
+          "vendored_sha256": "16ea1d38ab17f2b57684185057dff785931f2bffd184e4967170fbb8138bfe5b"
+        },
+        "include/ogg/ogg.h": {
+          "upstream_sha256": "9158491901a1d0a8dda75b9fee3661b269c6ea337a75d1ee3f4d8e1ec62827e8",
+          "vendored_sha256": "9158491901a1d0a8dda75b9fee3661b269c6ea337a75d1ee3f4d8e1ec62827e8"
+        },
+        "include/ogg/os_types.h": {
+          "upstream_sha256": "310a09431492bf49f8d25cd7c492986c8e11a2b28dc3e75102bcdd8c48fc17b5",
+          "vendored_sha256": "310a09431492bf49f8d25cd7c492986c8e11a2b28dc3e75102bcdd8c48fc17b5"
+        },
+        "include/ogg/config_types.h.in": {
+          "upstream_sha256": "25729d1be3d20e538bb6a6b31534bf6f68f41d6ffb7223c3529fcbaa72b85e38",
+          "vendored_sha256": "25729d1be3d20e538bb6a6b31534bf6f68f41d6ffb7223c3529fcbaa72b85e38"
+        },
+        "COPYING": {
+          "upstream_sha256": "29460b3b44148114c28cc2480737368428747e68374d16cb8d910949ded03d19",
+          "vendored_sha256": "29460b3b44148114c28cc2480737368428747e68374d16cb8d910949ded03d19"
+        },
+        "README.md": {
+          "upstream_sha256": "7005865040532334f79d8885d10fc8116079875b80d776b69038189b82f24426",
+          "vendored_sha256": "7005865040532334f79d8885d10fc8116079875b80d776b69038189b82f24426"
+        },
+        "AUTHORS": {
+          "upstream_sha256": "081c3cd725f0c13f3d8ca53d6a580d356d4ddd9b806eff69dd94a328509bedb9",
+          "vendored_sha256": "081c3cd725f0c13f3d8ca53d6a580d356d4ddd9b806eff69dd94a328509bedb9"
+        }
+      }
+    },
+    "shine": {
+      "origin": "https://github.com/toots/shine.git",
+      "revision": "ab5e3526b64af1a2eaa43aa6f441a7312e013519",
+      "files": {
+        "src/lib/bitstream.c": {
+          "upstream_sha256": "780cbdb06362f67610c9ce5e27605c9cb4c9234be3999dd2d6ee2d25505f88a6",
+          "vendored_sha256": "780cbdb06362f67610c9ce5e27605c9cb4c9234be3999dd2d6ee2d25505f88a6"
+        },
+        "src/lib/huffman.c": {
+          "upstream_sha256": "3cbd7f3a410870493b0bf68a42913b53c54eb8bbfc2e4c37f8a09c920b972df3",
+          "vendored_sha256": "3cbd7f3a410870493b0bf68a42913b53c54eb8bbfc2e4c37f8a09c920b972df3"
+        },
+        "src/lib/l3bitstream.c": {
+          "upstream_sha256": "8f7c010bc90ee4ae16240f1fd5d4b6efb03fdf1ae4bdfe9730305afbda7f4576",
+          "vendored_sha256": "8f7c010bc90ee4ae16240f1fd5d4b6efb03fdf1ae4bdfe9730305afbda7f4576"
+        },
+        "src/lib/l3loop.c": {
+          "upstream_sha256": "12e090804e338b2397bb4d1cca0c731f0251969c45e795ce1e736299f0d6f781",
+          "vendored_sha256": "12e090804e338b2397bb4d1cca0c731f0251969c45e795ce1e736299f0d6f781"
+        },
+        "src/lib/l3mdct.c": {
+          "upstream_sha256": "ff135c30b7de98fb5c2428023fbcd662b5b6e5c6274676b1760c4d8aed1751d2",
+          "vendored_sha256": "ff135c30b7de98fb5c2428023fbcd662b5b6e5c6274676b1760c4d8aed1751d2"
+        },
+        "src/lib/l3subband.c": {
+          "upstream_sha256": "37bef604ef9b1166144fbe2e37bbb10588799d65586f6ab652be4ae0410596cd",
+          "vendored_sha256": "37bef604ef9b1166144fbe2e37bbb10588799d65586f6ab652be4ae0410596cd"
+        },
+        "src/lib/layer3.c": {
+          "upstream_sha256": "1af8d3d7d1f08d56b026b3e941c38ab407f5668d929b202a7c9f81982f92ad92",
+          "vendored_sha256": "c7dc262092ba1b17459f2875d41fd7cb7e4c7037ae594ca890adfcc4150feffb"
+        },
+        "src/lib/reservoir.c": {
+          "upstream_sha256": "5754e370cc3dae68a02adf049fdf30a55628fe113191407d82ba32f8352c7770",
+          "vendored_sha256": "5754e370cc3dae68a02adf049fdf30a55628fe113191407d82ba32f8352c7770"
+        },
+        "src/lib/tables.c": {
+          "upstream_sha256": "94af116b5aa89c21116a7874f2d66b893dc8ec8342a19e03711c3a38a9bdd261",
+          "vendored_sha256": "94af116b5aa89c21116a7874f2d66b893dc8ec8342a19e03711c3a38a9bdd261"
+        },
+        "src/lib/bitstream.h": {
+          "upstream_sha256": "fd52bf0102a3280a3a67352c412f39d769174a5e2ebd30d2147b1e14d717fc4d",
+          "vendored_sha256": "fd52bf0102a3280a3a67352c412f39d769174a5e2ebd30d2147b1e14d717fc4d"
+        },
+        "src/lib/huffman.h": {
+          "upstream_sha256": "5c0daa50a28c8ac836fd3e7be61df75d3e0506267e8e79b4f63b955c04a656d4",
+          "vendored_sha256": "5c0daa50a28c8ac836fd3e7be61df75d3e0506267e8e79b4f63b955c04a656d4"
+        },
+        "src/lib/l3bitstream.h": {
+          "upstream_sha256": "7d09cbf7107191de7692e4d9d07d261a7f8ab9bcc40df2b887658c83642bb880",
+          "vendored_sha256": "7d09cbf7107191de7692e4d9d07d261a7f8ab9bcc40df2b887658c83642bb880"
+        },
+        "src/lib/l3loop.h": {
+          "upstream_sha256": "1e4cc8d8200b1e7ab7445dcb2c8ccdc41f55873f2bc921e2b281b66f18502716",
+          "vendored_sha256": "1e4cc8d8200b1e7ab7445dcb2c8ccdc41f55873f2bc921e2b281b66f18502716"
+        },
+        "src/lib/l3mdct.h": {
+          "upstream_sha256": "acf6ce1571ebee244044a68b24dd03777b789df7be733ea27e21a35d54530e6b",
+          "vendored_sha256": "acf6ce1571ebee244044a68b24dd03777b789df7be733ea27e21a35d54530e6b"
+        },
+        "src/lib/l3subband.h": {
+          "upstream_sha256": "d25f8a66fdc2401eb6d6f571d69594fae6a8fb34728d4efddf1d0b1212de4251",
+          "vendored_sha256": "d25f8a66fdc2401eb6d6f571d69594fae6a8fb34728d4efddf1d0b1212de4251"
+        },
+        "src/lib/layer3.h": {
+          "upstream_sha256": "70d4388687582290a1b55fc346173336f312700db0d5c55d6498cee9c4e7c5a4",
+          "vendored_sha256": "70d4388687582290a1b55fc346173336f312700db0d5c55d6498cee9c4e7c5a4"
+        },
+        "src/lib/mult_mips_gcc.h": {
+          "upstream_sha256": "1dd1d9ee3ae41a40360566dbc1d7d10a3211e77b057a98ec90508dd6a26b7374",
+          "vendored_sha256": "1dd1d9ee3ae41a40360566dbc1d7d10a3211e77b057a98ec90508dd6a26b7374"
+        },
+        "src/lib/mult_noarch_gcc.h": {
+          "upstream_sha256": "8d60e592dce3099da570e87ac27f2ae5e4a29ed8ce119e7cfb7dd7a83dd2f239",
+          "vendored_sha256": "8d60e592dce3099da570e87ac27f2ae5e4a29ed8ce119e7cfb7dd7a83dd2f239"
+        },
+        "src/lib/mult_sarm_gcc.h": {
+          "upstream_sha256": "43f7689e8f78804709ec77d3f242f980feb44beec6b935a19f7443796716ce9b",
+          "vendored_sha256": "43f7689e8f78804709ec77d3f242f980feb44beec6b935a19f7443796716ce9b"
+        },
+        "src/lib/reservoir.h": {
+          "upstream_sha256": "6a24ddb678f635b1d97703468c91d7209a76d47b8d5265d195b95f3222734b92",
+          "vendored_sha256": "6a24ddb678f635b1d97703468c91d7209a76d47b8d5265d195b95f3222734b92"
+        },
+        "src/lib/tables.h": {
+          "upstream_sha256": "c6e3872b6b480cea63989f6ddefe20409deb21b9207cde1e0616143981a3cd55",
+          "vendored_sha256": "c6e3872b6b480cea63989f6ddefe20409deb21b9207cde1e0616143981a3cd55"
+        },
+        "src/lib/types.h": {
+          "upstream_sha256": "b46ec06114a6ca303ec937c93a5fe123cf2c617ca53b34bd5ea018f0b721b599",
+          "vendored_sha256": "7ac525e69b81cde15fc0895b088294a0d0d5f5120e1b6e9ce4d553e1854371b9"
+        },
+        "COPYING": {
+          "upstream_sha256": "517c8bbea53e7257be86efaaba4c0b83effc386e4d84e0b6a33e025266ddb74e",
+          "vendored_sha256": "517c8bbea53e7257be86efaaba4c0b83effc386e4d84e0b6a33e025266ddb74e"
+        },
+        "README.md": {
+          "upstream_sha256": "e8533b6962fa47a084fb8d1b310d57689a5ca01689559c503d68ecaa24ed0305",
+          "vendored_sha256": "e8533b6962fa47a084fb8d1b310d57689a5ca01689559c503d68ecaa24ed0305"
+        },
+        "README.old": {
+          "upstream_sha256": "11287ef7400d25dc5cee7c7335832fca811be2b0d2f96adf1c2837b6734621b2",
+          "vendored_sha256": "11287ef7400d25dc5cee7c7335832fca811be2b0d2f96adf1c2837b6734621b2"
+        }
+      }
+    }
+  },
+  "local_changes": [
+    "shine types.h: explicit portable C backend",
+    "shine layer3.c: exact integer frame-slot calculation, avoid integral-rate floating rounding",
+    "shine layer3.c: flush final byte-aligned cache bytes, reject inconsistent bit tail"
+  ],
+  "network_scope": "Official source acquisition explicitly authorized; builds/tests offline.",
+  "device_access": false,
+  "generator_sha256": "290634545b979acaa985a6bfe70d755574911f0ceb9261628460a209f3622594",
+  "patch_recorder_sha256": "5885f5b30398c7f748ec0264ec4160bb1b86e60aa668ceaeb131a39e267f4ce1"
+}

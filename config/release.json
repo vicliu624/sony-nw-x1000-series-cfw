@@ -1,0 +1,6 @@
+{
+  "repository": "vicliu624/sony-nw-x1000-series-cfw",
+  "target": "sony-nw-x1000-jp",
+  "release_kind": "experimental",
+  "apps": ["device-info", "diagnostics", "dictionary", "ebook", "fm-radio", "gbc", "graphics-demo", "hello", "key-check", "language", "qqmusic", "store", "tamagotchi-id", "terminal"]
+}

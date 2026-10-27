@@ -1,0 +1,1 @@
+miniz inflate-only sources from https://github.com/richgel999/miniz commit 2948eebafc5b9f1c69bebed80333e403a09bd62d. MIT, see LICENSE. miniz_export.h is the equivalent empty export declaration for a static C build. No ZIP writing, disk extraction or third-party runtime dependency is used.
