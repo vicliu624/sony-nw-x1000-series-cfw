@@ -3,7 +3,12 @@ from pathlib import Path
 import argparse,hashlib,json,os,subprocess,tempfile
 def main():
  p=argparse.ArgumentParser(description=__doc__);p.add_argument('directory',type=Path);p.add_argument('--repository',required=True);p.add_argument('--tag',required=True);a=p.parse_args()
- folder=a.directory.resolve();manifest=json.loads((folder/'release-manifest.json').read_text());expected={}
+ folder=a.directory.resolve()
+ if not (folder/'release-manifest.json').is_file():
+  manifests=list(folder.rglob('release-manifest.json'))
+  if len(manifests)!=1 or not manifests[0].resolve().is_relative_to(folder):raise ValueError('Cannot identify unique artifact root')
+  folder=manifests[0].parent
+ manifest=json.loads((folder/'release-manifest.json').read_text());expected={}
  if a.tag!='v'+manifest['version'] or a.repository!=manifest['repository']:raise ValueError('Release identity mismatch')
  commit=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
  tagged=subprocess.check_output(['git','rev-parse',a.tag+'^{commit}'],text=True).strip()

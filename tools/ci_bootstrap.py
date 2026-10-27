@@ -32,12 +32,13 @@ def main():
   def get(name):
    return t.extractfile(next(x for x in ('./lib/'+name,'./usr/lib/'+name) if x in names)).read()
   lib=ROOT/'work/arm-signal-tests/lib';lib.mkdir(parents=True,exist_ok=True)
-  for name in ('libc.so.6','ld-linux.so.3'):(lib/name).write_bytes(get(name))
+  for name in ('libc.so.6','ld-linux.so.3'):
+   (lib/name).write_bytes(get(name));(lib/name).chmod(0o755)
   resolver=ROOT/'work/stock-resolver-probe';resolver.mkdir(parents=True,exist_ok=True)
   copied=set()
   def copy_library(name):
    if name in copied:return
-   data=get(name);copied.add(name);(resolver/name).write_bytes(data)
+   data=get(name);copied.add(name);(resolver/name).write_bytes(data);(resolver/name).chmod(0o755)
    elf=ELFFile(io.BytesIO(data));dynamic=elf.get_section_by_name('.dynamic')
    if dynamic:
     for tag in dynamic.iter_tags():

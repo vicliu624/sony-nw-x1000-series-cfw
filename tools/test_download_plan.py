@@ -26,6 +26,7 @@ subprocess.run(['gcc','-std=c99','-Wall','-Wextra','-Werror','-I'+str(work),*sou
 packed=(ROOT/'work/upg-jp/verified-3.bin').read_bytes();assert hashlib.sha256(packed).hexdigest()=='c6307dba718f1faae821e0330b64532f13fe6ef98ff330a5919d7fb10525adf5'
 with tarfile.open(fileobj=io.BytesIO(gzip.decompress(packed))) as tar:
  for name in ('libc-2.3.3.so','ld-2.3.3.so'):(work/name).write_bytes(tar.extractfile('./lib/'+name).read())
+(work/'ld-2.3.3.so').chmod(0o755)
 alias=work/'libc.so.6'
 if not alias.exists():alias.symlink_to('libc-2.3.3.so')
 subprocess.run(['arm-linux-gnueabi-gcc','-Os','-march=armv5te','-marm','-mfloat-abi=soft','-ffreestanding','-fno-builtin','-fno-pie','-nostdlib','-no-pie','-Wl,--hash-style=sysv','-I'+str(work),*sources,'runtime/store/stock_tls_compat.c','runtime/store/stock_fs_bridge.c','runtime/store/stock_stat64.c','tools/stock_test_start.c','tools/store_link_start.S',str(work/'libc-2.3.3.so'),str(work/'ld-2.3.3.so'),'-lgcc','-o',str(work/'arm')],cwd=ROOT,check=True)

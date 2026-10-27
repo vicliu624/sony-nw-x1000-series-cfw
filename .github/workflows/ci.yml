@@ -59,23 +59,27 @@ jobs:
         env:
           DEBIAN_FRONTEND: noninteractive
         run: |
-          if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then
-            sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' /etc/apt/sources.list.d/ubuntu.sources
-          fi
+          for source in /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources; do
+            if [ -f "$source" ]; then
+              sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' "$source"
+            fi
+          done
           sudo env DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
           sudo env DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install --no-install-recommends -y gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi libc6-dev-armel-cross qemu-user p7zip-full make libssl-dev openssl pkg-config
           python -m pip install -r requirements-ci.txt
       - name: Build firmware, apps and repository from clean inputs
+        id: build
         env:
           RELEASE_REPOSITORY: ${{ github.repository }}
         run: |
           python tools/build_release.py --repository "$RELEASE_REPOSITORY"
           python tools/verify_release.py "dist/$(cat VERSION)/release"
           python tools/test_release_market.py "dist/$(cat VERSION)/release/upload"
+          echo "upload=dist/$(cat VERSION)/release/upload" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: x1000-release
-          path: dist/*/release/upload/*
+          path: ${{ steps.build.outputs.upload }}/
           if-no-files-found: error
           retention-days: 14
       - name: Preserve compiler/test diagnostics on failure
@@ -96,6 +100,7 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: write
+      actions: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:

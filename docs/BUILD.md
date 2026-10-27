@@ -7,6 +7,10 @@ and the pinned original loader/libc provide offline execution. Use each script's
 
 ## Environment
 
+Extracted original loaders need their executable bit when invoked as QEMU's
+program. Bootstrap preserves mode0755 without changing their bytes. Windows/DrvFS
+can mask a missing mode bit that a clean Linux runner correctly enforces.
+
 Create `.venv` and install requirements.txt; requirements-research.txt adds optional
 binary-analysis tools. Builders may require GCC/GCC12, ARM binutils, QEMU user mode,
 OpenSSL and ordinary archive utilities. Dependency acquisition must preserve
