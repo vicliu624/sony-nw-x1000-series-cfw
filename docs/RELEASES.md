@@ -79,3 +79,6 @@ Pull requests run offline checks without write permissions. Main/manual builds
 produce workflow artifacts. A matching version tag, or an explicit manual publish
 on that tag, publishes experimental release assets with contents:write permission
 confined to the publish job. The pipeline must finish verification before publishing.
+Assets are uploaded to a draft, their remote inventory/size/digest is checked, and
+only then is the release made public. Published version releases are not clobbered;
+a failed draft upload can be resumed with the same verified inventory.

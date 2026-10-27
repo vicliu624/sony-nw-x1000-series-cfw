@@ -22,7 +22,10 @@ for name,digest in {'libc.so.6':'5afbf3074dfa9ba0478d6670f220ef4d7ec065a255ee856
 crypto=ROOT/'work/external-tls-probe/bearssl-0.6'
 archive=ROOT/'work/external-tls-probe/arm-build/libbearssl.a'
 host_archive=ROOT/'work/repository-config-tools/bearssl-host/libbearssl.a'
-assert hashlib.sha256(archive.read_bytes()).hexdigest()=='1062c5f7c8b9cc56d7be494fe718f5aebcf12d7e53db8cb61885a1d9cacc3836'
+assert archive.is_file()
+# Compiler/binutils revisions may change archive bytes. Pin the upstream input,
+# and retain the actual compiled archive digest in build.json instead.
+assert hashlib.sha256((ROOT/'work/bearssl-0.6.tar.gz').read_bytes()).hexdigest()=='6705bba1714961b41a728dfc5debbe348d2966c117649392f8c8139efc83ff14'
 version=(ROOT/'VERSION').read_text().strip()
 flags=['-DHB_STORE_SONY_LIBC','-DHB_BUILD_VERSION="'+version+'"','-U_FORTIFY_SOURCE','-D_FORTIFY_SOURCE=0','-D_DEFAULT_SOURCE','-std=c99','-Os','-Wall','-Wextra','-Werror','-Wno-misleading-indentation','-march=armv5te','-marm','-mfloat-abi=soft','-ffreestanding','-fno-builtin','-fno-pie','-nostdlib','-no-pie','-Wl,--hash-style=sysv','-Wl,--build-id=none','-Wl,--dynamic-linker=/lib/ld-linux.so.3','-I'+str(crypto/'inc')]
 flags.append('-DHB_USE_POSIX_DEVICE_IO')

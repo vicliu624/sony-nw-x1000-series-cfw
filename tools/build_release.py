@@ -83,6 +83,19 @@ def main():
  launcher=player/'HOMEBREW/launcher';launcher.mkdir();shutil.copyfile(ROOT/'work/libc-launcher-review/launcher.elf',launcher/'app')
  for folder in sorted(apps.iterdir()):
   ident=folder.name;app=(folder/'app').read_bytes()
+  notices=[]
+  if ident in ('terminal','store','qqmusic'):notices.append((crypto/'bearssl-0.6/LICENSE.txt','BearSSL-MIT.txt'))
+  if ident in ('dictionary','ebook'):
+   for p in (ROOT/'third_party'/('dictionary-data' if ident=='dictionary' else 'ebook-data')).iterdir():
+    if p.is_file():notices.append((p,p.name))
+  if ident=='gbc':notices.append((ROOT/'third_party/gnuboy/COPYING','gnuboy-GPL2.txt'))
+  if ident=='tamagotchi-id':notices.append((ROOT/'third_party/tama-id/core/LICENSE','Tamagotchi-GPL3.txt'))
+  if ident=='qqmusic':
+   for path,name in [('third_party/qqmusic-codecs/shine/COPYING','Shine-LGPL2.txt'),('third_party/qqmusic-codecs/tremor/COPYING','Tremor-BSD.txt'),('third_party/qqmusic-codecs/ogg/COPYING','Ogg-BSD.txt'),('third_party/qqmusic-stb/LICENSE','stb-LICENSE.txt'),('third_party/qmc-reference/LICENSE','QMC-MIT.txt'),('third_party/qqmusic-protocol-reference/LICENSE','Protocol-GPL3.txt'),('work/qqmusic-font/OFL.txt','Font-OFL.txt')]:notices.append((ROOT/path,name))
+  if notices:
+   (folder/'LICENSES').mkdir(exist_ok=True)
+   for source,name in notices:shutil.copyfile(source,folder/'LICENSES'/name)
+  (folder/'NOTICE.txt').write_text('Experimental Japanese X1000 native application. Dependencies retain their own notices under LICENSES. Corresponding build/source archive: '+base+'source-'+version+'.zip\nNo Sony system libraries, ROMs, account state or personal TLS keys are supplied in this application package.\n')
   elf=ELFFile(io.BytesIO(app));assert elf['e_machine']=='EM_ARM'
   old=dict(line.split('=',1) for line in (folder/'app.ini').read_text().splitlines()) if (folder/'app.ini').exists() else {}
   app_version=old.get('version',version);title=old.get('name',titles.get(ident,ident))
@@ -106,7 +119,8 @@ def main():
  files=subprocess.check_output(['git','ls-files','--cached','--others','--exclude-standard','-z']).decode().split('\0')
  source={n:(ROOT/n).read_bytes() for n in files if n and (ROOT/n).is_file() and not (ROOT/n).is_symlink()}
  archive(upload/('source-'+version+'.zip'),source)
- report={'version':version,'tag':tag,'repository':repo,'apps':release_apps,'firmware':firmware_report,'catalog_sha256':digest(listing),'catalog_bytes':len(listing),'steps':steps,'source_files':len(source),'private_terminal_key_published':False,'physical_device_accessed':False,'hardware_qualified':False}
+ commit=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
+ report={'version':version,'tag':tag,'repository':repo,'source_commit':commit,'apps':release_apps,'firmware':firmware_report,'catalog_sha256':digest(listing),'catalog_bytes':len(listing),'steps':steps,'source_files':len(source),'private_terminal_key_published':False,'physical_device_accessed':False,'hardware_qualified':False}
  (upload/'release-manifest.json').write_text(json.dumps(report,indent=2)+'\n')
  (upload/'RELEASE_NOTES.md').write_text('# X1000 experimental '+version+'\n\nJapanese NW-X1050/NW-X1060 only. See the source documentation and verification reports. Firmware preserves the original installer/kernel/initrd; installation and recovery are not hardware-qualified. Copy player-setup files to visible storage before using the launcher/market. App ZIPs and catalog assets are verified independently. No account data, ROMs, music or terminal private keys are included. Terminal requires personal PC pairing.\n')
  (upload/'SHA256SUMS').write_text(''.join(digest(p.read_bytes())+'  '+p.name+'\n' for p in sorted(upload.iterdir()) if p.is_file()))

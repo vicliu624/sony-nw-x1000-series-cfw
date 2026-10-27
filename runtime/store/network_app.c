@@ -39,7 +39,7 @@ int hb_store_network_app_run(const char *apps,const char *packages,const char *c
     int loaded=hb_repository_load(repository,stop,repo);
     if(loaded){result=*stop?0:error_page(loaded,&painter,&io,stop);}
     else {
-     struct hb_remote_store_config config={.catalog_url=repo->spec.catalog_url,.catalog_bytes=repo->spec.catalog_bytes,.catalog_sha256=repo->spec.catalog_sha256,.cache=cache,.packages=packages,.apps=apps,.running_id="store",.anchors=repo->anchors,.anchor_count=repo->anchor_count,.timeout_ms=120000,.reserve=reserve,.stop=stop,.options=0,.option_mask=0};
+     struct hb_remote_store_config config={.catalog_url=repo->spec.catalog_url,.catalog_bytes=repo->spec.catalog_bytes,.catalog_sha256=repo->spec.catalog_sha256,.cache=cache,.packages=packages,.apps=apps,.running_id="store",.anchors=repo->anchors,.anchor_count=repo->anchor_count,.timeout_ms=900000,.reserve=reserve,.stop=stop,.options=0,.option_mask=0};
      int run=hb_remote_store_run(store,&config,&painter,&io);result=run==-2?error_page(store->error,&painter,&io,stop):0;
     }
    }

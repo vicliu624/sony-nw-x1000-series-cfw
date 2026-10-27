@@ -62,6 +62,7 @@ jobs:
         run: |
           python tools/build_release.py --repository "$RELEASE_REPOSITORY"
           python tools/verify_release.py "dist/$(cat VERSION)/release"
+          python tools/test_release_market.py "dist/$(cat VERSION)/release/upload"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: x1000-release
@@ -80,6 +81,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: false
+          fetch-depth: 0
       - name: Fetch verified build artifact
         env:
           GH_TOKEN: ${{ github.token }}
@@ -93,6 +95,4 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           test "$RELEASE_TAG" = "v$(cat VERSION)"
-          cd release
-          sha256sum -c SHA256SUMS
-          gh release create "$RELEASE_TAG" ./* --verify-tag --prerelease --title "X1000 $RELEASE_TAG (experimental)" --notes-file RELEASE_NOTES.md
+          python tools/publish_release.py release --repository "$GH_REPO" --tag "$RELEASE_TAG"
