@@ -67,6 +67,11 @@ jobs:
           sudo env DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
           sudo env DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install --no-install-recommends -y gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi libc6-dev-armel-cross qemu-user p7zip-full make libssl-dev openssl pkg-config
           python -m pip install -r requirements-ci.txt
+      - name: Create isolated application test volume
+        run: |
+          mkdir -p work
+          sudo mount -t tmpfs -o size=2G,nodev,nosuid,mode=0755 tmpfs "$GITHUB_WORKSPACE/work"
+          sudo chown "$(id -u):$(id -g)" "$GITHUB_WORKSPACE/work"
       - name: Build firmware, apps and repository from clean inputs
         id: build
         env:

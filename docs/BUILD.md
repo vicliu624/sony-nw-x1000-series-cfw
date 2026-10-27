@@ -10,6 +10,10 @@ and the pinned original loader/libc provide offline execution. Use each script's
 Extracted original loaders need their executable bit when invoked as QEMU's
 program. Bootstrap preserves mode0755 without changing their bytes. Windows/DrvFS
 can mask a missing mode bit that a clean Linux runner correctly enforces.
+CI places work on a separate ephemeral tmpfs volume. Storage fixtures intentionally
+reject a data directory on the same device as the system root; do not weaken that
+production guard to accommodate an ordinary runner checkout. This is a PC fixture,
+not FAT/USB hardware qualification.
 
 Create `.venv` and install requirements.txt; requirements-research.txt adds optional
 binary-analysis tools. Builders may require GCC/GCC12, ARM binutils, QEMU user mode,
