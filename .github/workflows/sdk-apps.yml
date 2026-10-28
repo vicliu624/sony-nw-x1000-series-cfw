@@ -55,3 +55,12 @@ jobs:
           name: sdk-app-equivalence
           path: work/sdk-migration/equivalence.json
           if-no-files-found: error
+      - name: Preserve public-code ELF comparison diagnostics
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: sdk-app-elf-diagnostics
+          path: |
+            work/sdk-migration/**/elf-*.json
+            work/sdk-migration/**/elf-*.diff
+          if-no-files-found: ignore

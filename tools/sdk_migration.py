@@ -12,11 +12,36 @@ import shutil
 import subprocess
 import sys
 import time
+import difflib
 from app_registry import ROOT, applications
 
 def hashes(folder):
     return {p.relative_to(folder).as_posix():hashlib.sha256(p.read_bytes()).hexdigest()
             for p in sorted(folder.rglob('*')) if p.is_file() and not p.is_symlink()}
+
+def elf_difference(old,new,out,ident):
+    """Only public CI program code/metadata, never libraries, artwork or keys."""
+    from elftools.elf.elffile import ELFFile
+    sections=[];strings=[]
+    with old.open('rb') as first,new.open('rb') as second:
+        a=ELFFile(first);b=ELFFile(second)
+        names={s.name for s in a.iter_sections()}|{s.name for s in b.iter_sections()}
+        for name in sorted(names):
+            x=a.get_section_by_name(name);y=b.get_section_by_name(name)
+            left=x.data() if x else b'';right=y.data() if y else b''
+            if left==right:continue
+            sections.append({'section':name,'allocated':bool((x or y)['sh_flags']&2),'old_bytes':len(left),'new_bytes':len(right),
+                             'old_sha256':hashlib.sha256(left).hexdigest(),'new_sha256':hashlib.sha256(right).hexdigest()})
+            if name in ('.rodata','.strtab','.dynstr','.comment'):
+                import re
+                old_strings=set(re.findall(rb'[ -~]{6,256}',left));new_strings=set(re.findall(rb'[ -~]{6,256}',right))
+                strings.append({'section':name,'removed':[s.decode() for s in sorted(old_strings-new_strings)][:50],
+                                'added':[s.decode() for s in sorted(new_strings-old_strings)][:50]})
+    (out/('elf-'+ident+'.json')).write_text(json.dumps({'id':ident,'sections':sections,'string_differences':strings},indent=2)+'\n')
+    before=subprocess.check_output(['arm-linux-gnueabi-objdump','-d',str(old)],text=True)
+    after=subprocess.check_output(['arm-linux-gnueabi-objdump','-d',str(new)],text=True)
+    difference=''.join(difflib.unified_diff(before.splitlines(True),after.splitlines(True),fromfile='pre-SDK',tofile='SDK'))
+    (out/('elf-'+ident+'.diff')).write_text(difference)
 
 def main():
     p=argparse.ArgumentParser(description=__doc__)
@@ -80,9 +105,12 @@ def main():
             previous=json.loads((baseline/'rebuilt/report.json').read_text())['apps'][ident]
             row['identical_installed_payload']=payload==previous['payload_hashes']
             row['changed_files']=sorted(k for k in payload.keys()|previous['payload_hashes'].keys() if payload.get(k)!=previous['payload_hashes'].get(k))
-            if not row['identical_installed_payload']:row['passed']=False
+            if not row['identical_installed_payload']:
+                row['passed']=False
+                elf_difference(baseline/'rebuilt/packages'/ident/'app',package/'app',out,ident)
         report['apps'][ident]=row;report_path.write_text(json.dumps(report,indent=2)+'\n')
-        if not row['passed']:raise RuntimeError(ident+' changed installed payload: '+repr(row['changed_files']))
+        if not row['passed']:print(ident+' changed installed payload: '+repr(row['changed_files']),flush=True)
     print(json.dumps({'phase':a.phase,'passed_apps':[k for k,v in report['apps'].items() if v['passed']],
                       'report':str(report_path.relative_to(ROOT)),'hardware_accessed':False},indent=2))
+    if any(not row['passed'] for row in report['apps'].values()):raise RuntimeError('Installed-byte differences remain; see ELF diagnostics')
 if __name__=='__main__':main()
