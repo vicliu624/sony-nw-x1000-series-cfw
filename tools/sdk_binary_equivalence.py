@@ -23,6 +23,8 @@ def normalize_gcc_file_symbols(data):
         if any(other['st_info']['type']!='STT_FILE' and start<=other['st_name']<end for other in entries):
             raise ValueError('GCC file marker shares bytes with a program symbol')
         offset=strings['sh_offset']+start
+        if any(segment['p_type']=='PT_LOAD' and offset<segment['p_offset']+segment['p_filesz'] and offset+len(name)>segment['p_offset'] for segment in elf.iter_segments()):
+            raise ValueError('GCC marker overlaps a program load range')
         if data[offset:offset+len(name)+1]!=name.encode()+b'\0':raise ValueError('Malformed temporary file symbol')
         output[offset:offset+len(name)]=b'cc000000.o'
         changes.append({'section':strings.name,'type':'STT_FILE','name':name,'replacement':'cc000000.o'})

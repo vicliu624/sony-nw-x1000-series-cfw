@@ -73,11 +73,15 @@ material remain excluded.
 
 The experimental [X1000 SDK](docs/sdk/README.md) provides native C lifecycle,
 touch/canvas, guarded storage, three app templates, SDL2 preview, headless PNG
-rendering and verified ARM packaging. SDK versions are independent of firmware
-and app versions. Start with `python tools/sdk.py --help` or the website's
+rendering and verified ARM packaging. Its [native services](docs/sdk/SERVICES.md)
+also support the16 existing apps while preserving their main/UI/data policies.
+SDK versions are independent of firmware and app versions. Start with
+`python tools/sdk.py --help` or the website's
 [developer portal](https://vicliu624.github.io/sony-nw-x1000-series-cfw/#developer).
-Device storage fails closed until qualified USB ownership is supplied; previews
-and offline tests are not physical qualification. The source-only SDK contains
+Callback-profile state IO fails closed until qualified ownership is supplied;
+existing native-service apps retain their original guards and formats. The user
+reports previous local builds passed on their unit. Migration tests are offline,
+not new hardware qualification. The source-only SDK contains
 no Sony binaries and does not build or install firmware.
 
 ## Documentation

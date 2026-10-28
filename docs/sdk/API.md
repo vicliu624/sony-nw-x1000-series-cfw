@@ -118,4 +118,7 @@ Source API1 and exact SDK version are recorded separately from app and firmware
 versions. Static adaptation avoids a player-wide shared-library upgrade. Future
 facade breaks require an SDK major version; experimental fixes still require an
 explicit SDK pin update. Existing app.ini API1 and package formats are preserved.
-No network, PCM, FM, raw flash, NVP or wireless-radio API is promised by this SDK.
+The callback facade above does not expose network/PCM/FM entry points. SDK0.2
+adds separate [native services](SERVICES.md) for existing custom-main apps,
+preserving their own buffers, policies and interface semantics. Raw flash,
+NVP and arbitrary wireless-radio interfaces remain outside the SDK.

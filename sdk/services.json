@@ -136,7 +136,10 @@
         "list_ui.h": "runtime/native/app_list_art.h",
         "noto_ascii.h": "runtime/native/ui_font.h",
         "presentation.h": "runtime/native/app_presentation.h"
-      }
+      },
+      "requires": [
+        "files"
+      ]
     },
     "volume": {
       "sources": [

@@ -1,8 +1,10 @@
 # SDK validation and capability limits
 
-SDK0.1.0-alpha.2 targets the Japanese1.11 platform only. NW-X1060 has earlier
+SDK0.2.0-alpha.1 targets the Japanese1.11 platform only. NW-X1060 has earlier
 selected terminal/device evidence; this SDK has not been installed or tested on
-a physical player. NW-X1050 has no equivalent device report. Existing sleep,
+a physical player as a new acceptance run. The user reports the16 previous
+local app builds passed on their unit; exact personal package identities were
+not supplied. NW-X1050 has no equivalent device report. Existing sleep,
 USB, recovery and application-specific hardware questions remain open.
 
 The validation entry is `python tools/test_sdk.py` on Linux/WSL after setup.
@@ -29,6 +31,13 @@ setup prepares inputs from the pinned updater, all three templates are generated
 host/ARM builds and package checks run without old work files or installed apps.
 The bundle contains no host or ARM application executable, ROM, save, account
 state or original Sony libc. CI uploads only the explicit source SDK archive.
+
+The16 existing apps additionally adopt native services. Their source logic and
+effective include graphs are audited against the frozen pre-SDK commit. A clean
+same-path build compares runtime/resources/inventories, normalizing only proven
+GCC temporary STT_FILE names outside program load ranges in memory. Raw hashes
+and normalization records remain separate. See [service migration](SERVICES.md).
+An independent native-service client also builds/runs from the extracted SDK.
 
 These checks establish software behavior for exact checked source inputs. They
 do not establish physical display/touch restoration, USB exclusion, suspend/wake,

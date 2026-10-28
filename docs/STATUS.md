@@ -2,9 +2,18 @@
 
 The experimental [SDK](sdk/README.md) adds a source API, three starters and two
 maintained development examples. Host/ARM fixtures and clean-bundle builds are
-computer-side evidence. No SDK app has been installed on a physical player;
-native storage IO defaults to denied until exclusive ownership is qualified.
+computer-side evidence. No new SDK hardware acceptance was performed by this
+migration. Callback-profile state IO defaults to denied until ownership is
+qualified; native services retain the existing app policies.
 SDK publication is independent of the firmware/app release composition below.
+
+SDK0.2 adopts the16 existing apps through native services. The user reports
+successful testing of prior local builds; exact personal package identities
+were not supplied. Function bodies, formats and policy are retained. Same-path
+CI compares runtime and resources, with only identified non-loadable GCC file
+markers normalized in memory. This is new offline evidence, not a new physical
+acceptance report. ESP-NOW work is excluded by explicit user instruction.
+See [native service adoption](sdk/SERVICES.md).
 
 Baseline: VERSION 0.1.0-dev.17, Japanese 1.11 platform, one physical NW-X1060.
 NW-X1050 is a target without an equivalent device report.

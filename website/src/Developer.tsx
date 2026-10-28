@@ -22,6 +22,14 @@ const words = {
     download: "下载 SDK 源码包",
     source: "浏览 SDK 源码",
     release: "发布与校验",
+    profiles: "两种接入方式，同一套原始平台适配",
+    callbackTitle: "快速起步：回调式应用",
+    callbackText:
+      "从三个模板开始，使用应用循环、触摸、基础画布和 SDL 预览。适合新的小工具与画布小游戏。",
+    nativeTitle: "保留现有程序：原生服务层",
+    nativeText:
+      "原有 16 款应用采用 SDK 服务层，保留自己的主循环、界面和保存策略。可选网络、Unicode 字体、图片、大文件、进程与 PCM/FM 等 23 个模块。",
+    serviceGuide: "原生服务与迁移说明",
     ready: "三个模板，从这里开始",
     minimal: "第一声问候",
     minimalText: "文字、返回按钮和退出清理，适合认识最小应用。",
@@ -40,7 +48,7 @@ const words = {
       "同一份 C 应用支持 SDL2 交互预览，也能用事件脚本渲染 PNG。点击、拖动、计时和本地设置都可以离线检查。预览结果不代表实机验收。",
     limits: "第一版的明确边界",
     limitsText:
-      "仅面向日版 NW-X1050 / NW-X1060 的 1.11 平台。设备存储默认拒绝读写，直到调用方提供独立验证的 USB/存储所有权检查；电脑预览支持隔离的本地设置。计数器在设备上仍可使用内存状态。显示恢复、USB 和睡眠行为尚无本套件的实机验收。",
+      "仅面向日版 NW-X1050 / NW-X1060 的 1.11 平台。回调式设置接口在所有权未知时拒绝读写；原生服务应用保留原有存储检查与格式。既有本地应用有用户测试通过报告，本次迁移检查为离线对照，不构成新的实机验收。",
     docs: "完整快速开始",
     reference: "接口参考",
     validation: "验证范围",
@@ -60,6 +68,14 @@ const words = {
     download: "Download SDK source",
     source: "Browse SDK source",
     release: "Release & checksum",
+    profiles: "Two ways in, the original platform underneath",
+    callbackTitle: "Start small: callback apps",
+    callbackText:
+      "Use the three starters, lifecycle, touch, basic canvas and SDL preview for new tools and canvas games.",
+    nativeTitle: "Keep your app: native services",
+    nativeText:
+      "The 16 existing apps adopt SDK services while keeping their main loops, UI and save policies. Choose among 23 modules for networking, Unicode fonts, images, full-size files, processes and PCM/FM.",
+    serviceGuide: "Native services & migration",
     ready: "Three small places to start",
     minimal: "A first hello",
     minimalText:
@@ -81,7 +97,7 @@ const words = {
       "The same C app supports an interactive SDL2 preview and scripted PNG rendering. Check taps, drags, timing and isolated settings offline. A preview does not qualify hardware behavior.",
     limits: "An explicit first-release boundary",
     limitsText:
-      "Japanese NW-X1050 / NW-X1060, platform 1.11 only. Device storage IO fails closed until a separately qualified USB/storage ownership provider is supplied; PC previews support isolated settings. The counter still works in memory on the device. This SDK has no physical display-restoration, USB or sleep acceptance yet.",
+      "Japanese NW-X1050 / NW-X1060, platform 1.11 only. Callback settings IO fails closed when ownership is unknown; native-service apps retain their original guards and formats. Previous local apps have a user test report; this migration uses offline comparisons, not new hardware acceptance.",
     docs: "Full quick start",
     reference: "API reference",
     validation: "Validation scope",
@@ -168,6 +184,19 @@ export function Developer({ lang }: { lang: Language }) {
           <code>{sdk.release.asset.sha256}</code>
         </div>
       )}
+      <h2 className="sdk-section-title">{t.profiles}</h2>
+      <div className="sdk-profile-grid">
+        <Card>
+          <h3>{t.callbackTitle}</h3>
+          <p>{t.callbackText}</p>
+          {resource("API", t.reference)}
+        </Card>
+        <Card>
+          <h3>{t.nativeTitle}</h3>
+          <p>{t.nativeText}</p>
+          {resource("SERVICES", t.serviceGuide)}
+        </Card>
+      </div>
       <h2 className="sdk-section-title">{t.ready}</h2>
       <div className="guide-grid">
         {[

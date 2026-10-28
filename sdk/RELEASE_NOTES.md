@@ -1,29 +1,35 @@
-# X1000 SDK0.1.0-alpha.2
+# X1000 SDK0.2.0-alpha.1
 
-Fixes immediate cancellation visibility inside application callbacks:
-xw_is_stopping now observes the original-libc signal token before returning to
-the event loop. This is tested with actual SIGTERM delivery under the pinned
-Sony loader/libc. Sample app versions increase with their changed linked bytes.
-The published alpha.1 source remains immutable.
+Existing-application adoption and native service APIs for Japanese NW-X1050/
+NW-X1060, JP1.11. SDK identity remains separate from firmware/app versions.
 
-First experimental source-only developer kit for Japanese NW-X1050/NW-X1060,
-JP1.11. SDK identity is independent of firmware and application versions.
+- The16 existing apps bind compilation to the SDK and import its public native
+  services. Their own main, UI, controls, state formats, resources, protocols
+  and cleanup retain the original implementation.
+- Adds23 selectable service modules: display/touch, original signal providers,
+  files/ABI, volumes, Unicode BMP fonts, PNG/JPEG, networking, processes,
+  PCM/FM models, package services and read-only system information.
+- Custom-main declarative builds and existing complex recipes are supported.
+  Existing apps retain their exact ordered compiler arguments and link order.
+- SDK setup prepares pinned original libraries and public source dependencies.
+  Independent clients build from the source ZIP, including individual modules.
+- The callback/SDL starter profile remains available for new small apps.
 
-- Small C facade for lifecycle, touch, canvas, proportional ASCII text, RGB565
-  images, button interaction and guarded app data/resource access.
-- Minimal, touch UI and canvas game templates; maintained counter/canvas examples.
-- SDL2 interactive preview and headless scripted PNG rendering from the same C
-  application source. Host state is isolated under work/.
-- Pinned original-libc ARM builds, safe QEMU entry checks, exact package inventory
-  and source-hash reports. No firmware builds or device installation.
-- Clean extracted-bundle tests create, preview, ARM-build and package all templates.
+The migration gate rebuilds old/new source at the same path with the same inputs
+and compares all16 runtime/resource payloads. Only proven GCC ccXXXXXX.o STT_FILE
+names outside allocated/program-load ranges are normalized in memory. No code,
+data, resource, version, size, other symbol or actual inventory is waived/edited.
+Raw hashes and marker records remain visible. Optional QQ playback components
+run existing host/ARM fixtures without inventing a personal delivery profile.
+ESP-NOW in-progress work is explicitly excluded.
 
-The ZIP contains no Sony binary, original libc, ROM, music, account or private
-state. Setup locally extracts hash-pinned libraries from the recorded Japanese
-updater without executing it. Read docs/sdk/README.md after extraction.
+This release is source only. No app/firmware update or device installation is
+performed by the toolkit. Original releases and rollback inputs remain intact.
+Do not republish changed raw inventories under an existing app version. No Sony
+binary, original libc, account state, music, ROM or saved state is included.
 
-Device USB ownership remains unresolved in the stock SDK profile. Device storage
-IO fails closed until an independently qualified owner callback is supplied;
-the counter otherwise keeps state only in memory. Host preview demonstrates
-isolated file persistence. No physical SDK display/USB/sleep/audio qualification
-is claimed. The source archive is a developer kit, not a player-installation ZIP.
+The user reports previous local apps passed on their unit; exact personal
+package identities were not supplied. This migration has no new physical RF,
+audio, USB or sleep acceptance. Native services preserve existing storage policy;
+the callback profile still denies state IO until ownership is independently
+established. Start with docs/sdk/README.md and docs/sdk/SERVICES.md.

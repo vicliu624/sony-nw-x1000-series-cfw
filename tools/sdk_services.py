@@ -92,11 +92,25 @@ def compiler(definition):
             if name in owned:
                 if name not in allowed:raise ValueError(contract['id']+' compiles undeclared SDK implementation: '+name)
                 used.append(name)
+        dependencies={}
+        from sdk_build import LIBRARIES
+        from sdk_bootstrap import SERVICE_LIBRARIES
+        pins={**LIBRARIES,**SERVICE_LIBRARIES}
+        for argument in command[1:]:
+            path=Path(str(argument))
+            if not (path.name.endswith('.a') or '.so' in path.name):continue
+            path=(path if path.is_absolute() else cwd/path).resolve()
+            if path.is_file() and path.is_relative_to(ROOT):
+                digest=hashlib.sha256(path.read_bytes()).hexdigest()
+                # Resolve may expose the versioned name of an original alias.
+                logical=Path(str(argument)).name
+                if logical in pins and digest!=pins[logical]:raise ValueError('Pinned SDK library mismatch: '+logical)
+                dependencies[path.relative_to(ROOT).as_posix()]=digest
         result=subprocess.run(command,*args,**kwargs)
         row={'sdk_version':contract['version'],'id':contract['id'],'profile':contract['profile'],
              'modules':contract['resolved_modules'],'sdk_sources':used,'exit':result.returncode,
              'ordered_command_sha256':hashlib.sha256(json.dumps(list(map(str,command)),separators=(',',':')).encode()).hexdigest(),
-             'source_hashes':source_hashes,
+             'source_hashes':source_hashes,'linked_dependency_hashes':dependencies,
              'hardware_accessed':False}
         with receipt.open('a') as stream:stream.write(json.dumps(row,separators=(',',':'))+'\n')
         return result

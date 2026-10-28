@@ -4,6 +4,11 @@ Build a touch application without changing the firmware, launcher or official
 release composition. Target: Japanese NW-X1050/NW-X1060, JP1.11 only. This is an
 experimental source SDK. Computer tests are not device qualification.
 
+SDK0.2 also provides [native services](SERVICES.md) for the16 existing apps and
+custom C main programs. These retain their own renderers, loops, file formats
+and storage policies. The small settings/resource limits below apply to the
+callback profile, not to the existing readers, emulators or music workflows.
+
 ## 1. Prepare a Linux/WSL development environment
 
 Supported baseline: Ubuntu24.04, Python3.12, Node is not needed for native apps.

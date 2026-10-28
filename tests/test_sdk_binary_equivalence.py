@@ -9,11 +9,11 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tools'))
 from app_registry import ROOT
 from sdk_binary_equivalence import normalize_gcc_file_symbols,canonical_payload
 
-def elf(file='ccABC123.o',function='ccFNC123.o',code=b'\0\0\xa0\xe1',allocated=False,shared=False):
+def elf(file='ccABC123.o',function='ccFNC123.o',code=b'\0\0\xa0\xe1',allocated=False,shared=False,mapped=False):
     names=b'\0.text\0.symtab\0.strtab\0.shstrtab\0'
     strings=b'\0'+file.encode()+b'\0'+function.encode()+b'\0'
     symbols=b'\0'*16+struct.pack('<IIIBBH',1,0,0,4,0,0xfff1)+struct.pack('<IIIBBH',1 if shared else len(file)+2,0,4,0x12,0,1)
-    data=bytearray(b'\0'*52);offsets=[]
+    data=bytearray(b'\0'*(84 if mapped else 52));offsets=[]
     for content in (code,symbols,strings,names):
         while len(data)%4:data.append(0)
         offsets.append(len(data));data.extend(content)
@@ -26,7 +26,8 @@ def elf(file='ccABC123.o',function='ccFNC123.o',code=b'\0\0\xa0\xe1',allocated=F
                    (23,3,0,0,offsets[3],len(names),0,0,1,0)):
         data.extend(struct.pack('<10I',*values))
     ident=b'\x7fELF\x01\x01\x01'+b'\0'*9
-    data[:52]=struct.pack('<16sHHIIIIIHHHHHH',ident,2,40,1,0,0,shoff,0,52,0,0,40,5,4)
+    data[:52]=struct.pack('<16sHHIIIIIHHHHHH',ident,2,40,1,0,52 if mapped else 0,shoff,0,52,32 if mapped else 0,1 if mapped else 0,40,5,4)
+    if mapped:data[52:84]=struct.pack('<8I',1,offsets[2],0,0,len(strings),len(strings),4,4)
     return bytes(data)
 
 class SDKBinaryEquivalence(unittest.TestCase):
@@ -42,6 +43,7 @@ class SDKBinaryEquivalence(unittest.TestCase):
     def test_allocated_names_or_program_symbol_aliases_are_never_ignored(self):
         with self.assertRaises(ValueError):normalize_gcc_file_symbols(elf(allocated=True))
         with self.assertRaises(ValueError):normalize_gcc_file_symbols(elf(shared=True))
+        with self.assertRaises(ValueError):normalize_gcc_file_symbols(elf(mapped=True))
 
     def test_digest_edges_follow_comparison_bytes_without_modifying_payload(self):
         parent=ROOT/'work/sdk-binary-tests';parent.mkdir(parents=True,exist_ok=True)

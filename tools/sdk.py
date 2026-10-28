@@ -99,6 +99,8 @@ def main():
     definition=ROOT/'runtime/apps'/args.id
     if args.command=='package':
         version=(definition/'VERSION').read_text().strip();bundle(args.id,args.from_package,args.output or ROOT/'dist/sdk-apps'/(args.id+'-'+version+'.zip'));return 0
+    if applications()[args.id].get('sdk',{}).get('profile')=='native-services' and args.command in ('preview','render'):
+        p.error('Custom-main apps keep their existing ARM render/fixture entry points; see docs/sdk/SERVICES.md. SDL preview uses callback templates.')
     output=args.output or ROOT/'work/sdk'/args.id/(args.command+'-'+str(time.time_ns()))
     if args.command=='build':
         from build_app import package
@@ -116,6 +118,8 @@ def main():
                 if getattr(args,key):command+=['--'+key.replace('_','-')]
             subprocess.run(command,cwd=ROOT,check=True)
             print(str((output/'package').relative_to(ROOT)));return 0
+        if any(getattr(args,key) for key in ('profile','sprites','device_full','public_installation','audio_preview')):
+            p.error('These options belong to existing application builders; declare native-service inputs in build.json for a new client')
         compile_app(definition,output/'build')
         finished=package(args.id,output/'build',output/'package')
         print(json.dumps(verify(finished),indent=2));print(str(finished.relative_to(ROOT)));return 0

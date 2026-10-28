@@ -2,6 +2,8 @@
 
 For a generated starter, host preview and a small C facade, begin with the
 [SDK quick start](sdk/README.md). The original lower-level path remains available.
+Existing applications bind that path to versioned [SDK native services](sdk/SERVICES.md),
+preserving their own main, renderer, storage policy and application logic.
 
 The [application specification](APP_SPEC.md) defines local metadata, artwork,
 build ownership and installed package formats.

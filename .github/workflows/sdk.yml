@@ -40,6 +40,7 @@ jobs:
       - name: Test SDK and create source-only archive
         run: |
           python tools/check_repository_layout.py
+          python -m unittest discover -s tests -p 'test_sdk_*.py' -v
           python tools/test_sdk.py
           python tools/test_sdk_services.py
           python tools/package_sdk.py
@@ -71,8 +72,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           SDK_TAG: ${{ github.ref_name }}
+          SDK_SHA: ${{ github.sha }}
         run: |
           test "$SDK_TAG" = "sdk-v$(cat sdk/VERSION)"
+          verified="$(gh run list --workflow sdk-apps.yml --commit "$SDK_SHA" --limit 20 --json databaseId,status,conclusion --jq '.[] | select(.status == "completed" and .conclusion == "success") | .databaseId')"
+          test -n "$verified" || { echo "SDK release needs a successful full-scope application preservation run on this exact commit."; exit 1; }
           if gh release view "$SDK_TAG" >/dev/null 2>&1; then
             echo "An SDK release already exists; refusing replacement."
             exit 1

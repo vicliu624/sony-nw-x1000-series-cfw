@@ -43,4 +43,20 @@ def main():
     definition.rmdir()
     (out/'service-test.json').write_text(json.dumps(report,indent=2)+'\n')
     print(json.dumps(report,indent=2))
+    # A full aggregate link can hide missing module edges. Check every service
+    # independently, including header-only presentation's actual file dependency.
+    from sdk_services import manifest,compile_native
+    matrix=out/'module-matrix';matrix.mkdir()
+    for name in manifest():
+        app=matrix/('check-'+name);app.mkdir()
+        modules=['startup'] if name=='startup' else ['startup',name]
+        metadata={'id':app.name,'target':'sony-nw-x1000-jp','sdk':{'version':(ROOT/'sdk/VERSION').read_text().strip(),'profile':'native-services','modules':modules}}
+        (app/'app.json').write_text(json.dumps(metadata));(app/'VERSION').write_text('0.1.0-alpha.1\n')
+        (app/'build.json').write_text(json.dumps({'profile':'native-services','sources':['main.c'],'checks':[['--help']]}))
+        source='#include <stdio.h>\nint main(void){puts("SDK module link OK");return 0;}\n'
+        if name=='list-ui':
+            source='#include <x1000/services/presentation.h>\nint main(void){struct hb_presentation p;return hb_presentation_load(&p,"/sdk-fixture-missing")?1:0;}\n'
+        (app/'main.c').write_text(source)
+        compile_native(app,app/'build')
+    print(json.dumps({'individual_service_modules_built':len(manifest()),'hardware_accessed':False}))
 if __name__=='__main__':main()

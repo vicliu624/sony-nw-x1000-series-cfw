@@ -1764,3 +1764,26 @@ main:focus {
     font-size: 12px;
   }
 }
+
+.sdk-profile-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px;
+  margin: 25px 0 40px;
+}
+.sdk-profile-grid > div {
+  padding: 25px !important;
+}
+.sdk-profile-grid h3 {
+  font-size: 19px;
+  margin-bottom: 15px;
+}
+.sdk-profile-grid p {
+  font-size: 13px;
+  margin-bottom: 18px;
+}
+@media (max-width: 720px) {
+  .sdk-profile-grid {
+    grid-template-columns: 1fr;
+  }
+}
