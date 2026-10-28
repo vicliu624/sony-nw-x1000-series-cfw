@@ -1,5 +1,5 @@
 #include "qqmusic_preview_device.h"
-#include "../fm-radio/fm_audio.h"
+#include "../../../sdk/include/x1000/services/audio_route.h"
 #include <string.h>
 #include <errno.h>
 #define PCM_RESET 0x5000u

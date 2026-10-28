@@ -1,12 +1,12 @@
 #define _XOPEN_SOURCE 700
 #include "qqmusic_preview_receipt.h"
-#include "../../native/sha256.h"
+#include "../../../sdk/include/x1000/services/sha256.h"
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <errno.h>
 #include <string.h>
-#include "../../store/target_abi.h"
+#include "../../../sdk/include/x1000/services/abi.h"
 extern int receipt_open(const char *,int,...) __asm__("open");
 extern int receipt_fcntl(int,int,...) __asm__("fcntl");
 extern int receipt_snprintf(char *,size_t,const char *,...) __asm__("snprintf");

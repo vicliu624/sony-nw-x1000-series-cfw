@@ -2,7 +2,7 @@
 #define HB_QQMUSIC_JOB_H
 #include "qqmusic_worker.h"
 #include "qqmusic_network.h"
-#include "qqmusic_volume.h"
+#include "../../../sdk/include/x1000/services/volume.h"
 #include "qqmusic_job_record.h"
 /* Deliberately excludes URL, ekey, cookies and account credentials. Checkpoint
  * adapter must durably store/recover these bounded paths/identities on the

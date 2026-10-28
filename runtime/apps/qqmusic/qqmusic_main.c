@@ -1,5 +1,5 @@
 #include "qqmusic_program.h"
-#include "../../native/linux_signals.h"
+#include "../../../sdk/include/x1000/services/stop.h"
 #include "qqmusic_profile.h" /* generated from explicit local build profile */
 #ifdef QQ_NATIVE_FULL
 #include "qqmusic_import_binding.h"

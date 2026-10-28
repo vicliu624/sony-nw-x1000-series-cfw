@@ -1,6 +1,6 @@
 #define _XOPEN_SOURCE 700
 #include "qqmusic_asset.h"
-#include "../../native/sha256.h"
+#include "../../../sdk/include/x1000/services/sha256.h"
 #include <sys/stat.h>
 #include <sys/mman.h>
 #include <fcntl.h>
@@ -8,7 +8,7 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
-#include "../../store/target_abi.h"
+#include "../../../sdk/include/x1000/services/abi.h"
 extern int sony_snprintf(char *,size_t,const char *,...) __asm__("snprintf");
 extern ssize_t sony_read(int,void *,size_t) __asm__("read");
 extern int sony_fcntl(int,int,...) __asm__("fcntl");

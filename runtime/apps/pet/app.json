@@ -16,5 +16,16 @@
     "script": "build.py",
     "package": "work/pet-build/HOMEBREW/apps/pet",
     "output_suffix": "HOMEBREW/apps/pet"
+  },
+  "sdk": {
+    "version": "0.2.0-alpha.1",
+    "profile": "native-services",
+    "modules": [
+      "startup",
+      "display",
+      "signals-libc",
+      "abi",
+      "font5x7"
+    ]
   }
 }

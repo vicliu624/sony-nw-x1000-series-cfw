@@ -33,5 +33,17 @@
       "source": "third_party/dictionary-data/UNIFONT-OFL-1.1.txt",
       "destination": "LICENSES/UNIFONT-OFL-1.1.txt"
     }
-  ]
+  ],
+  "sdk": {
+    "version": "0.2.0-alpha.1",
+    "profile": "native-services",
+    "modules": [
+      "startup",
+      "display",
+      "signals-libc",
+      "abi",
+      "unicode-font",
+      "font5x7"
+    ]
+  }
 }

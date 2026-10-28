@@ -3,9 +3,9 @@
 #include "../qqmusic/qqmusic_workspace.h"
 #include "../qqmusic/qqmusic_wifi.h"
 #include "../qqmusic/qqmusic_asset.h"
-#include "../../native/linux_devices.h"
-#include "../../native/linux_signals.h"
-#include "../../native/frontend.h"
+#include "../../../sdk/include/x1000/services/display.h"
+#include "../../../sdk/include/x1000/services/stop.h"
+#include "../../../sdk/include/x1000/services/touch.h"
 #include <errno.h>
 #include <fcntl.h>
 #include <poll.h>
@@ -17,7 +17,7 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
-#include "../../store/target_abi.h"
+#include "../../../sdk/include/x1000/services/abi.h"
 extern int sony_snprintf(char *,size_t,const char *,...) __asm__("snprintf");
 extern int sony_sscanf(const char *,const char *,...) __asm__("sscanf");
 extern ssize_t sony_read(int,void *,size_t) __asm__("read");
@@ -26,7 +26,7 @@ static volatile int stopped;
 static unsigned short surface[HB_DISPLAY_PIXELS];
 static char rows[19][39];static unsigned row;
 static char mount_snapshot[65537];
-#include "../../native/font.inc"
+#include "../../../sdk/include/x1000/services/font5x7.h"
 static void line(const char *text){if(row<19){size_t n=strlen(text);if(n>38)n=38;memcpy(rows[row],text,n);rows[row++][n]=0;}}
 static void result(const char *name,int rc,int error){char text[80];sony_snprintf(text,sizeof(text),"%s RC %d ERRNO %d",name,rc,rc<0?error:0);line(text);}
 static int main_help(const char *path,char **environment,char output[513]){

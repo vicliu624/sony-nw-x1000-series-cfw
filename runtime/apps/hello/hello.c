@@ -1,4 +1,5 @@
 /* Read-only ABI demonstration app. No device nodes, files, networking or state. */
+#include "../../../sdk/include/x1000/services/runtime.h"
 #include <unistd.h>
 #include <string.h>
 #ifndef HB_BUILD_VERSION

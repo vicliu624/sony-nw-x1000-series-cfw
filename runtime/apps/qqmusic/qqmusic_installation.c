@@ -1,13 +1,13 @@
 #define _GNU_SOURCE
 #include "qqmusic_installation.h"
-#include "../../store/tls_platform.h"
+#include "../../../sdk/include/x1000/services/tls_platform.h"
 #include <sys/stat.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
-#include "../../store/target_abi.h"
+#include "../../../sdk/include/x1000/services/abi.h"
 extern int installation_snprintf(char *,size_t,const char *,...) __asm__("snprintf");
 static int replace(char *out,size_t cap,const char *in,const char *id){
  const char *marker="INSTALLATION_ID";size_t used=0;

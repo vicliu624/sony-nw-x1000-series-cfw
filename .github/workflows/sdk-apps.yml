@@ -1,0 +1,49 @@
+name: SDK application behavior preservation
+
+on:
+  push:
+    branches: [main]
+    paths: ['sdk/**', 'runtime/apps/**', 'runtime/native/**', 'runtime/store/**', 'runtime/platform/**', 'tools/*sdk*.py', 'tools/native_app_build.py', 'tools/build_qqmusic_codec.py', 'tools/build_app.py', '.github/workflows/sdk-apps.yml']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+concurrency:
+  group: sdk-apps-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  equivalence:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      QEMU_UNSET_ENV: LD_LIBRARY_PATH,LD_PRELOAD
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: '3.12.3'
+      - name: Install the original application build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y gcc gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi libc6-dev-armel-cross qemu-user p7zip-full make libssl-dev openssl pkg-config libsdl2-dev
+          python -m pip install -r requirements-ci.txt
+      - name: Prepare isolated offline application work volume
+        run: |
+          mkdir -p work
+          sudo mount -t tmpfs -o size=3G,nodev,nosuid,mode=0755 tmpfs "$GITHUB_WORKSPACE/work"
+          sudo chown "$(id -u):$(id -g)" "$GITHUB_WORKSPACE/work"
+          python tools/ci_bootstrap.py
+      - name: Check SDK adoption and unchanged application logic
+        run: python tools/audit_sdk_adoption.py --check-logic
+      - name: Compare complete pre-SDK and SDK application payloads
+        run: python tools/test_sdk_app_equivalence.py
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: sdk-app-equivalence
+          path: work/sdk-migration/equivalence.json
+          if-no-files-found: error

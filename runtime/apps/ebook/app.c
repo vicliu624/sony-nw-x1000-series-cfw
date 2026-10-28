@@ -1,5 +1,5 @@
 #include "../emulators/platform.h"
-#include "../../native/frontend.h"
+#include "../../../sdk/include/x1000/services/touch.h"
 #include "ui.h"
 #include <errno.h>
 #include <stdio.h>

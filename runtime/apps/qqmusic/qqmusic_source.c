@@ -5,7 +5,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <string.h>
-#include "../../store/target_abi.h"
+#include "../../../sdk/include/x1000/services/abi.h"
 extern long sony_lseek(int,long,int) __asm__("lseek");
 extern ssize_t sony_read(int,void *,size_t) __asm__("read");
 extern int sony_fcntl(int,int,...) __asm__("fcntl");

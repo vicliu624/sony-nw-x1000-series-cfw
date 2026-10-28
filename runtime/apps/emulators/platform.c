@@ -1,7 +1,7 @@
 #include "platform.h"
-#include "../../native/font.inc"
-#include "../../native/frontend.h"
-#include "../../native/linux_signals.h"
+#include "../../../sdk/include/x1000/services/font5x7.h"
+#include "../../../sdk/include/x1000/services/touch.h"
+#include "../../../sdk/include/x1000/services/stop.h"
 #include <errno.h>
 #include <fcntl.h>
 #include <poll.h>

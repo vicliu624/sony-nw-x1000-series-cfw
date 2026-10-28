@@ -1,4 +1,4 @@
-#include "../../store/platform_native.h"
+#include "../../../sdk/include/x1000/services/package_platform.h"
 #include "network_app.h"
 #include <string.h>
 #include <unistd.h>

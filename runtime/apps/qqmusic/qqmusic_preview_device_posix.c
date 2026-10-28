@@ -1,14 +1,14 @@
 #define _XOPEN_SOURCE 700
 #include "qqmusic_preview_device_posix.h"
-#include "../fm-radio/fm_audio.h"
-#include "../../store/stock_stat64.h"
+#include "../../../sdk/include/x1000/services/audio_route.h"
+#include "../../../sdk/include/x1000/services/stat_layout.h"
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/ioctl.h>
 #include <errno.h>
 #include <string.h>
-#include "../../store/target_abi.h"
+#include "../../../sdk/include/x1000/services/abi.h"
 extern int preview_open(const char *,int,...) __asm__("open");
 extern int preview_ioctl(int,unsigned long,void *) __asm__("ioctl");
 extern int preview_fcntl(int,int,...) __asm__("fcntl");

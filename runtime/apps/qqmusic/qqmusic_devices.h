@@ -1,7 +1,7 @@
 #ifndef HB_QQMUSIC_DEVICES_H
 #define HB_QQMUSIC_DEVICES_H
 #include "qqmusic_loop.h"
-#include "../../native/linux_devices.h"
+#include "../../../sdk/include/x1000/services/display.h"
 struct qq_devices {
  struct hb_devices devices;unsigned short *surface;volatile int *stop;
  int opened,pressed,cancelled,x,y,close_error;

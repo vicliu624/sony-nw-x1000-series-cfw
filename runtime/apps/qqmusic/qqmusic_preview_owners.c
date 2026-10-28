@@ -7,7 +7,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <string.h>
-#include "../../store/target_abi.h"
+#include "../../../sdk/include/x1000/services/abi.h"
 extern int owners_snprintf(char *,size_t,const char *,...) __asm__("snprintf");
 extern ssize_t owners_read(int,void *,size_t) __asm__("read");
 static int numeric(const char *s,unsigned *out){

@@ -1,7 +1,7 @@
 #include "qqmusic_network.h"
 #include <string.h>
 #include <unistd.h>
-#include "../../store/https_url.h"
+#include "../../../sdk/include/x1000/services/url.h"
 static void media_abort(void *context){struct qq_network *n=context;if(n->media_sink_active){n->media_sink_active=0;n->media_sink.abort(n->media_sink.opaque);}}
 static int media_write(void *context,const unsigned char *p,size_t bytes){struct qq_network *n=context;return n->media_sink_active?n->media_sink.write(n->media_sink.opaque,p,bytes):-1;}
 static int media_finish(void *context,uint64_t bytes,const unsigned char digest[32]){struct qq_network *n=context;int rc;if(!n->media_sink_active)return -1;rc=n->media_sink.finish(n->media_sink.opaque,bytes,digest);if(!rc)n->media_sink_active=0;return rc;}

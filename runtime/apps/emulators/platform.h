@@ -1,6 +1,6 @@
 #ifndef HB_EMULATOR_PLATFORM_H
 #define HB_EMULATOR_PLATFORM_H
-#include "../../native/linux_devices.h"
+#include "../../../sdk/include/x1000/services/display.h"
 #include <stdint.h>
 enum {
   EP_RIGHT = 1,

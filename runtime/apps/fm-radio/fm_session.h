@@ -1,7 +1,7 @@
 #ifndef HB_FM_SESSION_H
 #define HB_FM_SESSION_H
-#include "fm_audio.h"
-#include "fm_si470x.h"
+#include "../../../sdk/include/x1000/services/audio_route.h"
+#include "../../../sdk/include/x1000/services/fm_tuner.h"
 /* These callbacks acquire only resources released by Sony's lifecycle. The
  * native platform handoff implementation is not yet qualified or supplied.
  * An open callback failing must release any partially acquired handle itself.

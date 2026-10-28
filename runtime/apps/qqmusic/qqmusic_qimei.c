@@ -1,6 +1,6 @@
 #include "qqmusic_qimei.h"
 #include "qqmusic_json.h"
-#include "../../store/tls_platform.h"
+#include "../../../sdk/include/x1000/services/tls_platform.h"
 #include <bearssl.h>
 #include <stdlib.h>
 #include <string.h>

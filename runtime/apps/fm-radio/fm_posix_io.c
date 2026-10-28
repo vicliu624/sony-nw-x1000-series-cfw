@@ -1,5 +1,5 @@
 /* Only this translation unit calls libc device operations. Tests replace it. */
-#include "fm_posix.h"
+#include "../../../sdk/include/x1000/services/fm_native.h"
 #include <fcntl.h>
 #include <unistd.h>
 /* Only fixed non-time ARM32 requests below are allowed. Match the stock

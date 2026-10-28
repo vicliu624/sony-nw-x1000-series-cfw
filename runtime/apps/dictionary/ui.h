@@ -1,6 +1,6 @@
 #ifndef X1000_DICTIONARY_UI_H
 #define X1000_DICTIONARY_UI_H
-#include "dictionary.h"
+#include "../../../sdk/include/x1000/services/unicode_font.h"
 struct dx_line {
   unsigned first, last;
 };

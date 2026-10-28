@@ -35,6 +35,10 @@ def fresh_work(path):
 def compile_app(definition, output, host=False):
     definition=Path(definition).resolve()
     recipe=json.loads((definition/'build.json').read_text())
+    if recipe.get('profile')=='native-services':
+        if host:raise ValueError('Custom-main services retain their own renderer; use their existing fixture runner')
+        from sdk_services import compile_native
+        return compile_native(definition,output)
     sdk_version=(ROOT/'sdk/VERSION').read_text().strip()
     if recipe.get('sdk')!=sdk_version: raise ValueError('SDK version mismatch; review and pin sdk/VERSION')
     modules=recipe.get('modules')

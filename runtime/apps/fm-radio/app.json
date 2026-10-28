@@ -15,5 +15,17 @@
   "build": {
     "script": "build.py",
     "package": "work/fm-radio-review/package/HOMEBREW/apps/fm-radio"
+  },
+  "sdk": {
+    "version": "0.2.0-alpha.1",
+    "profile": "native-services",
+    "modules": [
+      "startup",
+      "display",
+      "signals-libc",
+      "abi",
+      "font5x7",
+      "fm"
+    ]
   }
 }

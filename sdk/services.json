@@ -1,0 +1,324 @@
+{
+  "schema": 1,
+  "target": "sony-nw-x1000-jp",
+  "modules": {
+    "startup": {
+      "sources": [
+        "runtime/store/start.c",
+        "runtime/store/start.S"
+      ]
+    },
+    "display": {
+      "sources": [
+        "runtime/native/frontend.c",
+        "runtime/native/linux_devices.c",
+        "runtime/native/linux_device_io_posix.c"
+      ],
+      "flags": [
+        "-DHB_USE_POSIX_DEVICE_IO"
+      ],
+      "exports": {
+        "display.h": "runtime/native/linux_devices.h",
+        "touch.h": "runtime/native/frontend.h",
+        "device_io.h": "runtime/native/linux_device_io.h"
+      }
+    },
+    "signals-libc": {
+      "sources": [
+        "runtime/native/linux_signals_posix.c"
+      ],
+      "exports": {
+        "stop.h": "runtime/native/linux_signals.h"
+      }
+    },
+    "signals-oabi": {
+      "sources": [
+        "runtime/native/linux_signals.c"
+      ],
+      "requires": [
+        "syscalls"
+      ],
+      "exports": {}
+    },
+    "syscalls": {
+      "sources": [
+        "runtime/native/syscalls.S"
+      ]
+    },
+    "termination": {
+      "sources": [
+        "runtime/store/termination.c"
+      ],
+      "exports": {
+        "termination.h": "runtime/store/termination.h"
+      }
+    },
+    "files": {
+      "sources": [
+        "runtime/native/linux_file_ops_posix.c"
+      ],
+      "flags": [
+        "-DHB_USE_POSIX_FILES",
+        "-D_FILE_OFFSET_BITS=64"
+      ],
+      "requires": [
+        "abi"
+      ],
+      "exports": {
+        "files.h": "runtime/native/linux_files.h"
+      }
+    },
+    "abi": {
+      "sources": [
+        "runtime/store/stock_fs_bridge.c",
+        "runtime/store/stock_stat64.c",
+        "runtime/store/stock_tls_compat.c"
+      ],
+      "flags": [
+        "-DHB_STORE_SONY_LIBC"
+      ],
+      "exports": {
+        "stat.h": "runtime/store/stock_fs_bridge.h",
+        "stat_layout.h": "runtime/store/stock_stat64.h",
+        "abi.h": "runtime/store/target_abi.h"
+      }
+    },
+    "hash": {
+      "sources": [
+        "runtime/native/sha256.c"
+      ],
+      "exports": {
+        "sha256.h": "runtime/native/sha256.h"
+      }
+    },
+    "process": {
+      "sources": [
+        "runtime/native/linux_process_posix.c",
+        "runtime/native/app_process.c"
+      ],
+      "exports": {
+        "process.h": "runtime/native/linux_process.h",
+        "child.h": "runtime/native/app_process.h"
+      }
+    },
+    "clock-oabi": {
+      "sources": [
+        "runtime/store/deadline.c"
+      ],
+      "requires": [
+        "syscalls"
+      ],
+      "exports": {
+        "clock.h": "runtime/store/deadline.h"
+      }
+    },
+    "clock-libc": {
+      "sources": [
+        "runtime/store/deadline.c"
+      ],
+      "flags": [
+        "-DHB_STORE_LIBC_CLOCK"
+      ],
+      "libraries": [
+        "work/stock-resolver-probe/librt.so.1"
+      ],
+      "exports": {}
+    },
+    "font5x7": {
+      "sources": [],
+      "exports": {
+        "font5x7.h": "runtime/native/font.inc"
+      }
+    },
+    "list-ui": {
+      "sources": [],
+      "exports": {
+        "list_ui.h": "runtime/native/app_list_art.h",
+        "noto_ascii.h": "runtime/native/ui_font.h",
+        "presentation.h": "runtime/native/app_presentation.h"
+      }
+    },
+    "volume": {
+      "sources": [
+        "runtime/apps/qqmusic/qqmusic_storage.c",
+        "runtime/apps/qqmusic/qqmusic_volume.c"
+      ],
+      "requires": [
+        "abi"
+      ],
+      "exports": {
+        "volume.h": "runtime/apps/qqmusic/qqmusic_volume.h",
+        "volume_policy.h": "runtime/apps/qqmusic/qqmusic_storage.h"
+      }
+    },
+    "unicode-font": {
+      "sources": [
+        "runtime/apps/dictionary/dictionary.c"
+      ],
+      "requires": [
+        "abi"
+      ],
+      "exports": {
+        "unicode_font.h": "runtime/apps/dictionary/dictionary.h"
+      },
+      "inputs": [
+        "third_party/ebook-data/UNIFONT-LICENSE.txt",
+        "third_party/ebook-data/UNIFONT-OFL-1.1.txt"
+      ]
+    },
+    "images": {
+      "sources": [
+        "runtime/apps/qqmusic/qqmusic_image.c",
+        "runtime/apps/qqmusic/qqmusic_picture.c"
+      ],
+      "requires": [
+        "abi"
+      ],
+      "flags": [
+        "-isystem",
+        "third_party/qqmusic-stb"
+      ],
+      "libraries": [
+        "work/stock-resolver-probe/libm.so.6"
+      ],
+      "exports": {
+        "images.h": "runtime/apps/qqmusic/qqmusic_image.h"
+      },
+      "inputs": [
+        "third_party/qqmusic-stb/stb_image.h",
+        "third_party/qqmusic-stb/stb_image_write.h",
+        "third_party/qqmusic-stb/LICENSE",
+        "sources/qqmusic-image-sources.json"
+      ]
+    },
+    "audio-route": {
+      "sources": [
+        "runtime/apps/fm-radio/fm_audio.c"
+      ],
+      "exports": {
+        "audio_route.h": "runtime/apps/fm-radio/fm_audio.h"
+      }
+    },
+    "pcm": {
+      "sources": [
+        "runtime/platform/pcm_output.c",
+        "runtime/platform/pcm_posix.c"
+      ],
+      "requires": [
+        "audio-route"
+      ],
+      "exports": {
+        "pcm.h": "runtime/platform/pcm_output.h"
+      }
+    },
+    "fm": {
+      "sources": [
+        "runtime/apps/fm-radio/fm_radio.c",
+        "runtime/apps/fm-radio/fm_si470x.c",
+        "runtime/apps/fm-radio/fm_session.c",
+        "runtime/apps/fm-radio/fm_posix.c",
+        "runtime/apps/fm-radio/fm_posix_io.c"
+      ],
+      "requires": [
+        "audio-route"
+      ],
+      "exports": {
+        "fm_tuner.h": "runtime/apps/fm-radio/fm_si470x.h",
+        "fm_session.h": "runtime/apps/fm-radio/fm_session.h",
+        "fm_native.h": "runtime/apps/fm-radio/fm_posix.h"
+      }
+    },
+    "system-info": {
+      "sources": [
+        "runtime/apps/device-info/device_info_data.c",
+        "runtime/apps/device-info/device_info_space.c"
+      ],
+      "exports": {
+        "system_info.h": "runtime/apps/device-info/device_info_data.h"
+      }
+    },
+    "network": {
+      "sources": [
+        "runtime/store/https_url.c",
+        "runtime/store/resolver.c",
+        "runtime/store/connect_step.c",
+        "runtime/store/socket_step.c",
+        "runtime/store/tls_socket_step.c",
+        "runtime/store/tls_platform.c",
+        "runtime/store/download_file.c",
+        "runtime/store/download_stream.c",
+        "runtime/store/http_response.c",
+        "runtime/store/https_fetch.c"
+      ],
+      "requires": [
+        "abi",
+        "hash",
+        "clock-libc"
+      ],
+      "flags": [
+        "-Iwork/external-tls-probe/bearssl-0.6/inc",
+        "-Iwork/stock-resolver-probe"
+      ],
+      "libraries": [
+        "work/external-tls-probe/arm-build/libbearssl.a",
+        "work/stock-resolver-probe/libcares.so.2"
+      ],
+      "exports": {
+        "dns.h": "runtime/store/resolver.h",
+        "connect.h": "runtime/store/connect_step.h",
+        "socket.h": "runtime/store/socket_step.h",
+        "tls_stream.h": "runtime/store/tls_socket_step.h",
+        "tls_platform.h": "runtime/store/tls_platform.h",
+        "url.h": "runtime/store/https_url.h",
+        "https.h": "runtime/store/https_fetch.h",
+        "http_response.h": "runtime/store/http_response.h",
+        "download_file.h": "runtime/store/download_file.h",
+        "download_stream.h": "runtime/store/download_stream.h"
+      }
+    },
+    "packages": {
+      "sources": [
+        "runtime/store/repository.c",
+        "runtime/store/remote_store.c",
+        "runtime/store/metadata_cache.c",
+        "runtime/store/metadata_fetch.c",
+        "runtime/store/remote_catalog.c",
+        "runtime/store/remote_list.c",
+        "runtime/store/download_intent.c",
+        "runtime/store/download_record.c",
+        "runtime/store/payload_cache_cleanup.c",
+        "runtime/store/partial_cleanup.c",
+        "runtime/store/download_recovery.c",
+        "runtime/store/package_job.c",
+        "runtime/store/package_resume.c",
+        "runtime/store/package_assemble.c",
+        "runtime/store/download_task.c",
+        "runtime/store/download_plan.c",
+        "runtime/store/install_posix.c",
+        "runtime/store/transaction.c",
+        "runtime/store/stage_posix.c",
+        "runtime/store/cleanup_posix.c",
+        "runtime/store/pending_plan.c",
+        "runtime/store/cleanup_plan.c",
+        "runtime/store/bundle_posix.c",
+        "runtime/store/inventory.c",
+        "runtime/store/package.c",
+        "runtime/store/canvas.c",
+        "runtime/store/job_ui.c",
+        "runtime/store/platform_native.c"
+      ],
+      "requires": [
+        "network",
+        "display",
+        "termination"
+      ],
+      "exports": {
+        "package_app.h": "runtime/store/app.h",
+        "package_canvas.h": "runtime/store/canvas.h",
+        "package_platform.h": "runtime/store/platform_native.h",
+        "market.h": "runtime/store/remote_store.h",
+        "repository.h": "runtime/store/repository.h"
+      }
+    }
+  }
+}

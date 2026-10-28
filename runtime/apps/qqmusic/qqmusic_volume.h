@@ -1,6 +1,6 @@
 #ifndef HB_QQMUSIC_VOLUME_H
 #define HB_QQMUSIC_VOLUME_H
-#include "qqmusic_storage.h"
+#include "../../../sdk/include/x1000/services/volume_policy.h"
 struct qq_volume {
  int directory;uint64_t device,inode,system_device,required;
  char path[2049],source[513];

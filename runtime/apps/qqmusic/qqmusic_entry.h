@@ -1,7 +1,7 @@
 #ifndef HB_QQMUSIC_ENTRY_H
 #define HB_QQMUSIC_ENTRY_H
 #include "qqmusic_devices.h"
-#include "qqmusic_volume.h"
+#include "../../../sdk/include/x1000/services/volume.h"
 struct qq_entry_config {
  const struct qq_storage_policy *volume;
  const char *resource_directory;

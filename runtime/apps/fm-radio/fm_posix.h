@@ -1,6 +1,6 @@
 #ifndef HB_FM_POSIX_H
 #define HB_FM_POSIX_H
-#include "fm_session.h"
+#include "../../../sdk/include/x1000/services/fm_session.h"
 struct fm_posix {int mixer,tuner;volatile int *stop;};
 /* Build-only native adapter. Its caller must already have Sony's resources;
  * these device opens do not establish exclusive audio or lifecycle ownership. */

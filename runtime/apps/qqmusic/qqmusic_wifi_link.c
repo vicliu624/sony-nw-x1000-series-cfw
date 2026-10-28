@@ -10,7 +10,7 @@
 #include <net/if.h>
 #include <netinet/in.h>
 #include <unistd.h>
-#include "../../store/target_abi.h"
+#include "../../../sdk/include/x1000/services/abi.h"
 extern int sony_sscanf(const char *,const char *,...) __asm__("sscanf");
 extern int sony_ioctl(int,unsigned long,...) __asm__("ioctl");
 #ifdef __arm__

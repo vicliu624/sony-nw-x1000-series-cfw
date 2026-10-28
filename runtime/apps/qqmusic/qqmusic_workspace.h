@@ -1,6 +1,6 @@
 #ifndef QQMUSIC_WORKSPACE_H
 #define QQMUSIC_WORKSPACE_H
-#include "qqmusic_volume.h"
+#include "../../../sdk/include/x1000/services/volume.h"
 /* One app instance owns this workspace. USB must be disconnected during native
  * use; this is not a USB driver lock or a guarantee against external raw IO. */
 struct qq_workspace {struct qq_volume volume;int lock;uint64_t inode;volatile int *stop;};

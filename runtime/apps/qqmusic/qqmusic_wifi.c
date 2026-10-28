@@ -2,7 +2,7 @@
 #define _DEFAULT_SOURCE
 #endif
 #include "qqmusic_wifi.h"
-#include "../../store/deadline.h"
+#include "../../../sdk/include/x1000/services/clock.h"
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <fcntl.h>

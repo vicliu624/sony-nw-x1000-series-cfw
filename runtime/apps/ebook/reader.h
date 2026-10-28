@@ -1,6 +1,6 @@
 #ifndef X1000_EBOOK_READER_H
 #define X1000_EBOOK_READER_H
-#include "../dictionary/dictionary.h"
+#include "../../../sdk/include/x1000/services/unicode_font.h"
 #include <stdint.h>
 #include <stdio.h>
 enum { ER_AUTO, ER_UTF8, ER_GB18030, ER_UTF16LE, ER_UTF16BE };

@@ -1,6 +1,6 @@
 #include "qqmusic_identity.h"
 #include "qqmusic_cgi.h"
-#include "../../store/tls_platform.h"
+#include "../../../sdk/include/x1000/services/tls_platform.h"
 #include <stdlib.h>
 #include <string.h>
 static const char *keys[]={"ct","cv","tmeLoginType","QIMEI36","OpenUDID","udid","aid","phonetype","os_ver","chid","tmeAppID"};

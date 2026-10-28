@@ -9,7 +9,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/stat.h>
-#include "../../store/target_abi.h"
+#include "../../../sdk/include/x1000/services/abi.h"
 struct context{int root;unsigned long long device;volatile int*stop;};
 static int directory(int fd,unsigned long long device){struct stat s;return !fstat(fd,&s)&&S_ISDIR(s.st_mode)&&s.st_dev==device;}
 static int open_file(void*opaque,const char*path){struct context*c=opaque;if(*c->stop)return -1;size_t prefix=strlen(HB_LP_ROOT);if(strncmp(path,HB_LP_ROOT,prefix))return -1;const char*tail=path+prefix;char id[33];unsigned n=0;while(tail[n]&&tail[n]!='/'&&n<32){id[n]=tail[n];n++;}id[n]=0;if(tail[n]!='/'||!hb_lp_id(id))return -1;tail+=n+1;if(strcmp(tail,"language.ini")&&strcmp(tail,"wording.stx"))return -1;char parent[128],file[128];snprintf(parent,sizeof parent,"/proc/self/fd/%d/%s",c->root,id);int dir=open(parent,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);if(dir<0)return -1;if(!directory(dir,c->device)){close(dir);return -1;}snprintf(file,sizeof file,"/proc/self/fd/%d/%s",dir,tail);int fd=open(file,O_RDONLY|O_NOFOLLOW|O_NONBLOCK);close(dir);struct stat st;if(fd>=0&&(fstat(fd,&st)||!S_ISREG(st.st_mode)||st.st_nlink!=1||st.st_dev!=c->device)){close(fd);fd=-1;}return fd;}

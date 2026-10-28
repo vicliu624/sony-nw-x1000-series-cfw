@@ -15,5 +15,15 @@
   "build": {
     "script": "build.py",
     "package": "work/graphics-demo-review/apps/graphics-demo"
+  },
+  "sdk": {
+    "version": "0.2.0-alpha.1",
+    "profile": "native-services",
+    "modules": [
+      "startup",
+      "display",
+      "signals-libc",
+      "font5x7"
+    ]
   }
 }

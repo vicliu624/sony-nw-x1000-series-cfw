@@ -1,5 +1,5 @@
 #include "dictionary.h"
-#include "../../store/stock_fs_bridge.h"
+#include "../../../sdk/include/x1000/services/stat.h"
 #include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>

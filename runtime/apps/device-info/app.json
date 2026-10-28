@@ -15,5 +15,16 @@
   "build": {
     "script": "build.py",
     "package": "work/device-info-build/HOMEBREW/apps/device-info"
+  },
+  "sdk": {
+    "version": "0.2.0-alpha.1",
+    "profile": "native-services",
+    "modules": [
+      "startup",
+      "display",
+      "signals-libc",
+      "font5x7",
+      "system-info"
+    ]
   }
 }

@@ -1,5 +1,5 @@
 #include "qqmusic_tls.h"
-#include "../../store/https_url.h"
+#include "../../../sdk/include/x1000/services/url.h"
 #include <string.h>
 void qq_tls_cancel(struct qq_tls_transaction *t) {
  if(!t) return;

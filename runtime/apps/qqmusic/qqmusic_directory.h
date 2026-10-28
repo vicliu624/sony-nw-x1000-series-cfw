@@ -1,6 +1,6 @@
 #ifndef HB_QQMUSIC_DIRECTORY_H
 #define HB_QQMUSIC_DIRECTORY_H
-#include "qqmusic_volume.h"
+#include "../../../sdk/include/x1000/services/volume.h"
 #include "qqmusic_export.h"
 struct qq_export_directory {struct qq_volume volume;char filename[256];};
 void qq_export_directory_init(struct qq_export_directory *);

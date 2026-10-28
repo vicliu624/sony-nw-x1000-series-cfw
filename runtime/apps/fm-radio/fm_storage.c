@@ -8,7 +8,7 @@
 #include <sys/statvfs.h>
 #include <stdio.h>
 #include <string.h>
-#include "../../store/target_abi.h"
+#include "../../../sdk/include/x1000/services/abi.h"
 extern int fm_storage_fcntl(int,int,...) __asm__("fcntl");
 void fm_storage_init(struct fm_storage *s){memset(s,0,sizeof(*s));s->directory=s->slot=-1;}
 static int path(struct fm_storage *s,const char *name,char out[96]){int n=snprintf(out,96,"/proc/self/fd/%d/%s",s->directory,name);return n>0&&n<96?0:-1;}

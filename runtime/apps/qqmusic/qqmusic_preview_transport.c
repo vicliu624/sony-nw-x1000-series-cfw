@@ -1,14 +1,14 @@
 #define _XOPEN_SOURCE 700
 #include "qqmusic_preview_transport.h"
 #include "qqmusic_preview_wire.h"
-#include "../../native/linux_process.h"
-#include "../../store/deadline.h"
+#include "../../../sdk/include/x1000/services/process.h"
+#include "../../../sdk/include/x1000/services/clock.h"
 #include <sys/stat.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <errno.h>
 #include <string.h>
-#include "../../store/target_abi.h"
+#include "../../../sdk/include/x1000/services/abi.h"
 extern int transport_fcntl(int,int,...) __asm__("fcntl");
 extern ssize_t transport_write(int,const void *,size_t) __asm__("write");
 static int stopped(struct qq_preview_transport *t){return !t||!t->stop||*t->stop||(unsigned)getppid()!=t->parent;}

@@ -3,9 +3,9 @@
 #include "qqmusic_preview_wire.h"
 #include "qqmusic_preview_session.h"
 #include "qqmusic_preview_owners.h"
-#include "../../native/linux_process.h"
-#include "../../native/linux_signals.h"
-#include "../../store/deadline.h"
+#include "../../../sdk/include/x1000/services/process.h"
+#include "../../../sdk/include/x1000/services/stop.h"
+#include "../../../sdk/include/x1000/services/clock.h"
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -13,7 +13,7 @@
 #include <signal.h>
 #include <errno.h>
 #include <string.h>
-#include "../../store/target_abi.h"
+#include "../../../sdk/include/x1000/services/abi.h"
 extern int client_fcntl(int,int,...) __asm__("fcntl");
 extern ssize_t client_read(int,void *,size_t) __asm__("read");
 extern ssize_t client_write(int,const void *,size_t) __asm__("write");

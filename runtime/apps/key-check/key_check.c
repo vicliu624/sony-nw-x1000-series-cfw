@@ -5,10 +5,10 @@
 #include <unistd.h>
 #include <poll.h>
 #include <errno.h>
-#include "../../native/frontend.h"
-#include "../../native/linux_devices.h"
-#include "../../native/linux_signals.h"
-#include "../../native/font.inc"
+#include "../../../sdk/include/x1000/services/touch.h"
+#include "../../../sdk/include/x1000/services/display.h"
+#include "../../../sdk/include/x1000/services/stop.h"
+#include "../../../sdk/include/x1000/services/font5x7.h"
 /* FD_CLOEXEC carries an integer, not a time structure. Bind stock libc's
    existing entry instead of a modern header's fcntl_time64 redirection. */
 extern int key_stock_fcntl(int, int, ...) __asm__("fcntl");

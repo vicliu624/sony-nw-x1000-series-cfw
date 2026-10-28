@@ -1,7 +1,7 @@
 #ifndef HB_QQMUSIC_JOURNAL_H
 #define HB_QQMUSIC_JOURNAL_H
 #include "qqmusic_job_record.h"
-#include "qqmusic_volume.h"
+#include "../../../sdk/include/x1000/services/volume.h"
 #define QQ_JOURNAL_MAX_BYTES 131072u
 struct qq_journal {
  int fd,parent,failed;struct qq_volume *volume;struct qq_storage_plan plan;

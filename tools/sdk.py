@@ -80,10 +80,13 @@ def bundle(ident,package,output):
 
 def main():
     p=argparse.ArgumentParser(description=__doc__);sub=p.add_subparsers(dest='command',required=True)
-    sub.add_parser('doctor');setup=sub.add_parser('setup');setup.add_argument('--stock-exe',type=Path)
+    sub.add_parser('doctor');setup=sub.add_parser('setup');setup.add_argument('--stock-exe',type=Path);setup.add_argument('--services',action='store_true',help='Also prepare pinned network/audio service dependencies')
     new=sub.add_parser('new');new.add_argument('id');new.add_argument('--template',choices=['minimal','touch-ui','canvas-game'],default='touch-ui');new.add_argument('--title')
     for command in ('build','preview','render','package'):
         s=sub.add_parser(command);s.add_argument('id');s.add_argument('--output',type=Path)
+        if command=='build':
+            s.add_argument('--profile',type=Path);s.add_argument('--sprites',type=Path)
+            s.add_argument('--device-full',action='store_true');s.add_argument('--public-installation',action='store_true');s.add_argument('--audio-preview',action='store_true')
         if command in ('preview','render'):s.add_argument('--events',type=Path);s.add_argument('--data',action='store_true',help='Use isolated PC data under the preview output; never player storage')
         if command=='package':s.add_argument('--from-package',type=Path,required=True)
     args=p.parse_args()
@@ -91,7 +94,7 @@ def main():
     if args.command=='doctor':return doctor()
     if args.command=='setup':
         from sdk_bootstrap import setup
-        setup(args.stock_exe);return 0
+        setup(args.stock_exe,services=args.services);return 0
     if args.id not in applications():p.error('Unknown app; create it with new or use build_app.py --list')
     definition=ROOT/'runtime/apps'/args.id
     if args.command=='package':
@@ -101,6 +104,18 @@ def main():
         from build_app import package
         from verify_app_package import verify
         output=fresh_work(output)
+        info=applications()[args.id]
+        recipe=json.loads((definition/'build.json').read_text()) if (definition/'build.json').is_file() else {}
+        if info.get('sdk',{}).get('profile')=='native-services' and recipe.get('profile')!='native-services':
+            command=[sys.executable,'tools/build_app.py',args.id,'--output',str(output/'package')]
+            if 'output_suffix' in info['build']:command+=['--build-output',str(output/'builder')]
+            for key in ('profile','sprites'):
+                value=getattr(args,key)
+                if value:command+=['--'+key,str(value.resolve())]
+            for key in ('device_full','public_installation','audio_preview'):
+                if getattr(args,key):command+=['--'+key.replace('_','-')]
+            subprocess.run(command,cwd=ROOT,check=True)
+            print(str((output/'package').relative_to(ROOT)));return 0
         compile_app(definition,output/'build')
         finished=package(args.id,output/'build',output/'package')
         print(json.dumps(verify(finished),indent=2));print(str(finished.relative_to(ROOT)));return 0

@@ -1,5 +1,5 @@
 #include "storage.h"
-#include "../../store/stock_fs_bridge.h"
+#include "../../../sdk/include/x1000/services/stat.h"
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>

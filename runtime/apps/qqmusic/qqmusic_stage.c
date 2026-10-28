@@ -5,7 +5,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <string.h>
-#include "../../store/target_abi.h"
+#include "../../../sdk/include/x1000/services/abi.h"
 extern int sony_snprintf(char *,size_t,const char *,...) __asm__("snprintf");
 extern int sony_fcntl(int,int,...) __asm__("fcntl");
 void qq_stage_init(struct qq_stage_file *f) {memset(f,0,sizeof(*f));f->fd=f->parent=-1;f->state=QQ_STAGE_EMPTY;}

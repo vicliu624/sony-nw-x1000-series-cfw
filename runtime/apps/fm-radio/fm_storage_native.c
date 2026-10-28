@@ -7,7 +7,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/stat.h>
-#include "../../store/target_abi.h"
+#include "../../../sdk/include/x1000/services/abi.h"
 int fm_storage_mounts_ok(const char *data,unsigned bytes){
  unsigned position=0,root=0,user=0;
  if(!data||!bytes||bytes>65536||memchr(data,0,bytes))return 0;

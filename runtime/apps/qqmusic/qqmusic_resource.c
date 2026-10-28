@@ -1,6 +1,6 @@
 #include "qqmusic_resource.h"
 #include "qqmusic_cgi.h"
-#include "../../store/https_url.h"
+#include "../../../sdk/include/x1000/services/url.h"
 #include <string.h>
 extern int sony_snprintf(char *,size_t,const char *,...) __asm__("snprintf");
 static int token(const char *s,size_t max) {

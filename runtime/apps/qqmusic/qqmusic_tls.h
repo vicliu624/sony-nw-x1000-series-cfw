@@ -2,7 +2,7 @@
 #define HB_QQMUSIC_TLS_H
 #include "qqmusic_response.h"
 #include "qqmusic_resource.h"
-#include "../../store/tls_socket_step.h"
+#include "../../../sdk/include/x1000/services/tls_stream.h"
 enum qq_tls_phase {QQ_TLS_SENDING,QQ_TLS_RECEIVING,QQ_TLS_DONE,QQ_TLS_FAILED};
 struct qq_tls_transaction {
  struct qq_response response;

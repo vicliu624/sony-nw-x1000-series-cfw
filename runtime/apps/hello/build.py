@@ -2,6 +2,8 @@
 import sys
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[3]/'tools'))
+from sdk_services import compiler as sdk_compiler
+sdk_run = sdk_compiler(Path(__file__).resolve().parent)
 from pathlib import Path
 import runpy,subprocess,hashlib,json,io
 from elftools.elf.elffile import ELFFile
@@ -12,12 +14,12 @@ version=(ROOT/'runtime/apps/hello/VERSION').read_text().strip();runtime=metadata
 sources=['runtime/apps/hello/hello.c','runtime/store/start.c','runtime/store/start.S']
 objects=[]
 for i,source in enumerate(sources):
- target=work/f'{i:02d}-{Path(source).stem}.o';subprocess.run(['arm-linux-gnueabi-gcc','-DHB_BUILD_VERSION="'+version+'"','-std=c99','-Os','-Wall','-Wextra','-Werror','-march=armv5te','-marm','-mfloat-abi=soft','-ffreestanding','-fno-builtin','-fno-pie','-c',source,'-o',str(target)],cwd=ROOT,check=True);objects.append(str(target))
-app=folder/'app';subprocess.run(['arm-linux-gnueabi-gcc','-nostdlib','-no-pie','-Wl,--hash-style=sysv','-Wl,--dynamic-linker=/lib/ld-linux.so.3',*objects,str(runtime/'libc-2.3.3.so'),str(runtime/'ld-2.3.3.so'),'-lgcc','-o',str(app)],cwd=ROOT,check=True)
+ target=work/f'{i:02d}-{Path(source).stem}.o';sdk_run(['arm-linux-gnueabi-gcc','-DHB_BUILD_VERSION="'+version+'"','-std=c99','-Os','-Wall','-Wextra','-Werror','-march=armv5te','-marm','-mfloat-abi=soft','-ffreestanding','-fno-builtin','-fno-pie','-c',source,'-o',str(target)],cwd=ROOT,check=True);objects.append(str(target))
+app=folder/'app';sdk_run(['arm-linux-gnueabi-gcc','-nostdlib','-no-pie','-Wl,--hash-style=sysv','-Wl,--dynamic-linker=/lib/ld-linux.so.3',*objects,str(runtime/'libc-2.3.3.so'),str(runtime/'ld-2.3.3.so'),'-lgcc','-o',str(app)],cwd=ROOT,check=True)
 data=app.read_bytes();elf=ELFFile(io.BytesIO(data));assert elf.header['e_machine']=='EM_ARM';needed=[t.needed for t in elf.get_section_by_name('.dynamic').iter_tags() if t.entry.d_tag=='DT_NEEDED'];assert needed==['libc.so.6']
 checks=[]
 for args,code,expected in [([],0,'Hello from a native Sony NW-X1000'),(['--help'],0,'No device access'),(['--version'],0,version),(['unexpected'],64,'')]:
- run=subprocess.run(['qemu-arm','-cpu','arm926','-strace',str(runtime/'ld-2.3.3.so'),'--library-path',str(runtime),str(app),*args],capture_output=True,text=True,timeout=15);assert run.returncode==code and expected in run.stdout,(args,run.returncode,run.stderr)
+ run=sdk_run(['qemu-arm','-cpu','arm926','-strace',str(runtime/'ld-2.3.3.so'),'--library-path',str(runtime),str(app),*args],capture_output=True,text=True,timeout=15);assert run.returncode==code and expected in run.stdout,(args,run.returncode,run.stderr)
  assert '/dev/fb/' not in run.stderr and '/dev/icx_touch_screen' not in run.stderr
  checks.append({'args':args,'exit':code,'stdout':run.stdout,'trace':run.stderr})
 manifest=f'api=1\nid=hello\nname=Hello Walkman\nversion={version}\ntarget=sony-nw-x1000-jp\nexec=app\nbytes={len(data)}\nsha256={hashlib.sha256(data).hexdigest()}\n'.encode();files={'app':data,'app.ini':manifest};index=b'HBFILES1\n'+b''.join(f'{hashlib.sha256(value).hexdigest()} {len(value)} {name}\n'.encode() for name,value in sorted(files.items()))

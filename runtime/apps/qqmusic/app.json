@@ -59,5 +59,25 @@
       "source": "work/qqmusic-font/QQMusicUI.otf",
       "destination": "resources/QQMusicUI.otf"
     }
-  ]
+  ],
+  "sdk": {
+    "version": "0.2.0-alpha.1",
+    "profile": "native-services",
+    "modules": [
+      "startup",
+      "display",
+      "signals-libc",
+      "signals-oabi",
+      "syscalls",
+      "abi",
+      "hash",
+      "process",
+      "clock-libc",
+      "network",
+      "images",
+      "volume",
+      "pcm",
+      "files"
+    ]
+  }
 }

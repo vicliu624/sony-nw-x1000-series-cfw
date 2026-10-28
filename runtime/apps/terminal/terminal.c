@@ -20,7 +20,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "../../store/target_abi.h"
+#include "../../../sdk/include/x1000/services/abi.h"
 /* Old Sony ioctl is variadic; modern headers redirect some tty calls to time64. */
 extern int term_ioctl(int, unsigned long, ...) __asm__("ioctl");
 extern int term_fcntl(int, int, ...) __asm__("fcntl");

@@ -2,7 +2,7 @@
 #include "qqmusic_preview_service.h"
 #include "qqmusic_preview_device_posix.h"
 #include "qqmusic_preview_owners.h"
-#include "../../store/deadline.h"
+#include "../../../sdk/include/x1000/services/clock.h"
 #include <string.h>
 struct owner {
  struct qq_preview_service service;struct qq_preview_device_posix adapter;

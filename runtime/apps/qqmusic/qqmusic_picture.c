@@ -1,4 +1,4 @@
-#include "qqmusic_image.h"
+#include "../../../sdk/include/x1000/services/images.h"
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>

@@ -23,5 +23,17 @@
       "source": "work/external-tls-probe/bearssl-0.6/LICENSE.txt",
       "destination": "LICENSES/BearSSL-MIT.txt"
     }
-  ]
+  ],
+  "sdk": {
+    "version": "0.2.0-alpha.1",
+    "profile": "native-services",
+    "modules": [
+      "startup",
+      "display",
+      "signals-libc",
+      "abi",
+      "font5x7",
+      "network"
+    ]
+  }
 }

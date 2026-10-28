@@ -2,6 +2,8 @@
 from pathlib import Path
 import hashlib,json,subprocess,tarfile,sys
 ROOT=Path(__file__).resolve().parents[1]
+from sdk_services import compiler as sdk_compiler
+sdk_run=sdk_compiler(ROOT/'runtime/apps/qqmusic')
 vendor=ROOT/'third_party/qqmusic-codecs';provenance=json.loads((ROOT/'sources/qqmusic-codec-sources.json').read_text())
 for name,row in provenance['sources'].items():
     for path,record in row['files'].items():assert hashlib.sha256((vendor/name/path).read_bytes()).hexdigest()==record['vendored_sha256']
@@ -93,10 +95,10 @@ for i,path in enumerate(third+[ROOT/p for p in own]):
     cmd=['arm-linux-gnueabi-gcc',*flags,*extra,*(['-Wall','-Wextra','-Werror'] if path.is_relative_to(ROOT/'runtime/apps') or path.is_relative_to(ROOT/'tools/fixtures') else []),'-c',str(path),'-o',str(obj)]
     key=hashlib.sha256(path.read_bytes()+header_key+'\n'.join(cmd[:-2]).encode()).hexdigest();stamp=obj.with_suffix('.key')
     if not obj.exists() or not stamp.exists() or stamp.read_text()!=key:
-        subprocess.run(cmd,cwd=ROOT,check=True);stamp.write_text(key)
+        sdk_run(cmd,cwd=ROOT,check=True);stamp.write_text(key)
     objects.append(str(obj))
 app=work/(suffix+'.arm')
-subprocess.run(['arm-linux-gnueabi-gcc','-nostdlib','-no-pie',*wrap,'-Wl,--gc-sections','-Wl,--hash-style=sysv','-Wl,--build-id=none','-Wl,--dynamic-linker=/lib/ld-linux.so.3',*objects,*network_libs,str(work/'libm.so.6'),str(lib/'libc.so.6'),str(lib/'ld-linux.so.3'),'-lgcc','-o',str(app)],cwd=ROOT,check=True)
+sdk_run(['arm-linux-gnueabi-gcc','-nostdlib','-no-pie',*wrap,'-Wl,--gc-sections','-Wl,--hash-style=sysv','-Wl,--build-id=none','-Wl,--dynamic-linker=/lib/ld-linux.so.3',*objects,*network_libs,str(work/'libm.so.6'),str(lib/'libc.so.6'),str(lib/'ld-linux.so.3'),'-lgcc','-o',str(app)],cwd=ROOT,check=True)
 report={'built':True,'tested':False,'device_tested':False,'objective_complete':False,'artifact_sha256':hashlib.sha256(app.read_bytes()).hexdigest(),
         'libm_sha256':hashlib.sha256((work/'libm.so.6').read_bytes()).hexdigest(),
         'source_hashes':{str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in third+[ROOT/p for p in own+dependencies]},
@@ -113,7 +115,7 @@ if '--host' in sys.argv or '--asan' in sys.argv:
     host_flags+=['-isystem',str(stb)]
     sanitizer=['-g','-O1','-fsanitize=address','-fno-omit-frame-pointer'] if '--asan' in sys.argv else []
     host_own=[p for p in own if p.startswith('runtime/apps/') or p.startswith('tools/fixtures/') or p=='runtime/native/sha256.c']
-    subprocess.run(['gcc-12',*host_flags,*sanitizer,*wrap,*[str(p) for p in third],*[str(ROOT/p) for p in host_own],'-lm','-o',str(work/(suffix+('.asan' if sanitizer else '.host')))],cwd=ROOT,check=True)
+    sdk_run(['gcc-12',*host_flags,*sanitizer,*wrap,*[str(p) for p in third],*[str(ROOT/p) for p in host_own],'-lm','-o',str(work/(suffix+('.asan' if sanitizer else '.host')))],cwd=ROOT,check=True)
     report['host_artifact_sha256']=hashlib.sha256((work/(suffix+('.asan' if sanitizer else '.host'))).read_bytes()).hexdigest()
     (work/build_name).write_text(json.dumps(report,indent=2)+'\n')
 

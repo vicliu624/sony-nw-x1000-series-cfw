@@ -1,7 +1,7 @@
 #include "qqmusic_devices.h"
-#include "../../native/frontend.h"
-#include "../../store/deadline.h"
-#include "../../store/tls_platform.h"
+#include "../../../sdk/include/x1000/services/touch.h"
+#include "../../../sdk/include/x1000/services/clock.h"
+#include "../../../sdk/include/x1000/services/tls_platform.h"
 #include <poll.h>
 #include <string.h>
 static int utc_offset_minutes;

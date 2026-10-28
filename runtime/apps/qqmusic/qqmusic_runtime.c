@@ -1,7 +1,7 @@
 #include "qqmusic_runtime.h"
 #include <string.h>
 #include <stdlib.h>
-#include "qqmusic_image.h"
+#include "../../../sdk/include/x1000/services/images.h"
 static void stop(struct qq_runtime *r) {
  if(r->importing){r->imports.cancel(r->imports.context);r->importing=0;}
  if(r->cover_active){r->ops.cancel(r->ops.context);r->cover_active=0;}

@@ -2,6 +2,8 @@
 import sys
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[3]/'tools'))
+from sdk_services import compiler as sdk_compiler
+sdk_run = sdk_compiler(Path(__file__).resolve().parent)
 from pathlib import Path
 import hashlib
 import io
@@ -38,13 +40,13 @@ ui=['runtime/apps/terminal/terminal_app.c','runtime/native/frontend.c','runtime/
 sources=['runtime/apps/terminal/terminal.c',*ui,*bridge,*startup]
 app=work/'terminal.arm'
 def build(out,files):
-    subprocess.run(['arm-linux-gnueabi-gcc',*flags,*files,str(archive),str(lib/'libc.so.6'),str(lib/'ld-linux.so.3'),'-lgcc','-o',str(out)],check=True)
+    sdk_run(['arm-linux-gnueabi-gcc',*flags,*files,str(archive),str(lib/'libc.so.6'),str(lib/'ld-linux.so.3'),'-lgcc','-o',str(out)],check=True)
 build(app,sources)
 base=['qemu-arm','-cpu','arm926',str(lib/'ld-linux.so.3'),'--library-path',str(lib)]
 for option in ('--help','--version','--selftest'):
-    result=subprocess.run(base+[str(app),option],capture_output=True,text=True,check=True,timeout=15)
+    result=sdk_run(base+[str(app),option],capture_output=True,text=True,check=True,timeout=15)
     print(result.stdout.strip())
-bad=subprocess.run(base+[str(app),'--serve-test'],capture_output=True,timeout=15)
+bad=sdk_run(base+[str(app),'--serve-test'],capture_output=True,timeout=15)
 assert bad.returncode==64
 elf=ELFFile(io.BytesIO(app.read_bytes()))
 needed=[x.needed for x in elf.get_section_by_name('.dynamic').iter_tags() if x.entry.d_tag=='DT_NEEDED']
@@ -54,10 +56,10 @@ assert '__ioctl_time64' not in undefined and '__clock_gettime64' not in undefine
 fixture=work/'server-tests.arm'
 build(fixture,['runtime/apps/terminal/terminal.c','tools/fixtures/terminal_server.c',*bridge,*startup])
 host=work/'server-tests.host'
-subprocess.run(['gcc','-D_DEFAULT_SOURCE','-std=c99','-O1','-g','-Wall','-Wextra','-Werror','-Wno-misleading-indentation','-fsanitize=address,undefined','-fno-omit-frame-pointer','-no-pie','-I'+str(crypto/'inc'),'runtime/apps/terminal/terminal.c','runtime/apps/terminal/terminal_firewall.c','tools/fixtures/terminal_server.c',str(host_archive),'-o',str(host)],check=True)
+sdk_run(['gcc','-D_DEFAULT_SOURCE','-std=c99','-O1','-g','-Wall','-Wextra','-Werror','-Wno-misleading-indentation','-fsanitize=address,undefined','-fno-omit-frame-pointer','-no-pie','-I'+str(crypto/'inc'),'runtime/apps/terminal/terminal.c','runtime/apps/terminal/terminal_firewall.c','tools/fixtures/terminal_server.c',str(host_archive),'-o',str(host)],check=True)
 gate=work/'firewall-tests.arm'
 build(gate,['tools/fixtures/terminal_firewall.c',*bridge,*startup])
-subprocess.run(base+[str(gate)],check=True,timeout=15)
+sdk_run(base+[str(gate)],check=True,timeout=15)
 folder=work/'package/HOMEBREW/apps/terminal'
 folder.mkdir(parents=True,exist_ok=True)
 # Per-local-installation EC identity; never a checked-in/shared sample private key.
@@ -66,17 +68,17 @@ identity=work/'private-identity'
 identity.mkdir(mode=0o700,exist_ok=True)
 key=identity/'server-key.pem'
 if not key.exists():
-    subprocess.run(['openssl','ecparam','-name','prime256v1','-genkey','-noout','-out',str(key)],check=True)
+    sdk_run(['openssl','ecparam','-name','prime256v1','-genkey','-noout','-out',str(key)],check=True)
     key.chmod(0o600)
-    subprocess.run(['openssl','req','-new','-x509','-sha256','-days','3650','-key',str(key),'-subj','/CN=X1060 WiFi Terminal/','-out',str(identity/'server-cert.pem')],check=True)
-subprocess.run(['openssl','ec','-in',str(key),'-outform','DER','-out',str(folder/'server-key.der')],check=True,capture_output=True)
-subprocess.run(['openssl','x509','-in',str(identity/'server-cert.pem'),'-outform','DER','-out',str(folder/'server-cert.der')],check=True)
+    sdk_run(['openssl','req','-new','-x509','-sha256','-days','3650','-key',str(key),'-subj','/CN=X1060 WiFi Terminal/','-out',str(identity/'server-cert.pem')],check=True)
+sdk_run(['openssl','ec','-in',str(key),'-outform','DER','-out',str(folder/'server-key.der')],check=True,capture_output=True)
+sdk_run(['openssl','x509','-in',str(identity/'server-cert.pem'),'-outform','DER','-out',str(folder/'server-cert.der')],check=True)
 pin=hashlib.sha256((folder/'server-cert.der').read_bytes()).hexdigest()
 (work/'server-cert.sha256').write_text(pin+'\n')
-subprocess.run([sys.executable,'tools/test_terminal.py'],check=True)
+sdk_run([sys.executable,'tools/test_terminal.py'],check=True)
 render=work/'ui-tests.arm'
-subprocess.run(['arm-linux-gnueabi-gcc',*flags,'-DHB_TERMINAL_UI_TEST','runtime/apps/terminal/terminal.c','runtime/apps/terminal/terminal_app.c','runtime/native/frontend.c','runtime/native/linux_signals_posix.c','tools/fixtures/terminal_ui.c',*bridge,*startup,str(archive),str(lib/'libc.so.6'),str(lib/'ld-linux.so.3'),'-lgcc','-o',str(render)],check=True)
-subprocess.run(base+[str(render),'--render-test',str(folder)],check=True,timeout=15)
+sdk_run(['arm-linux-gnueabi-gcc',*flags,'-DHB_TERMINAL_UI_TEST','runtime/apps/terminal/terminal.c','runtime/apps/terminal/terminal_app.c','runtime/native/frontend.c','runtime/native/linux_signals_posix.c','tools/fixtures/terminal_ui.c',*bridge,*startup,str(archive),str(lib/'libc.so.6'),str(lib/'ld-linux.so.3'),'-lgcc','-o',str(render)],check=True)
+sdk_run(base+[str(render),'--render-test',str(folder)],check=True,timeout=15)
 raw=(work/'screen.rgb565').read_bytes();assert len(raw)==240*432*2
 rgb=bytearray()
 for y in range(432):
@@ -91,7 +93,7 @@ digest=hashlib.sha256(app.read_bytes()).hexdigest()
 (folder/'app.ini').write_text(f'api=1\nid=terminal\nname=WiFi Terminal\nversion={version}\ntarget=sony-nw-x1000-jp\nexec=app\nbytes={app.stat().st_size}\nsha256={digest}\n')
 inventory=[folder/'app',folder/'app.ini',folder/'server-cert.der',folder/'server-key.der']
 (folder/'files.sha256').write_text('HBFILES1\n'+''.join(hashlib.sha256(p.read_bytes()).hexdigest()+f' {p.stat().st_size} {p.name}\n' for p in inventory))
-checked=subprocess.run(base+[str(ROOT/'work/libc-launcher-review/launcher.elf'),'--check',str(work/'package/HOMEBREW/apps')],capture_output=True,text=True,check=True,timeout=15)
+checked=sdk_run(base+[str(ROOT/'work/libc-launcher-review/launcher.elf'),'--check',str(work/'package/HOMEBREW/apps')],capture_output=True,text=True,check=True,timeout=15)
 assert checked.stdout=='terminal VERIFIED\n',checked.stdout
 report={'software_checks_passed':True,'hardware_tested':False,'device_written':False,'system_partition_added_bytes':0,'app_bytes':app.stat().st_size,'installed_app_bytes':sum(p.stat().st_size for p in folder.iterdir()),'certificate_pin':pin,'needed':needed,'transport':'WiFi / TCP 2323 / TLS1.2 ECDHE-ECDSA AES128-GCM','bearssl_arm_archive_sha256':hashlib.sha256(archive.read_bytes()).hexdigest(),'ui_render_and_touch_return_passed':True,'sources':{p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in [*sources,'runtime/apps/terminal/terminal.h','runtime/native/font.inc','runtime/native/frontend.h','runtime/native/linux_devices.h','runtime/native/linux_signals.h','runtime/native/linux_device_io.h','runtime/store/target_abi.h','runtime/store/stock_fs_bridge.h','runtime/store/stock_stat64.h','tools/fixtures/terminal_server.c','tools/fixtures/terminal_ui.c','docs/apps/TERMINAL.md','tools/terminal_client.py','tools/test_terminal.py','tools/build_terminal.py']}}
 report['temporary_firewall_rule_implemented']=True

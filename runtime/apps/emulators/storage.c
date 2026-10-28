@@ -12,7 +12,7 @@
 #include <unistd.h>
 // clang-format off
 /* Must follow system declarations: maps the verified old Sony stat ABI. */
-#include "../../store/target_abi.h"
+#include "../../../sdk/include/x1000/services/abi.h"
 // clang-format on
 extern int es_sscanf(const char *, const char *, ...) __asm__("sscanf");
 static char root[256];

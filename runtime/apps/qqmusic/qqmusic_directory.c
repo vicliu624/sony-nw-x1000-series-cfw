@@ -4,7 +4,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <string.h>
-#include "../../store/target_abi.h"
+#include "../../../sdk/include/x1000/services/abi.h"
 extern int sony_snprintf(char *,size_t,const char *,...) __asm__("snprintf");
 void qq_export_directory_init(struct qq_export_directory *d){memset(d,0,sizeof(*d));qq_volume_init(&d->volume);}
 int qq_export_directory_close(struct qq_export_directory *d){int rc;if(!d)return -1;rc=qq_volume_close(&d->volume);d->filename[0]=0;return rc;}

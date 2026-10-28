@@ -1,6 +1,6 @@
 /* Data-only language packs; bounded parser shared by app and stock read bridge. */
 #include "package.h"
-#include "../../native/sha256.h"
+#include "../../../sdk/include/x1000/services/sha256.h"
 #include <string.h>
 static const unsigned char required_ids[]={
 #include "../../../assets/language/required-ids.inc"

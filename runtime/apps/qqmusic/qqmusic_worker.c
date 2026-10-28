@@ -1,7 +1,7 @@
 #define _XOPEN_SOURCE 700
 #include "qqmusic_worker.h"
-#include "../../native/linux_process.h"
-#include "../../native/linux_signals.h"
+#include "../../../sdk/include/x1000/services/process.h"
+#include "../../../sdk/include/x1000/services/stop.h"
 #include <unistd.h>
 #include <fcntl.h>
 #include <errno.h>

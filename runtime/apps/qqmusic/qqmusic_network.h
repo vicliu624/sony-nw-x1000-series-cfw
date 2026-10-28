@@ -2,9 +2,9 @@
 #define HB_QQMUSIC_NETWORK_H
 #include "qqmusic_runtime.h"
 #include "qqmusic_tls.h"
-#include "../../store/resolver.h"
-#include "../../store/connect_step.h"
-#include "../../store/tls_platform.h"
+#include "../../../sdk/include/x1000/services/dns.h"
+#include "../../../sdk/include/x1000/services/connect.h"
+#include "../../../sdk/include/x1000/services/tls_platform.h"
 enum qq_network_phase {QQ_NET_EMPTY,QQ_NET_DNS,QQ_NET_CONNECT,QQ_NET_TLS,QQ_NET_DONE,QQ_NET_FAILED};
 struct qq_network_config {
  const br_x509_trust_anchor *anchors;size_t anchor_count;

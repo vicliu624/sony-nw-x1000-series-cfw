@@ -1,6 +1,6 @@
 #include "storage.h"
 #include "epub/epub.h"
-#include "../../store/stock_fs_bridge.h"
+#include "../../../sdk/include/x1000/services/stat.h"
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>

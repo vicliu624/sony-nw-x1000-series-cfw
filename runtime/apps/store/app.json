@@ -25,5 +25,20 @@
       "source": "third_party/qqmusic-stb/Noto-OFL.txt",
       "destination": "LICENSES/Noto-OFL.txt"
     }
-  ]
+  ],
+  "sdk": {
+    "version": "0.2.0-alpha.1",
+    "profile": "native-services",
+    "modules": [
+      "startup",
+      "display",
+      "abi",
+      "hash",
+      "termination",
+      "clock-libc",
+      "network",
+      "packages",
+      "list-ui"
+    ]
+  }
 }

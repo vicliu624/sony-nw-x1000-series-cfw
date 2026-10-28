@@ -2,7 +2,7 @@
 #include "qqmusic_preview_transport.h"
 #include "qqmusic_download.h"
 #include "qqmusic_source.h"
-#include "../../store/https_url.h"
+#include "../../../sdk/include/x1000/services/url.h"
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>

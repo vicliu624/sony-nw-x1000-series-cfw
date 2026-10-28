@@ -1,7 +1,7 @@
 #include "reader.h"
 #include "epub/epub.h"
-#include "../../native/sha256.h"
-#include "../../store/stock_fs_bridge.h"
+#include "../../../sdk/include/x1000/services/sha256.h"
+#include "../../../sdk/include/x1000/services/stat.h"
 #include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>

@@ -1,6 +1,6 @@
 #include "qqmusic_metadata.h"
-#include "qqmusic_image.h"
-#include "../../native/sha256.h"
+#include "../../../sdk/include/x1000/services/images.h"
+#include "../../../sdk/include/x1000/services/sha256.h"
 #include <string.h>
 extern int sony_snprintf(char *,size_t,const char *,...) __asm__("snprintf");
 void qq_metadata_init(struct qq_metadata *m) {memset(m,0,sizeof(*m));}

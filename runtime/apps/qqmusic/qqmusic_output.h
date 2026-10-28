@@ -1,7 +1,7 @@
 #ifndef HB_QQMUSIC_OUTPUT_H
 #define HB_QQMUSIC_OUTPUT_H
 #include "qqmusic_stage.h"
-#include "qqmusic_volume.h"
+#include "../../../sdk/include/x1000/services/volume.h"
 struct qq_output_file {struct qq_stage_file stage;struct qq_volume *volume;struct qq_storage_plan plan;};
 void qq_output_init(struct qq_output_file *);
 /* Verified existing workspace only. Plan must budget maximum MP3 bytes and at

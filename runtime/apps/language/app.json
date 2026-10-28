@@ -15,5 +15,17 @@
   "build": {
     "script": "build.py",
     "package": "work/external-language-app-build/HOMEBREW/apps/language"
+  },
+  "sdk": {
+    "version": "0.2.0-alpha.1",
+    "profile": "native-services",
+    "modules": [
+      "startup",
+      "display",
+      "signals-libc",
+      "abi",
+      "hash",
+      "font5x7"
+    ]
   }
 }

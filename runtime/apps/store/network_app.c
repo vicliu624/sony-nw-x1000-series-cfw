@@ -1,9 +1,9 @@
 #include "network_app.h"
-#include "../../store/remote_store.h"
-#include "../../store/repository.h"
-#include "../../store/canvas.h"
-#include "../../store/termination.h"
-#include "../../native/frontend.h"
+#include "../../../sdk/include/x1000/services/market.h"
+#include "../../../sdk/include/x1000/services/repository.h"
+#include "../../../sdk/include/x1000/services/package_canvas.h"
+#include "../../../sdk/include/x1000/services/termination.h"
+#include "../../../sdk/include/x1000/services/touch.h"
 #include <stdlib.h>
 #include <stdio.h>
 static int error_page(int error,const struct hb_store_painter *p,const struct hb_store_ui_io *io,volatile int *stop){

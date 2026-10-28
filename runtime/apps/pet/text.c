@@ -2,7 +2,7 @@
  * Decode policy follows dictionary.c, with bounded glyph caching instead of
  * loading the complete font. All rendering is clipped to the 240x432 canvas. */
 #include "text.h"
-#include "../../native/font.inc"
+#include "../../../sdk/include/x1000/services/font5x7.h"
 #include <string.h>
 typedef char
     pet_font_cache_is_bounded[(sizeof(struct pet_font) <= 3072) ? 1 : -1];

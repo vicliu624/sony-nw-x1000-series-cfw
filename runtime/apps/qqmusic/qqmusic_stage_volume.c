@@ -3,7 +3,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include "../../store/target_abi.h"
+#include "../../../sdk/include/x1000/services/abi.h"
 int qq_stage_system_device(uint64_t *out) {
  int fd,rc=-1;struct stat s;
  if(!out) return -1;

@@ -1,6 +1,6 @@
 /* Stock JP1.11 statfs is a direct legacy statfs syscall wrapper. Use a
  * bounded raw buffer, never a modern compiler's struct statfs ABI. */
-#include "device_info_data.h"
+#include "../../../sdk/include/x1000/services/system_info.h"
 #include <string.h>
 extern int hb_info_sony_statfs(const char *,void *) __asm__("statfs");
 static unsigned le32(const unsigned char*p){return (unsigned)p[0]|(unsigned)p[1]<<8|(unsigned)p[2]<<16|(unsigned)p[3]<<24;}

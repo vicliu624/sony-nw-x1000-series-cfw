@@ -10,7 +10,7 @@
 #include "../../../third_party/gnuboy/regs.h"
 #include "../../../third_party/gnuboy/rtc.h"
 #include "../../../third_party/gnuboy/sound.h"
-#include "../../native/sha256.h"
+#include "../../../sdk/include/x1000/services/sha256.h"
 #include "platform.h"
 #include <setjmp.h>
 #include <stdio.h>

@@ -1,4 +1,4 @@
-#include "dictionary.h"
+#include "../../../sdk/include/x1000/services/unicode_font.h"
 #include <string.h>
 static const char *letters[] = {".'-1", "abc2",  "def3", "ghi4", "jkl5",
                                 "mno6", "pqrs7", "tuv8", "wxyz9"};

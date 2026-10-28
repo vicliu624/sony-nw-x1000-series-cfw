@@ -6,7 +6,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <string.h>
-#include "../../store/target_abi.h"
+#include "../../../sdk/include/x1000/services/abi.h"
 extern int sony_snprintf(char *,size_t,const char *,...) __asm__("snprintf");
 extern int sony_rename(const char *,const char *) __asm__("rename");
 static int file_same(const char *path,uint64_t device,uint64_t inode,uint64_t bytes){struct stat s;return !lstat(path,&s)&&S_ISREG(s.st_mode)&&s.st_nlink==1&&(uint64_t)s.st_dev==device&&(uint64_t)s.st_ino==inode&&(uint64_t)s.st_size==bytes;}

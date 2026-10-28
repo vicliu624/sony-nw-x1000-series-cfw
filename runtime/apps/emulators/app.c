@@ -9,7 +9,7 @@
 #else
 #include "gbc_core.h"
 #include "gbc_schedule.h"
-#include "../../platform/pcm_output.h"
+#include "../../../sdk/include/x1000/services/pcm.h"
 #include <errno.h>
 #define APP_ID "gbc"
 #define APP_NAME "GAME BOY COLOR"

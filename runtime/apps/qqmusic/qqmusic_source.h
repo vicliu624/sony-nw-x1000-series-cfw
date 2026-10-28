@@ -1,7 +1,7 @@
 #ifndef HB_QQMUSIC_SOURCE_H
 #define HB_QQMUSIC_SOURCE_H
 #include "qqmusic_stage.h"
-#include "qqmusic_volume.h"
+#include "../../../sdk/include/x1000/services/volume.h"
 struct qq_source_file {int fd,parent;uint64_t device,inode,parent_inode,bytes;char path[160];volatile int *stop;};
 void qq_source_init(struct qq_source_file *);
 /* Existing completed download in the same verified workspace. Hashes actual

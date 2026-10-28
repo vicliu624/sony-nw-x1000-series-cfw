@@ -5,7 +5,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <errno.h>
-#include "../../store/target_abi.h"
+#include "../../../sdk/include/x1000/services/abi.h"
 extern int producer_snprintf(char *,size_t,const char *,...) __asm__("snprintf");
 static int executable(unsigned pid,uint64_t device,uint64_t inode){
  char path[80];struct stat image;

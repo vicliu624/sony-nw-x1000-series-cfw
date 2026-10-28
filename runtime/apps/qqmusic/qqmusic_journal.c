@@ -1,6 +1,6 @@
 #define _XOPEN_SOURCE 700
 #include "qqmusic_journal.h"
-#include "../../native/sha256.h"
+#include "../../../sdk/include/x1000/services/sha256.h"
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -8,7 +8,7 @@
 #include <string.h>
 #include <dirent.h>
 #include <stddef.h>
-#include "../../store/target_abi.h"
+#include "../../../sdk/include/x1000/services/abi.h"
 #define HEADER 88u
 #define PAYLOAD 8192u
 extern int sony_snprintf(char *,size_t,const char *,...) __asm__("snprintf");

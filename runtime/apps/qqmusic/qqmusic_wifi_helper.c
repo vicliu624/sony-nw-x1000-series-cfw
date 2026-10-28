@@ -1,7 +1,7 @@
 /* Separate native process: no account memory, QQ requests or persistent logs.
  * Stock connection-manager calls can block; parent remains interactive. */
 #include "qqmusic_wifi.h"
-#include "../../native/linux_signals.h"
+#include "../../../sdk/include/x1000/services/stop.h"
 #include <stdint.h>
 #include <string.h>
 #include <unistd.h>

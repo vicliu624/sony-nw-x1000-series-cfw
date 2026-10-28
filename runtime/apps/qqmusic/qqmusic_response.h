@@ -1,7 +1,7 @@
 #ifndef HB_QQMUSIC_RESPONSE_H
 #define HB_QQMUSIC_RESPONSE_H
 #include "qqmusic_http.h"
-#include "../../native/sha256.h"
+#include "../../../sdk/include/x1000/services/sha256.h"
 struct qq_response_sink {
  void *opaque;
  int (*write)(void *,const unsigned char *,size_t);

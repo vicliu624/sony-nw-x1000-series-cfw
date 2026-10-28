@@ -2,14 +2,14 @@
 #define _DEFAULT_SOURCE
 #endif
 #include "terminal.h"
-#include "../../native/frontend.h"
-#include "../../native/linux_devices.h"
-#include "../../native/linux_signals.h"
+#include "../../../sdk/include/x1000/services/touch.h"
+#include "../../../sdk/include/x1000/services/display.h"
+#include "../../../sdk/include/x1000/services/stop.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include "../../native/font.inc"
+#include "../../../sdk/include/x1000/services/font5x7.h"
 #ifndef HB_BUILD_VERSION
 #define HB_BUILD_VERSION "development"
 #endif

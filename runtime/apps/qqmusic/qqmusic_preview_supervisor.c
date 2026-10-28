@@ -3,8 +3,8 @@
 #endif
 #include "qqmusic_preview_supervisor.h"
 #include "qqmusic_preview_owners.h"
-#include "../../native/linux_process.h"
-#include "../../native/linux_signals.h"
+#include "../../../sdk/include/x1000/services/process.h"
+#include "../../../sdk/include/x1000/services/stop.h"
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <fcntl.h>
@@ -12,7 +12,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <string.h>
-#include "../../store/target_abi.h"
+#include "../../../sdk/include/x1000/services/abi.h"
 extern int supervisor_fcntl(int,int,...) __asm__("fcntl");
 static int channel(int fds[2]){
  unsigned i;if(pipe(fds))return -1;

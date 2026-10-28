@@ -8,7 +8,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <sys/stat.h>
-#include "../../store/target_abi.h"
+#include "../../../sdk/include/x1000/services/abi.h"
 extern int hb_language_sscanf(const char*,const char*,...) __asm__("sscanf");
 extern int hb_language_statfs(const char*,void*) __asm__("statfs");
 static unsigned value32(const unsigned char*p){return (unsigned)p[0]|(unsigned)p[1]<<8|(unsigned)p[2]<<16|(unsigned)p[3]<<24;}

@@ -2,6 +2,8 @@
 import sys
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[3]/'tools'))
+from sdk_services import compiler as sdk_compiler
+sdk_run = sdk_compiler(Path(__file__).resolve().parent)
 from pathlib import Path
 import hashlib, json, subprocess, struct, zlib, io, zipfile, shutil, sys
 from elftools.elf.elffile import ELFFile
@@ -10,7 +12,7 @@ work=ROOT/'work/fm-radio-review';work.mkdir(parents=True,exist_ok=True)
 lib=ROOT/'work/arm-signal-tests/lib'
 for name,digest in {'libc.so.6':'5afbf3074dfa9ba0478d6670f220ef4d7ec065a255ee856d9093d39210f23812','ld-linux.so.3':'2f007b0809684fde0ac446ad203135c10b4318eb8c10d4160a9f59b32c3c52de'}.items():
     assert hashlib.sha256((lib/name).read_bytes()).hexdigest()==digest
-subprocess.run([sys.executable,'tools/test_fm_storage.py'],cwd=ROOT,check=True)
+sdk_run([sys.executable,'tools/test_fm_storage.py'],cwd=ROOT,check=True)
 flags=['-DHB_STORE_SONY_LIBC','-DHB_FM_VERSION="'+(ROOT/'runtime/apps/fm-radio/VERSION').read_text().strip()+'"','-U_FORTIFY_SOURCE','-D_FORTIFY_SOURCE=0','-DHB_USE_POSIX_DEVICE_IO','-D_DEFAULT_SOURCE','-std=c99','-Os','-Wall','-Wextra','-Werror','-march=armv5te','-marm','-mfloat-abi=soft','-ffreestanding','-fno-builtin','-fno-pie','-nostdlib','-no-pie','-Wl,--hash-style=sysv','-Wl,--build-id=none','-Wl,--dynamic-linker=/lib/ld-linux.so.3']
 startup=['runtime/store/start.c','runtime/store/start.S']
 library=[str(lib/'libc.so.6'),str(lib/'ld-linux.so.3'),'-lgcc']
@@ -18,10 +20,10 @@ base=['qemu-arm','-cpu','arm926',str(lib/'ld-linux.so.3'),'--library-path',str(l
 tracked=set(startup+['docs/apps/FM_RADIO.md','tools/test_fm_storage.py','tools/fixtures/fm_storage.c','VERSION','runtime/apps/fm-radio/fm_storage.h','runtime/apps/fm-radio/fm_preferences.h','runtime/store/target_abi.h','runtime/store/stock_fs_bridge.h','runtime/store/stock_stat64.h','runtime/apps/fm-radio/fm_state.h','runtime/apps/fm-radio/fm_radio_skin.inc','runtime/native/linux_devices.h','runtime/native/linux_signals.h','runtime/native/frontend.h','runtime/native/linux_device_io.h','runtime/apps/fm-radio/fm_posix.h','runtime/apps/fm-radio/fm_session.h','runtime/apps/fm-radio/fm_audio.h','runtime/apps/fm-radio/fm_radio_ui.h','runtime/apps/fm-radio/fm_si470x.h','runtime/apps/fm-radio/fm_radio.h','runtime/native/font.inc'])
 def build(name,sources,extra=()):
     tracked.update(sources);out=work/name
-    subprocess.run(['arm-linux-gnueabi-gcc',*flags,*extra,*sources,*startup,*library,'-o',str(out)],cwd=ROOT,check=True)
+    sdk_run(['arm-linux-gnueabi-gcc',*flags,*extra,*sources,*startup,*library,'-o',str(out)],cwd=ROOT,check=True)
     return out
 def run(path,args=(),code=0):
-    p=subprocess.run(base+[str(path),*args],cwd=ROOT,capture_output=True,text=True,timeout=15)
+    p=sdk_run(base+[str(path),*args],cwd=ROOT,capture_output=True,text=True,timeout=15)
     assert p.returncode==code,(p.returncode,p.stdout,p.stderr)
     return p
 core=['runtime/apps/fm-radio/fm_radio.c','runtime/apps/fm-radio/fm_radio_ui.c']
@@ -65,7 +67,7 @@ manifest=('api=1\nid=fm-radio\nname=Pocket FM\nversion='+version+'\ntarget=sony-
 index='HBFILES1\n'+''.join(hashlib.sha256(p.read_bytes()).hexdigest()+' '+str(p.stat().st_size)+' '+p.name+'\n'for p in [packaged,folder/'app.ini'])
 (folder/'files.sha256').write_text(index)
 launcher=ROOT/'work/libc-launcher-review/launcher.elf'
-checked=subprocess.run(base+[str(launcher),'--check',str(package_root/'HOMEBREW/apps')],cwd=ROOT,capture_output=True,text=True,timeout=15)
+checked=sdk_run(base+[str(launcher),'--check',str(package_root/'HOMEBREW/apps')],cwd=ROOT,capture_output=True,text=True,timeout=15)
 assert checked.returncode==0 and checked.stdout=='fm-radio VERIFIED\n',checked
 
 # Independent package checks: stock loader dependencies, exact file inventory,

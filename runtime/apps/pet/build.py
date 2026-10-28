@@ -2,6 +2,8 @@
 import sys
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[3]/'tools'))
+from sdk_services import compiler as sdk_compiler
+sdk_run = sdk_compiler(Path(__file__).resolve().parent)
 import argparse
 import hashlib
 import json
@@ -29,13 +31,13 @@ def main():
     startup=['runtime/store/start.c','runtime/store/start.S']
     libraries=[str(lib/'libc.so.6'),str(lib/'ld-linux.so.3'),'-lgcc']
     run=['qemu-arm','-cpu','arm926',str(lib/'ld-linux.so.3'),'--library-path',str(lib)]
-    def build(sources,dest,extra=()):subprocess.run(['arm-linux-gnueabi-gcc',*flags,'-DHB_PET_VERSION="'+version+'"',*extra,*sources,*libraries,'-o',str(dest)],cwd=ROOT,check=True)
+    def build(sources,dest,extra=()):sdk_run(['arm-linux-gnueabi-gcc',*flags,'-DHB_PET_VERSION="'+version+'"',*extra,*sources,*libraries,'-o',str(dest)],cwd=ROOT,check=True)
     for name,sources in [('model',['runtime/apps/pet/pet.c','tools/fixtures/pet_model.c']),('ui',['runtime/apps/pet/pet.c','runtime/apps/pet/ui.c','runtime/apps/pet/text.c','tools/fixtures/pet_ui.c'])]:
-        target=out/(name+'.arm');build(sources+startup,target);subprocess.run(run+[str(target)],check=True,timeout=15)
+        target=out/(name+'.arm');build(sources+startup,target);sdk_run(run+[str(target)],check=True,timeout=15)
     sources=[f'runtime/apps/pet/{n}.c' for n in ['app','pet','ui','storage','text']]+[f'runtime/native/{n}.c' for n in ['frontend','linux_devices','linux_device_io_posix','linux_signals_posix']]+['runtime/store/stock_fs_bridge.c','runtime/store/stock_stat64.c']+startup
     folder=out/'HOMEBREW/apps/pet';folder.mkdir(parents=True,exist_ok=True)
     app=folder/'app';build(sources,app)
-    for arg in ['--help','--version']:subprocess.run(run+[str(app),arg],check=True,timeout=15)
+    for arg in ['--help','--version']:sdk_run(run+[str(app),arg],check=True,timeout=15)
     shutil.copyfile(args.sprites,folder/'sprites.bin')
     shutil.copyfile(args.font,folder/'font.bin')
     licenses=folder/'LICENSES';licenses.mkdir(exist_ok=True)
@@ -44,25 +46,25 @@ def main():
     (folder/'about.json').write_text(json.dumps({'id':'pet','version':version,**descriptions()['pet']},indent=2)+'\n')
     loop=out/'loop.arm'
     build(['runtime/apps/pet/app.c','runtime/apps/pet/pet.c','runtime/apps/pet/ui.c','runtime/apps/pet/text.c','runtime/native/frontend.c','tools/fixtures/pet_app.c',*startup],loop,['-DPET_APP_TEST'])
-    subprocess.run(run+[str(loop),str(app)],cwd=ROOT,check=True,timeout=20)
+    sdk_run(run+[str(loop),str(app)],cwd=ROOT,check=True,timeout=20)
     host_flags=['gcc','-D_DEFAULT_SOURCE','-std=c99','-Wall','-Wextra','-Werror','-fsanitize=address,undefined']
     store=out/'storage.host'
-    subprocess.run([*host_flags,'runtime/apps/pet/pet.c','runtime/apps/pet/storage.c','tools/fixtures/pet_storage.c','-Wl,--wrap=open,--wrap=fopen,--wrap=statfs,--wrap=write,--wrap=fsync,--wrap=rename','-o',str(store)],cwd=ROOT,check=True)
-    subprocess.run([str(store)],check=True,timeout=20)
+    sdk_run([*host_flags,'runtime/apps/pet/pet.c','runtime/apps/pet/storage.c','tools/fixtures/pet_storage.c','-Wl,--wrap=open,--wrap=fopen,--wrap=statfs,--wrap=write,--wrap=fsync,--wrap=rename','-o',str(store)],cwd=ROOT,check=True)
+    sdk_run([str(store)],check=True,timeout=20)
     render=out/'render.host'
-    subprocess.run([*host_flags,'runtime/apps/pet/pet.c','runtime/apps/pet/ui.c','runtime/apps/pet/text.c','tools/fixtures/pet_render.c','-o',str(render)],cwd=ROOT,check=True)
-    subprocess.run([str(render),str(args.sprites.resolve()),str(out),str(args.font.resolve())],check=True,timeout=20)
+    sdk_run([*host_flags,'runtime/apps/pet/pet.c','runtime/apps/pet/ui.c','runtime/apps/pet/text.c','tools/fixtures/pet_render.c','-o',str(render)],cwd=ROOT,check=True)
+    sdk_run([str(render),str(args.sprites.resolve()),str(out),str(args.font.resolve())],check=True,timeout=20)
     text_test=out/'text.arm';build(['runtime/apps/pet/text.c','tools/fixtures/pet_text.c',*startup],text_test)
-    subprocess.run(run+[str(text_test),str(args.font.resolve())],check=True,timeout=20)
-    text_host=out/'text.host';subprocess.run([*host_flags,'runtime/apps/pet/text.c','tools/fixtures/pet_text.c','-o',str(text_host)],cwd=ROOT,check=True)
-    subprocess.run([str(text_host),str(args.font.resolve())],check=True,timeout=20)
+    sdk_run(run+[str(text_test),str(args.font.resolve())],check=True,timeout=20)
+    text_host=out/'text.host';sdk_run([*host_flags,'runtime/apps/pet/text.c','tools/fixtures/pet_text.c','-o',str(text_host)],cwd=ROOT,check=True)
+    sdk_run([str(text_host),str(args.font.resolve())],check=True,timeout=20)
     version=(ROOT/'runtime/apps/pet/VERSION').read_text().strip()
     data=app.read_bytes();digest=hashlib.sha256(data).hexdigest()
     (folder/'app.ini').write_text(f'api=1\nid=pet\nname=BSOD Pet\nversion={version}\ntarget=sony-nw-x1000-jp\nexec=app\nbytes={len(data)}\nsha256={digest}\n')
     files=sorted(p for p in folder.rglob('*') if p.is_file() and p.name!='files.sha256')
     (folder/'files.sha256').write_text('HBFILES1\n'+''.join(f'{hashlib.sha256(p.read_bytes()).hexdigest()} {p.stat().st_size} {p.relative_to(folder).as_posix()}\n' for p in files))
     launcher=ROOT/'work/libc-launcher-review/launcher.elf'
-    check=subprocess.run(run+[str(launcher),'--check',str(out/'HOMEBREW/apps')],cwd=ROOT,capture_output=True,text=True,timeout=15)
+    check=sdk_run(run+[str(launcher),'--check',str(out/'HOMEBREW/apps')],cwd=ROOT,capture_output=True,text=True,timeout=15)
     if check.returncode or check.stdout!='pet VERIFIED\n':raise RuntimeError(check.stdout+check.stderr)
     tracked=set(sources)
     tracked.update(str(p.relative_to(ROOT)) for p in (ROOT/'runtime/apps/pet').iterdir() if p.is_file())

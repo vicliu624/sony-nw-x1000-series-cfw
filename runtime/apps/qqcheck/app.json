@@ -15,5 +15,18 @@
   "build": {
     "script": "build.py",
     "package": "work/app-builds/qqcheck/package"
+  },
+  "sdk": {
+    "version": "0.2.0-alpha.1",
+    "profile": "native-services",
+    "modules": [
+      "startup",
+      "display",
+      "signals-oabi",
+      "syscalls",
+      "abi",
+      "font5x7",
+      "volume"
+    ]
   }
 }

@@ -1,13 +1,13 @@
 #define _XOPEN_SOURCE 700
 #include "qqmusic_preview_handoff.h"
-#include "../../native/sha256.h"
+#include "../../../sdk/include/x1000/services/sha256.h"
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <dirent.h>
 #include <unistd.h>
 #include <errno.h>
 #include <string.h>
-#include "../../store/target_abi.h"
+#include "../../../sdk/include/x1000/services/abi.h"
 extern ssize_t handoff_read(int,void *,size_t) __asm__("read");
 extern ssize_t handoff_readlink(const char *,char *,size_t) __asm__("readlink");
 extern int handoff_snprintf(char *,size_t,const char *,...) __asm__("snprintf");
