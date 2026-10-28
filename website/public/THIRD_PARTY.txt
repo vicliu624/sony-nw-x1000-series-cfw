@@ -1,0 +1,31 @@
+X1000 Island website
+
+animal-island-ui 2.3.0
+https://github.com/guokaigdg/animal-island-ui
+MIT; full notice: licenses/animal-island-ui-MIT.txt
+
+naive-icons
+https://github.com/guokaigdg/naive-icons
+MIT; full notice: licenses/naive-icons-MIT.txt
+
+React / React DOM
+https://github.com/facebook/react
+MIT; full notice: licenses/react-MIT.txt
+
+classnames
+https://github.com/JedWatson/classnames
+MIT; full notice: licenses/classnames-MIT.txt
+
+Nunito and Noto Sans SC fonts (bundled by animal-island-ui)
+SIL Open Font License 1.1
+Full notices: licenses/Nunito-OFL.txt and licenses/Noto-Sans-SC-OFL.txt
+Notice source: https://github.com/fontsource/font-files/tree/main/fonts/google
+
+Application icons are maintained original project artwork from
+runtime/apps/<id>/assets. Native renderer previews originate in docs/images;
+see https://github.com/vicliu624/sony-nw-x1000-series-cfw/blob/main/docs/images/README.md
+for provenance and hardware-validation boundaries.
+
+The CSS player illustration is an illustrative website graphic, not a device
+photograph. Sony and WALKMAN are their respective owners' marks. This project
+has no affiliation with or authorization from Sony.
