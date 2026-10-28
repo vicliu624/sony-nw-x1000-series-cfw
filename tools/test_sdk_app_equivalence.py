@@ -19,6 +19,9 @@ def main():
     if not os.environ.get('GITHUB_ACTIONS'):raise RuntimeError('Run in clean Linux CI; do not substitute source in an active user checkout')
     if sys.flags.optimize:raise RuntimeError('Assertions must remain enabled')
     if subprocess.check_output(['git','status','--porcelain'],cwd=ROOT):raise RuntimeError('CI source must start clean')
+    from ci_bootstrap import fetch
+    font_manifest=json.loads((ROOT/'sources/qqmusic-font-source.json').read_text())
+    for name,row in font_manifest['files'].items():fetch(row['url'],'work/qqmusic-font/'+name,row['sha256'])
     root=ROOT/'work/sdk-migration'/('ci-'+str(time.time_ns()));root.mkdir(parents=True)
     apps=json.loads(git('show',BASELINE+':config/release.json'))['apps']+['pet','qqcheck']
     info={'commit':git('rev-parse',BASELINE).decode().strip(),'apps':apps,
@@ -49,6 +52,10 @@ def main():
         log=root/(name+'-driver.log')
         print('Running '+name+' apps from source at the same path',flush=True)
         with log.open('wb') as stream:
+            # Rebuild these package inputs from the corresponding old/new app
+            # source as well; never reuse a migrated helper as an old baseline.
+            for helper in ('tools/subset_qqmusic_font.py','tools/build_qqmusic_wifi_helper.py'):
+                subprocess.run([sys.executable,helper],cwd=ROOT,env=env,stdout=stream,stderr=subprocess.STDOUT,check=True)
             result=subprocess.run([sys.executable,'tools/sdk_migration.py',name,'--baseline',str(root)],cwd=ROOT,env=env,stdout=stream,stderr=subprocess.STDOUT)
         if result.returncode:
             # Only the public fixture log is in this CI checkout; no local identity is uploaded.

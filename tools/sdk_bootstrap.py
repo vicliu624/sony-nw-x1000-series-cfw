@@ -45,11 +45,13 @@ def setup(stock_exe=None,services=False):
         targets={name:(lib,digest) for name,digest in LIBRARIES.items()}
         if services:targets.update({name:(ROOT/'work/stock-resolver-probe',digest) for name,digest in SERVICE_LIBRARIES.items()})
         for name,(destination,digest) in targets.items():
-            member=archive.getmember('./lib/'+name)
+            candidates=[path for path in ('./lib/'+name,'./usr/lib/'+name) if path in archive.getnames()]
+            if len(candidates)!=1:raise ValueError('Cannot identify unique stock library: '+name)
+            member=archive.getmember(candidates[0])
             if member.issym():
                 target=member.linkname
                 if '/' in target or target.startswith('.'): raise ValueError('Unsafe library alias')
-                member=archive.getmember('./lib/'+target)
+                member=archive.getmember(member.name.rsplit('/',1)[0]+'/'+target)
             if not member.isfile(): raise ValueError('Invalid library entry')
             data=archive.extractfile(member).read()
             if hashlib.sha256(data).hexdigest()!=digest: raise ValueError('Stock library mismatch')
