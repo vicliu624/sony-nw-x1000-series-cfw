@@ -6,6 +6,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifndef XW_HOST
+#include "../../runtime/store/termination.h"
+#include <signal.h>
+#endif
 #ifdef XW_HOST
 #include <sys/stat.h>
 #include <unistd.h>
@@ -56,9 +60,19 @@ static int finish(xw_app *a, void *s) {
   finishes++;
   return 0;
 }
+#ifndef XW_HOST
+static int signal_inside_callback(xw_app *app, void *state) {
+  (void)state;
+  assert(!xw_is_stopping(app));
+  assert(!raise(SIGTERM));
+  assert(xw_is_stopping(app));
+  xw_request_exit(app);
+  return 0;
+}
+#endif
 static const xw_program program = {1,    "fixture", "Fixture", 8,
                                    init, event,     draw,      finish};
-static const struct xw_backend backend = {start, next, present, end};
+static const struct xw_backend backend = {start, next, present, end, 0};
 static int busy(void *p) {
   (void)p;
   return 0;
@@ -94,6 +108,27 @@ int main(int argc, char **argv) {
     assert(events == ((mode == 0 || mode == 5 || mode == 6) ? 1 : 0));
   }
   memset(a, 0, sizeof(*a));
+#ifndef XW_HOST
+  /* Original-libc signal delivery, without opening a display/input device. */
+  assert(!hb_store_termination_begin());
+  const xw_program signal_program = {1,
+                                     "signal-fixture",
+                                     "Signal fixture",
+                                     0,
+                                     signal_inside_callback,
+                                     0,
+                                     draw,
+                                     finish};
+  const struct xw_backend signal_backend = {start, next, present, end,
+                                            xw_native_backend.stopping};
+  mode = 0;
+  assert(!xw_run(a, &signal_program, &signal_backend));
+  assert(!hb_store_termination_end());
+  assert(!hb_store_termination_begin());
+  assert(!hb_store_termination_end());
+  a->poll_stop = 0;
+  memset(a, 0, sizeof(*a));
+#endif
   a->program = &program;
   a->preview = 1;
   xw_reset_clip(a);

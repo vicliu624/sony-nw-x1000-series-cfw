@@ -128,7 +128,7 @@ export function Developer({ lang }: { lang: Language }) {
       <h1 className="page-title">{t.title}</h1>
       <p className="page-intro">{t.intro}</p>
       <Tag color="app-teal" variant="soft">
-        {t.badge} · {sdk?.version || "0.1.0-alpha.1"}
+        {t.badge} · {sdk?.version || "API 1"}
       </Tag>
       <div className="sdk-actions">
         {sdk?.release ? (

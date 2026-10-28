@@ -7,6 +7,7 @@ struct xw_backend {
   int (*next)(xw_app *, xw_event *);
   int (*present)(xw_app *);
   int (*close)(xw_app *);
+  int (*stopping)(const xw_app *);
 };
 struct xw_app {
   uint16_t pixels[XW_WIDTH * XW_HEIGHT];
@@ -14,6 +15,7 @@ struct xw_app {
   const xw_program *program;
   volatile int stop;
   int dirty, preview, reason, failed, pressed;
+  int (*poll_stop)(const xw_app *);
   xw_storage_owner owner;
   void *owner_context, *backend_state;
   /* Host-only paths are never accepted by a device executable. */

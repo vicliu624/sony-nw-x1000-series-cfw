@@ -1,4 +1,10 @@
-# X1000 SDK0.1.0-alpha.1
+# X1000 SDK0.1.0-alpha.2
+
+Fixes immediate cancellation visibility inside application callbacks:
+xw_is_stopping now observes the original-libc signal token before returning to
+the event loop. This is tested with actual SIGTERM delivery under the pinned
+Sony loader/libc. Sample app versions increase with their changed linked bytes.
+The published alpha.1 source remains immutable.
 
 First experimental source-only developer kit for Japanese NW-X1050/NW-X1060,
 JP1.11. SDK identity is independent of firmware and application versions.

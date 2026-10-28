@@ -23,7 +23,7 @@ event/draw presentation stops the loop; there is no automatic success fallback.
 | --- | --- |
 | xw_request_exit(app) | Request bounded loop exit; no signal-handler cleanup |
 | xw_redraw(app) | Mark the canvas dirty; next loop calls draw and present |
-| xw_is_stopping(app) | Check normal exit/stop state |
+| xw_is_stopping(app) | Check normal exit or the native signal token immediately, including inside callbacks |
 | xw_is_preview(app) | Informational PC flag; never an ownership proof |
 | xw_sdk_version() | Build's pinned SDK version |
 

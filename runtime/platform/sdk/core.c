@@ -23,7 +23,9 @@ void xw_redraw(xw_app *a) {
   if (a)
     a->dirty = 1;
 }
-int xw_is_stopping(const xw_app *a) { return !a || a->stop; }
+int xw_is_stopping(const xw_app *a) {
+  return !a || a->stop || (a->poll_stop && a->poll_stop(a));
+}
 int xw_is_preview(const xw_app *a) { return a && a->preview; }
 int xw_run(xw_app *a, const xw_program *p, const struct xw_backend *b) {
   void *state;
@@ -33,6 +35,7 @@ int xw_run(xw_app *a, const xw_program *p, const struct xw_backend *b) {
       !p->draw || p->state_bytes > 65536)
     return 64;
   a->program = p;
+  a->poll_stop = b->stopping;
   a->dirty = 1;
   a->clip = (xw_rect){0, 0, XW_WIDTH, XW_HEIGHT};
   state = calloc(1, p->state_bytes ? p->state_bytes : 1);
@@ -88,6 +91,7 @@ done:
     result = 74;
   if (opened && b->close(a))
     result = 74;
+  a->poll_stop = 0;
   free(state);
   return result;
 }

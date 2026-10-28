@@ -5,7 +5,7 @@ JP1.11. Start with the [quick start](../docs/sdk/README.md),
 [API reference](../docs/sdk/API.md) and [validation scope](../docs/sdk/VALIDATION.md).
 
 SDK VERSION is independent of firmware VERSION and each application's VERSION.
-The first profile is 0.1.0-alpha.1, source API1. Pin the exact SDK version in
+The current profile is 0.1.0-alpha.2, source API1. Pin the exact SDK version in
 build.json. No cross-model or shared-library binary ABI is promised.
 
 Public headers are in include/x1000. Implementation remains shared under

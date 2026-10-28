@@ -98,5 +98,9 @@ static int native_close(xw_app *a) {
   a->backend_state = 0;
   return rc;
 }
-const struct xw_backend xw_native_backend = {native_open, native_next,
-                                             native_present, native_close};
+static int native_stopping(const xw_app *app) {
+  (void)app;
+  return *hb_store_termination_flag() != 0;
+}
+const struct xw_backend xw_native_backend = {
+    native_open, native_next, native_present, native_close, native_stopping};

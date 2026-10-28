@@ -171,4 +171,4 @@ static int host_close(xw_app *a) {
   return rc;
 }
 const struct xw_backend xw_host_backend = {host_open, host_next, host_present,
-                                           host_close};
+                                           host_close, 0};

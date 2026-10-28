@@ -67,7 +67,7 @@ def main():
          '-nostdlib','-no-pie','-Wl,--hash-style=sysv','-Wl,--dynamic-linker=/lib/ld-linux.so.3',lib/'libc.so.6',lib/'ld-linux.so.3','-lgcc','-o',discovery])
     apps=work/'discovery-apps';apps.mkdir();shutil.copytree(work/'sdk-counter/package',apps/'sdk-counter')
     print(run(['qemu-arm','-cpu','arm926',lib/'ld-linux.so.3','--library-path',lib,discovery,apps]).strip())
-    report={'passed':True,'apps':reports,'host_runtime':True,'sdl_preview_loop':True,'host_fifo_test_skipped':'SKIP FIFO' in host_result,'original_loader_arm_runtime':True,'host_render_and_persistence':True,
+    report={'passed':True,'apps':reports,'host_runtime':True,'sdl_preview_loop':True,'host_fifo_test_skipped':'SKIP FIFO' in host_result,'original_loader_arm_runtime':True,'original_libc_signal_in_callback':True,'host_render_and_persistence':True,
             'native_unknown_id_discovery':True,'hardware_accessed':False,'firmware_created':False,'source_hashes':{str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in list((ROOT/'runtime/platform/sdk').glob('*')) if p.is_file()}}
     (work/'report.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))
 if __name__=='__main__':main()
