@@ -7,7 +7,7 @@ import zipfile
 from app_registry import ROOT
 from sdk_build import COMMON,NATIVE
 
-TOOLS=['sdk.py','sdk_build.py','sdk_bootstrap.py','sdk_services.py','native_app_build.py','package_sdk.py','test_sdk.py','test_sdk_bundle.py',
+TOOLS=['sdk.py','sdk_build.py','sdk_bootstrap.py','sdk_services.py','native_app_build.py','package_sdk.py','test_sdk.py','test_sdk_services.py','test_sdk_bundle.py',
        'app_registry.py','app_presentation.py','build_app.py','verify_app_package.py','market_metadata.py']
 HEADERS=['runtime/native/linux_devices.h','runtime/native/linux_device_io.h','runtime/native/frontend.h','runtime/native/ui_font.h',
          'runtime/store/termination.h','runtime/store/deadline.h','runtime/store/stock_fs_bridge.h',

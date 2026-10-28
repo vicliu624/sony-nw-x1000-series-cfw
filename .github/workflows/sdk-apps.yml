@@ -38,6 +38,7 @@ jobs:
           sudo mount -t tmpfs -o size=3G,nodev,nosuid,mode=0755 tmpfs "$GITHUB_WORKSPACE/work"
           sudo chown "$(id -u):$(id -g)" "$GITHUB_WORKSPACE/work"
           python tools/ci_bootstrap.py
+          python tools/build_hello_app.py
           python tools/build_libc_frontend.py
       - name: Check SDK adoption and unchanged application logic
         run: python tools/audit_sdk_adoption.py --check-logic

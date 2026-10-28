@@ -36,7 +36,7 @@ def main():
     # The installer can be independently supplied, but no extracted libc/build is copied.
     setup=['tools/sdk.py','setup']
     if a.stock_exe:setup+=['--stock-exe',a.stock_exe.resolve()]
-    run(*setup);run('tools/sdk.py','doctor')
+    run(*setup,'--services');run('tools/sdk.py','doctor')
     checks=[]
     for template in ('minimal','touch-ui','canvas-game'):
         ident='new-'+template
@@ -51,8 +51,9 @@ def main():
             assert 'HOMEBREW/data/'+ident+'/' in z.namelist()
             assert not any(n.endswith(('.so','.exe','.UPG')) for n in z.namelist())
         checks.append(template)
+    run('tools/test_sdk_services.py')
     report={'passed':True,'sdk_version':manifest['sdk_version'],'source_archive_sha256':hashlib.sha256(a.archive.read_bytes()).hexdigest(),
-            'clean_inputs':True,'templates_created_host_rendered_arm_packaged':checks,'hardware_accessed':False,'firmware_created':False}
+            'clean_inputs':True,'templates_created_host_rendered_arm_packaged':checks,'external_native_service_client':True,'hardware_accessed':False,'firmware_created':False}
     (work/'bundle-test-report.json').write_text(json.dumps(report,indent=2)+'\n')
     print(json.dumps(report,indent=2))
 if __name__=='__main__':main()

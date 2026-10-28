@@ -31,16 +31,17 @@ jobs:
       - name: Install SDK toolchain
         run: |
           sudo apt-get update
-          sudo apt-get install --no-install-recommends -y gcc gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi libc6-dev-armel-cross qemu-user p7zip-full libsdl2-dev
+          sudo apt-get install --no-install-recommends -y gcc gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi libc6-dev-armel-cross qemu-user p7zip-full libsdl2-dev make
           python -m pip install -r sdk/requirements.txt
       - name: Prepare exact original inputs, without running an updater
         run: |
-          python tools/sdk.py setup
+          python tools/sdk.py setup --services
           python tools/sdk.py doctor
       - name: Test SDK and create source-only archive
         run: |
           python tools/check_repository_layout.py
           python tools/test_sdk.py
+          python tools/test_sdk_services.py
           python tools/package_sdk.py
           python tools/test_sdk_bundle.py "dist/sdk/$(cat sdk/VERSION)/x1000-sdk-$(cat sdk/VERSION)-source.zip" --stock-exe firmware/original/NW-X1000_V1_11.exe
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9

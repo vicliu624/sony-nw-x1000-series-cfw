@@ -113,6 +113,7 @@ def compile_native(definition,output):
     recipe=json.loads((definition/'build.json').read_text());out=fresh_work(output)
     if recipe.get('profile')!='native-services':raise ValueError('Expected custom-main native-services recipe')
     selected=contract['resolved_modules']
+    if 'startup' not in selected:raise ValueError('Custom-main recipes require the startup module')
     if 'signals-libc' in selected and 'signals-oabi' in selected:raise ValueError('Select one signal backend per declarative build')
     if 'clock-libc' in selected and 'clock-oabi' in selected:raise ValueError('Select one clock backend per declarative build')
     local=[]
@@ -154,4 +155,10 @@ def compile_native(definition,output):
         if run.returncode:raise RuntimeError(run.stderr+run.stdout)
         checks.append({'args':arguments,'exit':run.returncode,'stdout':run.stdout})
     out.with_suffix('.sdk-report.json').write_text(json.dumps({'sdk':contract,'checks':checks,'hardware_accessed':False,'source_hashes':{str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in inputs(contract)}},indent=2)+'\n')
+    import shutil
+    notices=out/'LICENSES';notices.mkdir()
+    shutil.copyfile(ROOT/'sdk/LICENSE',notices/'X1000-SDK-MIT.txt')
+    shutil.copyfile(ROOT/'third_party/qqmusic-stb/Noto-OFL.txt',notices/'Noto-OFL.txt')
+    if 'images' in selected:shutil.copyfile(ROOT/'third_party/qqmusic-stb/LICENSE',notices/'stb-LICENSE.txt')
+    if 'network' in selected:shutil.copyfile(ROOT/'work/external-tls-probe/bearssl-0.6/LICENSE.txt',notices/'BearSSL-MIT.txt')
     return artifact
