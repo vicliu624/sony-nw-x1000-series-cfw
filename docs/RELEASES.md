@@ -96,6 +96,13 @@ a failed draft upload can be resumed with the same verified inventory.
 
 ## Application version immutability
 
+Experimental source SDK releases use the separate sdk-v<SDK VERSION> namespace.
+They contain exactly x1000-sdk-<version>-source.zip and its .sha256 sidecar, not
+application catalogs. The firmware publisher recognizes only this explicit
+source-only profile as outside application version history. Other public
+releases still require verified catalog/manifest history; an SDK tag carrying
+catalog or unrelated assets is rejected instead of silently ignored.
+
 Project VERSION identifies firmware/setup releases. App versions remain independent:
 builders with an app VERSION retain it, while project-versioned builders use the
 root VERSION. Changing application files, icons, metadata or dependencies requires

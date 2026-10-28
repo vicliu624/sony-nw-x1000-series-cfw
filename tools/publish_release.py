@@ -1,7 +1,24 @@
 """Publish verified assets via a draft; published version releases are immutable."""
 from pathlib import Path
 import argparse,hashlib,json,os,subprocess,tempfile
-from market_metadata import catalog_records,check_history
+from market_metadata import catalog_records,check_history,parse_version
+
+def firmware_history_releases(releases,current_tag):
+ """Only the explicit, source-only SDK namespace is outside app history.
+ Unknown releases still reach the existing fail-closed catalog validation.
+ """
+ result=[]
+ for previous in releases:
+  if previous['draft'] or previous['tag_name']==current_tag:continue
+  tag=previous['tag_name']
+  if tag.startswith('sdk-v'):
+   version=tag[5:];parse_version(version)
+   source='x1000-sdk-'+version+'-source.zip'
+   if {a['name'] for a in previous['assets']}!={source,source+'.sha256'}:
+    raise ValueError('SDK release is not the explicit source-only profile: '+tag)
+   continue
+  result.append(previous)
+ return result
 def main():
  p=argparse.ArgumentParser(description=__doc__);p.add_argument('directory',type=Path);p.add_argument('--repository',required=True);p.add_argument('--tag',required=True);a=p.parse_args()
  folder=a.directory.resolve()
@@ -24,8 +41,7 @@ def main():
  base='repos/'+a.repository+'/releases'
  releases=json.loads(gh('api',base,'--paginate','--slurp').stdout)
  incoming=catalog_records((folder/'catalog.tsv').read_bytes());history=[]
- for previous in [release for page in releases for release in page if not release['draft']]:
-  if previous['tag_name']==a.tag:continue
+ for previous in firmware_history_releases([release for page in releases for release in page],a.tag):
   names={asset['name'] for asset in previous['assets']}
   if not {'catalog.tsv','release-manifest.json'}<=names:raise ValueError('Published release lacks version history: '+previous['tag_name'])
   with tempfile.TemporaryDirectory(prefix='release-history-') as temporary:
