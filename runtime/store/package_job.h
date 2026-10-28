@@ -16,6 +16,7 @@ struct hb_package_job {
  const struct ares_options *options;int option_mask;
  volatile int *stop;unsigned index,timeout_ms;unsigned long long reserve;
  enum hb_job_state state;int error,unowned_conflict;
+ int guard_live,live_present;unsigned char live_identity[32];
 };
 /* Stable caller-owned workspace, no live resources when initialized. Begin
  * copies the validated plan/paths, borrows anchors/options/stop for job lifetime.

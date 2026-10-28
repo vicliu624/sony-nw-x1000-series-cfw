@@ -1,0 +1,63 @@
+{
+  "schema": 1,
+  "id": "qqmusic",
+  "target": "sony-nw-x1000-jp",
+  "title": "QQ Music",
+  "summary": "QR login, collections and MP3 import",
+  "description": "Native QQ Music for X1000: QR login, account collections, song and album artwork, authorized downloads, and tagged MP3 conversion/import. Supports 128/192/320 source presets, cover completion, progress reporting, cancellation and retry. Wi-Fi and clock preparation are integrated. No account data or music is supplied. Feature implementation is complete; the continuous real-account/player playback chain still requires hardware acceptance.",
+  "changes": "Adds song-list cover thumbnails, missing-cover retrieval, sample-based conversion progress and consistent download/verify/convert/publish stages. Includes native Wi-Fi preparation, a persistent installation ID and explicit session-only clock handling.",
+  "channel": "experimental",
+  "artwork": {
+    "color": "#24b76d",
+    "kind": "music",
+    "subtitle": "Your music collection"
+  },
+  "build": {
+    "script": "build.py",
+    "package": "work/qqmusic-native",
+    "single_executable": true,
+    "output_suffix": ""
+  },
+  "package_files": [
+    {
+      "source": "work/external-tls-probe/bearssl-0.6/LICENSE.txt",
+      "destination": "LICENSES/BearSSL-MIT.txt"
+    },
+    {
+      "source": "third_party/qqmusic-codecs/shine/COPYING",
+      "destination": "LICENSES/Shine-LGPL2.txt"
+    },
+    {
+      "source": "third_party/qqmusic-codecs/tremor/COPYING",
+      "destination": "LICENSES/Tremor-BSD.txt"
+    },
+    {
+      "source": "third_party/qqmusic-codecs/ogg/COPYING",
+      "destination": "LICENSES/Ogg-BSD.txt"
+    },
+    {
+      "source": "third_party/qqmusic-stb/LICENSE",
+      "destination": "LICENSES/stb-LICENSE.txt"
+    },
+    {
+      "source": "third_party/qmc-reference/LICENSE",
+      "destination": "LICENSES/QMC-MIT.txt"
+    },
+    {
+      "source": "third_party/qqmusic-protocol-reference/LICENSE",
+      "destination": "LICENSES/Protocol-GPL3.txt"
+    },
+    {
+      "source": "work/qqmusic-font/OFL.txt",
+      "destination": "LICENSES/Font-OFL.txt"
+    },
+    {
+      "source": "work/qqmusic-wifi/wifi-helper",
+      "destination": "wifi-helper"
+    },
+    {
+      "source": "work/qqmusic-font/QQMusicUI.otf",
+      "destination": "resources/QQMusicUI.otf"
+    }
+  ]
+}

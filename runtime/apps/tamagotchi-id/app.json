@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "id": "tamagotchi-id",
+  "target": "sony-nw-x1000-jp",
+  "title": "Tamagotchi iD",
+  "summary": "Virtual-pet emulation",
+  "description": "A native Tamagotchi iD emulator integration. Supply your own compatible input files as described in the emulator guide. No ROMs or personal saves are bundled. Emulator compatibility and physical controls require separate testing.",
+  "changes": "Experimental emulator package with retained GPL notices and explicit ROM-test exclusions.",
+  "channel": "experimental",
+  "artwork": {
+    "color": "#d38eb3",
+    "kind": "egg",
+    "subtitle": "A pocket companion"
+  },
+  "build": {
+    "script": "build.py",
+    "package": "work/app-builds/tamagotchi-id/package"
+  },
+  "package_files": [
+    {
+      "source": "third_party/tama-id/core/LICENSE",
+      "destination": "LICENSES/Tamagotchi-GPL3.txt"
+    }
+  ]
+}

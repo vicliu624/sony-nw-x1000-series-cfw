@@ -34,7 +34,7 @@ static void cancel(void *context) {
 static void reply(const char *headers,const void *data,size_t length) {
  char head[2049],path[2049];size_t i;int n;
  assert(mock.live);for(i=0;mock.request.path[i]&&mock.request.path[i]!='?';i++)path[i]=mock.request.path[i];path[i]=0;
- assert(qq_response_init(&mock.response,mock.jar,mock.request.host,path,100,mock.body,sizeof(mock.body))==0);
+ assert((mock.request.album_cover?qq_response_init_cover(&mock.response,path,mock.body,sizeof(mock.body)):qq_response_init(&mock.response,mock.jar,mock.request.host,path,100,mock.body,sizeof(mock.body)))==0);
  n=sony_snprintf(head,sizeof(head),"%sContent-Length: %u\r\n\r\n",headers,(unsigned)length);assert(n>0&&(size_t)n<sizeof(head));
  assert(qq_response_push(&mock.response,(const unsigned char *)head,(size_t)n)>=0);
  assert(qq_response_push(&mock.response,data,length)==1&&qq_response_finish(&mock.response)==0);mock.ready=1;
@@ -160,5 +160,15 @@ int main(int argc,char **argv,char **env) {
  assert(!qq_runtime_init(&runtime,&ops));runtime.ui.connection_failed=1;runtime.ui.connection.step=QQ_STEP_CLOCK;runtime.ui.connection.clock_skew_seconds=28800;
  assert(!timezone_sets);assert(qq_runtime_touch(&runtime,100,320,now)==1&&timezone_sets==1&&runtime.preparing&&!mock.starts);
  assert(qq_runtime_touch(&runtime,100,375,now)==1&&!runtime.preparing);qq_runtime_close(&runtime);
+ /* Production cover provider: exact album request, shared album cache, no retry storm. */
+ assert(!qq_runtime_init(&runtime,&ops));qq_runtime_enable_covers(&runtime);runtime.app.login.session.state=QQ_READY;runtime.app.login.stage=QQ_LOGIN_DONE;runtime.app.view=QQ_APP_TRACK;runtime.ui.page=QQ_UI_DETAIL;
+ strcpy(runtime.app.selected.mid,"CoverSong");strcpy(runtime.app.selected.album_mid,"AlbumA");
+ assert(!qq_runtime_step(&runtime,++now,100000)&&runtime.cover_active&&mock.request.album_cover);
+ reply("HTTP/1.1 200 OK\r\n",png,png_bytes);
+ {unsigned w,h,starts=mock.starts;const unsigned short *image=runtime.ui.cover(runtime.ui.cover_context,"CoverSong",&w,&h);assert(image&&w==96&&h==96&&runtime.ui.cover_revision==1);
+ strcpy(runtime.app.selected.mid,"SameAlbumSong");assert(!qq_runtime_step(&runtime,++now,100000)&&mock.starts==starts);assert(runtime.ui.cover(runtime.ui.cover_context,"SameAlbumSong",&w,&h)==image);
+ strcpy(runtime.app.selected.album_mid,"AlbumB");assert(!qq_runtime_step(&runtime,++now,100000)&&runtime.cover_active);reply("HTTP/1.1 200 OK\r\n","bad-image",9);starts=mock.starts;assert(!qq_runtime_step(&runtime,++now,100000)&&mock.starts==starts&&runtime.app.login.session.state==QQ_READY);
+ strcpy(runtime.app.selected.album_mid,"AlbumC");assert(!qq_runtime_step(&runtime,++now,100000)&&runtime.cover_active);assert(qq_runtime_touch(&runtime,100,320,++now)==1&&!runtime.cover_active&&!mock.live);}
+ qq_runtime_close(&runtime);assert(!runtime.cover_pixels);
  free(pixels);free(png);free(font);return 0;
 }

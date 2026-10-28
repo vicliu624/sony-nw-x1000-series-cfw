@@ -5,6 +5,11 @@ enum file_syscall {SYS_READ=3,SYS_WRITE=4,SYS_OPEN=5,SYS_CLOSE=6,
                    SYS_LSEEK=19,SYS_READLINK=85,SYS_GETDENTS=141};
 static long call3(long n,long a,long b,long c) {return x1000_oabi_call(n,a,b,c,0,0,0);}
 long hb_file_open_read(const char *path) {return call3(SYS_OPEN,(long)path,0,0);}
+long hb_file_open_resource(const char *path,unsigned bytes) {
+ long fd=call3(SYS_OPEN,(long)path,0100000|04000,0);if(fd<0)return fd;
+ if(call3(SYS_LSEEK,fd,0,2)!=(long)bytes||call3(SYS_LSEEK,fd,0,0)!=0){call3(SYS_CLOSE,fd,0,0);return -22;}
+ return fd;
+}
 long hb_file_read(int fd,void *buffer,unsigned bytes) {return call3(SYS_READ,fd,(long)buffer,bytes);}
 long hb_file_write(int fd,const void *buffer,unsigned bytes) {return call3(SYS_WRITE,fd,(long)buffer,bytes);}
 long hb_file_close(int fd) {return call3(SYS_CLOSE,fd,0,0);}

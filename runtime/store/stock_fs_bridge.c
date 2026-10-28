@@ -4,6 +4,7 @@
 #include <stdarg.h>
 extern int sony_fxstat64(int,int,void *) __asm__("__fxstat64");
 extern int sony_lxstat64(int,const char *,void *) __asm__("__lxstat64");
+extern int sony_xstat64(int,const char *,void *) __asm__("__xstat64");
 extern int *sony_errno(void) __asm__("__errno_location");
 extern char *sony_realpath(const char *,char *) __asm__("realpath");
 extern int sony_vsnprintf(char *,size_t,const char *,va_list) __asm__("vsnprintf");
@@ -23,6 +24,11 @@ int hb_target_lstat(const char *path,struct hb_target_stat *out) {
  unsigned char raw[96] __attribute__((aligned(8)));
  if(!out||!path){*sony_errno()=22;return -1;}
  int result=sony_lxstat64(3,path,raw);return result?result:convert(raw,out);
+}
+int hb_target_stat(const char *path,struct hb_target_stat *out) {
+ unsigned char raw[96] __attribute__((aligned(8)));
+ if(!out||!path){*sony_errno()=22;return -1;}
+ int result=sony_xstat64(3,path,raw);return result?result:convert(raw,out);
 }
 /* Runtime checks for compiler-emitted fortified calls. Do not alias these to
  * unchecked originals. The snprintf profile rejects %n (even read-only %n),

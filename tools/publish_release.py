@@ -1,6 +1,7 @@
 """Publish verified assets via a draft; published version releases are immutable."""
 from pathlib import Path
 import argparse,hashlib,json,os,subprocess,tempfile
+from market_metadata import catalog_records,check_history
 def main():
  p=argparse.ArgumentParser(description=__doc__);p.add_argument('directory',type=Path);p.add_argument('--repository',required=True);p.add_argument('--tag',required=True);a=p.parse_args()
  folder=a.directory.resolve()
@@ -22,6 +23,17 @@ def main():
  def gh(*args,check=True):return subprocess.run(['gh',*args],capture_output=True,text=True,check=check)
  base='repos/'+a.repository+'/releases'
  releases=json.loads(gh('api',base,'--paginate','--slurp').stdout)
+ incoming=catalog_records((folder/'catalog.tsv').read_bytes());history=[]
+ for previous in [release for page in releases for release in page if not release['draft']]:
+  if previous['tag_name']==a.tag:continue
+  names={asset['name'] for asset in previous['assets']}
+  if not {'catalog.tsv','release-manifest.json'}<=names:raise ValueError('Published release lacks version history: '+previous['tag_name'])
+  with tempfile.TemporaryDirectory(prefix='release-history-') as temporary:
+   gh('release','download',previous['tag_name'],'--repo',a.repository,'--pattern','catalog.tsv','--pattern','release-manifest.json','--dir',temporary)
+   prior=Path(temporary);listing=(prior/'catalog.tsv').read_bytes();report=json.loads((prior/'release-manifest.json').read_text())
+   if hashlib.sha256(listing).hexdigest()!=report['catalog_sha256']:raise ValueError('Historical catalog digest mismatch')
+   history.append(catalog_records(listing))
+ check_history(incoming,history)
  matches=[release for page in releases for release in page if release['tag_name']==a.tag]
  if len(matches)>1:raise ValueError('Ambiguous release tag')
  if not matches:

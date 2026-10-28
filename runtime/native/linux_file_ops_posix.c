@@ -13,6 +13,11 @@ typedef char stock_dirent_record_length[(offsetof(struct dirent,d_reclen)==16)?1
 typedef char stock_dirent_inode[(sizeof(((struct dirent*)0)->d_ino)==8)?1:-1];
 static long result(long value) {return value<0?-errno:value;}
 long hb_file_open_read(const char *path){return result(open(path,O_RDONLY));}
+long hb_file_open_resource(const char *path,unsigned bytes){
+ int fd=open(path,O_RDONLY|O_NONBLOCK|O_NOFOLLOW);if(fd<0)return -errno;
+ if(hb_stock_llseek(fd,0,SEEK_END)!=(long long)bytes||hb_stock_llseek(fd,0,SEEK_SET)!=0){close(fd);return -EINVAL;}
+ return fd;
+}
 long hb_file_read(int fd,void *buffer,unsigned bytes){return result(read(fd,buffer,bytes));}
 long hb_file_write(int fd,const void *buffer,unsigned bytes){return result(write(fd,buffer,bytes));}
 long hb_file_close(int fd){return result(close(fd));}

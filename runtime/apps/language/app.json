@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "id": "language",
+  "target": "sony-nw-x1000-jp",
+  "title": "Language",
+  "summary": "Select an external language pack",
+  "description": "Select among installed external language packs in the custom X1000 environment. Pack availability depends on the installed setup. Localization and the original application's sleep behavior have separate validation limits; read the localization guide before installation.",
+  "changes": "Experimental external-language application. Physical sleep stability remains independently unverified.",
+  "channel": "experimental",
+  "artwork": {
+    "color": "#688ad5",
+    "kind": "language",
+    "subtitle": "Make it your own"
+  },
+  "build": {
+    "script": "build.py",
+    "package": "work/external-language-app-build/HOMEBREW/apps/language"
+  }
+}

@@ -1,0 +1,80 @@
+{
+  "sources": [
+    "@/runtime/store/repository.c",
+    "@/runtime/store/remote_store.c",
+    "@/runtime/store/metadata_cache.c",
+    "@/runtime/store/metadata_fetch.c",
+    "@/runtime/store/remote_catalog.c",
+    "@/runtime/store/remote_list.c",
+    "@/runtime/store/download_intent.c",
+    "@/runtime/store/download_record.c",
+    "@/runtime/store/payload_cache_cleanup.c",
+    "@/runtime/store/partial_cleanup.c",
+    "@/runtime/store/download_recovery.c",
+    "@/runtime/store/package_job.c",
+    "@/runtime/store/package_resume.c",
+    "@/runtime/store/package_assemble.c",
+    "@/runtime/store/download_task.c",
+    "@/runtime/store/download_plan.c",
+    "@/runtime/store/resolver.c",
+    "@/runtime/store/connect_step.c",
+    "@/runtime/store/https_url.c",
+    "@/runtime/store/https_fetch.c",
+    "@/runtime/store/tls_socket_step.c",
+    "@/runtime/store/socket_step.c",
+    "@/runtime/store/deadline.c",
+    "@/runtime/store/tls_platform.c",
+    "@/runtime/store/download_file.c",
+    "@/runtime/store/download_stream.c",
+    "@/runtime/store/http_response.c",
+    "@/runtime/store/install_posix.c",
+    "@/runtime/store/transaction.c",
+    "@/runtime/store/stage_posix.c",
+    "@/runtime/store/cleanup_posix.c",
+    "@/runtime/store/pending_plan.c",
+    "@/runtime/store/cleanup_plan.c",
+    "@/runtime/store/bundle_posix.c",
+    "@/runtime/store/inventory.c",
+    "@/runtime/store/package.c",
+    "@/runtime/store/stock_fs_bridge.c",
+    "@/runtime/store/stock_stat64.c",
+    "@/runtime/store/stock_tls_compat.c",
+    "@/runtime/store/canvas.c",
+    "@/runtime/store/job_ui.c",
+    "@/runtime/store/termination.c",
+    "@/runtime/apps/store/network_app.c",
+    "@/runtime/store/platform_native.c",
+    "@/runtime/apps/store/network_main.c",
+    "@/runtime/store/start.c",
+    "@/runtime/store/start.S",
+    "@/runtime/native/frontend.c",
+    "@/runtime/native/sha256.c",
+    "@/runtime/native/linux_devices.c",
+    "@/runtime/native/linux_device_io_posix.c"
+  ],
+  "cflags": [
+    "-DHB_STORE_LIBC_CLOCK",
+    "-DHB_STORE_SONY_LIBC",
+    "-Iwork/external-tls-probe/bearssl-0.6/inc",
+    "-Iwork/stock-resolver-probe"
+  ],
+  "libraries": [
+    "work/external-tls-probe/arm-build/libbearssl.a",
+    "work/stock-resolver-probe/libcares.so.2",
+    "work/stock-resolver-probe/librt.so.1"
+  ],
+  "library_paths": [
+    "work/stock-resolver-probe"
+  ],
+  "ldflags": [
+    "-Wl,-rpath-link,work/stock-resolver-probe"
+  ],
+  "checks": [
+    [
+      "--help"
+    ],
+    [
+      "--version"
+    ]
+  ]
+}

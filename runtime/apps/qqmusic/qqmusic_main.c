@@ -7,6 +7,10 @@
 #include "qqmusic_wifi.h"
 #include "qqmusic_installation.h"
 #include <sys/resource.h>
+#ifdef QQ_NATIVE_PREVIEW
+#include "qqmusic_preview_runtime.h"
+#include "qqmusic_preview_profile.h"
+#endif
 #endif
 #include <string.h>
 #include <unistd.h>
@@ -36,6 +40,14 @@ static int print(int fd,const char *s){size_t n=strlen(s);return write(fd,s,n)==
 #ifdef QQ_NATIVE_FULL
 /* Exit to the caller; the existing launcher owns Sony's lifecycle handoff. */
 static int request_exit(void *context){(void)context;return 0;}
+#ifdef QQ_NATIVE_PREVIEW
+struct preview_ui_context {struct qq_program_config *program;struct qq_job_config *job;struct qq_workspace *workspace;struct qq_wifi_session *wifi;};
+static int preview_ui(void *context,const struct qq_preview_client_channels *channels,volatile int *ui_stop){
+ struct preview_ui_context *c=context;
+ c->program->stop=ui_stop;c->workspace->stop=ui_stop;c->wifi->stop=ui_stop;
+ return qq_program_run_import_preview(c->program,c->job,channels);
+}
+#endif
 #endif
 int main(int argc,char **argv,char **environment){
  struct qq_program_config config;struct qq_storage_policy policy={QQ_PROFILE_SOURCE,"vfat"};int deployed;
@@ -86,7 +98,14 @@ int main(int argc,char **argv,char **environment){
  job.network=config.network;job.bitrate_kbps=192;job.policy_context=&workspace;job.exclusive=qq_workspace_check;
  job.plan.source=64*1024*1024;job.plan.mp3=128*1024*1024;job.plan.metadata=QQ_JOURNAL_MAX_BYTES;job.plan.reserve=4*1024*1024;
  job.plan.files[0]=job.plan.files[2]=job.plan.files[5]=1;job.plan.directory_units=6;
+#ifdef QQ_NATIVE_PREVIEW
+ {
+  struct preview_ui_context context={&config,&job,&workspace,&wifi};
+  result=qq_preview_runtime_run(&qq_preview_reviewed_policy,&workspace,&stopped,preview_ui,&context);
+ }
+#else
  result=qq_program_run_import(&config,&job);
+#endif
  if(qq_workspace_close(&workspace))result=-1;
  return result?2:0;
 #else

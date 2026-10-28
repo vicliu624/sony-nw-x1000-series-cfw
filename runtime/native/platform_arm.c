@@ -21,7 +21,24 @@ static unsigned short canvas[240*432];
 #include "font.inc"
 static void rect(int x,int y,int w,int h,unsigned short c){for(int j=y;j<y+h;j++)for(int i=x;i<x+w;i++)if(i>=0&&i<240&&j>=0&&j<432)canvas[j*240+i]=c;}
 static void text(int x,int y,const char*s,int scale,unsigned short color){for(;*s&&x<232;s++,x+=6*scale){unsigned char c=(unsigned char)*s;if(c>='a'&&c<='z')c-=32;int g=c>='0'&&c<='9'?c-'0':c>='A'&&c<='Z'?c-'A'+10:-1;if(g>=0){for(int j=0;j<7;j++)for(int i=0;i<5;i++)if(glyph[g][j]&(1<<(4-i)))rect(x+i*scale,y+j*scale,scale,scale,color);}else if(c!=' ')rect(x,y+3*scale,3*scale,scale,color);}}
-static void draw(struct hb_frontend*s,const char*message){rect(0,0,240,432,0x0843);rect(0,0,240,44,0x1a4b);text(12,14,"HOMEBREW",2,0xffff);for(unsigned j=0;j<HB_ROWS;j++){unsigned i=s->page*HB_ROWS+j;if(i>=catalog.count)break;rect(8,HB_LIST_TOP+1+j*HB_ROW_HEIGHT,224,HB_ROW_HEIGHT-5,0x1946);text(16,HB_LIST_TOP+18+j*HB_ROW_HEIGHT,catalog.apps[i].name,2,0xffff);}if(!catalog.count){text(24,160,"NO APPS INSTALLED",1,0xffff);text(24,180,"COPY APPS FROM PC",1,0x9cf3);}text(8,366,message,1,0xffe0);rect(0,384,240,48,0x1a4b);text(12,404,"WALKMAN",1,0xffff);rect(95,388,1,40,0x4b6f);rect(167,388,1,40,0x4b6f);text(118,404,"PREV",1,s->page>0?0xffff:0x7bef);text(190,404,"NEXT",1,(s->page+1)*HB_ROWS<s->count?0xffff:0x7bef);char page[4]={(char)('1'+s->page),'/',(char)('0'+(s->count?(s->count+HB_ROWS-1)/HB_ROWS:1)),0};text(206,370,page,1,0x9cf3);}
+#include "app_list_art.h"
+#include "app_presentation.h"
+static void art_rect(void *context,int x,int y,int w,int h,unsigned short c){(void)context;rect(x,y,w,h,c);}
+static void art_text(void *context,int x,int y,const char *s,int scale,unsigned short c){(void)context;text(x,y,s,scale,c);}
+static void draw(struct hb_frontend*s,const char*message){
+ const struct hb_store_painter p={0,art_rect,art_text};
+ hb_art_header(&p,"Applications",catalog.count);
+ for(unsigned j=0;j<HB_ROWS;j++){
+  unsigned i=(unsigned)s->page*HB_ROWS+j;if(i>=catalog.count)break;
+  struct hb_presentation presentation;
+  const struct hb_app_art *art=hb_art_find(catalog.apps[i].id);
+  if(hb_presentation_load(&presentation,catalog.apps[i].folder))art=&presentation.art;
+  hb_art_row_with_art(&p,j,catalog.apps[i].id,catalog.apps[i].name,0,s->selected==(int)i,art);
+ }
+ if(!catalog.count){hb_art_text(&p,24,158,200,"No apps installed",HB_ART_TEXT,HB_ART_BG);hb_art_text(&p,24,180,200,"Copy apps from your PC",HB_ART_MUTED,HB_ART_BG);}
+ hb_art_footer(&p,(unsigned)s->page,catalog.count,0);
+ if(message&&*message){rect(8,361,224,20,HB_ART_BG);hb_art_text(&p,12,362,216,message,0xeecb,HB_ART_BG);}
+}
 /* Stock JP1.11 page spacing and ioctl contracts, independently replayed offline.
    This adapter is still unqualified on a physical X1000. No physical addresses. */
 static void poll_home(void *context,volatile int *stop) {
@@ -125,7 +142,9 @@ int hb_main(int argc,char **argv,char **environment) {
     logtext(1,catalog.apps[i].name);logtext(1,"\n");
    }
   } else {
-   struct hb_frontend state;hb_frontend_init(&state,catalog.count);draw(&state,"");
+   struct hb_frontend state;hb_frontend_init(&state,catalog.count);
+   if(argc>3){if(!argv[3][0]||argv[3][1]||argv[3][0]<'0'||argv[3][0]>'5')return 64;state.page=argv[3][0]-'0';if(state.page&&state.page*HB_ROWS>=(int)catalog.count)return 64;}
+   draw(&state,"");
    const char *bytes=(const char *)canvas;unsigned remaining=sizeof canvas;
    while(remaining) {
     long written=hb_file_write(1,bytes,remaining);if(written<=0)return 2;

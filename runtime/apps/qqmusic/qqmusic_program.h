@@ -27,4 +27,6 @@ int qq_program_run(const struct qq_program_config *);
 typedef int (*qq_program_entry)(const struct qq_entry_config *,void *);
 int qq_program_run_bound(const struct qq_program_config *,qq_program_entry,void *);
 int qq_program_run_import(const struct qq_program_config *,const struct qq_job_config *);
+struct qq_preview_client_channels;
+int qq_program_run_import_preview(const struct qq_program_config *,const struct qq_job_config *,const struct qq_preview_client_channels *);
 #endif

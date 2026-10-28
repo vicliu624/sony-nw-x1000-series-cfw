@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "id": "pet",
+  "target": "sony-nw-x1000-jp",
+  "title": "BSOD Pet",
+  "summary": "A touch companion for your Walkman",
+  "description": "Meet BSOD, a small offline companion for X1000. Tap to greet it, offer a treat, play, or let it rest and tap to wake. It waves, walks and tinkers with a laptop on its own. Chinese controls and UTF-8 text use an external bitmap font. Interactions save on user storage; reset requires confirmation. No hunger chores, network account or live Codex connection. Physical-player qualification is pending.",
+  "changes": "Adds a dedicated monitor-robot icon, packaged introduction and release notes. Includes Chinese text, a bounded glyph cache and menu-only exit. Existing pet state is retained.",
+  "channel": "experimental",
+  "artwork": {
+    "color": "#3699d7",
+    "kind": "pet",
+    "subtitle": "Touch companion"
+  },
+  "build": {
+    "script": "build.py",
+    "package": "work/pet-build/HOMEBREW/apps/pet",
+    "output_suffix": "HOMEBREW/apps/pet"
+  }
+}

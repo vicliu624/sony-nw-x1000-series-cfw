@@ -16,9 +16,9 @@ assert sorted(x['id'] for x in report['apps'])==policy['apps']
 listing=(upload/'catalog.tsv').read_bytes();assert digest(listing)==report['catalog_sha256']
 with tarfile.open(ROOT/'work/upg-jp/verified-3.bin',mode='r:gz') as stock:
  sonames={Path(m.name).name for m in stock if m.name.startswith(('./lib/','./usr/lib/'))}
-assert listing.startswith(b'HBSTORE2\n') and len(listing.splitlines())==len(policy['apps'])+1
+assert listing.startswith(b'HBSTORE3\n') and len(listing.splitlines())==len(policy['apps'])+1
 for row in listing.decode('ascii').splitlines()[1:]:
- ident,version,base,mbytes,msha,ibytes,isha,prefix=row.split('\t')
+ ident,version,base,mbytes,msha,ibytes,isha,prefix,title,summary,description,changes,channel,download_bytes=row.split('\t')
  get=lambda path:(upload/(prefix+path.encode('ascii').hex())).read_bytes()
  meta=get('app.ini');index=get('files.sha256')
  assert len(meta)==int(mbytes) and digest(meta)==msha and len(index)==int(ibytes) and digest(index)==isha
@@ -32,7 +32,9 @@ for row in listing.decode('ascii').splitlines()[1:]:
   assert not parts.is_absolute() and '..' not in parts.parts and path not in paths
   assert not path.endswith(('.so','.pem','.key','.gb','.gbc','.gba')) and 'server-key' not in path
   value=get(path);assert len(value)==int(size) and digest(value)==sha;paths.add(path)
- assert {'app','app.ini'}<=paths
+ assert {'app','app.ini','app-info.json','presentation.bin','icon.png'}<=paths
+ info=json.loads(get('app-info.json'));assert all(info[k]==v for k,v in [('id',ident),('version',version),('title',title),('summary',summary),('description',description),('changes',changes),('channel',channel)])
+ assert int(download_bytes)==sum(len(get(path)) for path in paths if path!='app.ini')
  with zipfile.ZipFile(upload/(ident+'-'+version+'.zip')) as z:
   assert z.testzip() is None
   for path in paths|{'files.sha256'}:assert z.read('HOMEBREW/apps/'+ident+'/'+path)==get(path)

@@ -35,11 +35,15 @@ int __wrap_open(const char *path,int flags,...) {
  if(flags&O_CREAT){va_start(args,flags);mode=(mode_t)va_arg(args,int);va_end(args);}
  if(active&&((flags&O_ACCMODE)!=O_RDONLY||(flags&(O_CREAT|O_TRUNC|O_APPEND)))){
   int journal=allow_journal&&strstr(path,"/.qq-journal-")&&(flags&O_APPEND)&&!(flags&O_TRUNC)&&(!(flags&O_CREAT)||(flags&O_EXCL));
+  int preview=0;
+#ifdef QQ_PREVIEW_RECEIPT_FIXTURE
+  preview=strstr(path,"/.qq-preview-source-")&&(flags&O_EXCL)&&(flags&O_CREAT)&&!(flags&(O_TRUNC|O_APPEND));
+#endif
 #ifdef QQ_NATIVE_FULL
   int workspace=strstr(path,"/.import.lock")&&!(flags&(O_TRUNC|O_APPEND))&&(flags&O_NOFOLLOW);
   if(workspace)return __real_open(path,flags,mode);
 #endif
-  if(strncmp(path,"/proc/self/fd/",14)||!((allow_output&&strstr(path,"/.qq-mp3-"))||(allow_source&&strstr(path,"/.qq-source-"))||journal)||!(flags&O_NOFOLLOW)||(!journal&&(!(flags&O_EXCL)||!(flags&O_CREAT)))){forbid_writes++;assert(0);}
+  if(strncmp(path,"/proc/self/fd/",14)||!((allow_output&&strstr(path,"/.qq-mp3-"))||(allow_source&&strstr(path,"/.qq-source-"))||journal||preview)||!(flags&O_NOFOLLOW)||(!journal&&(!(flags&O_EXCL)||!(flags&O_CREAT)))){forbid_writes++;assert(0);}
  }
  if(active&&!strcmp(path,"/proc/self/mounts")) {
   int descriptors[2];const char *options=readonly_mount||(changed&&(mount_reads%2))?"ro":"rw";char mounts[512];int n;

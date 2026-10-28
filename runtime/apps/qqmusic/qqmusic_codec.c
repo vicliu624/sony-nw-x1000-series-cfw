@@ -39,7 +39,7 @@ int qq_codec_vorbis_mp3(struct qq_codec_io *io,unsigned bitrate,struct qq_codec_
  ov_callbacks callbacks={read_cb,seek_cb,0,tell_cb};struct reader r;
  struct qq_codec_report report;vorbis_info *info;ogg_int64_t expected;
  int opened=0,result=-1,section=0,pass,written,eof=0;size_t fill=0,needed;
- int16_t pcm[2304];
+ int16_t pcm[2304];uint64_t notified=0;
  if(!out) return -1;
  memset(out,0,sizeof(*out));memset(&report,0,sizeof(report));
  if(!io||!io->read_at||!io->write||!io->source_bytes||io->source_bytes>268435456||stopped(io)||(!io->comment!=!io->comments_done)) return -1;
@@ -66,6 +66,7 @@ int qq_codec_vorbis_mp3(struct qq_codec_io *io,unsigned bitrate,struct qq_codec_
   }
   if(stopped(io)||io->comments_done(io->metadata)) goto done;
  }
+ if(io->progress&&io->progress(io->progress_context,0,(uint64_t)expected))goto done;
  while(!eof) {
   long n;
   if(stopped(io)) goto done;
@@ -73,6 +74,7 @@ int qq_codec_vorbis_mp3(struct qq_codec_io *io,unsigned bitrate,struct qq_codec_
   if(n<0||r.error||section!=0) goto done;
   if(!n) eof=1;
   else {if((size_t)n>needed-fill||(unsigned)n%(report.channels*2)) goto done;fill+=(size_t)n;report.samples+=(unsigned)n/(report.channels*2);if(report.samples>(uint64_t)expected) goto done;}
+  if(io->progress&&(report.samples-notified>=report.rate||eof)){if(io->progress(io->progress_context,report.samples,(uint64_t)expected))goto done;notified=report.samples;}
   if(fill==needed||(eof&&fill)) {
    unsigned char *encoded;
    if(fill<needed) {report.padded_samples=(unsigned)((needed-fill)/(report.channels*2));memset((unsigned char *)pcm+fill,0,needed-fill);}

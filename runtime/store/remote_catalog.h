@@ -8,11 +8,14 @@ struct hb_remote_entry {
  unsigned manifest_bytes,index_bytes;
  unsigned char manifest_sha256[32],index_sha256[32];
  char asset_prefix[41];
+ char title[49],summary[97],description[641],changes[385],channel[17];
+ unsigned download_bytes;
 };
 struct hb_remote_catalog {unsigned count;int valid;struct hb_remote_entry entries[HB_REMOTE_CATALOG_ENTRIES];};
 /* Bounded ASCII HBSTORE1 listing, LF terminated, seven tab-separated fields:
  * id, version, HTTPS base ending '/', manifest bytes/hash, index bytes/hash.
  * HBSTORE2 adds an eighth flat-asset prefix field for release hosting.
+ * HBSTORE3 adds title, summary, description, changes, channel, download bytes.
  * Unique IDs sorted ascending; no filesystem/network/publisher authentication. */
 int hb_remote_catalog_parse(const unsigned char *,unsigned,struct hb_remote_catalog *);
 /* Verify fetched app.ini/files.sha256 against catalog before making a plan.

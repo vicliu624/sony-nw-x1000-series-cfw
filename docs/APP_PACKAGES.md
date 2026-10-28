@@ -22,6 +22,16 @@ path per entry. It must describe actual package files; generated checksums are
 not credentials or a substitute for publisher trust. Reject traversal, unknown
 inventory, corrupt bytes and unsupported target/ELF before execution.
 
+New release packages also contain app-info.json, presentation.bin and icon.png
+(with an optional editable icon.svg), covered by
+the same file inventory. app.ini stays at api1 with its strict existing fields;
+descriptions are not added as unknown manifest keys. HBSTORE3 catalog metadata
+provides the bounded detail-page content before downloading package payloads.
+Application versions use SemVer precedence. A changed file inventory requires a
+higher app version, even when executable bytes did not change. Project release
+VERSION and independently versioned apps have separate responsibilities; see
+RELEASES.md for the publishing gate and apps/STORE.md for installed-state policy.
+
 Use staged writes, verification and rename/rollback. Preserve app data outside
 the replaceable executable tree, normally `HOMEBREW/data/<id>/`. Keep identity and
 generation state consistent across retries. A successful rename without directory

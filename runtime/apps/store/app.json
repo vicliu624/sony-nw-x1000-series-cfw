@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "id": "store",
+  "target": "sony-nw-x1000-jp",
+  "title": "App Market",
+  "summary": "Browse and manage native apps",
+  "description": "Browse verified applications for Japanese X1000 players. Read descriptions and release notes, compare installed and available versions, then explicitly download and install. Existing Wi-Fi and correct device time are required. Update the running market through the computer package.",
+  "changes": "Adds application details, semantic version comparison and guarded installs. Older catalogs remain readable. Physical-player qualification is pending.",
+  "channel": "experimental",
+  "artwork": {
+    "color": "#3188db",
+    "kind": "bag",
+    "subtitle": "Discover & install"
+  },
+  "build": {
+    "script": "build.py",
+    "package": "work/app-builds/store/package"
+  },
+  "package_files": [
+    {
+      "source": "work/external-tls-probe/bearssl-0.6/LICENSE.txt",
+      "destination": "LICENSES/BearSSL-MIT.txt"
+    },
+    {
+      "source": "third_party/qqmusic-stb/Noto-OFL.txt",
+      "destination": "LICENSES/Noto-OFL.txt"
+    }
+  ]
+}

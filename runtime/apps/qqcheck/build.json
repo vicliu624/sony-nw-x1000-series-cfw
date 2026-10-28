@@ -1,0 +1,24 @@
+{
+  "sources": [
+    "qqmusic_startup_check.c",
+    "@/runtime/apps/qqmusic/qqmusic_workspace.c",
+    "@/runtime/apps/qqmusic/qqmusic_wifi_link.c",
+    "@/runtime/apps/qqmusic/qqmusic_volume.c",
+    "@/runtime/apps/qqmusic/qqmusic_storage.c",
+    "@/runtime/apps/qqmusic/qqmusic_asset.c",
+    "@/runtime/native/sha256.c",
+    "@/runtime/native/linux_devices.c",
+    "@/runtime/native/frontend.c",
+    "@/runtime/native/linux_signals.c",
+    "@/runtime/native/syscalls.S",
+    "@/runtime/store/stock_fs_bridge.c",
+    "@/runtime/store/stock_stat64.c",
+    "@/runtime/store/stock_tls_compat.c",
+    "@/runtime/store/start.c",
+    "@/runtime/store/start.S",
+    "@/runtime/native/linux_device_io_posix.c"
+  ],
+  "cflags": [
+    "-DHB_STORE_SONY_LIBC"
+  ]
+}

@@ -18,7 +18,7 @@ int qq_entry_run_bound(const struct qq_entry_config *config,qq_entry_setup setup
  font=mapping.data;
  runtime=calloc(1,sizeof(*runtime));pixels=calloc(QQ_UI_PIXELS,sizeof(*pixels));
  if(!runtime||!pixels||qq_runtime_init(runtime,config->operations))goto done;
- runtime_open=1;
+ runtime_open=1;qq_runtime_enable_covers(runtime);
  if(*config->stop||qq_devices_open(&devices,&io,pixels,QQ_UI_PIXELS,config->stop))goto done;
  devices_open=1;
  if(setup&&setup(context,runtime,&devices,font,QQ_FONT_BYTES,pixels))goto done;

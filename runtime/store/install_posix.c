@@ -17,6 +17,7 @@
 struct context {
  char root[512],source[512],id[33],slots[3][512],pending_path[512],committed_path[512],legacy_path[512];
  int fd,uncertain,end_error,has_pending,has_committed;
+ int guard_live,live_present,live_changed;unsigned char live_identity[32];
  volatile int *stop;
  struct hb_bundle incoming,old,scratch;
  struct hb_pending_plan pending;
@@ -135,6 +136,11 @@ static int repair_failed_commit(struct context *c) {
 static int begin(void *opaque,const char *id) {
  struct context *c=opaque;unsigned bytes;int found;
  if(strcmp(id,c->id)||lock_context(c))return -1;
+ if(c->guard_live){
+  if(!absent(c->slots[HB_STAGE])||!absent(c->slots[HB_BACKUP])||!absent(c->pending_path)||!absent(c->committed_path)||!absent(c->legacy_path)){c->live_changed=1;goto failed;}
+  unsigned char actual[32];int missing=absent(c->slots[HB_LIVE]);
+  if((!c->live_present&&!missing)||(c->live_present&&(missing||bundle_identity_at(c,c->slots[HB_LIVE],actual)||memcmp(actual,c->live_identity,32)))){c->live_changed=1;goto failed;}
+ }
  found=read_record(c,c->pending_path,HB_PENDING_RECEIPT_MAX,&bytes);
  if(found<0||(found&&hb_pending_plan_decode(c->record,bytes,c->id,&c->pending))){c->uncertain=1;goto failed;}
  c->has_pending=found;
@@ -251,9 +257,11 @@ int hb_store_recover_local(const char *root,const char *id,volatile int *stop) {
  struct context *c=create(root,id,stop);if(!c)return HB_INSTALL_INVALID;
  struct hb_install_io io=adapter(c);return result(c,hb_install_recover(&io,id));
 }
-int hb_store_install_local_expected(const char *root,const char *source,const char *id,unsigned long long reserve,volatile int *stop,const unsigned char *expected) {
+int hb_store_install_local_guarded(const char *root,const char *source,const char *id,unsigned long long reserve,volatile int *stop,const unsigned char *expected,int live_present,const unsigned char *live_identity) {
  if(stop&&*stop)return HB_INSTALL_CANCELLED;
+ if(live_present < -1||live_present>1||(live_present==1&&!live_identity))return HB_INSTALL_INVALID;
  struct context *c=create(root,id,stop);if(!c)return HB_INSTALL_INVALID;
+ c->guard_live=live_present>=0;c->live_present=live_present==1;if(c->live_present)memcpy(c->live_identity,live_identity,32);
  struct statvfs s;unsigned long long allocation;int invalid=canonical(source,c->source);
  if(!invalid) {
   unsigned a=(unsigned)strlen(c->root),b=(unsigned)strlen(c->source);
@@ -269,8 +277,9 @@ int hb_store_install_local_expected(const char *root,const char *source,const ch
  }
  unsigned long long unit=s.f_frsize;
  allocation+=((HB_PENDING_RECEIPT_MAX+unit-1)/unit+(HB_CLEANUP_RECEIPT_MAX+unit-1)/unit+4)*unit;
- struct hb_install_io io=adapter(c);return result(c,hb_install_apply(&io,id,allocation,reserve));
+ struct hb_install_io io=adapter(c);int code=hb_install_apply(&io,id,allocation,reserve);return result(c,c->live_changed?HB_INSTALL_CHANGED:code);
 }
+int hb_store_install_local_expected(const char *root,const char *source,const char *id,unsigned long long reserve,volatile int *stop,const unsigned char *expected){return hb_store_install_local_guarded(root,source,id,reserve,stop,expected,-1,0);}
 int hb_store_install_local(const char *root,const char *source,const char *id,unsigned long long reserve,volatile int *stop){
  return hb_store_install_local_expected(root,source,id,reserve,stop,0);
 }

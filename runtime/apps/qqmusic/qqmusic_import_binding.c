@@ -18,6 +18,7 @@ static int child_detach(void *context){
  if(!b->attached||!b->runtime||!b->devices)return -1;
  /* Do not call runtime_close here: that would cancel this child's inherited
   * worker request. The app/account object is separate from its private copy. */
+ free(b->runtime->cover_pixels);b->runtime->cover_pixels=0;
  qq_app_logout(&b->runtime->app);qq_secret_clear(&b->runtime->request,sizeof(b->runtime->request));
  rc=qq_devices_close(b->devices);
  if(b->pixels){qq_secret_clear(b->pixels,QQ_UI_PIXELS*sizeof(*b->pixels));free(b->pixels);b->pixels=0;}
@@ -35,6 +36,7 @@ static int begin(void *context,const struct qq_song *song,const struct qq_resour
  b->job.bitrate_kbps=b->runtime->ui.quality;
  return b->worker.operations.begin(b->worker.operations.context,song,intent,resource,layout,now,expires);
 }
+int qq_import_binding_detach_child(struct qq_import_binding *b){return !b?-1:child_detach(&b->job);}
 static int poll_import(void *context,uint64_t now,struct qq_runtime_import_progress *progress){
  struct qq_import_binding *b=context;if(exclusive(b)){memset(progress,0,sizeof(*progress));progress->review=1;return -1;}
  return b->worker.operations.poll(b->worker.operations.context,now,progress);

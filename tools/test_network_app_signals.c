@@ -1,4 +1,4 @@
-#include "../runtime/store/network_app.h"
+#include "../runtime/apps/store/network_app.h"
 #include "../runtime/store/remote_store.h"
 #include "../runtime/store/repository.h"
 #include "../runtime/store/termination.h"

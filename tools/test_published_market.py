@@ -14,8 +14,9 @@ def verified(name):
 manifest=json.loads(verified('release-manifest.json'));setup=verified('market-source.zip');expected=next(x['sha256'] for x in manifest['apps'] if x['id']=='hello')
 work=ROOT/'work/ci/published-market';work.mkdir(parents=True,exist_ok=True)
 lib=ROOT/'work/arm-signal-tests/lib';sdk=ROOT/'work/stock-resolver-probe';crypto=ROOT/'work/external-tls-probe'
-syntax=ast.parse((ROOT/'tools/build_network_store_app.py').read_text());modules=next(ast.literal_eval(n.value) for n in syntax.body if isinstance(n,ast.Assign) and any(isinstance(t,ast.Name) and t.id=='modules' for t in n.targets))
-sources=['runtime/store/'+n+'.c' for n in modules if n not in ('network_main','network_app','platform_native','termination')]+['runtime/store/start.S','runtime/native/frontend.c','runtime/native/sha256.c','tools/release_market_probe.c']
+recipe=json.loads((ROOT/'runtime/apps/store/build.json').read_text())
+excluded={'network_main','network_app','platform_native','termination','linux_devices','linux_device_io_posix'}
+sources=[(name[2:] if name.startswith('@/') else 'runtime/apps/store/'+name) for name in recipe['sources'] if Path(name).stem not in excluded]+['tools/release_market_probe.c']
 app=work/'probe.arm';flags=['-std=gnu99','-Os','-Wall','-Wextra','-Werror','-Wno-misleading-indentation','-DHB_STORE_SONY_LIBC','-DHB_STORE_LIBC_CLOCK','-U_FORTIFY_SOURCE','-D_FORTIFY_SOURCE=0','-march=armv5te','-marm','-mfloat-abi=soft','-ffreestanding','-fno-builtin','-fno-pie','-nostdlib','-no-pie','-Wl,--hash-style=sysv','-Wl,--build-id=none','-Wl,--dynamic-linker=/lib/ld-linux.so.3','-Wl,-rpath-link,'+str(sdk),'-I'+str(sdk),'-I'+str(crypto/'bearssl-0.6/inc')]
 subprocess.run(['arm-linux-gnueabi-gcc',*flags,*sources,str(crypto/'arm-build/libbearssl.a'),str(sdk/'libcares.so.2'),str(sdk/'librt.so.1'),str(lib/'libc.so.6'),str(lib/'ld-linux.so.3'),'-lgcc','-o',str(app)],cwd=ROOT,check=True)
 with tempfile.TemporaryDirectory(prefix='install-',dir=work) as temporary:

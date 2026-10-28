@@ -51,6 +51,17 @@ unchanged. App manifests/indexes and every payload file retain exact size/SHA256
 checks. TLS redirects are HTTPS-only, bounded to five hops and use a new verified
 connection per host under the original total deadline.
 
+New builds emit HBSTORE3: the original eight flat fields followed by title (48
+ASCII bytes), summary (96), description (640), version-specific changes (384),
+channel (stable/experimental) and payload download bytes. Rows remain tab-separated
+and LF-terminated; control characters, empty rich fields and oversize content are
+rejected. The whole catalog remains bounded to32768 bytes/32 unique sorted IDs.
+runtime/apps/<id>/app.json is the maintained source. Each app's app-info.json
+is included in its verified package inventory. A stable channel cannot carry a
+prerelease version. Title/version/download size must match the verified package
+plan before approval. HBSTORE3 needs the updated market; the updated market also
+reads older catalog formats.
+
 Repository configuration pins a specific release catalog. Install the corresponding
 market-source.zip to select another release snapshot. This is explicit source
 selection, not unauthenticated moving-latest metadata. The market does not update
@@ -82,3 +93,24 @@ confined to the publish job. The pipeline must finish verification before publis
 Assets are uploaded to a draft, their remote inventory/size/digest is checked, and
 only then is the release made public. Published version releases are not clobbered;
 a failed draft upload can be resumed with the same verified inventory.
+
+## Application version immutability
+
+Project VERSION identifies firmware/setup releases. App versions remain independent:
+builders with an app VERSION retain it, while project-versioned builders use the
+root VERSION. Changing application files, icons, metadata or dependencies requires
+an increase in that app's SemVer precedence; a build-metadata suffix is insufficient.
+In particular, the first rich-metadata release must bump the independently versioned
+apps as well as root VERSION. The local UI review ZIP is not a published version.
+
+Before creating/uploading a draft, publish_release.py checks all published release
+catalogs, validates their recorded catalog hashes, and compares each incoming app
+against history. Regressed versions and changed inventories at equal precedence
+are rejected. Historical version-specific ZIPs/assets remain available. Failed
+history downloads/validation stop publication; there is no best-effort bypass.
+The publisher never reuses an existing public tag for different artifacts.
+
+Device-side downgrade is a separate, explicit choice of an older snapshot and
+requires extra confirmation. Transaction backup/recovery protects installation
+switches; it is not a permanent user-selectable archive of every installed version
+and does not migrate application save formats. See apps/STORE.md for state handling.

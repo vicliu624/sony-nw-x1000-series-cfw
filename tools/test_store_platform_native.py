@@ -17,7 +17,7 @@ subprocess.run(['arm-linux-gnueabi-gcc','-std=c99','-Wall','-Wextra','-Werror','
 run=subprocess.run(['qemu-arm','-cpu','arm926',str(work/'ld-2.3.3.so'),'--library-path',str(work),str(work/'test.arm')],capture_output=True,text=True,timeout=15)
 assert run.returncode==0,(run.returncode,run.stdout,run.stderr)
 modules=['install_posix','transaction','stage_posix','cleanup_posix','pending_plan','cleanup_plan','bundle_posix','inventory','package','stock_fs_bridge','stock_stat64','session','session_local','view','canvas','ui_loop','catalog_posix','catalog_view','catalog_loop','browser','termination','app','platform_native']
-full_sources=['runtime/store/'+name+'.c' for name in modules]+['runtime/native/frontend.c','runtime/native/sha256.c','runtime/native/linux_devices.c','tools/test_store_platform_native.c',*startup]
+full_sources=[('runtime/apps/store/' if name in ('network_app','network_main') else 'runtime/store/')+name+'.c' for name in modules]+['runtime/native/frontend.c','runtime/native/sha256.c','runtime/native/linux_devices.c','tools/test_store_platform_native.c',*startup]
 subprocess.run(['arm-linux-gnueabi-gcc','-std=c99','-Wall','-Wextra','-Werror','-Os','-march=armv5te','-marm','-mfloat-abi=soft','-ffreestanding','-fno-builtin','-fno-pie','-DHB_FULL_STORE','-DHB_STORE_SONY_LIBC','-nostdlib','-no-pie','-Wl,--hash-style=sysv','-Wl,--dynamic-linker=/lib/ld-linux.so.3',*full_sources,str(work/'libc-2.3.3.so'),str(work/'ld-2.3.3.so'),'-lgcc','-o',str(work/'full-test.arm')],cwd=ROOT,check=True)
 with tempfile.TemporaryDirectory(prefix='full-',dir=work) as temp:
  base=Path(temp);apps=base/'apps';apps.mkdir();packages=base/'packages';packages.mkdir();demo=packages/'demo';demo.mkdir()

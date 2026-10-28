@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "id": "gbc",
+  "target": "sony-nw-x1000-jp",
+  "title": "Game Boy Color",
+  "summary": "Classic handheld emulation",
+  "description": "A native Game Boy and Game Boy Color emulator integration. Supply your own compatible game files on visible storage; no ROMs or personal saves are included. Consult the emulator guide for controls, compatibility and validation limits.",
+  "changes": "Experimental gnuboy integration with retained GPL notices. Game and device behavior require separate qualification.",
+  "channel": "experimental",
+  "artwork": {
+    "color": "#8671cd",
+    "kind": "gameboy",
+    "subtitle": "Handheld classics"
+  },
+  "build": {
+    "script": "build.py",
+    "package": "work/app-builds/gbc/package"
+  },
+  "package_files": [
+    {
+      "source": "third_party/gnuboy/COPYING",
+      "destination": "LICENSES/gnuboy-GPL2.txt"
+    }
+  ]
+}

@@ -1,5 +1,13 @@
 # Third-party tools
 
+The shared launcher/market proportional ASCII bitmap is rasterized from the pinned
+Noto Sans CJK SC Regular input recorded in sources/qqmusic-font-source.json.
+It is licensed under SIL OFL1.1; the retained notice is
+third_party/qqmusic-stb/Noto-OFL.txt and accompanies launcher/store delivery.
+Application icons under runtime/apps/<id>/assets are original project artwork generated
+by tools/build_launcher_art.py. Optional PC design/rendering uses Pillow13.0.0;
+no Pillow or font/image decoder is linked into the device list renderer.
+
 JPEG/PNG memory processing uses official stb headers at 003501f6d7a8668ce8b6d875e34dd97ad0d5d5b5 (https://github.com/nothings/stb), MIT alternative selected. Headers and full dual-license notice retained in third_party/qqmusic-stb/, SHA256 manifest sources/qqmusic-image-sources.json. No source changes; single-threaded/no-SIMD/no-file profiles and allocation limits are configured in our C adapter.
 
 Codec candidates are vendored in third_party/qqmusic-codecs/: Xiph Tremor 820fb3237ea81af44c9cc468c8b4e20128e3e5ad and libogg 06a5e0262cdc28aa4ae6797627a783b5010440f0 (retained BSD-style COPYING), and Shine ab5e3526b64af1a2eaa43aa6f441a7312e013519 (retained GNU Library GPL version 2 COPYING). Official origins and per-file upstream/local SHA256 are in sources/qqmusic-codec-sources.json. Local Shine changes select generic C, calculate frame slots exactly, and drain final cached bytes. These are private development candidates; distribution/relink/license obligations require review before any release. Original Sony libc/libm are build inputs under ignored work/ and are not redistributed.

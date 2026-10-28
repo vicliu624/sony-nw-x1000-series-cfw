@@ -1,4 +1,5 @@
 #include "job_ui.h"
+#include "install_posix.h"
 #include "../native/frontend.h"
 #include <stdio.h>
 static int active(enum hb_job_state s){return s>=HB_JOB_OPEN&&s<=HB_JOB_VERIFY;}
@@ -20,7 +21,7 @@ int hb_job_view_draw(const struct hb_package_job *j,const struct hb_store_painte
  p->text(p->context,12,14,"APP STORE",2,0xffff);p->text(p->context,12,70,name,2,0xffff);
  p->text(p->context,12,116,status,1,0xffff);
  snprintf(progress,sizeof progress,"FILES %u OF %u",j->index,j->plan.network_files);p->text(p->context,12,150,progress,1,0x9cf3);
- if(j->state==HB_JOB_FAILED){snprintf(progress,sizeof progress,"ERROR %d",j->error);p->text(p->context,12,190,progress,1,0xffe0);p->text(p->context,12,220,j->unowned_conflict?"UNRECOGNIZED TEMP FILES":"KEEP OR DISCARD TEMP FILES",1,0xffff);if(j->unowned_conflict)p->text(p->context,12,244,"CHECK FILES ON PC",1,0xffff);}
+ if(j->state==HB_JOB_FAILED){snprintf(progress,sizeof progress,"ERROR %d",j->error);p->text(p->context,12,190,progress,1,0xffe0);p->text(p->context,12,220,j->error==HB_INSTALL_CHANGED?"APP CHANGED - REOPEN MARKET":j->unowned_conflict?"UNRECOGNIZED TEMP FILES":"KEEP OR DISCARD TEMP FILES",1,0xffff);if(j->unowned_conflict)p->text(p->context,12,244,"CHECK FILES ON PC",1,0xffff);}
  if(j->state==HB_JOB_RECOVERY)p->text(p->context,12,220,"DISCARD TEMP FILES AND RETRY",1,0xffff);
  if(j->state==HB_JOB_READY)p->text(p->context,12,220,"INSTALL THIS APPLICATION",1,0xffff);
  p->rect(p->context,0,384,240,48,0x1a4b);

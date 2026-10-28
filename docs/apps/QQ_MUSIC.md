@@ -1,9 +1,18 @@
 # QQ Music: implementation and device guidance
 
-Source: runtime/apps/qqmusic. Goal: independent native QR login, own-account
-collections, authorized new source download, native conversion/tagging, publication
-on user storage and recognition/playback through the original player. A public QR
-or a synthetic import is not the complete goal.
+Source: runtime/apps/qqmusic. The current native feature implementation is complete:
+QR login, own-account collections, authorized source download, cover thumbnails,
+native conversion/tagging and publication on user storage. Physical acceptance of
+the continuous real-account/download/Sony-recognition/playback chain is separate.
+The app's independent package version is runtime/apps/qqmusic/VERSION; root VERSION
+continues to identify the firmware/setup release and existing binary build ID.
+
+![Actual ARM UI with synthetic data](../images/qqmusic.png)
+
+The green/yellow launcher artwork is an original project icon, not downloaded
+brand artwork. The app package includes icon.svg, icon.png and app-info.json in
+its verified inventory. The market uses the completed feature description while
+retaining an experimental channel until hardware acceptance is established.
 
 ## Existing components
 
@@ -15,6 +24,10 @@ or a synthetic import is not the complete goal.
 - Verified-volume workspace, reserve planning, staging/journal/publication,
   background worker and UI progress/cancellation.
 - Separate original-cnmgr Wi-Fi helper and parent callbacks, plus diagnostics.
+- Song-list artwork and missing-cover retrieval; sample-based conversion progress
+  across source download, verification/cover/tags, conversion and publication.
+- 128/192/320 source presets, persistent installation identity, cancellation/retry
+  and explicit session-only clock handling.
 
 Use tools/build_qqmusic_native.py with an explicit non-account profile and fresh
 work output. Optional device-full composition is not a hardware-ready claim.
@@ -28,19 +41,17 @@ reply work. resolv.conf follows the original RAM-backed configuration. INPUT DRO
 does not require an inbound exception for this outbound client; do not copy the
 terminal's TCP2323 rule into QQ networking.
 
-The observed physical date is January2008. hb_tls_current_time reads that clock;
-network.c supplies it to certificate validation and request handling. The UI
-clock path also uses it. First add a clear date/precondition diagnostic and a
-trusted time policy; do not disable verification or trust an unauthenticated
-HTTP Date. An app-local time basis must cover TLS, Cookies, signatures and media
-consistently, not just one function.
+The observed physical date is January2008. The current implementation includes
+clock diagnostics and an explicit session-only UTC8 option without modifying the
+system clock. TLS/Cookies/request timing must retain a consistent app-local basis.
+Do not disable certificate validation or trust an unauthenticated HTTP Date.
 
 program_config has ensure/cancel/release network callbacks, and program/media
 workers have integration points. The full native composition now binds the helper
 and verified workspace lease. Earlier reviews described the then-unbound entry;
 source wiring still does not establish physical request/ownership qualification.
-Keep the original already-connected hotspot as the first device HTTPS baseline;
-then qualify and bind cold-connect handling.
+Cold-connect handling is bound in the native composition. The original
+already-connected hotspot remains the first physical HTTPS acceptance baseline.
 
 The helper avoids blocking the UI and drains original requests before fin. Its
 original library handles across fork/concurrent cancellation, shared ownership

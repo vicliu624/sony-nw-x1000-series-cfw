@@ -22,7 +22,13 @@ long x1000_oabi_call(long call,long a,long b,long c,long d,long e,long f){
  if(call==6){assert(a==10||a==11);closed++;return boot_fault==2?-5:0;}
  if(call==192){framebuffer=calloc(1,(size_t)b);assert(framebuffer);return (long)framebuffer;}
  if(call==91){assert((void *)a==framebuffer);free(framebuffer);framebuffer=0;return 0;}
- if(call==168){struct descriptor{int fd;short events,revents;} *p=(void *)a;assert(b==1&&c==0);p->revents=0;if(++reads==3){boot_stop=1;if(boot_signal)boot_signal(15,0,0);}return 0;}
+ if(call==168){struct descriptor{int fd;short events,revents;} *p=(void *)a;assert(b==1&&c==0);p->revents=0;
+#ifdef QQ_ENTRY_BOOT_KEEP_RUNNING
+ reads++;
+#else
+ if(++reads==3){boot_stop=1;if(boot_signal)boot_signal(15,0,0);}
+#endif
+ return 0;}
  assert(call==54);
  if((unsigned long)b==0x4602){memset(v,0,128);v[5]=0xc0000;v[11]=480;}
  else if((unsigned long)b==0x4600){memset(v,0,160);v[0]=240;v[1]=432;v[6]=16;v[8]=11;v[9]=5;v[11]=5;v[12]=6;v[15]=5;}

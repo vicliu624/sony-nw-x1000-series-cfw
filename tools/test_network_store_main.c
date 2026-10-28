@@ -1,6 +1,6 @@
 #define HB_BUILD_VERSION "test"
 #define main store_entry
-#include "../runtime/store/network_main.c"
+#include "../runtime/apps/store/network_main.c"
 #undef main
 #include <assert.h>
 static int factories,runs;

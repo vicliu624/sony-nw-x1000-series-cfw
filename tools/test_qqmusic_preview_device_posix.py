@@ -1,0 +1,13 @@
+"""Actual POSIX adapter on intercepted syscalls, host and Sony ABI ARM."""
+from pathlib import Path
+import hashlib,json,subprocess
+ROOT=Path(__file__).resolve().parents[1];w=ROOT/'work/qqmusic-preview-device-posix';w.mkdir(exist_ok=True)
+sources=['runtime/apps/qqmusic/qqmusic_preview_device_posix.c','tools/fixtures/qqmusic_preview_device_posix.c']
+flags=['-std=c99','-Wall','-Wextra','-Werror','-ffreestanding','-fno-builtin'];wrap=['-Wl,--wrap=open,--wrap=open64,--wrap=dup,--wrap=close,--wrap=fcntl,--wrap=write,--wrap=ioctl,--wrap=fstat,--wrap=lstat,--wrap=__fxstat64,--wrap=__lxstat64,--wrap=getppid']
+lib=ROOT/'work/arm-signal-tests/lib';host=w/'posix.sanitized';arm=w/'posix.arm'
+subprocess.run(['gcc-12',*flags,'-O1','-g','-fsanitize=address,undefined',*sources,*wrap,'-o',str(host)],cwd=ROOT,check=True);subprocess.run([str(host)],check=True,timeout=10)
+subprocess.run(['arm-linux-gnueabi-gcc',*flags,'-DHB_STORE_SONY_LIBC','-Os','-march=armv5te','-marm','-mfloat-abi=soft','-fno-pie','-nostdlib','-no-pie','-Wl,--hash-style=sysv','-Wl,--dynamic-linker=/lib/ld-linux.so.3',*sources,'runtime/store/stock_fs_bridge.c','runtime/store/stock_stat64.c','runtime/store/stock_tls_compat.c','runtime/store/start.c','runtime/store/start.S',*wrap,str(lib/'libc.so.6'),str(lib/'ld-linux.so.3'),'-lgcc','-o',str(arm)],cwd=ROOT,check=True)
+result=subprocess.run(['qemu-arm','-cpu','arm926','-strace',str(lib/'ld-linux.so.3'),'--library-path',str(lib),str(arm)],capture_output=True,check=True,timeout=10)
+assert not any(s in result.stderr for s in (b'/dev/sound/',b'ioctl(',b'kill(',b'socket('))
+report={'passed':True,'host_asan_ubsan':True,'stock_arm_stat_abi':True,'checks':['no open before approved provenance and workspace guard','device identity checked before open and before ioctl/write','exact14:0 mixer and14:3 PCM dev_t checks','unreviewed paths and requests refused','SPEED0 and48000 requests refused','44100/PCM16/stereo explicit payloads','parent death and cancellation reject new PCM while cleanup remains allowed','wrong generation refuses producer receipt','uncertain fd close during setup prevents false producer acknowledgement','live context cannot be rebound'],'physical_device_accessed':False,'sources':{s:hashlib.sha256((ROOT/s).read_bytes()).hexdigest() for s in sources},'limits':['POSIX syscalls and provenance/workspace checks are intercepted; no actual device-driver effects or installed-guard execution.','Supervised abnormal process recovery and production worker/UI binding remain separate gates.']}
+(w/'report.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))

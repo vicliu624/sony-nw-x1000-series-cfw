@@ -44,6 +44,7 @@ int hb_remote_store_run(struct hb_remote_store *s,const struct hb_remote_store_c
  s->begun=1;s->stage=HB_REMOTE_CATALOG;int result=fetch(s,c,c->catalog_url,c->catalog_bytes,c->catalog_sha256,"GETTING CATALOG",p,io);if(result)return result;
  if(hb_remote_catalog_parse(s->metadata.data,s->metadata.bytes,&s->catalog))return problem(s,HB_NET_INPUT);
  result=hb_metadata_fetch_discard(&s->metadata);if(result)return problem(s,result);
+choose:
  s->stage=HB_REMOTE_LIST;s->selected=hb_remote_list_run(&s->catalog,c->running_id,p,io);if(s->selected<0)return s->selected==-1?-1:problem(s,HB_NET_IO);
  const struct hb_remote_entry *e=s->catalog.entries+s->selected;char url[1024];
  s->stage=HB_REMOTE_MANIFEST;if(hb_https_asset_url(url,sizeof url,e->base_url,e->asset_prefix,"app.ini"))return problem(s,HB_NET_INPUT);
@@ -53,7 +54,15 @@ int hb_remote_store_run(struct hb_remote_store *s,const struct hb_remote_store_c
  result=fetch(s,c,url,e->index_bytes,e->index_sha256,"GETTING FILE LIST",p,io);if(result)return result;
  s->index_bytes=s->metadata.bytes;memcpy(s->index,s->metadata.data,s->index_bytes);result=hb_metadata_fetch_discard(&s->metadata);if(result)return problem(s,result);
  if(hb_remote_entry_plan(e,s->manifest,s->manifest_bytes,s->index,s->index_bytes,&s->plan))return problem(s,HB_NET_INPUT);
+ if(e->download_bytes&&e->download_bytes!=s->plan.network_bytes)return problem(s,HB_NET_INPUT);
+ if(!e->download_bytes)s->catalog.entries[s->selected].download_bytes=s->plan.network_bytes;
+ if(!e->title[0])strcpy(s->catalog.entries[s->selected].title,s->plan.bundle.package.name);
+ s->stage=HB_REMOTE_DETAILS;
+ if(hb_market_inspect(c->apps,&s->plan,c->stop,&s->job.workspace,&s->local))return problem(s,HB_NET_IO);
+ if(c->stop&&*c->stop)return -1;
+ result=hb_market_detail_run(e,&s->local,p,io);if(!result)goto choose;if(result<0)return result;
  s->stage=HB_REMOTE_PACKAGE;result=hb_package_job_begin(&s->job,&s->plan,c->cache,c->packages,c->apps,c->anchors,c->anchor_count,c->reserve,c->timeout_ms,c->stop,c->options,c->option_mask);if(result)return problem(s,result);
+ s->job.guard_live=1;s->job.live_present=s->local.present;memcpy(s->job.live_identity,s->local.identity,32);
  result=hb_job_ui_run(&s->job,p,io);s->error=s->job.error;if(!result)s->stage=HB_REMOTE_FINISHED;return result;
 }
 int hb_remote_store_discard(struct hb_remote_store *s){

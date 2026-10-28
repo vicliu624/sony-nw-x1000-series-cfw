@@ -1,0 +1,11 @@
+{
+  "sources": [
+    "diagnostics.c",
+    "@/runtime/native/frontend.c",
+    "@/runtime/native/linux_devices.c",
+    "@/runtime/native/linux_device_io_posix.c",
+    "@/runtime/native/linux_signals_posix.c",
+    "@/runtime/store/start.c",
+    "@/runtime/store/start.S"
+  ]
+}

@@ -1,0 +1,75 @@
+"""Build BSOD native application and local review package. Never deploys/flashes."""
+import sys
+from pathlib import Path
+sys.path.insert(0,str(Path(__file__).resolve().parents[3]/'tools'))
+import argparse
+import hashlib
+import json
+import shutil
+import subprocess
+from market_metadata import descriptions
+from pathlib import Path
+ROOT=Path(__file__).resolve().parents[3]
+def main():
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--sprites',type=Path,required=True)
+    parser.add_argument('--font',type=Path,default=ROOT/'work/ebook-data/font.bin')
+    parser.add_argument('--output',type=Path,default=ROOT/'work/pet-build')
+    args=parser.parse_args();out=args.output.resolve()
+    if not out.is_relative_to(ROOT/'work') or out==ROOT/'work':raise ValueError('Use project work output')
+    out.mkdir(parents=True,exist_ok=True)
+    version=(ROOT/'runtime/apps/pet/VERSION').read_text().strip()
+    sprites=args.sprites.read_bytes()
+    if len(sprites)!=9*8*96*104*3:raise ValueError('Invalid sprite record count')
+    if hashlib.sha256(args.font.read_bytes()).hexdigest()!='05d7a20a4b3d3c8916d18b47bc5deba470fd9d29ea28d46fcab5acc9605c2924':raise ValueError('Unifont resource mismatch')
+    lib=ROOT/'work/arm-signal-tests/lib'
+    for name,digest in {'libc.so.6':'5afbf3074dfa9ba0478d6670f220ef4d7ec065a255ee856d9093d39210f23812','ld-linux.so.3':'2f007b0809684fde0ac446ad203135c10b4318eb8c10d4160a9f59b32c3c52de'}.items():
+        if hashlib.sha256((lib/name).read_bytes()).hexdigest()!=digest:raise ValueError('Original library mismatch')
+    flags=['-U_FORTIFY_SOURCE','-D_FORTIFY_SOURCE=0','-DHB_USE_POSIX_DEVICE_IO','-D_DEFAULT_SOURCE','-std=c99','-Os','-Wall','-Wextra','-Werror','-march=armv5te','-marm','-mfloat-abi=soft','-ffreestanding','-fno-builtin','-fno-pie','-fno-stack-protector','-nostdlib','-no-pie','-Wl,--hash-style=sysv','-Wl,--build-id=none','-Wl,--dynamic-linker=/lib/ld-linux.so.3']
+    startup=['runtime/store/start.c','runtime/store/start.S']
+    libraries=[str(lib/'libc.so.6'),str(lib/'ld-linux.so.3'),'-lgcc']
+    run=['qemu-arm','-cpu','arm926',str(lib/'ld-linux.so.3'),'--library-path',str(lib)]
+    def build(sources,dest,extra=()):subprocess.run(['arm-linux-gnueabi-gcc',*flags,'-DHB_PET_VERSION="'+version+'"',*extra,*sources,*libraries,'-o',str(dest)],cwd=ROOT,check=True)
+    for name,sources in [('model',['runtime/apps/pet/pet.c','tools/fixtures/pet_model.c']),('ui',['runtime/apps/pet/pet.c','runtime/apps/pet/ui.c','runtime/apps/pet/text.c','tools/fixtures/pet_ui.c'])]:
+        target=out/(name+'.arm');build(sources+startup,target);subprocess.run(run+[str(target)],check=True,timeout=15)
+    sources=[f'runtime/apps/pet/{n}.c' for n in ['app','pet','ui','storage','text']]+[f'runtime/native/{n}.c' for n in ['frontend','linux_devices','linux_device_io_posix','linux_signals_posix']]+['runtime/store/stock_fs_bridge.c','runtime/store/stock_stat64.c']+startup
+    folder=out/'HOMEBREW/apps/pet';folder.mkdir(parents=True,exist_ok=True)
+    app=folder/'app';build(sources,app)
+    for arg in ['--help','--version']:subprocess.run(run+[str(app),arg],check=True,timeout=15)
+    shutil.copyfile(args.sprites,folder/'sprites.bin')
+    shutil.copyfile(args.font,folder/'font.bin')
+    licenses=folder/'LICENSES';licenses.mkdir(exist_ok=True)
+    for name in ['UNIFONT-LICENSE.txt','UNIFONT-OFL-1.1.txt','PROVENANCE.md']:shutil.copyfile(ROOT/'third_party/ebook-data'/name,licenses/name)
+    for suffix in ['svg','png']:shutil.copyfile(ROOT/'runtime/apps/pet/assets'/('icon.'+suffix),folder/('icon.'+suffix))
+    (folder/'about.json').write_text(json.dumps({'id':'pet','version':version,**descriptions()['pet']},indent=2)+'\n')
+    loop=out/'loop.arm'
+    build(['runtime/apps/pet/app.c','runtime/apps/pet/pet.c','runtime/apps/pet/ui.c','runtime/apps/pet/text.c','runtime/native/frontend.c','tools/fixtures/pet_app.c',*startup],loop,['-DPET_APP_TEST'])
+    subprocess.run(run+[str(loop),str(app)],cwd=ROOT,check=True,timeout=20)
+    host_flags=['gcc','-D_DEFAULT_SOURCE','-std=c99','-Wall','-Wextra','-Werror','-fsanitize=address,undefined']
+    store=out/'storage.host'
+    subprocess.run([*host_flags,'runtime/apps/pet/pet.c','runtime/apps/pet/storage.c','tools/fixtures/pet_storage.c','-Wl,--wrap=open,--wrap=fopen,--wrap=statfs,--wrap=write,--wrap=fsync,--wrap=rename','-o',str(store)],cwd=ROOT,check=True)
+    subprocess.run([str(store)],check=True,timeout=20)
+    render=out/'render.host'
+    subprocess.run([*host_flags,'runtime/apps/pet/pet.c','runtime/apps/pet/ui.c','runtime/apps/pet/text.c','tools/fixtures/pet_render.c','-o',str(render)],cwd=ROOT,check=True)
+    subprocess.run([str(render),str(args.sprites.resolve()),str(out),str(args.font.resolve())],check=True,timeout=20)
+    text_test=out/'text.arm';build(['runtime/apps/pet/text.c','tools/fixtures/pet_text.c',*startup],text_test)
+    subprocess.run(run+[str(text_test),str(args.font.resolve())],check=True,timeout=20)
+    text_host=out/'text.host';subprocess.run([*host_flags,'runtime/apps/pet/text.c','tools/fixtures/pet_text.c','-o',str(text_host)],cwd=ROOT,check=True)
+    subprocess.run([str(text_host),str(args.font.resolve())],check=True,timeout=20)
+    version=(ROOT/'runtime/apps/pet/VERSION').read_text().strip()
+    data=app.read_bytes();digest=hashlib.sha256(data).hexdigest()
+    (folder/'app.ini').write_text(f'api=1\nid=pet\nname=BSOD Pet\nversion={version}\ntarget=sony-nw-x1000-jp\nexec=app\nbytes={len(data)}\nsha256={digest}\n')
+    files=sorted(p for p in folder.rglob('*') if p.is_file() and p.name!='files.sha256')
+    (folder/'files.sha256').write_text('HBFILES1\n'+''.join(f'{hashlib.sha256(p.read_bytes()).hexdigest()} {p.stat().st_size} {p.relative_to(folder).as_posix()}\n' for p in files))
+    launcher=ROOT/'work/libc-launcher-review/launcher.elf'
+    check=subprocess.run(run+[str(launcher),'--check',str(out/'HOMEBREW/apps')],cwd=ROOT,capture_output=True,text=True,timeout=15)
+    if check.returncode or check.stdout!='pet VERIFIED\n':raise RuntimeError(check.stdout+check.stderr)
+    tracked=set(sources)
+    tracked.update(str(p.relative_to(ROOT)) for p in (ROOT/'runtime/apps/pet').iterdir() if p.is_file())
+    tracked.update(str(p.relative_to(ROOT)) for p in (ROOT/'tools/fixtures').glob('pet*.c'))
+    tracked.update(['tools/build_pet.py','tools/prepare_pet_assets.py','runtime/native/font.inc','runtime/native/frontend.h','runtime/native/linux_devices.h','runtime/native/linux_device_io.h','runtime/native/linux_signals.h','runtime/store/stock_fs_bridge.h','runtime/store/stock_stat64.h'])
+    tracked.update(['third_party/ebook-data/'+n for n in ['UNIFONT-LICENSE.txt','UNIFONT-OFL-1.1.txt','PROVENANCE.md']])
+    tracked.update(['runtime/apps/pet/app.json','runtime/apps/pet/assets/icon.svg','runtime/apps/pet/assets/icon.png','tools/market_metadata.py'])
+    report={'build_passed':True,'version':version,'app_bytes':len(data),'sprite_bytes':len(sprites),'font_bytes':args.font.stat().st_size,'glyph_cache_slots':64,'checks':['ARM companion model including autonomous actions','ARM UI navigation','ARM help/version','ARM and sanitized host UTF8 Chinese/traditional/mixed text, malformed input, wrap, truncation, missing glyph and cache tests','ARM graphical loop virtual touch and failure/stop cleanup','host storage corruption and IO fault rollback with sanitizers','host renderer all nine poses and five page variants with sanitizers','native launcher package discovery'], 'hardware_tested':False,'delivery_ready':False,'pending':['rendered review','device touch/HOME/USB qualification'],'source_hashes':{p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in sorted(tracked)}}
+    (out/'build.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))
+if __name__=='__main__':main()

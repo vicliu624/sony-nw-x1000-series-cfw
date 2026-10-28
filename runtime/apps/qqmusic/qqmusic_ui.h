@@ -4,16 +4,18 @@
 #include "qqmusic_diagnostic.h"
 #define QQ_UI_PIXELS (240u*432u)
 enum qq_ui_page {QQ_UI_HOME,QQ_UI_SONGS,QQ_UI_DETAIL,QQ_UI_LOGIN,QQ_UI_IMPORTS,QQ_UI_ACCOUNT,QQ_UI_PROGRESS,QQ_UI_RESULT};
-enum qq_ui_action {QQ_UI_NONE,QQ_UI_CHANGED,QQ_UI_SYNC,QQ_UI_OPEN_PLAYLIST,QQ_UI_LOGIN_START,QQ_UI_AUTHORIZE,QQ_UI_IMPORT,QQ_UI_CANCEL,QQ_UI_RETURN_STOCK,QQ_UI_NEXT_PAGE,QQ_UI_LOGIN_RETRY,QQ_UI_TIME_UTC8};
+enum qq_ui_action {QQ_UI_NONE,QQ_UI_CHANGED,QQ_UI_SYNC,QQ_UI_OPEN_PLAYLIST,QQ_UI_LOGIN_START,QQ_UI_AUTHORIZE,QQ_UI_IMPORT,QQ_UI_CANCEL,QQ_UI_RETURN_STOCK,QQ_UI_NEXT_PAGE,QQ_UI_LOGIN_RETRY,QQ_UI_TIME_UTC8,QQ_UI_PREVIEW,QQ_UI_PREVIEW_STOP};
+enum qq_ui_preview_phase {QQ_UI_PREVIEW_PREPARING,QQ_UI_PREVIEW_DOWNLOADING,QQ_UI_PREVIEW_STARTING,QQ_UI_PREVIEW_PLAYING,QQ_UI_PREVIEW_STOPPING,QQ_UI_PREVIEW_RESTORING,QQ_UI_PREVIEW_DONE,QQ_UI_PREVIEW_REVIEW};
 struct qq_native_ui {
  struct qq_music_app *app;enum qq_ui_page page;
- unsigned dark,readable,quality,list_index,selected_index,song_offset,stage,percent;
- uint64_t available_bytes,monotonic_ms;int space_known,import_complete,import_review,initializing;
+ unsigned cover_revision,dark,readable,quality,list_index,selected_index,song_offset,stage,percent;
+ uint64_t import_stage_since_ms,available_bytes,monotonic_ms;int space_known,import_complete,import_review,initializing;
  const unsigned short *(*cover)(void *,const char *song_mid,unsigned *w,unsigned *h);
  void *cover_context;
  int touch_x,touch_y;unsigned touch_held,touch_notice,connection_failed,connecting_wifi;
  uint64_t touch_until,notice_until;
  struct qq_connection_diagnostic connection;
+ unsigned preview_enabled,preview_active,preview_phase,preview_failed,preview_seconds;
 };
 /* Font is caller-owned pinned external user resource. No path/file/device IO.
  * Only trusted fixed asset hash accepted; font memory must remain alive.

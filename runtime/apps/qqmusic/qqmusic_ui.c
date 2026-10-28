@@ -121,9 +121,18 @@ int qq_ui_draw(const struct qq_native_ui *u,unsigned short *pixels,size_t count)
   if(u->song_offset+5<a->songs.count||a->songs.more)text(160,398,66,"下一页 ›",12,green);
  } else if(u->page==QQ_UI_DETAIL) {
   title("歌曲详情",1);thumb(u,72,70,96,a->selected.mid);text(16,179,208,a->selected.title,18,ink);text(16,205,208,a->selected.artist,12,muted);text(16,225,208,a->selected.album,11,muted);
-  text(14,255,212,"封面与歌曲信息，一起保存",11,green);text(14,282,212,"MP3 导出码率",12,ink);
+  if(u->preview_enabled){
+   const char *label="试听前 30 秒";
+   if(u->preview_active){
+    label=u->preview_phase==QQ_UI_PREVIEW_PREPARING?"正在获取试听音源 · 取消":u->preview_phase==QQ_UI_PREVIEW_DOWNLOADING?"正在下载试听音源 · 取消":u->preview_phase==QQ_UI_PREVIEW_STARTING?"正在准备播放 · 取消":u->preview_phase==QQ_UI_PREVIEW_STOPPING?"正在停止试听":u->preview_phase==QQ_UI_PREVIEW_RESTORING?"正在恢复音频":u->preview_phase==QQ_UI_PREVIEW_REVIEW?"音频恢复需要检查":"停止试听";
+    if(u->preview_phase==QQ_UI_PREVIEW_PLAYING){sony_snprintf(number,sizeof(number),"停止试听  00:%02u",u->preview_seconds);label=number;}
+   }else if(u->preview_failed)label="试听失败，点击重试";
+   roundbox(14,247,212,30,8,mint);text(22,255,196,label,11,green);
+  }else text(14,255,212,"封面与歌曲信息，一起保存",11,green);
+  text(14,282,212,"MP3 导出码率",12,ink);
   for(i=0;i<3;i++) {unsigned quality=i==0?128:i==1?192:320;roundbox(14+(int)i*72,306,67,40,8,u->quality==quality?mint:soft);sony_snprintf(number,sizeof(number),"%u kbps",quality);text(20+(int)i*72,317,59,number,11,u->quality==quality?green:ink);}
-  button(363,a->pending?"正在请求音源":a->view==QQ_APP_RESOURCE_READY?"继续导入 MP3":"下载为 MP3",1);
+  if(u->preview_active){roundbox(14,363,212,42,20,soft);text(36,373,184,"试听结束后可导入",14,muted);}
+  else button(363,a->pending?"正在请求音源":a->view==QQ_APP_RESOURCE_READY?"继续导入 MP3":"下载为 MP3",1);
  } else if(u->page==QQ_UI_LOGIN) {
   int shown,clock_error=u->connection_failed&&u->connection.step==QQ_STEP_CLOCK;const char *status="使用手机 QQ 扫描并确认";
   title("账号登录",0);text(14,72,212,"QQ 音乐扫码登录",18,ink);
@@ -169,9 +178,9 @@ int qq_ui_draw(const struct qq_native_ui *u,unsigned short *pixels,size_t count)
  } else if(u->page==QQ_UI_ACCOUNT) {title("我的",0);text(14,86,212,"QQ 扫码账号",17,ink);text(14,132,212,"保存位置：用户存储",13,ink);text(14,171,212,"原始音频：保留",13,ink);button(246,"重新扫码登录",0);button(304,"退出 QQ 音乐",0);nav(2);
  } else if(u->page==QQ_UI_IMPORTS) {title("导入记录",0);text(16,176,208,"导入结果等待任务提供",14,muted);button(299,"去我的收藏",1);nav(1);
  } else if(u->page==QQ_UI_PROGRESS) {
-  static const char *steps[]={"下载原始音频","转换为 MP3","整理封面与标签","保存到本机音乐"};
+  static const char *steps[]={"下载原始音频","读取信息与整理封面","转换为 MP3","校验并保存音乐"};
   unsigned current=u->stage<4?u->stage:3;title("正在导入",1);text(14,74,212,a->selected.title,16,ink);
-  sony_snprintf(number,sizeof(number),"任务进度 %u%%",u->percent>100?100:u->percent);text(14,102,212,number,11,muted);
+  sony_snprintf(number,sizeof(number),"总进度 %u%% · 本步 %llu 秒",u->percent>100?100:u->percent,(unsigned long long)(u->monotonic_ms>=u->import_stage_since_ms?(u->monotonic_ms-u->import_stage_since_ms)/1000:0));text(14,102,212,number,11,muted);
   roundbox(14,127,212,5,2,soft);roundbox(14,127,(int)(u->percent>100?100:u->percent)*212/100,5,2,green);
   for(i=0;i<4;i++){
    int y=149+(int)i*47;
@@ -189,6 +198,10 @@ enum qq_ui_action qq_ui_tap(struct qq_native_ui *u,int x,int y) {
  struct qq_music_app *a;unsigned i;
  if(!u||!u->app||x<0||x>=240||y<0||y>=432) return QQ_UI_NONE;
  a=u->app;
+ if(u->page==QQ_UI_DETAIL&&u->preview_enabled){
+  if((y>=247&&y<277)||(u->preview_active&&x<44&&y>=20&&y<62))return u->preview_active?QQ_UI_PREVIEW_STOP:QQ_UI_PREVIEW;
+  if(u->preview_active)return QQ_UI_NONE;
+ }
  if(y>=381&&(u->page==QQ_UI_HOME||u->page==QQ_UI_IMPORTS||u->page==QQ_UI_ACCOUNT)) {u->page=x<80?QQ_UI_HOME:x<160?QQ_UI_IMPORTS:QQ_UI_ACCOUNT;return QQ_UI_CHANGED;}
  if(x<44&&y>=20&&y<62&&u->page!=QQ_UI_HOME) {
   if(u->page==QQ_UI_LOGIN&&login_active(&a->login))return QQ_UI_CANCEL;
@@ -248,10 +261,12 @@ int qq_ui_press_overlay(const struct qq_native_ui *u,unsigned short *pixels,size
  int x,y,left,top,w=22,h=22;
  if(!u||!pixels||count!=QQ_UI_PIXELS)return -1;
  canvas=pixels;x=u->touch_x;y=u->touch_y;left=x-11;top=y-11;
+ if(u->page==QQ_UI_DETAIL&&u->preview_active&&!(y>=247&&y<277)&&!(x<44&&y>=20&&y<62))return 0;
  /* An immediate outline preserves the already rasterized button label. */
  if(x>=14&&x<226){
   if((u->page==QQ_UI_LOGIN||u->page==QQ_UI_PROGRESS)&&y>=357&&y<399){left=14;top=357;w=212;h=42;}
   else if(u->page==QQ_UI_DETAIL&&y>=363&&y<405){left=14;top=363;w=212;h=42;}
+  else if(u->page==QQ_UI_DETAIL&&u->preview_enabled&&y>=247&&y<277){left=14;top=247;w=212;h=30;}
  }
  box(left,top,w,2,RGB(0,130,77));box(left,top+h-2,w,2,RGB(0,130,77));box(left,top,2,h,RGB(0,130,77));box(left+w-2,top,2,h,RGB(0,130,77));return 0;
 }

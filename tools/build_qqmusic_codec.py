@@ -8,6 +8,8 @@ for name,row in provenance['sources'].items():
 work=ROOT/'work/qqmusic-codec';work.mkdir(exist_ok=True)
 live_session='--live-session' in sys.argv
 device_app='--device-app' in sys.argv
+audio_preview='--audio-preview' in sys.argv
+assert not audio_preview or device_app
 binding_import=live_session or device_app or '--binding-import' in sys.argv
 job_import=binding_import or '--job-import' in sys.argv
 network_import=job_import or '--network-import' in sys.argv
@@ -58,14 +60,20 @@ if live_session:
     profile_dir=Path(sys.argv[sys.argv.index('--live-session')+1]).resolve()
     assert profile_dir.is_relative_to(ROOT/'work') and (profile_dir/'qqmusic_profile.h').is_file()
     own[2]='tools/fixtures/qqmusic_live_session.c'
-    profile_flags=['-I'+str(profile_dir),'-DHB_BUILD_VERSION="'+(ROOT/'VERSION').read_text().strip()+'"']
+    profile_flags=['-I'+str(profile_dir),'-DHB_BUILD_VERSION="'+(ROOT/'runtime/apps/qqmusic/VERSION').read_text().strip()+'"']
 if device_app:
     profile_dir=Path(sys.argv[sys.argv.index('--device-app')+1]).resolve()
     assert profile_dir.is_relative_to(ROOT/'work') and (profile_dir/'qqmusic_profile.h').is_file()
     own[2]='runtime/apps/qqmusic/qqmusic_main.c'
     own+=['runtime/apps/qqmusic/qqmusic_installation.c','runtime/apps/qqmusic/qqmusic_workspace.c','runtime/apps/qqmusic/qqmusic_wifi.c','runtime/apps/qqmusic/qqmusic_wifi_link.c','runtime/native/syscalls.S']
     own[own.index('runtime/native/linux_signals_posix.c')]='runtime/native/linux_signals.c'
-    profile_flags=['-I'+str(profile_dir),'-DQQ_NATIVE_FULL','-DHB_BUILD_VERSION="'+(ROOT/'VERSION').read_text().strip()+'"']
+    profile_flags=['-I'+str(profile_dir),'-DQQ_NATIVE_FULL','-DHB_BUILD_VERSION="'+(ROOT/'runtime/apps/qqmusic/VERSION').read_text().strip()+'"']
+    if audio_preview:
+        reviewed=json.loads((profile_dir/'profile-report.json').read_text())
+        assert reviewed['profile_sha256']==hashlib.sha256((profile_dir/'qqmusic_preview_profile.h').read_bytes()).hexdigest()
+        assert reviewed['device_identity_observed_read_only'] and reviewed['mode1_page_verified']
+        own+=['runtime/apps/qqmusic/qqmusic_'+n+'.c' for n in ('preview_wire','preview_transport','preview_supervisor','preview_source_job','preview_session','preview_service','preview_runtime','preview_receipt','preview_producer','preview_pcm','preview_owners','preview_handoff','preview_device_posix','preview_device','preview_decode_worker','preview_decode','preview_client','preview_binding','entry_preview','program_preview')]
+        profile_flags+=['-DQQ_NATIVE_PREVIEW']
 flags=['-std=gnu99','-O2','-fwrapv','-fsigned-char','-DQQ_CODEC_PORTABLE_C','-DHAVE_ALLOCA_H','-march=armv5te','-marm','-mfloat-abi=soft','-ffreestanding','-fno-builtin','-fno-pie','-ffunction-sections','-fdata-sections',
        '-I'+str(work/'include'),'-I'+str(vendor/'ogg/include'),'-I'+str(vendor/'tremor'),'-I'+str(vendor/'shine/src/lib')]
 flags+=['-isystem',str(stb)]
@@ -78,6 +86,7 @@ if live_session:dependencies+=['runtime/apps/qqmusic/qqmusic_main.c']
 if network_import and not job_import:dependencies+=['tools/fixtures/qqmusic_transfer_import.h']
 if binding_import and not device_app:dependencies+=['tools/fixtures/qqmusic_binding.h']
 header_key+=b''.join((ROOT/p).read_bytes() for p in dependencies)
+if audio_preview:header_key+=(profile_dir/'qqmusic_preview_profile.h').read_bytes()
 for i,path in enumerate(third+[ROOT/p for p in own]):
     obj=work/(str(i)+'-'+path.stem+'.o')
     extra=profile_flags if (live_session and path.name=='qqmusic_live_session.c') or (device_app and path.name=='qqmusic_main.c') else []
@@ -96,6 +105,7 @@ report={'built':True,'tested':False,'device_tested':False,'objective_complete':F
         'generator_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
         'limits':['Portable C only, no codec inline ARM assembly.','No device performance/heap qualification, user-volume adapter or app integration.']}
 if network_import:report['network_dependencies']={str(Path(p).relative_to(ROOT)):hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in network_libs[1:]}
+report['audio_preview_enabled']=audio_preview
 (work/build_name).write_text(json.dumps(report,indent=2)+'\n');print('ARM codec test ELF built:',app.stat().st_size,'bytes')
 if '--host' in sys.argv or '--asan' in sys.argv:
     host_flags=['-std=gnu99','-O2','-fwrapv','-fsigned-char','-DQQ_CODEC_PORTABLE_C','-DHAVE_ALLOCA_H',

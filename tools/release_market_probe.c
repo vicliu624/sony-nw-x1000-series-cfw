@@ -13,6 +13,7 @@ static unsigned events;static int shown;
 static int present(void *p){(void)p;return 0;}
 static int next(void *p,unsigned char out[11]){
  (void)p;usleep(1000);int x,y;
+ if(store.stage==HB_REMOTE_DETAILS){x=180;y=404;goto packet;}
  if(store.stage==HB_REMOTE_PACKAGE){
   if(store.job.state!=HB_JOB_READY&&store.job.state!=HB_JOB_INSTALLED&&store.job.state!=HB_JOB_FAILED)return 0;
   x=store.job.state==HB_JOB_READY?180:40;y=404;goto packet;
@@ -32,7 +33,7 @@ int main(int argc,char **argv){
  if(hb_store_canvas_init(&canvas,pixels,240*432,&painter))return 4;
  hb_remote_store_init(&store);
  struct hb_remote_store_config c={.catalog_url=repository.spec.catalog_url,.catalog_bytes=repository.spec.catalog_bytes,.catalog_sha256=repository.spec.catalog_sha256,.cache=path[1],.packages=path[2],.apps=path[3],.running_id="store",.anchors=repository.anchors,.anchor_count=repository.anchor_count,.timeout_ms=60000,.reserve=4096,.stop=&stopped};
- r=hb_remote_store_run(&store,&c,&painter,&io);printf("MARKET result=%d stage=%d error=%d listed=%u shown=%d selected=%d\n",r,store.stage,store.error,store.catalog.count,shown,store.selected);
+ r=hb_remote_store_run(&store,&c,&painter,&io);printf("MARKET result=%d stage=%d error=%d listed=%u shown=%d selected=%d local=%d\n",r,store.stage,store.error,store.catalog.count,shown,store.selected,(int)store.local.status);
  if(r||!shown||store.stage!=HB_REMOTE_FINISHED||store.job.state!=HB_JOB_INSTALLED){printf("JOB state=%d error=%d\n",store.job.state,store.job.error);return 5;}
  printf("HELLO INSTALLED THROUGH MARKET\n");return 0;
 }

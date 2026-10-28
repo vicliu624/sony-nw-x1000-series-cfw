@@ -21,4 +21,6 @@ int qq_import_binding_attach_mapped(struct qq_import_binding *,struct qq_runtime
 /* Call after runtime_close/entry shutdown; never poll a runtime after destroying
  * its borrowed binding. Parent owns and unmaps/frees its resources. */
 void qq_import_binding_destroy(struct qq_import_binding *);
+/* Source-child-only resource detach shared by import and preview workers. */
+int qq_import_binding_detach_child(struct qq_import_binding *);
 #endif

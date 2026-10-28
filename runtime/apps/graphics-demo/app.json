@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "id": "graphics-demo",
+  "target": "sony-nw-x1000-jp",
+  "title": "Graphics",
+  "summary": "Color and drawing demo",
+  "description": "A small native graphics demonstration for the X1000 display adapter. It exercises drawing and presentation without adding another Sony Home entry. This is an application-development example rather than a display calibration instrument.",
+  "changes": "Experimental graphics demo using the shared device adapter.",
+  "channel": "experimental",
+  "artwork": {
+    "color": "#c76f9d",
+    "kind": "graphics",
+    "subtitle": "Color & motion"
+  },
+  "build": {
+    "script": "build.py",
+    "package": "work/graphics-demo-review/apps/graphics-demo"
+  }
+}

@@ -5,6 +5,13 @@ use arm-linux-gnueabi-gcc targeting ARMv5TE, ARM mode and soft float. QEMU ARM92
 and the pinned original loader/libc provide offline execution. Use each script's
 `--help` before supplying a new output/profile; some research scripts are not CLIs.
 
+## Independent application builds
+
+Use tools/build_app.py --list to discover application definitions. Apps build
+through their local runtime/apps/<id>/build.py; old tools
+entry points are compatibility wrappers. See [the application specification](APP_SPEC.md)
+for commands, package formats and compatibility limits.
+
 ## Environment
 
 Extracted original loaders need their executable bit when invoked as QEMU's
@@ -47,6 +54,10 @@ with an unrelated model's files.
 .venv/bin/python tools/build_graphics_demo.py
 .venv/bin/python tools/build_hello_app.py
 ```
+
+BSOD Pet uses a locally supplied sprite sheet. See [Pet](apps/PET.md) for asset
+conversion, `tools/build_pet.py` and `tools/package_pet.py`. Its artwork is not
+downloaded by CI and the local manual-test package is not a public release input.
 
 Large data builders and application builders are separate. EBook/dictionary use
 their explicit app VERSION files; project builders use root VERSION. Tool scripts

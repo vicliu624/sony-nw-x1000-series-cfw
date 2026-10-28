@@ -12,7 +12,8 @@ static unsigned char ekey[4096];
 static size_t input_bytes,total;
 static volatile int stop;
 static int read_failure,write_failure;
-static unsigned read_limit;
+static unsigned read_limit,writes,progress_calls;static uint64_t progress_samples;
+static int pcm_progress(void *context,uint64_t samples,uint64_t total){(void)context;assert(total&&samples<=total&&samples>=progress_samples);progress_samples=samples;progress_calls++;return 0;}
 static struct qq_metadata metadata;
 static struct qq_song fallback;
 static struct qq_resource_intent intent;
@@ -33,7 +34,7 @@ static int read_at(void *unused,uint64_t offset,unsigned char *out,unsigned n) {
 static int output(void *unused,const unsigned char *data,unsigned n) {
  (void)unused;if(write_failure&&total) return -1;
  if(write(1,data,n)!=(ssize_t)n) return -1;
- total+=n;return 0;
+ writes++;total+=n;return 0;
 }
 static int comment(void *unused,const char *name,size_t name_n,const char *value,size_t n) {
  (void)unused;return qq_metadata_comment(&metadata,name,name_n,value,n);
@@ -71,12 +72,12 @@ int main(int argc,char **argv) {
  if(with_import){
   struct qq_import_conversion conversion;struct qq_import_report imported;
   memset(&conversion,0,sizeof(conversion));conversion.io=io;conversion.song=&fallback;conversion.intent=&intent;conversion.album_artist="接口专辑艺人";
-  conversion.artwork=artwork_buffer;conversion.artwork_capacity=sizeof(artwork_buffer);conversion.bitrate_kbps=(unsigned)atoi(argv[2]);conversion.maximum_output=!strcmp(mode,"import-limit")?10:268435456;
+  conversion.artwork=artwork_buffer;conversion.artwork_capacity=sizeof(artwork_buffer);conversion.bitrate_kbps=(unsigned)atoi(argv[2]);conversion.progress=pcm_progress;conversion.maximum_output=!strcmp(mode,"import-limit")?10:268435456;
   if(!strncmp(mode,"import-cover",12)){cover_path=getenv("QQ_SYNTHETIC_COVER");assert(cover_path);cover_fail=!strcmp(mode,"import-cover-fail");conversion.fetch_cover=fetch_cover;}
   if(!strcmp(mode,"import-id"))memcpy(intent.song_mid,"WRONG",6);
   if(argc>=5){conversion.encrypted=1;conversion.ekey=(const char *)ekey;conversion.ekey_bytes=(size_t)n;}
   result=qq_import_convert(&conversion,&imported);report=imported.audio;tag_bytes=imported.tag_bytes;
-  if(!result)assert(imported.output_bytes==total&&imported.source_fields);
+  if(!result){assert(imported.output_bytes==total&&imported.source_fields);assert(progress_calls>=2&&progress_samples==report.samples);assert(writes==(total+4095)/4096);}
   if(!strcmp(mode,"import-cover"))assert(cover_calls==1&&imported.cover_bytes&&!imported.source_cover);
   if(!strcmp(mode,"import-cover-skip"))assert(!cover_calls&&imported.cover_bytes&&imported.source_cover);
   if(!strcmp(mode,"import-cover-fail"))assert(cover_calls==1&&result<0&&!total);

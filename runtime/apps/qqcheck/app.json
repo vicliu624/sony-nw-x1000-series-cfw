@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "id": "qqcheck",
+  "target": "sony-nw-x1000-jp",
+  "title": "QQ Startup Check",
+  "summary": "Startup diagnostics",
+  "description": "Native startup diagnostic for QQ Music. No account data is included.",
+  "changes": "Development diagnostic; hardware qualification is pending.",
+  "channel": "experimental",
+  "artwork": {
+    "color": "#87a63f",
+    "kind": "pulse",
+    "subtitle": "Startup diagnostics"
+  },
+  "build": {
+    "script": "build.py",
+    "package": "work/app-builds/qqcheck/package"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "id": "fm-radio",
+  "target": "sony-nw-x1000-jp",
+  "title": "Pocket FM",
+  "summary": "A miniature FM receiver",
+  "description": "A custom FM interface with a miniature-radio design and a 76-108 MHz tuning implementation. Wired earphones are needed for antenna/audio testing. Exact tuner silicon, extended-band reception, audio routing and full restoration remain unverified on hardware. This app does not replace the original Sony FM program.",
+  "changes": "Experimental native extended-band implementation. Offline tests are not proof of RF reception or audible output.",
+  "channel": "experimental",
+  "artwork": {
+    "color": "#d8804a",
+    "kind": "radio",
+    "subtitle": "Tune into the airwaves"
+  },
+  "build": {
+    "script": "build.py",
+    "package": "work/fm-radio-review/package/HOMEBREW/apps/fm-radio"
+  }
+}

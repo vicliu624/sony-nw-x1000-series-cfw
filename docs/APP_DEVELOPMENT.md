@@ -1,5 +1,8 @@
 # Developing a native external application
 
+The [application specification](APP_SPEC.md) defines local metadata, artwork,
+build ownership and installed package formats.
+
 Put the application's source in `runtime/apps/<id>/`. Keep the deployed ID stable;
 moving source does not rename `HOMEBREW/apps/<id>` or change save locations.
 Each app directory has a short README pointing to its guide and builder.

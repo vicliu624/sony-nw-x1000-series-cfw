@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "id": "terminal",
+  "target": "sony-nw-x1000-jp",
+  "title": "WiFi Terminal",
+  "summary": "A computer terminal for your player",
+  "description": "Open this app to allow an authenticated computer client to run commands on your X1000 over the same Wi-Fi network. Create a personal TLS identity using the supplied PC pairing tool first. Closing the app stops its session. Commands may run as root: inspect carefully. No shared private key or permanent system service is included.",
+  "changes": "Public package uses a personal identity on user storage. Live command execution has been observed; forced-stop and full USB/sleep cleanup are not fully qualified.",
+  "channel": "experimental",
+  "artwork": {
+    "color": "#4b9f9b",
+    "kind": "terminal",
+    "subtitle": "Connect & explore"
+  },
+  "build": {
+    "script": "build.py",
+    "package": "work/terminal-review",
+    "executable": "terminal.arm",
+    "single_executable": true
+  },
+  "package_files": [
+    {
+      "source": "work/external-tls-probe/bearssl-0.6/LICENSE.txt",
+      "destination": "LICENSES/BearSSL-MIT.txt"
+    }
+  ]
+}

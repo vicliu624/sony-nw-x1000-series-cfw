@@ -13,6 +13,7 @@ struct qq_codec_io {
  void *metadata;
  int (*comment)(void *,const char *,size_t,const char *,size_t);
  int (*comments_done)(void *);
+ void *progress_context;int (*progress)(void *,uint64_t samples,uint64_t total);
 };
 struct qq_codec_report {uint64_t samples,mp3_bytes;unsigned rate,channels,padded_samples;};
 /* Vorbis -> PCM16 -> MP3, callback IO only. Caller holds protected user-volume

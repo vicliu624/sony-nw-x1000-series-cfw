@@ -66,7 +66,7 @@ int hb_package_job_step(struct hb_package_job *j,unsigned cap){
 int hb_package_job_install(struct hb_package_job *j){
  if(!j||j->state!=HB_JOB_READY)return HB_NET_INPUT;
  if(j->stop&&*j->stop)return failed(j,HB_NET_CANCELLED);
- int result=hb_store_install_local_expected(j->apps,j->assembly.folder,j->plan.bundle.package.id,j->reserve,j->stop,j->plan.identity);
+ int result=hb_store_install_local_guarded(j->apps,j->assembly.folder,j->plan.bundle.package.id,j->reserve,j->stop,j->plan.identity,j->guard_live?j->live_present:-1,j->live_identity);
  if(result)return failed(j,result);
  j->state=HB_JOB_INSTALLED;return 0;
 }

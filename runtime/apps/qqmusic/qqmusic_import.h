@@ -15,6 +15,7 @@ struct qq_import_conversion {
   * bounded caller buffer. No title lookup or overriding a source image. */
  void *cover_context;
  int (*fetch_cover)(void *,const char *,unsigned char *,size_t,size_t *);
+ void *progress_context;int (*progress)(void *,uint64_t samples,uint64_t total);
 };
 struct qq_import_report {struct qq_codec_report audio;uint64_t output_bytes;size_t tag_bytes,cover_bytes;unsigned source_fields,filled_fields,source_cover;};
 /* Conversion into caller-owned protected output transaction. Source comments

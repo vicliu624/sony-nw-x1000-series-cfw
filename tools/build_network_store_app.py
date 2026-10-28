@@ -27,7 +27,7 @@ subprocess.run([sys.executable,str(ROOT/'tools/probe_external_tls.py')],cwd=ROOT
 subprocess.run([sys.executable,str(ROOT/'tools/probe_stock_resolver.py')],cwd=ROOT,check=True)
 crypto=ROOT/'work/external-tls-probe/bearssl-0.6';runtime=ROOT/'work/stock-resolver-probe'
 modules=['repository', 'remote_store', 'metadata_cache', 'metadata_fetch', 'remote_catalog', 'remote_list', 'download_intent', 'download_record', 'payload_cache_cleanup', 'partial_cleanup', 'download_recovery', 'package_job', 'package_resume', 'package_assemble', 'download_task', 'download_plan', 'resolver', 'connect_step', 'https_url', 'https_fetch', 'tls_socket_step', 'socket_step', 'deadline', 'tls_platform', 'download_file', 'download_stream', 'http_response', 'install_posix', 'transaction', 'stage_posix', 'cleanup_posix', 'pending_plan', 'cleanup_plan', 'bundle_posix', 'inventory', 'package', 'stock_fs_bridge', 'stock_stat64', 'stock_tls_compat', 'canvas', 'job_ui', 'termination', 'network_app', 'platform_native', 'network_main', 'start']
-sources=['runtime/store/'+name+'.c' for name in modules]+['runtime/store/start.S','runtime/native/frontend.c','runtime/native/sha256.c','runtime/native/linux_devices.c','runtime/native/syscalls.S']
+sources=[('runtime/apps/store/' if name in ('network_app','network_main') else 'runtime/store/')+name+'.c' for name in modules]+['runtime/store/start.S','runtime/native/frontend.c','runtime/native/sha256.c','runtime/native/linux_devices.c','runtime/native/syscalls.S']
 if options.libc_device_io:
  sources.append('runtime/native/linux_device_io_posix.c')
 if options.libc_runtime:sources.remove('runtime/native/syscalls.S')

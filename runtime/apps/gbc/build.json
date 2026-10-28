@@ -1,0 +1,54 @@
+{
+  "sources": [
+    "entry.c",
+    "@/runtime/store/stock_fs_bridge.c",
+    "@/runtime/store/stock_stat64.c",
+    "@/runtime/apps/emulators/platform.c",
+    "@/runtime/apps/emulators/storage.c",
+    "@/runtime/native/frontend.c",
+    "@/runtime/native/linux_devices.c",
+    "@/runtime/native/linux_device_io_posix.c",
+    "@/runtime/native/linux_signals_posix.c",
+    "@/runtime/store/start.c",
+    "@/runtime/store/start.S",
+    "@/runtime/platform/pcm_output.c",
+    "@/runtime/platform/pcm_posix.c",
+    "@/runtime/apps/fm-radio/fm_audio.c",
+    "@/runtime/apps/emulators/gbc_core.c",
+    "@/runtime/native/sha256.c",
+    "@/third_party/gnuboy/lcd.c",
+    "@/third_party/gnuboy/refresh.c",
+    "@/third_party/gnuboy/lcdc.c",
+    "@/third_party/gnuboy/palette.c",
+    "@/third_party/gnuboy/cpu.c",
+    "@/third_party/gnuboy/mem.c",
+    "@/third_party/gnuboy/rtc.c",
+    "@/third_party/gnuboy/hw.c",
+    "@/third_party/gnuboy/sound.c"
+  ],
+  "cflags": [
+    "-D_FILE_OFFSET_BITS=64",
+    "-DHB_USE_POSIX_FILES",
+    "-DHB_STORE_SONY_LIBC",
+    "-DIS_LITTLE_ENDIAN",
+    "-Ithird_party/gnuboy",
+    "-Ithird_party/tama-id/core",
+    "-O2",
+    "-ffunction-sections",
+    "-fdata-sections"
+  ],
+  "checks": [
+    [
+      "--help"
+    ],
+    [
+      "--selftest"
+    ]
+  ],
+  "third_party_cflags": [
+    "-Wno-error"
+  ],
+  "ldflags": [
+    "-Wl,--gc-sections"
+  ]
+}

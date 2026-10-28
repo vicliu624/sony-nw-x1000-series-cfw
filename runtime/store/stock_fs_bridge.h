@@ -10,4 +10,5 @@ struct hb_target_stat {
 };
 int hb_target_fstat(int,struct hb_target_stat *);
 int hb_target_lstat(const char *,struct hb_target_stat *);
+int hb_target_stat(const char *,struct hb_target_stat *);
 #endif

@@ -4,6 +4,8 @@
 #include <dirent.h>
 #endif
 long hb_file_open_read(const char *path);
+/* Exact-size seekable resource; nonblocking and no final symlink. */
+long hb_file_open_resource(const char *path,unsigned bytes);
 long hb_file_read(int fd, void *buffer, unsigned bytes);
 long hb_file_write(int fd, const void *buffer, unsigned bytes);
 long hb_file_close(int fd);

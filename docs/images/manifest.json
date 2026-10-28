@@ -1,0 +1,165 @@
+{
+  "account_data": false,
+  "physical_device_capture": false,
+  "images": [
+    {
+      "file": "launcher-market.png",
+      "sha256": "d55dce656492b854e65e5aabbe5aea23849c61fb17874ba4283561e4eb86bb44",
+      "kind": "Actual launcher ARM framebuffer; shared market painter; example app packages/versions",
+      "inputs": [
+        {
+          "path": "work/launcher-showcase/launcher-1.png",
+          "sha256": "674d31869590f4d2ee1f64b4aae051ff83a9294a60bc4b18830ec8d31d4accd9"
+        },
+        {
+          "path": "work/launcher-showcase/launcher-2.png",
+          "sha256": "6f418028219179750bdc1fc5feccf19e27367a65a5b2e6036caf39e03747a123"
+        },
+        {
+          "path": "work/launcher-showcase/launcher-3.png",
+          "sha256": "e6865669306b6c50003b996e5b4c79ea5209b305ed2ac8a662d76771845b3a62"
+        },
+        {
+          "path": "work/launcher-showcase/market.png",
+          "sha256": "0b01d4999315dae1245dbfdf8769bf2e5250b92d6036994dee0ce9efc4b7cbdb"
+        }
+      ]
+    },
+    {
+      "file": "market-details.png",
+      "sha256": "d6d75f302d1913861bc63848cb399fca02e832a7c9d43960daa08da6962f6cb4",
+      "kind": "Actual ARM detail painter; synthetic version states",
+      "inputs": [
+        {
+          "path": "work/market-details-preview/1.png",
+          "sha256": "78705bcce5d76c6772821dc7958acc89b676a1ae3fa76ad6e428831b912d2d45"
+        },
+        {
+          "path": "work/market-details-preview/2.png",
+          "sha256": "3c8364b71d6ac45317abdb997eb92daa2adc6c4963a69d968662a1823c8585d6"
+        },
+        {
+          "path": "work/market-details-preview/3.png",
+          "sha256": "be269b458f36852da2a981056a039c51e02f6fb6285e30fd14ad052c2c51a638"
+        },
+        {
+          "path": "work/market-details-preview/4.png",
+          "sha256": "1dc34d6c24a64930c69689806db95d10438858f155c22a2462e78d1be334c52f"
+        }
+      ]
+    },
+    {
+      "file": "qqmusic.png",
+      "sha256": "b83fe8cd3de0ecd02b87283407bffc2289ad30c11ee70bbe02625d465194999f",
+      "kind": "Actual QQ Music ARM framebuffer; synthetic account, songs and import state",
+      "inputs": [
+        {
+          "path": "work/qqmusic-ui-native/frames/page-0-0.rgb565",
+          "sha256": "7c933339b2db7b0dde1115f3cb8263958e02ca2616a9bfec7f3f9856d3179bf1"
+        },
+        {
+          "path": "work/qqmusic-ui-native/frames/page-1-0.rgb565",
+          "sha256": "45ad230ed691e5dcb5ab86f9a6a9cd1c955daa8b5ba1e55e20e7cfee53e62e3d"
+        },
+        {
+          "path": "work/qqmusic-ui-native/frames/page-2-0.rgb565",
+          "sha256": "8a49be1a4c0de263d5fbaa840eb9a84ac377dafbf449177d736361e1526f3ed1"
+        },
+        {
+          "path": "work/qqmusic-ui-native/frames/import-active-2.rgb565",
+          "sha256": "33adeb51dd71a0ed23e82a6fc206e70665a4ee96700faf4ab6ac027f9030a17d"
+        }
+      ]
+    },
+    {
+      "file": "pocket-fm.png",
+      "sha256": "5c56e746e437e4ea16d382b7c62bb7f866168b8b6c1a33c8c0946fd2435f9fa8",
+      "kind": "Actual native FM framebuffer fixtures; no RF/audio reception claim",
+      "inputs": [
+        {
+          "path": "work/fm-radio-review/tuning.png",
+          "sha256": "1e58be4d6e0d8de3db90997f3ea90b42008c04bf7b7ef77c3e45259e26681951"
+        },
+        {
+          "path": "work/fm-radio-review/favorites.png",
+          "sha256": "148595f0ae72e7e05ed8639f26c7cae0fe294c233d2cb4b6229a0735dd108fbc"
+        },
+        {
+          "path": "work/fm-radio-review/keypad.png",
+          "sha256": "e99a3e83162e5c352f33541b08113ab7b03c86b42668decae2289882fd482869"
+        }
+      ]
+    },
+    {
+      "file": "app-icons.png",
+      "sha256": "164ad14ff4fac9dedc246c0e5e7ee3a97b6dc0c0ba7eac6bda7397df826f32ba",
+      "kind": "Original vector-derived app icon set",
+      "inputs": [
+        {
+          "path": "runtime/apps/device-info/assets/icon.png",
+          "sha256": "8a7d288511464ca3745f5747a0d8307df335ea4e9de42319d8de1ee16436c780"
+        },
+        {
+          "path": "runtime/apps/diagnostics/assets/icon.png",
+          "sha256": "4eafc8cd25416a84a445e64940ed4525225fc228ab7c53dd83afc0f17050e305"
+        },
+        {
+          "path": "runtime/apps/dictionary/assets/icon.png",
+          "sha256": "7af645600cde5920ab94fb36713658d11388d1ce86af296d1fc724654b4a1fe1"
+        },
+        {
+          "path": "runtime/apps/ebook/assets/icon.png",
+          "sha256": "c9cae25e1063dd43c4d94b43ddecae92c65173ecc31057c4b4cffb6950e0abe7"
+        },
+        {
+          "path": "runtime/apps/fm-radio/assets/icon.png",
+          "sha256": "e3fa7f7d6e38182b1462d6e944c64ea5a1e0fe3780b6ed1ed945c8b48730f973"
+        },
+        {
+          "path": "runtime/apps/gbc/assets/icon.png",
+          "sha256": "7b2935927a8a071c87d0c3354d77530d3b71469c4bdf4c48588c2395ebb7035f"
+        },
+        {
+          "path": "runtime/apps/graphics-demo/assets/icon.png",
+          "sha256": "e3564560b1fff5089b0831f2ee95522ee4b5d913b47dda39c00fb051bcc0cee5"
+        },
+        {
+          "path": "runtime/apps/hello/assets/icon.png",
+          "sha256": "30fd468f7fa12c1afea8cf383085897bc57f1ba8309c4acfc3221f136f618fc8"
+        },
+        {
+          "path": "runtime/apps/key-check/assets/icon.png",
+          "sha256": "19ce49add1d59424c95ff062beb3d1dbacc6c86505983540fa761d3137d1ff89"
+        },
+        {
+          "path": "runtime/apps/language/assets/icon.png",
+          "sha256": "d60925cd062339356397e73f1e06a316669ebb1f4ccc32b27eb1b9318910021d"
+        },
+        {
+          "path": "runtime/apps/pet/assets/icon.png",
+          "sha256": "abdece6cfcbeb2cac269ac237d38504f2fe30a19f159f5f1f18dbacc90bd0a31"
+        },
+        {
+          "path": "runtime/apps/qqcheck/assets/icon.png",
+          "sha256": "8a4d928416602696b1b3eb63dcdc6b48e22253fa75c9b2faac101cd81cdebce1"
+        },
+        {
+          "path": "runtime/apps/qqmusic/assets/icon.png",
+          "sha256": "c3b1e2d69a6ae79cc77c9445f4f5a7be26567a067554be9dd8d98ae79f72d631"
+        },
+        {
+          "path": "runtime/apps/store/assets/icon.png",
+          "sha256": "abe80d521423a69805b70857d0719474405371b42737d554b016198b750f36f7"
+        },
+        {
+          "path": "runtime/apps/tamagotchi-id/assets/icon.png",
+          "sha256": "c52a11fa4ea4df15aefe1203807897fb3eddeded4a78a2d05f9b5dc44d4de4a8"
+        },
+        {
+          "path": "runtime/apps/terminal/assets/icon.png",
+          "sha256": "bbdf6da6557da35f990f7f9e503b93130e1db29365eab12ee252e0e69adf76f0"
+        }
+      ]
+    }
+  ]
+}

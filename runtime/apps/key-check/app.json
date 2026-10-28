@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "id": "key-check",
+  "target": "sony-nw-x1000-jp",
+  "title": "Key Check",
+  "summary": "Inspect button events",
+  "description": "A native input diagnostic for observing controls and button events. Useful while developing applications for the Japanese X1000 platform. It does not modify firmware or establish compatibility with other Walkman families.",
+  "changes": "Experimental key-check package using the shared native input environment.",
+  "channel": "experimental",
+  "artwork": {
+    "color": "#748eaf",
+    "kind": "keys",
+    "subtitle": "Buttons & controls"
+  },
+  "build": {
+    "script": "build.py",
+    "package": "work/app-builds/key-check/package"
+  }
+}

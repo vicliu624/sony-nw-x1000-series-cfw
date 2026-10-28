@@ -1,0 +1,37 @@
+{
+  "schema": 1,
+  "id": "ebook",
+  "target": "sony-nw-x1000-jp",
+  "title": "EBook",
+  "summary": "Read text on your Walkman",
+  "description": "Read supported text files using the native ebook reader. Reader assets and user files belong on visible storage. Encoding support and hardware behavior are described in the EBook guide; this package is not a general PDF or web browser.",
+  "changes": "Experimental text-reader package with encoding resources and retained upstream notices.",
+  "channel": "experimental",
+  "artwork": {
+    "color": "#52a38c",
+    "kind": "book",
+    "subtitle": "A little reading time"
+  },
+  "build": {
+    "script": "build.py",
+    "package": "work/ebook-app/package"
+  },
+  "package_files": [
+    {
+      "source": "third_party/ebook-data/PROVENANCE.md",
+      "destination": "LICENSES/PROVENANCE.md"
+    },
+    {
+      "source": "third_party/ebook-data/PYTHON-LICENSE.txt",
+      "destination": "LICENSES/PYTHON-LICENSE.txt"
+    },
+    {
+      "source": "third_party/ebook-data/UNIFONT-LICENSE.txt",
+      "destination": "LICENSES/UNIFONT-LICENSE.txt"
+    },
+    {
+      "source": "third_party/ebook-data/UNIFONT-OFL-1.1.txt",
+      "destination": "LICENSES/UNIFONT-OFL-1.1.txt"
+    }
+  ]
+}

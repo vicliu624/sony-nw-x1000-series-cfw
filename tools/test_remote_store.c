@@ -42,7 +42,7 @@ static int dns_reply(int fd,int mode){
 #include "../runtime/store/remote_store.h"
 #include "../runtime/store/job_ui.h"
 #include "../runtime/store/canvas.h"
-static int dns,listener,peer=-1,seen,sent,closing,down,steps,requests;
+static int dns,listener,peer=-1,seen,sent,closing,down,steps,requests,details_seen;
 static volatile int stop,server_stop;
 static char request[2048];static unsigned used;
 static const char *scenario;
@@ -87,7 +87,8 @@ static int present(void *ctx){
 }
 static int next(void *ctx,unsigned char packet[11]){
  (void)ctx;assert(++steps<200000);int x=180,y=404;
- if(store.stage==HB_REMOTE_LIST){x=20;y=!strcmp(scenario,"list-back")?404:70;}
+ if(store.stage==HB_REMOTE_LIST){x=20;y=!strcmp(scenario,"list-back")||(!strcmp(scenario,"details-back")&&details_seen)?404:70;}
+ else if(store.stage==HB_REMOTE_DETAILS){if(!strcmp(scenario,"details-cancel"))return -1;details_seen=1;x=!strcmp(scenario,"details-back")?20:180;y=404;}
  else {
   active_deadline=store.stage==HB_REMOTE_PACKAGE?&store.job.task.deadline:&store.metadata.task.deadline;pump();
   int tap=store.stage==HB_REMOTE_PACKAGE&&(store.job.state==HB_JOB_READY||store.job.state==HB_JOB_INSTALLED||store.job.state==HB_JOB_FAILED);
@@ -118,6 +119,8 @@ int main(void){
   assert(result==-2&&store.error==HB_DOWNLOAD_HASH&&store.stage==HB_REMOTE_MANIFEST&&store.job.state==HB_JOB_EMPTY&&requests==2);
   assert(!store.metadata.bytes);for(unsigned i=0;i<sizeof store.metadata.data;i++)assert(!store.metadata.data[i]);
  }else if(!strcmp(scenario,"list-back"))assert(result==-1&&store.stage==HB_REMOTE_LIST&&requests==1);
+ else if(!strcmp(scenario,"details-back"))assert(result==-1&&store.stage==HB_REMOTE_LIST&&requests==3);
+ else if(!strcmp(scenario,"details-cancel"))assert(result==-1&&store.stage==HB_REMOTE_DETAILS&&requests==3);
  else if(!strcmp(scenario,"metadata-cancel"))assert(result==-1&&store.error==HB_NET_CANCELLED&&!store.metadata.task.dns.channel&&store.metadata.task.fd==-1);
  else {assert(!result&&store.stage==HB_REMOTE_FINISHED);if(!strcmp(scenario,"complete"))assert(requests==6);}
  assert(hb_remote_store_run(&store,&config,&p,&io)==-2);assert(!hb_remote_store_discard(&store)&&store.stage==HB_REMOTE_IDLE&&!store.begun);

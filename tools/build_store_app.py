@@ -17,7 +17,7 @@ with tarfile.open(fileobj=io.BytesIO(gzip.decompress(packed))) as tar:
 alias=work/'libc.so.6'
 if not alias.exists():alias.symlink_to('libc-2.3.3.so')
 modules=['install_posix','transaction','stage_posix','cleanup_posix','pending_plan','cleanup_plan','bundle_posix','inventory','package','stock_fs_bridge','stock_stat64','session','session_local','view','canvas','ui_loop','catalog_posix','catalog_view','catalog_loop','browser','termination','app','platform_native','main','start']
-sources=['runtime/store/'+name+'.c' for name in modules]+['runtime/store/start.S','runtime/native/frontend.c','runtime/native/sha256.c','runtime/native/syscalls.S']
+sources=[('runtime/apps/store/' if name in ('network_app','network_main') else 'runtime/store/')+name+'.c' for name in modules]+['runtime/store/start.S','runtime/native/frontend.c','runtime/native/sha256.c','runtime/native/syscalls.S']
 folder=work/'HOMEBREW/apps/store';folder.mkdir(parents=True,exist_ok=True);out=folder/'app'
 flags=['-DHB_BUILD_VERSION="'+version+'"','-DHB_STORE_SONY_LIBC','-std=c99','-Os','-Wall','-Wextra','-Werror','-march=armv5te','-marm','-mfloat-abi=soft','-ffreestanding','-fno-builtin','-fno-pie','-nostdlib','-no-pie','-Wl,--hash-style=sysv','-Wl,--dynamic-linker=/lib/ld-linux.so.3']
 subprocess.run(['arm-linux-gnueabi-gcc',*flags,*sources,str(work/'libc-2.3.3.so'),str(work/'ld-2.3.3.so'),'-lgcc','-o',str(out)],cwd=ROOT,check=True)

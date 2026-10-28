@@ -123,3 +123,16 @@ done:
  if(rc){memset(out,0,cap*sizeof(*out));*width=*height=0;}
  return rc;
 }
+
+int qq_image_thumbnail(const unsigned char *data,size_t n,unsigned short *out,unsigned side){
+ unsigned char *pixels=0;int w=0,h=0,components,rc=-1;unsigned x,y;
+ if(!data||!n||n>262144||!out||!side||side>96||busy||heap_used)return -1;
+ busy=1;
+ if(!stbi_info_from_memory(data,(int)n,&w,&h,&components)||w<1||h<1||w>512||h>512)goto done;
+ pixels=stbi_load_from_memory(data,(int)n,&w,&h,&components,4);if(!pixels)goto done;
+ for(y=0;y<side;y++)for(x=0;x<side;x++){
+  const unsigned char *p=pixels+((size_t)(y*(unsigned)h/side)*(unsigned)w+x*(unsigned)w/side)*4;unsigned a=p[3],r=(p[0]*a+255*(255-a)+127)/255,g=(p[1]*a+255*(255-a)+127)/255,b=(p[2]*a+255*(255-a)+127)/255;
+  out[y*side+x]=(unsigned short)(((r>>3)<<11)|((g>>2)<<5)|(b>>3));
+ }rc=0;
+ done:stbi_image_free(pixels);busy=0;if(heap_used)rc=-1;if(rc)memset(out,0,(size_t)side*side*2);return rc;
+}

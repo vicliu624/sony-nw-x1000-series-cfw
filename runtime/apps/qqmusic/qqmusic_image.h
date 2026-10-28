@@ -4,6 +4,8 @@
 #define QQ_IMAGE_QR_SIDE 196u
 /* Lossless PNG-to-RGB565 QR path: <=64KiB, square21..196px, no JPEG roundtrip.
  * Caller scales whole pixels and supplies its own white quiet zone. No IO. */
+/* Bounded RGB565 square thumbnail, no retained decode heap or IO. */
+int qq_image_thumbnail(const unsigned char *,size_t,unsigned short *,unsigned side);
 int qq_image_qr(const unsigned char *,size_t,unsigned short *,size_t,unsigned *,unsigned *);
 /* No paths/IO, max512KiB input/output, max1024x1024, private image heap16MiB.
  * Baseline JPEG preserved after decode validation. PNG/progressive JPEG become

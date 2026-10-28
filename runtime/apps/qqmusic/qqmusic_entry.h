@@ -18,4 +18,6 @@ typedef int (*qq_entry_setup)(void *,struct qq_runtime *,struct qq_devices *,uns
 int qq_entry_run_bound(const struct qq_entry_config *,qq_entry_setup,void *);
 struct qq_job_config;
 int qq_entry_run_import(const struct qq_entry_config *,const struct qq_job_config *);
+struct qq_preview_client_channels;
+int qq_entry_run_import_preview(const struct qq_entry_config *,const struct qq_job_config *,const struct qq_preview_client_channels *);
 #endif

@@ -3,7 +3,8 @@
 #include "metadata_fetch.h"
 #include "remote_list.h"
 #include "job_ui.h"
-enum hb_remote_stage {HB_REMOTE_IDLE,HB_REMOTE_CATALOG,HB_REMOTE_LIST,HB_REMOTE_MANIFEST,HB_REMOTE_INDEX,HB_REMOTE_PACKAGE,HB_REMOTE_FINISHED};
+#include "market_detail.h"
+enum hb_remote_stage {HB_REMOTE_IDLE,HB_REMOTE_CATALOG,HB_REMOTE_LIST,HB_REMOTE_MANIFEST,HB_REMOTE_INDEX,HB_REMOTE_PACKAGE,HB_REMOTE_FINISHED,HB_REMOTE_DETAILS};
 struct hb_remote_store_config {
  const char *catalog_url;unsigned catalog_bytes;const unsigned char *catalog_sha256;
  const char *cache,*packages,*apps,*running_id;
@@ -16,6 +17,7 @@ struct hb_remote_store {
  struct hb_remote_catalog catalog;
  struct hb_package_download_plan plan;
  struct hb_package_job job;
+ struct hb_market_local local;
  unsigned char manifest[1024],index[HB_INVENTORY_TEXT_BYTES];
  unsigned manifest_bytes,index_bytes;
  enum hb_remote_stage stage;int error,selected,begun;

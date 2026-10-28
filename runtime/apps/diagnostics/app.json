@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "id": "diagnostics",
+  "target": "sony-nw-x1000-jp",
+  "title": "Device Check",
+  "summary": "Native diagnostic tools",
+  "description": "Inspect the native application environment using the project's diagnostic interface. Intended for development and troubleshooting on Japanese X1000 players. Device-specific diagnostic results require independent verification.",
+  "changes": "Experimental diagnostics package with integrity-checked installation.",
+  "channel": "experimental",
+  "artwork": {
+    "color": "#dd8c32",
+    "kind": "pulse",
+    "subtitle": "System diagnostics"
+  },
+  "build": {
+    "script": "build.py",
+    "package": "work/app-builds/diagnostics/package"
+  }
+}

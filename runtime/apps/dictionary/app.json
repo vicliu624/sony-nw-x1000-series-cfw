@@ -1,0 +1,37 @@
+{
+  "schema": 1,
+  "id": "dictionary",
+  "target": "sony-nw-x1000-jp",
+  "title": "Dictionary",
+  "summary": "Offline word lookup",
+  "description": "Look up words offline using the bundled dictionary data and native reader interface. No account or Internet connection is required for lookup. Dictionary resources occupy visible user storage and retain their upstream notices.",
+  "changes": "Experimental native dictionary and packaged offline resources. See the Dictionary guide for supported data and input behavior.",
+  "channel": "experimental",
+  "artwork": {
+    "color": "#c48443",
+    "kind": "dictionary",
+    "subtitle": "Words & definitions"
+  },
+  "build": {
+    "script": "build.py",
+    "package": "work/dictionary-app/package"
+  },
+  "package_files": [
+    {
+      "source": "third_party/dictionary-data/ECDICT-LICENSE",
+      "destination": "LICENSES/ECDICT-LICENSE"
+    },
+    {
+      "source": "third_party/dictionary-data/PROVENANCE.md",
+      "destination": "LICENSES/PROVENANCE.md"
+    },
+    {
+      "source": "third_party/dictionary-data/UNIFONT-LICENSE.txt",
+      "destination": "LICENSES/UNIFONT-LICENSE.txt"
+    },
+    {
+      "source": "third_party/dictionary-data/UNIFONT-OFL-1.1.txt",
+      "destination": "LICENSES/UNIFONT-OFL-1.1.txt"
+    }
+  ]
+}

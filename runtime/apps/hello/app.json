@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "id": "hello",
+  "target": "sony-nw-x1000-jp",
+  "title": "Hello",
+  "summary": "A small native example",
+  "description": "A minimal native application demonstrating the X1000 homebrew startup and packaging path. Useful for checking discovery and installation before trying larger apps. It runs independently from Sony's player interface.",
+  "changes": "Small native example used by the market's offline end-to-end installation tests.",
+  "channel": "experimental",
+  "artwork": {
+    "color": "#57a7aa",
+    "kind": "wave",
+    "subtitle": "A small beginning"
+  },
+  "build": {
+    "script": "build.py",
+    "package": "work/hello-app/package"
+  }
+}

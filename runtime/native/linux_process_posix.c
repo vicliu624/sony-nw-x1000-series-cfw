@@ -1,12 +1,18 @@
 /* POSIX process backend for candidates linked with the stock Sony libc.
  * No Sony addresses or raw process syscall numbers belong in this file.
  * Keep the freestanding backend selectable until device qualification. */
+#ifndef _DEFAULT_SOURCE
+#define _DEFAULT_SOURCE
+#endif
 #include "linux_process.h"
 #include <errno.h>
 #include <signal.h>
+#include <sys/prctl.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
+/* Keep the Sony symbol when building against modern time64 headers. */
+extern int hb_process_prctl(int,...) __asm__("prctl");
 
 static long result(int value) { return value < 0 ? -errno : value; }
 int hb_linux_prepare_child(void) {
@@ -14,6 +20,7 @@ int hb_linux_prepare_child(void) {
     if (signal(SIGINT, SIG_DFL) == SIG_ERR) return -errno;
     return 0;
 }
+int hb_linux_bind_parent_stop(long parent){if(parent<=1)return -EINVAL;if(hb_process_prctl(PR_SET_PDEATHSIG,SIGTERM,0,0,0)<0)return -errno;return (long)getppid()==parent?0:-ECANCELED;}
 long hb_linux_fork(void) { return result(fork()); }
 long hb_linux_set_group(long pid, long group) { return result(setpgid(pid, group)); }
 long hb_linux_change_directory(const char *path) { return result(chdir(path)); }

@@ -11,6 +11,10 @@ int main(void){
  if(hb_https_asset_url(url,sizeof url,c.entries[0].base_url,c.entries[0].asset_prefix,"assets/a_b.bin")||!strstr(url,"hello--6173736574732f615f622e62696e"))return 2;
  if(hb_https_asset_url(url,sizeof url,"https://example.test/","","assets/a.bin")||strcmp(url,"https://example.test/assets/a.bin"))return 3;
  if(!hb_https_asset_url(url,sizeof url,"http://example.test/","x--","app")||!hb_https_asset_url(url,sizeof url,"https://example.test/","../","app")||!hb_https_asset_url(url,sizeof url,"https://example.test/","x--","../x"))return 4;
+ n=snprintf(row,sizeof row,"HBSTORE3\nhello\t1.2.3\thttps://github.com/o/r/releases/download/v1/\t100\t%s\t120\t%s\thello--\tHello\tA small example\tAn application description.\tA version-specific change.\texperimental\t1234\n",zero,zero);
+ if(hb_remote_catalog_parse((unsigned char *)row,(unsigned)n,&c)||strcmp(c.entries[0].title,"Hello")||strcmp(c.entries[0].description,"An application description.")||c.entries[0].download_bytes!=1234)return 11;
+ char *channel=strstr(row,"experimental");if(!channel)return 12;*channel='!';
+ if(!hb_remote_catalog_parse((unsigned char *)row,(unsigned)n,&c)||c.valid||c.count)return 13;
  struct hb_download_stream body;struct hb_http_response h;unsigned char digest[32]={0};
  hb_download_stream_init(&body,3,digest,0,sink,0);hb_http_response_init(&h,&body);h.allow_redirects=1;
  const char *redirect="HTTP/1.1 302 Found\r\nLocation: https://release-assets.githubusercontent.com/test?x=1\r\nContent-Length: 999\r\n\r\nbody";

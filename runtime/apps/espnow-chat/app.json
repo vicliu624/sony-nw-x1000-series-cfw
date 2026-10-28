@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "id": "espnow-chat",
+  "target": "sony-nw-x1000-jp",
+  "title": "ESP-NOW Chat",
+  "summary": "Chat with a Cardputer",
+  "description": "Touch keyboard and message history for the experimental X1000 ESP-NOW bridge. Requires a separately qualified radio setup. Hardware message exchange and radio restoration are not yet accepted; this local candidate is not a finished release.",
+  "changes": "First local touch interface and shared reliable message protocol. Preview and protocol tests are offline evidence only.",
+  "channel": "experimental",
+  "build": {
+    "script": "build.py",
+    "package": "work/espnow-chat-app/HOMEBREW/apps/espnow-chat"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "id": "device-info",
+  "target": "sony-nw-x1000-jp",
+  "title": "Device Info",
+  "summary": "Inspect your Walkman",
+  "description": "View device and operating-system information through the native X1000 interface. Useful for checking the current platform before investigating app behavior. Computer-side checks do not establish every field on every X1000 model.",
+  "changes": "Experimental native device information application. Consult the project hardware documentation for verified observations.",
+  "channel": "experimental",
+  "artwork": {
+    "color": "#258bba",
+    "kind": "player",
+    "subtitle": "Device & system"
+  },
+  "build": {
+    "script": "build.py",
+    "package": "work/device-info-build/HOMEBREW/apps/device-info"
+  }
+}

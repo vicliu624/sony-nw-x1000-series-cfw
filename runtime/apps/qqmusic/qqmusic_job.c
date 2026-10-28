@@ -13,7 +13,7 @@ struct job {
  struct qq_job_record record;struct qq_import_report converted;struct qq_publish_report published;
  struct qq_runtime_import_progress progress;unsigned char artwork[524288];char nonce[17];
  const struct qq_job_config *configuration;volatile int *stop;
- int network_ready,record_started,review,did_publish;
+ int network_ready,record_started,review,did_publish;qq_worker_emit emit;void *emit_context;
 };
 static int unused_material(void *p,struct qq_runtime_material *out){(void)p;(void)out;return -1;}
 static int now_ms(uint64_t *out){unsigned long long n;if(hb_monotonic_millis(&n))return -1;*out=n;return 0;}
@@ -37,6 +37,11 @@ static int fetch_cover(void *context,const char *mid,unsigned char *out,size_t c
  }else rc=-1;
  ops->cancel(ops->context);qq_cookie_clear(jar);free(jar);return rc;
 }
+static int conversion_progress(void *context,uint64_t samples,uint64_t total){
+ struct job *j=context;unsigned percent;if(!total||samples>total||j->configuration->exclusive(j->configuration->policy_context))return -1;
+ percent=50+(unsigned)(samples*35/total);if(j->progress.stage==2&&percent==j->progress.percent)return *j->stop?-1:0;
+ j->progress.stage=2;j->progress.percent=percent;return report(j,j->emit,j->emit_context,j->stop);
+}
 static int release(struct qq_stage_file *f){int rc=0;if(f->fd>=0){if(close(f->fd))rc=-1;f->fd=-1;}if(f->parent>=0){if(close(f->parent))rc=-1;f->parent=-1;}return rc;}
 static int bounded(const struct qq_worker_request *r){
  return memchr(r->song.mid,0,sizeof(r->song.mid))&&memchr(r->song.media_mid,0,sizeof(r->song.media_mid))&&memchr(r->song.album_mid,0,sizeof(r->song.album_mid))&&memchr(r->song.title,0,sizeof(r->song.title))&&memchr(r->song.artist,0,sizeof(r->song.artist))&&memchr(r->song.album,0,sizeof(r->song.album))&&memchr(r->song.date,0,sizeof(r->song.date))&&memchr(r->intent.song_mid,0,sizeof(r->intent.song_mid))&&memchr(r->intent.media_mid,0,sizeof(r->intent.media_mid))&&memchr(r->intent.filename,0,sizeof(r->intent.filename))&&memchr(r->resource.filename,0,sizeof(r->resource.filename))&&memchr(r->resource.url,0,sizeof(r->resource.url))&&memchr(r->resource.ekey,0,sizeof(r->resource.ekey))&&memchr(r->layout.relative,0,sizeof(r->layout.relative))&&memchr(r->layout.identity,0,sizeof(r->layout.identity));
@@ -49,7 +54,7 @@ int qq_job_run(void *configuration,const struct qq_worker_request *request,qq_wo
  if(!c||!request||!emit||!stop||*stop||!c->exclusive||!c->checkpoint||!c->workspace||!c->music_root||!c->plan.source||c->plan.source>268435456||!c->plan.mp3||c->plan.mp3>268435456||!c->plan.files[0]||!c->plan.files[2]||c->plan.metadata<131072||!c->plan.files[5]||c->plan.directory_units<3||(c->bitrate_kbps!=128&&c->bitrate_kbps!=192&&c->bitrate_kbps!=320)||!bounded(request)||request->intent.quality>QQ_MGG_320||request->intent.quality<QQ_MGG_96||request->resource.encrypted!=1||!request->resource.ekey[0]||strcmp(request->resource.filename,request->intent.filename)||request->layout.version!=1||c->exclusive(c->policy_context))return -1;
  if(request->song.type!=request->intent.song_type||qq_export_plan(&request->song,&request->intent,0,&layout)||strcmp(layout.relative,request->layout.relative)||strcmp(layout.identity,request->layout.identity)||qq_resource_url_parse(request->resource.url,&url))goto done;
  qq_secret_clear(&url,sizeof(url));if(now_ms(&clock)||clock<request->now_ms||clock>=request->expires_ms||request->expires_ms-clock<1000)goto done;previous=clock;
- j=calloc(1,sizeof(*j));if(!j)goto done;j->configuration=c;j->stop=stop;qq_volume_init(&j->workspace);qq_volume_init(&j->music);qq_download_init(&j->download);qq_stage_init(&j->source);qq_output_init(&j->output);qq_export_directory_init(&j->directory);
+ j=calloc(1,sizeof(*j));if(!j)goto done;j->configuration=c;j->stop=stop;j->emit=emit;j->emit_context=emit_context;qq_volume_init(&j->workspace);qq_volume_init(&j->music);qq_download_init(&j->download);qq_stage_init(&j->source);qq_output_init(&j->output);qq_export_directory_init(&j->directory);
  if(qq_volume_open(&j->workspace,&c->volume,c->workspace,&c->plan,&required)||qq_volume_open(&j->music,&c->volume,c->music_root,&c->plan,&required)||j->workspace.device!=j->music.device)goto cleanup;
  if(hb_tls_seed(seed,stop))goto cleanup;
  for(i=0;i<8;i++){static const char hex[]="0123456789abcdef";j->nonce[i*2]=hex[seed[i]>>4];j->nonce[i*2+1]=hex[seed[i]&15];}qq_secret_clear(seed,sizeof(seed));
@@ -79,11 +84,11 @@ int qq_job_run(void *configuration,const struct qq_worker_request *request,qq_wo
  if(checkpoint(j,c,QQ_JOB_SOURCE_READY)){j->review=1;goto cleanup;}
  j->progress.stage=1;j->progress.percent=45;if(report(j,emit,emit_context,stop)||c->exclusive(c->policy_context))goto cleanup;
  conversion.song=&request->song;conversion.intent=&request->intent;conversion.ekey=request->resource.ekey;conversion.ekey_bytes=strlen(request->resource.ekey);conversion.encrypted=1;conversion.bitrate_kbps=c->bitrate_kbps;conversion.maximum_output=c->plan.mp3;conversion.io.stop=stop;conversion.artwork=j->artwork;conversion.artwork_capacity=sizeof(j->artwork);
- conversion.cover_context=j;conversion.fetch_cover=fetch_cover;
+ conversion.cover_context=j;conversion.fetch_cover=fetch_cover;conversion.progress_context=j;conversion.progress=conversion_progress;
  if(qq_file_import(&j->workspace,&c->plan,&j->source,&conversion,layout.identity,j->nonce,&j->output,&j->converted))goto cleanup;
  j->record.mp3_bytes=j->output.stage.bytes;memcpy(j->record.mp3_sha256,j->output.stage.digest,32);
  if(checkpoint(j,c,QQ_JOB_OUTPUT_READY)){j->review=1;goto cleanup;}
- j->progress.stage=2;j->progress.percent=80;if(report(j,emit,emit_context,stop)||c->exclusive(c->policy_context)||qq_export_directory_open(&j->directory,&j->music,&c->plan,&layout))goto cleanup;
+ j->progress.stage=2;j->progress.percent=85;if(report(j,emit,emit_context,stop)||c->exclusive(c->policy_context)||qq_export_directory_open(&j->directory,&j->music,&c->plan,&layout))goto cleanup;
  if(checkpoint(j,c,QQ_JOB_PUBLISHING))goto cleanup;
  j->progress.stage=3;j->progress.percent=90;if(report(j,emit,emit_context,stop))goto cleanup;
  status=qq_publish_mp3(&j->output,&j->directory,&c->plan,&j->converted,&j->published);
