@@ -103,6 +103,15 @@ under established exclusive ownership. UNCERTAIN must not be treated as a safe
 automatic retry. Settings should be written during a live event, not in finish,
 because stop state prohibits new persistent operations.
 
+## Build modules
+
+build.json pins the exact SDK version and selects app/canvas with optional
+storage. Omitting storage excludes its implementation and private filesystem/
+volume dependencies from both host and ARM builds. Calling a storage function
+then fails at link time; include the module when such a function is required.
+Unknown or duplicate modules are rejected. The source SDK bundle includes both
+profiles so a developer can make this choice without replacing the runtime.
+
 ## Compatibility policy
 
 Source API1 and exact SDK version are recorded separately from app and firmware

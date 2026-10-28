@@ -15,9 +15,14 @@ env=dict(os.environ,QEMU_UNSET_ENV='LD_LIBRARY_PATH,LD_PRELOAD')
 for command in commands:subprocess.run(command,check=True,env=env)
 assert compare_versions('1.10.0','1.9.0')==1 and compare_versions('1.0.0-alpha.10','1.0.0-alpha.2')==1
 info=descriptions()
-# Pet has complete local metadata but its desktop artwork is not a CI input.
-# Registering its introduction must not silently publish a new app/asset license.
-assert set(info)==set(json.loads((ROOT/'config/release.json').read_text())['apps'])|{'pet','qqcheck'}
+# Source discovery and intentional publication are separate contracts. New SDK
+# examples (or third-party apps) must not require a global metadata ID list.
+definitions={p.parent.name:json.loads(p.read_text()) for p in (ROOT/'runtime/apps').glob('*/app.json')}
+assert set(info)==set(definitions)
+published=set(json.loads((ROOT/'config/release.json').read_text())['apps'])
+assert published<=set(info) and not published&{'pet','qqcheck'}
+for ident,local in definitions.items():
+    assert info[ident]=={field:local[field] for field in ('title','summary','description','changes','channel')}
 assert info['pet']['title']=='BSOD Pet' and 'live Codex' in info['pet']['description']
 for old,new,oldhash,newhash,ok in [('1.0.0','1.1.0','a','b',True),('1.1.0','1.0.0','a','b',False),('1.0.0','1.0.0','a','a',True),('1.0.0','1.0.0+rebuild','a','b',False)]:
     try:check_history({'hello':{'version':new,'inventory_sha256':newhash}},[{'hello':{'version':old,'inventory_sha256':oldhash}}]);assert ok

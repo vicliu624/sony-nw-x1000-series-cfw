@@ -37,8 +37,9 @@ def compile_app(definition, output, host=False):
     recipe=json.loads((definition/'build.json').read_text())
     sdk_version=(ROOT/'sdk/VERSION').read_text().strip()
     if recipe.get('sdk')!=sdk_version: raise ValueError('SDK version mismatch; review and pin sdk/VERSION')
-    if recipe.get('modules')!=['app','canvas','storage']:
-        raise ValueError('SDK v1 supports app, canvas and storage as one bounded profile')
+    modules=recipe.get('modules')
+    if not isinstance(modules,list) or any(not isinstance(m,str) for m in modules) or len(modules)!=len(set(modules)) or not {'app','canvas'}<=set(modules) or set(modules)-{'app','canvas','storage'}:
+        raise ValueError('SDK v1 requires app/canvas; storage is optional; unknown/duplicate modules are rejected')
     version=(definition/'VERSION').read_text().strip();parse_version(version)
     identity=json.loads((definition/'app.json').read_text())['id']
     if identity!=definition.name:raise ValueError('Application ID mismatch')
@@ -49,7 +50,11 @@ def compile_app(definition, output, host=False):
             raise ValueError('SDK sources must be application-local C files')
         source.append(path)
     output=fresh_work(output)
-    sources=source+[ROOT/p for p in COMMON+(['runtime/platform/sdk/host.c'] if host else NATIVE)]
+    storage_sources={'runtime/platform/sdk/storage.c','runtime/store/stock_fs_bridge.c','runtime/store/stock_stat64.c',
+                     'runtime/apps/qqmusic/qqmusic_storage.c','runtime/apps/qqmusic/qqmusic_volume.c'}
+    selected=COMMON+(['runtime/platform/sdk/host.c'] if host else NATIVE)
+    if 'storage' not in modules:selected=[p for p in selected if p not in storage_sources]
+    sources=source+[ROOT/p for p in selected]
     flags=['-std=gnu99','-Os','-Wall','-Wextra','-Werror','-Wno-misleading-indentation',
            '-D_DEFAULT_SOURCE','-U_FORTIFY_SOURCE','-D_FORTIFY_SOURCE=0','-fno-builtin',
            '-DHB_BUILD_VERSION="'+version+'"','-DXW_SDK_VERSION="'+sdk_version+'"',
@@ -111,7 +116,7 @@ def compile_app(definition, output, host=False):
     inputs=list(inputs)
     inputs += [ROOT/'sdk/VERSION',ROOT/'sdk/LICENSE',ROOT/'third_party/qqmusic-stb/Noto-OFL.txt',ROOT/'runtime/native/ui_font.h',definition/'build.json',definition/'app.json',definition/'VERSION',Path(__file__)]
     inputs += [p for directory in ('assets','resources') for p in (definition/directory).rglob('*') if p.is_file()]
-    report={'sdk_version':sdk_version,'app_version':version,'host':host,'safe_checks':checks,'stock_library_hashes':{} if host else LIBRARIES,
+    report={'sdk_version':sdk_version,'modules':modules,'app_version':version,'host':host,'safe_checks':checks,'stock_library_hashes':{} if host else LIBRARIES,
             'hardware_accessed':False,'firmware_created':False,'artifact_sha256':hashlib.sha256(artifact.read_bytes()).hexdigest(),
             'source_hashes':{str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in inputs}}
     output.with_suffix('.build-report.json').write_text(json.dumps(report,indent=2)+'\n')

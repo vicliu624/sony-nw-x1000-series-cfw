@@ -13,7 +13,11 @@ storage denial after cancellation. ARM fixtures run under the pinned original
 loader and libc, with synthetic display callbacks; no native driver is opened.
 
 Host storage tests use a dedicated work/ directory: bounded save/load, missing
-settings, ownership denial, symlink rejection and stale-temp rejection. The
+settings, ownership denial, symlink/hardlink/FIFO rejection, stale-temp rejection,
+ownership loss before publication and explicit uncertainty after publication.
+The SDL2 backend is also exercised with a dummy video driver: real window/texture
+creation, present, synthetic mouse events and shutdown, without a desktop/device.
+The
 maintained counter and canvas apps are compiled for host rendering and ARM;
 their real packages are verified and changed executables are rejected. The
 counter's scripted tap creates its four-byte settings on the computer.

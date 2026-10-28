@@ -35,7 +35,8 @@ def create(ident,template,title=None):
           'build':{'script':'build.py','package':'work/sdk-builds/'+ident,'output_suffix':''}}
     (folder/'app.json').write_text(json.dumps(info,indent=2)+'\n')
     (folder/'VERSION').write_text('0.1.0-alpha.1\n')
-    (folder/'build.json').write_text(json.dumps({'sdk':version,'modules':['app','canvas','storage'],'sources':['main.c']},indent=2)+'\n')
+    modules=['app','canvas']+(['storage'] if template=='touch-ui' else [])
+    (folder/'build.json').write_text(json.dumps({'sdk':version,'modules':modules,'sources':['main.c']},indent=2)+'\n')
     (folder/'build.py').write_text('from pathlib import Path\nimport sys\nsys.path.insert(0,str(Path(__file__).resolve().parents[3]/"tools"))\nfrom sdk_build import build\nif __name__ == "__main__":\n    build(Path(__file__).resolve().parent)\n')
     # Original, deliberately neutral placeholder artwork, generated without dependencies.
     rows=b''.join(b'\0'+b''.join(bytes((54,135,119,255 if 5<=x<59 and 5<=y<59 else 0)) for x in range(64)) for y in range(64))

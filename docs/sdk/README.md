@@ -50,7 +50,9 @@ Three templates are available:
 | touch-ui | Touch counter, settings API and visible unavailable-storage state |
 | canvas-game | Clipped canvas, timed motion and a Back button |
 
-build.json pins the SDK version and the app/canvas/storage profile. Applications
+build.json pins the SDK version and selects modules: app/canvas are required,
+storage is optional. Minimal/canvas starters omit storage and its private volume
+dependencies. The touch starter includes it. Applications
 own their VERSION. Changed installed bytes require a higher SemVer precedence.
 Keep app title/metadata ASCII for the current native market renderer; a website
 translation does not make the native text renderer Unicode-capable.
