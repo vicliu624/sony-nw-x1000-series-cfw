@@ -14,6 +14,7 @@ import sys
 import time
 import difflib
 from app_registry import ROOT, applications
+from sdk_binary_equivalence import canonical_payload
 
 def hashes(folder):
     return {p.relative_to(folder).as_posix():hashlib.sha256(p.read_bytes()).hexdigest()
@@ -98,18 +99,21 @@ def main():
             report['apps'][ident]={'passed':False,'exit':run.returncode,'log':str(log.relative_to(ROOT))}
             report_path.write_text(json.dumps(report,indent=2)+'\n')
             print(log.read_text(errors='replace')[-6000:],flush=True);raise RuntimeError(ident+' baseline/build check failed')
-        payload=hashes(package)
+        from verify_app_package import verify
+        verify(package)
+        payload=hashes(package);equivalent,noise=canonical_payload(package)
         row={'passed':True,'version':(ROOT/'runtime/apps'/ident/'VERSION').read_text().strip(),
-             'payload_hashes':payload,'log':str(log.relative_to(ROOT))}
+             'payload_hashes':payload,'comparison_hashes':equivalent,'gcc_file_markers':noise,'log':str(log.relative_to(ROOT))}
         if a.phase=='verify':
             previous=json.loads((baseline/'rebuilt/report.json').read_text())['apps'][ident]
-            row['identical_installed_payload']=payload==previous['payload_hashes']
+            row['raw_installed_payload_identical']=payload==previous['payload_hashes']
+            row['equivalent_installed_payload']=equivalent==previous['comparison_hashes']
             row['changed_files']=sorted(k for k in payload.keys()|previous['payload_hashes'].keys() if payload.get(k)!=previous['payload_hashes'].get(k))
-            if not row['identical_installed_payload']:
+            if not row['equivalent_installed_payload']:
                 row['passed']=False
                 elf_difference(baseline/'rebuilt/packages'/ident/'app',package/'app',out,ident)
         report['apps'][ident]=row;report_path.write_text(json.dumps(report,indent=2)+'\n')
-        if not row['passed']:print(ident+' changed installed payload: '+repr(row['changed_files']),flush=True)
+        if not row['passed']:print(ident+' changed runtime/resource payload: '+repr(row['changed_files']),flush=True)
     print(json.dumps({'phase':a.phase,'passed_apps':[k for k,v in report['apps'].items() if v['passed']],
                       'report':str(report_path.relative_to(ROOT)),'hardware_accessed':False},indent=2))
     if any(not row['passed'] for row in report['apps'].values()):raise RuntimeError('Installed-byte differences remain; see ELF diagnostics')

@@ -26,7 +26,8 @@
       "syscalls",
       "abi",
       "font5x7",
-      "volume"
+      "volume",
+      "hash"
     ]
   }
 }

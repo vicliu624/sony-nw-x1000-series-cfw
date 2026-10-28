@@ -69,11 +69,12 @@ def main():
     phase('verify')
     report=json.loads((root/'migrated/report.json').read_text())
     assert set(report['apps'])==set(apps)
-    assert all(r['passed'] and r['identical_installed_payload'] for r in report['apps'].values())
+    assert all(r['passed'] and r['equivalent_installed_payload'] for r in report['apps'].values())
     output=ROOT/'work/sdk-migration/equivalence.json'
     output.write_text(json.dumps({'passed':True,'baseline_commit':info['commit'],'migrated_commit':git('rev-parse','HEAD').decode().strip(),
-             'apps':{a:{'version':r['version'],'identical_installed_payload':True,'payload_hashes':r['payload_hashes']} for a,r in report['apps'].items()},
+             'apps':{a:{'version':r['version'],'equivalent_installed_payload':True,'raw_installed_payload_identical':r['raw_installed_payload_identical'],
+                        'payload_hashes':r['payload_hashes'],'comparison_hashes':r['comparison_hashes'],'gcc_file_markers':r['gcc_file_markers']} for a,r in report['apps'].items()},
              'same_build_path':True,'same_toolchain_and_inputs':True,'user_device_accessed':False,'firmware_built':False},indent=2)+'\n')
-    print('PASS: all16 application installation payloads are byte-identical to their pre-SDK builds',flush=True)
+    print('PASS: all16 runtime/resource payloads match; only identified non-allocated GCC STT_FILE temporary names are normalized in memory',flush=True)
 
 if __name__=='__main__':main()
