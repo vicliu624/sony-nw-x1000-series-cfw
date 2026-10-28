@@ -12,7 +12,8 @@ import sys
 import time
 from app_registry import ROOT
 
-BASELINE='b27cff1'
+POLICY=json.loads((ROOT/'config/sdk-migration.json').read_text())
+BASELINE=POLICY['baseline_commit']
 def git(*args):return subprocess.check_output(['git',*args],cwd=ROOT)
 
 def main():
@@ -23,7 +24,7 @@ def main():
     font_manifest=json.loads((ROOT/'sources/qqmusic-font-source.json').read_text())
     for name,row in font_manifest['files'].items():fetch(row['url'],'work/qqmusic-font/'+name,row['sha256'])
     root=ROOT/'work/sdk-migration'/('ci-'+str(time.time_ns()));root.mkdir(parents=True)
-    apps=json.loads(git('show',BASELINE+':config/release.json'))['apps']+['pet','qqcheck']
+    apps=POLICY['apps']
     info={'commit':git('rev-parse',BASELINE).decode().strip(),'apps':apps,
           'versions':{a:git('show',BASELINE+':runtime/apps/'+a+'/VERSION').decode().strip() for a in apps},
           'source_hashes':{},'user_report':'User reports all prior apps passed on their unit using local builds; exact personal packages are not available to CI.',
@@ -40,7 +41,7 @@ def main():
     identity=ROOT/'work/terminal-review/private-identity';identity.mkdir(parents=True,exist_ok=True)
     subprocess.run(['openssl','ecparam','-name','prime256v1','-genkey','-noout','-out',str(identity/'server-key.pem')],check=True)
     subprocess.run(['openssl','req','-new','-x509','-sha256','-days','2','-key',str(identity/'server-key.pem'),'-subj','/CN=SDK CI fixture only/','-out',str(identity/'server-cert.pem')],check=True)
-    changed=git('diff','--name-only',BASELINE,'--','runtime/apps','tools/native_app_build.py','tools/build_app.py','tools/build_qqmusic_codec.py').decode().splitlines()
+    changed=git('diff','--name-only',BASELINE,'--','runtime/apps','tools/native_app_build.py','tools/build_app.py','tools/build_qqmusic_codec.py','tools/build_qqmusic_wifi_helper.py').decode().splitlines()
     originals={};saved={}
     for name in changed:
         old=subprocess.run(['git','show',BASELINE+':'+name],cwd=ROOT,capture_output=True)

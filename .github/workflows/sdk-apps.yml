@@ -30,7 +30,7 @@ jobs:
       - name: Install the original application build tools
         run: |
           sudo apt-get update
-          sudo apt-get install --no-install-recommends -y gcc gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi libc6-dev-armel-cross qemu-user p7zip-full make libssl-dev openssl pkg-config libsdl2-dev
+          sudo apt-get install --no-install-recommends -y gcc gcc-12 gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi libc6-dev-armel-cross qemu-user p7zip-full make libssl-dev openssl pkg-config libsdl2-dev
           python -m pip install -r requirements-ci.txt
       - name: Prepare isolated offline application work volume
         run: |
@@ -44,6 +44,12 @@ jobs:
         run: python tools/audit_sdk_adoption.py --check-logic
       - name: Compare complete pre-SDK and SDK application payloads
         run: python tools/test_sdk_app_equivalence.py
+      - name: Check optional QQ playback components without a personal delivery profile
+        run: |
+          python tools/test_qqmusic_preview_pcm.py
+          python tools/test_qqmusic_preview_handoff.py
+          python tools/test_qqmusic_preview_device.py
+          python tools/test_qqmusic_preview_device_posix.py
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: sdk-app-equivalence

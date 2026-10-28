@@ -8,7 +8,8 @@ import subprocess
 from app_registry import ROOT,applications
 from sdk_services import definition_contract,manifest
 
-BASELINE='b27cff1'
+POLICY=json.loads((ROOT/'config/sdk-migration.json').read_text())
+BASELINE=POLICY['baseline_commit']
 def baseline(name):
     result=subprocess.run(['git','show',BASELINE+':'+name],cwd=ROOT,capture_output=True)
     if result.returncode:raise ValueError('Missing immutable baseline source: '+name)
@@ -17,8 +18,39 @@ def baseline(name):
 def without_includes(text):
     return re.sub(r'^\s*#\s*include[^\n]*\n','',text,flags=re.M).replace('\r\n','\n').strip()
 
+def effective_includes(path,text):
+    """Prove the forwarding headers preserve the original include graph.
+
+    Service headers contain only a fresh guard and one original header import;
+    they cannot add packing, flags, inline code or runtime state. This also
+    covers conditional app branches needing private device identity inputs.
+    """
+    result=[]
+    for match in re.finditer(r'#include\s+(?:"([^"\n]+)"|<([^>\n]+)>)',text):
+        quoted,system=match.groups()
+        if system:result.append('<'+system+'>');continue
+        target=(path.parent/quoted).resolve()
+        if target.is_relative_to(ROOT/'sdk/include/x1000/services'):
+            wrapper=target.read_text();imports=re.findall(r'#include\s+"([^"\n]+)"',wrapper)
+            if target.name=='runtime.h':
+                if imports or re.sub(r'/\*.*?\*/|^\s*#.*$','',wrapper,flags=re.S|re.M).strip():raise ValueError('Console SDK header adds runtime code')
+                continue
+            if len(imports)!=1:raise ValueError('Service header is not a single original import: '+str(target))
+            guard=re.search(r'#ifndef\s+(\w+)',wrapper)
+            if not guard:raise ValueError('Missing service guard')
+            for line in wrapper.splitlines():
+                if line.startswith('#') and not (line in ('#ifndef '+guard[1],'#define '+guard[1],'#endif') or line.startswith('#include "')):
+                    raise ValueError('SDK service changes preprocessing policy: '+str(target))
+            stripped=re.sub(r'/\*.*?\*/','',wrapper,flags=re.S)
+            if re.sub(r'^\s*#.*$','',stripped,flags=re.M).strip():raise ValueError('SDK service adds C runtime code')
+            target=(target.parent/imports[0]).resolve()
+            if re.search(r'\b__(?:FILE|LINE|INCLUDE_LEVEL|COUNTER)__\b',target.read_text()):
+                raise ValueError('Header path/depth-dependent code needs separate regression evidence: '+str(target))
+        result.append(target.relative_to(ROOT).as_posix() if target.is_relative_to(ROOT) else str(target))
+    return result
+
 def audit(check_logic=False):
-    scope=json.loads((ROOT/'config/release.json').read_text())['apps']+['pet','qqcheck']
+    scope=POLICY['apps']
     discovered=applications();rows=[];errors=[]
     exports={str((ROOT/p).resolve()) for item in manifest().values() for p in item.get('exports',{}).values()}
     for ident in scope:
@@ -46,6 +78,8 @@ def audit(check_logic=False):
                     name=path.relative_to(ROOT).as_posix()
                     if without_includes(text)!=without_includes(baseline(name)):
                         errors.append(name+': non-include application logic changed')
+                    elif effective_includes(path,text)!=effective_includes(path,baseline(name)):
+                        errors.append(name+': effective private/standard include order changed')
                     else:unchanged.append(name)
         if not imports:errors.append(ident+': no public SDK service imports')
         rows.append({'id':ident,'sdk':contract['version'],'profile':contract['profile'],'modules':contract['resolved_modules'],

@@ -25,7 +25,7 @@ def resolve(modules):
         visiting.add(name)
         for dependency in available[name].get('requires',[]):visit(dependency)
         visiting.remove(name);ordered.append(name)
-    if not isinstance(modules,list) or not modules or any(not isinstance(n,str) for n in modules):raise ValueError('SDK services must be a nonempty string list')
+    if not isinstance(modules,list) or not modules or any(not isinstance(n,str) for n in modules) or len(modules)!=len(set(modules)):raise ValueError('SDK services must be a nonempty unique string list')
     for name in modules:visit(name)
     return ordered
 

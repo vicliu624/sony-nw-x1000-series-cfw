@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "baseline_commit": "b27cff169eb2a691aa41af2de5bf03a0a8495e86",
+  "apps": [
+    "device-info",
+    "diagnostics",
+    "dictionary",
+    "ebook",
+    "fm-radio",
+    "gbc",
+    "graphics-demo",
+    "hello",
+    "key-check",
+    "language",
+    "qqmusic",
+    "store",
+    "tamagotchi-id",
+    "terminal",
+    "pet",
+    "qqcheck"
+  ],
+  "preserve_installed_payload": true,
+  "user_report": "Previous local app builds passed on the user unit; exact personal package identities not supplied.",
+  "excluded_in_progress": "ESP-NOW work is explicitly excluded by the user for this migration."
+}
