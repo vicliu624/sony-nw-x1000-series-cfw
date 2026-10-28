@@ -201,7 +201,9 @@ Validate a finished package with:
 
 ## Compatibility and limits
 
-All sixteen maintained applications have app-local definitions and build entries.
+Maintained applications have app-local definitions and build entries. The SDK
+counter/canvas examples use the same discovery and package contract; they are
+not additions to the official release allowlist. See [SDK](sdk/README.md).
 Release composition calls the same packaging entry point, retaining the explicit
 public allowlist. Shared emulator implementation remains shared; gbc and
 tamagotchi-id each own an entry, build flags, version and artwork.

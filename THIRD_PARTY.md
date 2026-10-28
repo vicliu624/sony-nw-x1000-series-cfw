@@ -1,5 +1,12 @@
 # Third-party tools
 
+The new X1000 SDK facade, templates and SDK-specific tools retain the MIT notice
+in sdk/LICENSE; reused project adapters retain their source notices. Host-only
+interactive previews dynamically link SDL2 (zlib license, https://www.libsdl.org/),
+provided by the development system and never shipped in a device app. SDK apps
+using the existing Noto raster include its SIL OFL notice. Source SDK archives
+contain no Sony libc/loader or other proprietary binary.
+
 The shared launcher/market proportional ASCII bitmap is rasterized from the pinned
 Noto Sans CJK SC Regular input recorded in sources/qqmusic-font-source.json.
 It is licensed under SIL OFL1.1; the retained notice is

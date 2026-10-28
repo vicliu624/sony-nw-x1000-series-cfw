@@ -37,6 +37,47 @@ for (const name of ["launcher-market.png", "qqmusic.png", "pocket-fm.png"]) {
     path.join(output, "media", name),
   );
 }
+for (const name of ["sdk-counter.png", "sdk-canvas.png"]) {
+  await copyFile(
+    path.join(root, "website/assets", name),
+    path.join(output, "media", name),
+  );
+}
+const sdkVersion = (
+  await readFile(path.join(root, "sdk/VERSION"), "utf8")
+).trim();
+if(process.env.WEBSITE_FETCH_RELEASES === "1") {
+  const {syncSDK} = await import("./sync-sdk.mjs");
+  await syncSDK(sdkVersion,path.join(output,"data/sdk-release.json"));
+}
+let sdkRelease;
+try {
+  const saved = JSON.parse(
+    await readFile(path.join(output, "data/sdk-release.json"), "utf8"),
+  );
+  const expected = `https://github.com/vicliu624/sony-nw-x1000-series-cfw/releases/download/sdk-v${sdkVersion}/x1000-sdk-${sdkVersion}-source.zip`;
+  if (
+    saved.version === sdkVersion &&
+    saved.asset?.url === expected &&
+    saved.asset.bytes > 0
+  )
+    sdkRelease = saved;
+} catch {
+  /* Until an SDK source archive is published, link to source only. */
+}
+await writeFile(
+  path.join(output, "data/sdk.json"),
+  JSON.stringify(
+    {
+      version: sdkVersion,
+      sourceUrl:
+        "https://github.com/vicliu624/sony-nw-x1000-series-cfw/tree/main/sdk",
+      release: sdkRelease,
+    },
+    null,
+    2,
+  ) + "\n",
+);
 await writeFile(
   path.join(output, "data/catalog.json"),
   JSON.stringify(

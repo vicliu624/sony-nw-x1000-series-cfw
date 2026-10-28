@@ -1,0 +1,11 @@
+{
+  "sdk": "0.1.0-alpha.1",
+  "modules": [
+    "app",
+    "canvas",
+    "storage"
+  ],
+  "sources": [
+    "main.c"
+  ]
+}

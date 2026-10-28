@@ -9,6 +9,9 @@ const catalog = JSON.parse(
 const snapshot = JSON.parse(
   await readFile(new URL("data/releases.json", output), "utf8"),
 );
+const sdk = JSON.parse(
+  await readFile(new URL("data/sdk.json", output), "utf8"),
+);
 const js = (await readdir(new URL("assets/", output))).find((n) =>
   /^index-.*\.js$/.test(n),
 );
@@ -39,7 +42,9 @@ w.fetch = async (url) => ({
       ? snapshot.releases
       : String(url).includes("catalog.json")
         ? catalog
-        : snapshot,
+        : String(url).includes("sdk.json")
+          ? sdk
+          : snapshot,
 });
 w.eval(code);
 const tick = () => new Promise((resolve) => setTimeout(resolve, 50));
@@ -126,6 +131,26 @@ try {
   );
   await route("guide");
   assert.equal(w.document.querySelectorAll(".guide-card").length, 3);
+  await route("developer");
+  await tick();
+  assert.match(w.document.querySelector("h1").textContent, /Hello, developer/);
+  assert.equal(
+    w.document.querySelectorAll(".developer-page .guide-card").length,
+    3,
+  );
+  assert.equal(w.document.querySelectorAll(".sdk-preview-row img").length, 2);
+  assert.match(
+    w.document.querySelector(".developer-page .risk-box").textContent,
+    /fails closed/,
+  );
+  if (sdk.release)
+    assert.equal(
+      w.document.querySelector(".sdk-actions .download-link").href,
+      sdk.release.asset.url,
+    );
+  await click(button("中文"));
+  assert.match(w.document.querySelector("h1").textContent, /你好，开发者/);
+  assert.equal(w.document.documentElement.lang, "zh-CN");
   assert.equal(errors.length, 0, errors.map((e) => e.message).join("\n"));
   console.log(
     "Production DOM checks passed: bilingual navigation, 14 apps, category/search, app details, real downloads, model/risk gating and guides. Visual layout remains unverified.",

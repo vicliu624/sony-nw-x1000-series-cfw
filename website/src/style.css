@@ -1632,3 +1632,135 @@ main:focus {
     transition: none !important;
   }
 }
+
+/* Developer portal; screenshots are PC-rendered fixtures. */
+.sdk-actions {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  flex-wrap: wrap;
+  margin: 26px 0 15px;
+}
+.sdk-actions .download-link {
+  gap: 10px;
+  padding: 13px 23px;
+}
+.sdk-actions small {
+  font-size: 10px;
+  font-weight: 500;
+  opacity: 0.85;
+}
+.sdk-note {
+  font-size: 11px;
+  max-width: 760px;
+}
+.sdk-checksum {
+  font-size: 10px;
+  color: var(--animal-text-color-secondary);
+  margin-top: 15px;
+}
+.sdk-checksum code {
+  display: block;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+.sdk-section-title {
+  margin: 48px 0 18px;
+  font-size: 26px;
+}
+.developer-page .guide-card h3 {
+  font-size: 20px;
+  margin-bottom: 14px;
+}
+.developer-page .guide-card p {
+  font-size: 12px;
+}
+.sdk-code {
+  background: var(--island-dark);
+  color: var(--island-paper);
+  padding: 23px;
+  border-radius: 20px;
+  overflow: auto;
+  font-size: 12px;
+  line-height: 2;
+  margin: 24px 0;
+}
+.sdk-code code {
+  font-family: monospace;
+}
+.sdk-api {
+  padding: 26px !important;
+  margin-top: 35px;
+}
+.sdk-api h2 {
+  font-size: 23px;
+}
+.sdk-api > p {
+  font-size: 13px;
+  margin-top: 13px;
+}
+.sdk-api .sdk-code {
+  margin-bottom: 0;
+}
+.sdk-preview-row {
+  display: grid;
+  grid-template-columns: 160px 160px 1fr;
+  gap: 24px;
+  align-items: center;
+  margin: 45px 0;
+}
+.sdk-preview-row > div:not(:last-child) {
+  padding: 10px !important;
+}
+.sdk-preview-row img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 12px;
+}
+.sdk-preview-row h2 {
+  font-size: 24px;
+  margin: 14px 0;
+}
+.sdk-preview-row p {
+  font-size: 13px;
+}
+@media (max-width: 720px) {
+  nav {
+    justify-content: flex-start;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  nav a {
+    font-size: 11px;
+    flex-shrink: 0;
+    padding: 7px 12px;
+  }
+  .sdk-actions {
+    gap: 17px;
+  }
+  .sdk-preview-row {
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+  }
+  .sdk-preview-row > div:last-child {
+    grid-column: 1/-1;
+  }
+  .sdk-preview-row img {
+    max-height: 300px;
+    object-fit: contain;
+  }
+  .sdk-code {
+    font-size: 10px;
+    padding: 17px;
+  }
+  .sdk-section-title {
+    font-size: 23px;
+  }
+  .sdk-api {
+    padding: 20px !important;
+  }
+  .sdk-actions .download-link {
+    font-size: 12px;
+  }
+}

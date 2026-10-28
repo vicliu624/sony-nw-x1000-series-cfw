@@ -1,5 +1,11 @@
 # Current status and validation scope
 
+The experimental [SDK](sdk/README.md) adds a source API, three starters and two
+maintained development examples. Host/ARM fixtures and clean-bundle builds are
+computer-side evidence. No SDK app has been installed on a physical player;
+native storage IO defaults to denied until exclusive ownership is qualified.
+SDK publication is independent of the firmware/app release composition below.
+
 Baseline: VERSION 0.1.0-dev.17, Japanese 1.11 platform, one physical NW-X1060.
 NW-X1050 is a target without an equivalent device report.
 

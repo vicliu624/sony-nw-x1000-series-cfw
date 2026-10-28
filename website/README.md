@@ -8,11 +8,14 @@ The website does not build firmware, run an updater, access a player or install 
 
 - `src/main.tsx`: hash routes, language selection, firmware selector and app browser.
 - `src/content.ts`: English/Chinese product copy, categories and app guide mappings.
+- `src/Developer.tsx`: bilingual SDK quick start, actual renderer previews and source download.
 - `src/releases.mjs`: public-release sanitization and exact package matching.
 - `src/releases.test.mjs`: release-boundary regression checks.
 - `src/style.css`: responsive island layout and CSS player illustration.
 - `scripts/prepare.mjs`: generates public app data/icons from release-policy inputs.
+- `scripts/sync-sdk.mjs`: discovers the exact published SDK source ZIP; absent releases stay source-only.
 - `public/data/releases.json`: sanitized, public GitHub Release fallback snapshot.
+- `public/data/sdk-release.json`: optional public SDK release snapshot; never firmware selection data.
 - `public/data/catalog.json` and `public/media/`: ignored generated public assets.
 - `../dist/website/`: ignored production output; no firmware or private data.
 - `../.github/workflows/pages.yml`: independent website build/deploy workflow.
@@ -72,6 +75,8 @@ while older package behavior must be checked in its release notes.
 Choose **Settings > Pages > Source > GitHub Actions** once. The Pages workflow
 builds relevant main-branch changes, manual runs and published releases. Pull
 requests run checks/build only. Production deployment is restricted to main.
+SDK publication explicitly dispatches a Pages refresh after its source archive
+is published, because GITHUB_TOKEN release events do not chain workflows.
 The website workflow is independent of ARM/firmware CI and never publishes
 firmware assets. A release created with GITHUB_TOKEN may not trigger another
 workflow; the client-side API refresh still discovers it and a manual Pages run

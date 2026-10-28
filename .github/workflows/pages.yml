@@ -3,10 +3,10 @@ name: X1000 Island · GitHub Pages
 on:
   push:
     branches: [main]
-    paths: ['website/**', 'runtime/apps/**/app.json', 'runtime/apps/**/VERSION', 'runtime/apps/**/assets/**', 'config/release.json', 'docs/images/**', 'VERSION', '.github/workflows/pages.yml']
+    paths: ['website/**', 'sdk/VERSION', 'docs/sdk/**', 'runtime/apps/**/app.json', 'runtime/apps/**/VERSION', 'runtime/apps/**/assets/**', 'config/release.json', 'docs/images/**', 'VERSION', '.github/workflows/pages.yml']
   pull_request:
     branches: [main]
-    paths: ['website/**', 'runtime/apps/**/app.json', 'runtime/apps/**/VERSION', 'runtime/apps/**/assets/**', 'config/release.json', 'docs/images/**', 'VERSION', '.github/workflows/pages.yml']
+    paths: ['website/**', 'sdk/VERSION', 'docs/sdk/**', 'runtime/apps/**/app.json', 'runtime/apps/**/VERSION', 'runtime/apps/**/assets/**', 'config/release.json', 'docs/images/**', 'VERSION', '.github/workflows/pages.yml']
   release:
     types: [published]
   workflow_dispatch:

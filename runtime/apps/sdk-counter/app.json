@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "id": "sdk-counter",
+  "target": "sony-nw-x1000-jp",
+  "title": "Pocket Counter",
+  "summary": "X1000 SDK touch-ui example",
+  "description": "Experimental native application built with the X1000 SDK. Computer previews do not qualify device behavior.",
+  "changes": "First experimental SDK application.",
+  "channel": "experimental",
+  "build": {
+    "script": "build.py",
+    "package": "work/sdk-builds/sdk-counter",
+    "output_suffix": ""
+  }
+}

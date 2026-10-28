@@ -1,0 +1,66 @@
+{
+  "hardware_accessed": false,
+  "synthetic_events": true,
+  "files": {
+    "sdk-counter.png": {
+      "sha256": "e9e57db73adf788cc6ca98b6193a8ca3b529500767979376d6eeaf3ab19f4990",
+      "source_hashes": {
+        "sdk/include/x1000/storage.h": "6d9afaec54c9b0e5c991c313db50c1731540c3eea4a181965787a3a691054971",
+        "runtime/apps/qqmusic/qqmusic_volume.h": "0292289e7ef929983b89d5e86a7d008fe32172ed11e66b328aa0d829d6a83e34",
+        "runtime/apps/qqmusic/qqmusic_storage.h": "56a09d1351cf4476a06fcfd2c32261d2dd968b843add39d30496ed82a2ac8021",
+        "runtime/native/ui_font.h": "4155b0091d005b010d9cd050114bde9a815c22a79f39720bd2edca89bfe265c4",
+        "runtime/platform/sdk/canvas.c": "e9c18206766637a1eb662f3caa96cde61d6adb418f3998524622c330d1569b1b",
+        "runtime/store/termination.h": "a0caaae14043b0921686fe71c81ad0feab8947b1fd8c280b57777777657f8fae",
+        "runtime/platform/sdk/internal.h": "bd3c507391d2c7be8d20235411292fc8f2a4f67376b33030191e4bb89ed1ae86",
+        "sdk/include/x1000/app.h": "26460a9a161538bb0a3b9c96ae2911e180cd06c51a642fe3294a75215a3d6202",
+        "runtime/platform/sdk/storage.c": "d173f73d6e0aadf18f08e81e75a717965e7a78fe76a4cad48791199901a87dc4",
+        "runtime/store/target_abi.h": "ee73634a54f3e20293a6a0d5078500dbe4848ab3457b1f19b4d06e8b90b94dd5",
+        "runtime/store/stock_fs_bridge.h": "346af3e2c0011f18e1d6d478157ce10dbd2d0e70a752e3f2e23a90cec570fdd9",
+        "runtime/platform/sdk/core.c": "c8b0f54b6758f3b4f4b7337ed51a24b0220289d854c2c719f55ba3ccd4ed5a70",
+        "runtime/platform/sdk/host.c": "9e546c3e2844abaf472bdc3fb28dafcf2ff8a4d2b1ba41c53f2546f4e4d0758b",
+        "runtime/platform/sdk/entry.c": "5bd4ba97b2ee2389580fb48f9248635a09ec8338dd83d58cb5a1843e60bddad8",
+        "runtime/apps/sdk-counter/main.c": "c73afd0b9e34f15c0afb2c8c49c4f5c4b6c8a0cf90a306d200344c402b8ec26a",
+        "sdk/VERSION": "ed41d33f787456abe92ea03b820e4c832b1e2b9e6867242eaea03258bae8d119",
+        "sdk/LICENSE": "97af744b1242bd064f60c7946e0ce41b7cfa3b37e14ad739bf842dadebf14409",
+        "third_party/qqmusic-stb/Noto-OFL.txt": "6a73f9541c2de74158c0e7cf6b0a58ef774f5a780bf191f2d7ec9cc53efe2bf2",
+        "runtime/apps/sdk-counter/build.json": "a2d0a48fd49f919d329acfdfb3d35a34f03ec1f9820055589814778327be9703",
+        "runtime/apps/sdk-counter/app.json": "e85a3fd82a62a48e33409d8008968b0ee331c2c228c366cdcf5a14f04907fcfd",
+        "runtime/apps/sdk-counter/VERSION": "72ece0a8bbdeeb1b57889384fad5e74b0929ad70d8a73f326f24dfb176bf151f",
+        "tools/sdk_build.py": "f834d9315d63d9e433517b78e0acebad51ea4abcc0ad79ca454768a278b268d1",
+        "runtime/apps/sdk-counter/assets/icon.png": "74cd2ff085bfeb3db3fa5c101368da137e10b0d470e84f257f1859bdbb828951",
+        "runtime/apps/sdk-counter/assets/icon.svg": "9dc72107ed555419b6cd99e67482c24fbc9a6a7b7358b64f178a1e364183a7cf"
+      },
+      "events": "tap 60 215\ntick 100\ntick 100\n"
+    },
+    "sdk-canvas.png": {
+      "sha256": "7239b85dd4503b157bb0d3aaaf34da098c4f3093b56c1366bcc6d4da6ac794ef",
+      "source_hashes": {
+        "runtime/apps/qqmusic/qqmusic_volume.h": "0292289e7ef929983b89d5e86a7d008fe32172ed11e66b328aa0d829d6a83e34",
+        "runtime/apps/qqmusic/qqmusic_storage.h": "56a09d1351cf4476a06fcfd2c32261d2dd968b843add39d30496ed82a2ac8021",
+        "runtime/native/ui_font.h": "4155b0091d005b010d9cd050114bde9a815c22a79f39720bd2edca89bfe265c4",
+        "runtime/platform/sdk/canvas.c": "e9c18206766637a1eb662f3caa96cde61d6adb418f3998524622c330d1569b1b",
+        "runtime/store/termination.h": "a0caaae14043b0921686fe71c81ad0feab8947b1fd8c280b57777777657f8fae",
+        "runtime/platform/sdk/internal.h": "bd3c507391d2c7be8d20235411292fc8f2a4f67376b33030191e4bb89ed1ae86",
+        "sdk/include/x1000/app.h": "26460a9a161538bb0a3b9c96ae2911e180cd06c51a642fe3294a75215a3d6202",
+        "runtime/platform/sdk/storage.c": "d173f73d6e0aadf18f08e81e75a717965e7a78fe76a4cad48791199901a87dc4",
+        "runtime/store/target_abi.h": "ee73634a54f3e20293a6a0d5078500dbe4848ab3457b1f19b4d06e8b90b94dd5",
+        "runtime/store/stock_fs_bridge.h": "346af3e2c0011f18e1d6d478157ce10dbd2d0e70a752e3f2e23a90cec570fdd9",
+        "runtime/platform/sdk/core.c": "c8b0f54b6758f3b4f4b7337ed51a24b0220289d854c2c719f55ba3ccd4ed5a70",
+        "runtime/platform/sdk/host.c": "9e546c3e2844abaf472bdc3fb28dafcf2ff8a4d2b1ba41c53f2546f4e4d0758b",
+        "runtime/platform/sdk/entry.c": "5bd4ba97b2ee2389580fb48f9248635a09ec8338dd83d58cb5a1843e60bddad8",
+        "sdk/include/x1000/storage.h": "6d9afaec54c9b0e5c991c313db50c1731540c3eea4a181965787a3a691054971",
+        "runtime/apps/sdk-canvas/main.c": "df61029e8fa7c180a2ac3784eb7cbdf9ec4cf7a1d7f0228d1d71be40e9b9003e",
+        "sdk/VERSION": "ed41d33f787456abe92ea03b820e4c832b1e2b9e6867242eaea03258bae8d119",
+        "sdk/LICENSE": "97af744b1242bd064f60c7946e0ce41b7cfa3b37e14ad739bf842dadebf14409",
+        "third_party/qqmusic-stb/Noto-OFL.txt": "6a73f9541c2de74158c0e7cf6b0a58ef774f5a780bf191f2d7ec9cc53efe2bf2",
+        "runtime/apps/sdk-canvas/build.json": "a2d0a48fd49f919d329acfdfb3d35a34f03ec1f9820055589814778327be9703",
+        "runtime/apps/sdk-canvas/app.json": "1c7391747803de1da1905b7b2280b01ae45416985bdac1b15e9bd97d52408746",
+        "runtime/apps/sdk-canvas/VERSION": "72ece0a8bbdeeb1b57889384fad5e74b0929ad70d8a73f326f24dfb176bf151f",
+        "tools/sdk_build.py": "f834d9315d63d9e433517b78e0acebad51ea4abcc0ad79ca454768a278b268d1",
+        "runtime/apps/sdk-canvas/assets/icon.png": "74cd2ff085bfeb3db3fa5c101368da137e10b0d470e84f257f1859bdbb828951",
+        "runtime/apps/sdk-canvas/assets/icon.svg": "9dc72107ed555419b6cd99e67482c24fbc9a6a7b7358b64f178a1e364183a7cf"
+      },
+      "events": "tap 60 215\ntick 100\ntick 100\n"
+    }
+  }
+}

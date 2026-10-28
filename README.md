@@ -8,7 +8,8 @@ Python runs only on the development computer.
 
 [Releases](https://github.com/vicliu624/sony-nw-x1000-series-cfw/releases) ·
 [Build guide](docs/BUILD.md) · [Application guides](#applications) ·
-[Validation status](docs/STATUS.md)
+[Validation status](docs/STATUS.md) · [Developer SDK](docs/sdk/README.md) ·
+[Project website](https://vicliu624.github.io/sony-nw-x1000-series-cfw/)
 
 ## Launcher and app market
 
@@ -67,6 +68,17 @@ Only selected, credential-free previews are tracked under docs/images. Their
 [provenance and regeneration guide](docs/images/README.md) separates rendered
 software states from physical-device evidence; private photographs and session
 material remain excluded.
+
+## Developer SDK
+
+The experimental [X1000 SDK](docs/sdk/README.md) provides native C lifecycle,
+touch/canvas, guarded storage, three app templates, SDL2 preview, headless PNG
+rendering and verified ARM packaging. SDK versions are independent of firmware
+and app versions. Start with `python tools/sdk.py --help` or the website's
+[developer portal](https://vicliu624.github.io/sony-nw-x1000-series-cfw/#developer).
+Device storage fails closed until qualified USB ownership is supplied; previews
+and offline tests are not physical qualification. The source-only SDK contains
+no Sony binaries and does not build or install firmware.
 
 ## Documentation
 

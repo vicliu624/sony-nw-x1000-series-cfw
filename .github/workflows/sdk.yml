@@ -1,0 +1,84 @@
+name: X1000 experimental SDK
+
+on:
+  push:
+    branches: [main]
+    tags: ['sdk-v*']
+    paths: ['sdk/**', 'runtime/platform/sdk/**', 'runtime/apps/sdk-*/**', 'tools/sdk*.py', 'tools/*sdk*.py', 'tools/build_app.py', 'tools/app_registry.py', 'tools/app_presentation.py', 'tools/verify_app_package.py', 'runtime/native/**', 'runtime/store/**', 'runtime/apps/qqmusic/qqmusic_storage.*', 'runtime/apps/qqmusic/qqmusic_volume.*', 'docs/sdk/**', '.github/workflows/sdk.yml']
+  pull_request:
+    branches: [main]
+    paths: ['sdk/**', 'runtime/platform/sdk/**', 'runtime/apps/sdk-*/**', 'tools/*sdk*.py', 'tools/build_app.py', 'tools/app_registry.py', 'tools/app_presentation.py', 'tools/verify_app_package.py', 'runtime/native/**', 'runtime/store/**', 'docs/sdk/**', '.github/workflows/sdk.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sdk-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: '3.12.3'
+      - name: Install SDK toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y gcc gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi libc6-dev-armel-cross qemu-user p7zip-full libsdl2-dev
+          python -m pip install -r sdk/requirements.txt
+      - name: Prepare exact original inputs, without running an updater
+        run: |
+          python tools/sdk.py setup
+          python tools/sdk.py doctor
+      - name: Test SDK and create source-only archive
+        run: |
+          python tools/check_repository_layout.py
+          python tools/test_sdk.py
+          python tools/package_sdk.py
+          python tools/test_sdk_bundle.py "dist/sdk/$(cat sdk/VERSION)/x1000-sdk-$(cat sdk/VERSION)-source.zip" --stock-exe firmware/original/NW-X1000_V1_11.exe
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: x1000-sdk-source
+          path: dist/sdk/
+          if-no-files-found: error
+  publish:
+    if: startsWith(github.ref, 'refs/tags/sdk-v')
+    needs: verify
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Download the checked source archive
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+        run: gh run download "$RUN_ID" --name x1000-sdk-source --dir sdk-release
+      - name: Publish immutable experimental SDK source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SDK_TAG: ${{ github.ref_name }}
+        run: |
+          test "$SDK_TAG" = "sdk-v$(cat sdk/VERSION)"
+          if gh release view "$SDK_TAG" >/dev/null 2>&1; then
+            echo "An SDK release already exists; refusing replacement."
+            exit 1
+          fi
+          gh release create "$SDK_TAG" --verify-tag --prerelease --title "X1000 SDK $(cat sdk/VERSION) (experimental)" --notes-file sdk/RELEASE_NOTES.md sdk-release/*/*.zip sdk-release/*/*.sha256
+      - name: Refresh the developer portal after SDK publication
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh workflow run pages.yml --ref main

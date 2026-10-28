@@ -25,6 +25,7 @@ import {
 } from "naive-icons";
 import "animal-island-ui/style";
 import "./style.css";
+import { Developer } from "./Developer";
 import {
   appDetails,
   changesZh,
@@ -63,7 +64,7 @@ type Release = {
   html_url: string;
   assets: Asset[];
 };
-type Page = "home" | "firmware" | "apps" | "guide";
+type Page = "home" | "firmware" | "apps" | "guide" | "developer";
 const base = import.meta.env.BASE_URL;
 const media = (name: string) => `${base}media/${name}`;
 const doc = (name: string) => `${GITHUB}/blob/main/${name}`;
@@ -85,7 +86,7 @@ const order = [
 ];
 function readRoute(): Page {
   const route = location.hash.slice(1).split("?")[0];
-  return ["firmware", "apps", "guide"].includes(route)
+  return ["firmware", "apps", "guide", "developer"].includes(route)
     ? (route as Page)
     : "home";
 }
@@ -396,16 +397,18 @@ function App() {
             </span>
           </a>
           <nav aria-label={lang === "zh-CN" ? "主导航" : "Main navigation"}>
-            {(["home", "firmware", "apps", "guide"] as Page[]).map((item) => (
-              <a
-                key={item}
-                className={page === item ? "active" : ""}
-                href={item === "home" ? "#" : `#${item}`}
-                aria-current={page === item ? "page" : undefined}
-              >
-                {t[item]}
-              </a>
-            ))}
+            {(["home", "firmware", "apps", "guide", "developer"] as Page[]).map(
+              (item) => (
+                <a
+                  key={item}
+                  className={page === item ? "active" : ""}
+                  href={item === "home" ? "#" : `#${item}`}
+                  aria-current={page === item ? "page" : undefined}
+                >
+                  {t[item]}
+                </a>
+              ),
+            )}
           </nav>
           <div className="nav-actions">
             <Button
@@ -430,6 +433,7 @@ function App() {
         </div>
       </header>
       <main id="main" tabIndex={-1}>
+        {page === "developer" && <Developer lang={lang} />}
         {page === "home" && (
           <>
             <section className="hero shell">

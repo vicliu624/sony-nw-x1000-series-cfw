@@ -1,5 +1,8 @@
 # Developing a native external application
 
+For a generated starter, host preview and a small C facade, begin with the
+[SDK quick start](sdk/README.md). The original lower-level path remains available.
+
 The [application specification](APP_SPEC.md) defines local metadata, artwork,
 build ownership and installed package formats.
 
