@@ -3,7 +3,7 @@ name: SDK application behavior preservation
 on:
   push:
     branches: [main]
-    paths: ['sdk/**', 'runtime/apps/**', 'runtime/native/**', 'runtime/store/**', 'runtime/platform/**', 'tools/*sdk*.py', 'tools/native_app_build.py', 'tools/build_qqmusic_codec.py', 'tools/build_app.py', '.github/workflows/sdk-apps.yml']
+    paths: ['sdk/**', 'runtime/apps/**', 'runtime/native/**', 'runtime/store/**', 'runtime/platform/**', 'tools/*sdk*.py', 'tools/native_app_build.py', 'tools/build_qqmusic_codec.py', 'tools/build_qqmusic_wifi_helper.py', 'tools/build_app.py', 'config/sdk-migration.json', '.github/workflows/sdk-apps.yml']
   pull_request:
     branches: [main]
   workflow_dispatch:
