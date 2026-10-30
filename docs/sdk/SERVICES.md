@@ -131,3 +131,9 @@ dependencies, PCM/FM models, large-volume planning, packages, files and processe
 
 Intentional future behavior changes require a new app version and a reviewed
 baseline/test update. Do not loosen the frozen gate merely to pass a new build.
+
+The original migration baseline remains fixed for fourteen apps. The intentional
+pet 0.4.0-dev.1 pairing/discovery and terminal 0.1.0-dev.22 stable connection-code
+updates use the immutable per-app commits in
+config/sdk-migration.json for both source auditing and installed-payload
+comparison. Reports record this override; it is not pre-SDK migration evidence.

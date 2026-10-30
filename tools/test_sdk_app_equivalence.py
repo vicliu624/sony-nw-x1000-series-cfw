@@ -11,6 +11,7 @@ import subprocess
 import sys
 import time
 from app_registry import ROOT
+from audit_sdk_adoption import baseline_commit
 
 POLICY=json.loads((ROOT/'config/sdk-migration.json').read_text())
 BASELINE=POLICY['baseline_commit']
@@ -26,7 +27,8 @@ def main():
     root=ROOT/'work/sdk-migration'/('ci-'+str(time.time_ns()));root.mkdir(parents=True)
     apps=POLICY['apps']
     info={'commit':git('rev-parse',BASELINE).decode().strip(),'apps':apps,
-          'versions':{a:git('show',BASELINE+':runtime/apps/'+a+'/VERSION').decode().strip() for a in apps},
+          'app_baselines':POLICY.get('app_baselines',{}),
+          'versions':{a:git('show',baseline_commit('runtime/apps/'+a+'/VERSION')+':runtime/apps/'+a+'/VERSION').decode().strip() for a in apps},
           'source_hashes':{},'user_report':'User reports all prior apps passed on their unit using local builds; exact personal packages are not available to CI.',
           'ci_inputs':'Pinned public sources, synthetic pet artwork and ephemeral test-only terminal identity; no user state.'}
     (root/'baseline.json').write_text(json.dumps(info,indent=2)+'\n')
@@ -42,9 +44,14 @@ def main():
     subprocess.run(['openssl','ecparam','-name','prime256v1','-genkey','-noout','-out',str(identity/'server-key.pem')],check=True)
     subprocess.run(['openssl','req','-new','-x509','-sha256','-days','2','-key',str(identity/'server-key.pem'),'-subj','/CN=SDK CI fixture only/','-out',str(identity/'server-cert.pem')],check=True)
     changed=git('diff','--name-only',BASELINE,'--','runtime/apps','tools/native_app_build.py','tools/build_app.py','tools/build_qqmusic_codec.py','tools/build_qqmusic_wifi_helper.py').decode().splitlines()
+    changed=set(changed)
+    for ident,row in POLICY.get('app_baselines',{}).items():
+        prefix='runtime/apps/'+ident+'/'
+        changed={name for name in changed if not name.startswith(prefix)}
+        changed.update(git('diff','--name-only',row['commit'],'--',prefix).decode().splitlines())
     originals={};saved={}
     for name in changed:
-        old=subprocess.run(['git','show',BASELINE+':'+name],cwd=ROOT,capture_output=True)
+        old=subprocess.run(['git','show',baseline_commit(name)+':'+name],cwd=ROOT,capture_output=True)
         path=ROOT/name
         if old.returncode==0 and path.is_file():originals[name]=old.stdout;saved[name]=path.read_bytes()
     env=dict(os.environ,QEMU_UNSET_ENV='LD_LIBRARY_PATH,LD_PRELOAD',PYTHONDONTWRITEBYTECODE='1',
@@ -71,7 +78,7 @@ def main():
     assert set(report['apps'])==set(apps)
     assert all(r['passed'] and r['equivalent_installed_payload'] for r in report['apps'].values())
     output=ROOT/'work/sdk-migration/equivalence.json'
-    output.write_text(json.dumps({'passed':True,'baseline_commit':info['commit'],'migrated_commit':git('rev-parse','HEAD').decode().strip(),
+    output.write_text(json.dumps({'passed':True,'baseline_commit':info['commit'],'app_baselines':info['app_baselines'],'migrated_commit':git('rev-parse','HEAD').decode().strip(),
              'apps':{a:{'version':r['version'],'equivalent_installed_payload':True,'raw_installed_payload_identical':r['raw_installed_payload_identical'],
                         'payload_hashes':r['payload_hashes'],'comparison_hashes':r['comparison_hashes'],'gcc_file_markers':r['gcc_file_markers']} for a,r in report['apps'].items()},
              'same_build_path':True,'same_toolchain_and_inputs':True,'user_device_accessed':False,'firmware_built':False},indent=2)+'\n')

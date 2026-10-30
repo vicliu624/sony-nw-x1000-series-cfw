@@ -23,7 +23,7 @@ published=set(json.loads((ROOT/'config/release.json').read_text())['apps'])
 assert published<=set(info) and not published&{'pet','qqcheck'}
 for ident,local in definitions.items():
     assert info[ident]=={field:local[field] for field in ('title','summary','description','changes','channel')}
-assert info['pet']['title']=='BSOD Pet' and 'live Codex' in info['pet']['description']
+assert info['pet']['title']=='BSOD Pet' and info['pet']['channel']=='experimental'
 for old,new,oldhash,newhash,ok in [('1.0.0','1.1.0','a','b',True),('1.1.0','1.0.0','a','b',False),('1.0.0','1.0.0','a','a',True),('1.0.0','1.0.0+rebuild','a','b',False)]:
     try:check_history({'hello':{'version':new,'inventory_sha256':newhash}},[{'hello':{'version':old,'inventory_sha256':oldhash}}]);assert ok
     except ValueError:assert not ok

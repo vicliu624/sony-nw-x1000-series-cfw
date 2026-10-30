@@ -21,5 +21,15 @@
   ],
   "preserve_installed_payload": true,
   "user_report": "Previous local app builds passed on the user unit; exact personal package identities not supplied.",
-  "excluded_in_progress": "ESP-NOW work is explicitly excluded by the user for this migration."
+  "excluded_in_progress": "ESP-NOW work is explicitly excluded by the user for this migration.",
+  "app_baselines": {
+    "pet": {
+      "commit": "1d4ba7e7a3e18f364711e88ae1cb1ac3ae490456",
+      "reason": "Version 0.4.0-dev.1 intentionally adds paired sessions and authenticated LAN discovery after the original SDK migration."
+    },
+    "terminal": {
+      "commit": "1d4ba7e7a3e18f364711e88ae1cb1ac3ae490456",
+      "reason": "Version 0.1.0-dev.22 intentionally derives a stable connection code from the personal pairing identity."
+    }
+  }
 }

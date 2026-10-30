@@ -10,8 +10,13 @@ from sdk_services import definition_contract,manifest
 
 POLICY=json.loads((ROOT/'config/sdk-migration.json').read_text())
 BASELINE=POLICY['baseline_commit']
+def baseline_commit(name):
+    parts=Path(name).parts
+    ident=parts[2] if len(parts)>2 and parts[:2]==('runtime','apps') else None
+    return POLICY.get('app_baselines',{}).get(ident,{}).get('commit',BASELINE)
+
 def baseline(name):
-    result=subprocess.run(['git','show',BASELINE+':'+name],cwd=ROOT,capture_output=True)
+    result=subprocess.run(['git','show',baseline_commit(name)+':'+name],cwd=ROOT,capture_output=True)
     if result.returncode:raise ValueError('Missing immutable baseline source: '+name)
     return result.stdout.decode('utf-8').replace('\r\n','\n')
 
@@ -59,7 +64,7 @@ def audit(check_logic=False):
         builder=(definition/'build.py').read_text()
         if 'sdk_compiler' not in builder:errors.append(ident+': builder bypasses SDK compiler contract')
         old_metadata=json.loads(baseline('runtime/apps/'+ident+'/app.json')) if check_logic else None
-        if old_metadata is not None and {k:v for k,v in discovered[ident].items() if k!='sdk'}!=old_metadata:
+        if old_metadata is not None and {k:v for k,v in discovered[ident].items() if k!='sdk'}!={k:v for k,v in old_metadata.items() if k!='sdk'}:
             errors.append(ident+': application metadata/installed presentation changed')
         if check_logic and (definition/'VERSION').read_text().strip()!=baseline('runtime/apps/'+ident+'/VERSION').strip():
             errors.append(ident+': original app version changed before payload equivalence was established')
@@ -84,7 +89,7 @@ def audit(check_logic=False):
         if not imports:errors.append(ident+': no public SDK service imports')
         rows.append({'id':ident,'sdk':contract['version'],'profile':contract['profile'],'modules':contract['resolved_modules'],
                      'sdk_consumer_files':sorted(set(imports)),'unchanged_application_logic_files':len(set(unchanged))})
-    return {'passed':not errors,'baseline_commit':BASELINE,'apps':rows,'errors':sorted(set(errors)),
+    return {'passed':not errors,'baseline_commit':BASELINE,'app_baselines':POLICY.get('app_baselines',{}),'apps':rows,'errors':sorted(set(errors)),
             'source_check_only':True,'hardware_accessed':False}
 
 if __name__=='__main__':
