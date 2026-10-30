@@ -30,7 +30,7 @@ static void draw(int good){
  hb_terminal_addresses(ips);text(12,89,"COMPUTER AND WALKMAN",1,0xad55);text(12,103,"ON THE SAME WIFI",1,0xad55);
  if(!ips[0][0])text(12,131,"NO WIFI IP - CONNECT FIRST",1,0xffe0);
  for(unsigned i=0;i<3&&ips[i][0];i++){snprintf(b,sizeof b,"%s:%u",ips[i],HB_TERM_PORT);text(12,129+(int)i*17,b,1,0xffff);}
- box(8,190,224,89,0x10c5);text(16,201,"SESSION CONNECTION CODE",1,0xad55);
+ box(8,190,224,89,0x10c5);text(16,201,"DEVICE CONNECTION CODE",1,0xad55);
  char half[17];snprintf(half,sizeof half,"%.16s",hb_terminal_code());text(16,222,half,2,0x7fef);snprintf(half,sizeof half,"%.16s",hb_terminal_code()+ (strlen(hb_terminal_code())>=16?16:0));text(16,248,half,2,0x7fef);
  if(!hb_terminal_code()[0])text(16,231,"RUN PC PAIRING SETUP",1,0xffe0);
  snprintf(b,sizeof b,"EUID %u  EGID %u",hb_terminal_uid(),hb_terminal_gid());text(12,295,b,1,0xffff);
@@ -42,7 +42,7 @@ int main(int argc,char **argv){
 #ifdef HB_TERMINAL_UI_TEST
  if(argc==3&&!strcmp(argv[1],"--render-test")){test_ui=1;directory=argv[2];argc=1;}
 #endif
- if(argc==2&&!strcmp(argv[1],"--help")){puts("WiFi Terminal: on-demand TLS encrypted interactive /bin/sh. Connect stock WiFi first. Native app resources on /contents/HOMEBREW/apps/terminal only. No automatic system files, daemon installation, firmware changes, history or logs. Actual commands inherit process permissions. PC client: terminal_client.py HOST --pin server-cert.sha256. Use the displayed per-start code. --selftest never accesses devices or network.");return 0;}
+ if(argc==2&&!strcmp(argv[1],"--help")){puts("WiFi Terminal: on-demand TLS encrypted interactive /bin/sh. Connect stock WiFi first. Native app resources on /contents/HOMEBREW/apps/terminal only. No automatic system files, daemon installation, firmware changes, history or logs. Actual commands inherit process permissions. PC client: terminal_client.py HOST --pin server-cert.sha256. Device code stays fixed until personal pairing identity changes. --selftest never accesses devices or network.");return 0;}
  if(argc==2&&!strcmp(argv[1],"--version")){puts(HB_BUILD_VERSION);return 0;}
  if(argc==2&&!strcmp(argv[1],"--selftest")){int rc=hb_terminal_protocol_selftest();if(!rc)puts("terminal protocol selftest passed; no device or network access");return rc;}
 #ifdef HB_TERMINAL_TEST

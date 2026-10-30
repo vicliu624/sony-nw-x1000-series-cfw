@@ -30,3 +30,5 @@ Sony executables, extracted system files and official source archives remain loc
 A820 homebrew is a research reference, not yet incorporated or ported. Its license and hardware assumptions must be reviewed before reuse.
 
 Optional research uses vmlinux-to-elf 1.3.6 (GPL-3.0-or-later, https://github.com/marin-m/vmlinux-to-elf) to recover analysis-only kernel symbols, pyelftools and Unicorn 2.1.4 to inspect and replay bounded instruction slices. These are host research tools, not linked into a device application. The recovered Sony kernel ELF remains ignored and is not a firmware output.
+
+The Pet computer bridge uses nlohmann/json3.12.0 (MIT), retained in third_party/pet-json. Its native TLS endpoint and player client use the existing BearSSL0.6 (MIT) input. The JSON parser is not linked into the player; bridge/app packages retain their applicable notices.

@@ -159,7 +159,7 @@ def main():
     parser.add_argument('--port', type=int, default=2323)
     parser.add_argument('--pin', default=str(Path(__file__).with_name('server-cert.sha256')))
     parser.add_argument('--command',help='run a text command, print output and return its exit status')
-    parser.add_argument('--code-file',help='PC file holding the current player connection code; avoids secrets in command arguments')
+    parser.add_argument('--code-file',help='Private PC file holding the fixed device connection code; reusable until the personal pairing identity changes')
     parser.add_argument('--timeout',type=float,default=30,help='command deadline in seconds (default: 30)')
     args = parser.parse_args()
     if not 0<args.timeout<=86400:

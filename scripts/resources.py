@@ -71,3 +71,17 @@ def parse_tgp(data):
     if off!=len(data):
         raise ValueError("Unexpected TGP trailing data")
     return out
+
+def append_bgra_texture(data, width, height, pixels):
+    """Append a raw BGRA8888 TXD; preserve every original texture byte."""
+    records=parse_tgp(data)
+    if len(pixels)!=width*height*4 or not 0<width<=4096 or not 0<height<=4096:
+        raise ValueError('Invalid BGRA texture')
+    result=bytearray(data)
+    result+=b'TXD\0'+struct.pack('>7I',width,height,16,0,0,0,len(pixels))+pixels
+    result+=bytes((-len(result))%16)
+    struct.pack_into('>I',result,12,len(records)+1)
+    struct.pack_into('>I',result,28,len(result))
+    if bytes(result[32:len(data)])!=data[32:] or len(parse_tgp(result))!=len(records)+1:
+        raise ValueError('Original texture preservation failed')
+    return bytes(result),len(records)

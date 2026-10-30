@@ -9,6 +9,11 @@ custom C main programs. These retain their own renderers, loops, file formats
 and storage policies. The small settings/resource limits below apply to the
 callback profile, not to the existing readers, emulators or music workflows.
 
+Current development release: **0.2.0-alpha.8**. Download its source archive from
+[SDK releases](https://github.com/vicliu624/sony-nw-x1000-series-cfw/releases/tag/sdk-v0.2.0-alpha.8).
+For wireless applications, read [ESP-NOW services](ESPNOW.md), including the
+explicit encrypted profile and durable user-storage counter requirements.
+
 ## 1. Prepare a Linux/WSL development environment
 
 Supported baseline: Ubuntu24.04, Python3.12, Node is not needed for native apps.

@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.16)
+if(NOT DEFINED ENV{MOSAICO_BSP})
+  message(FATAL_ERROR "Set MOSAICO_BSP to the pinned esp-mosaico-bsp checkout; see README")
+endif()
+set(EXTRA_COMPONENT_DIRS "$ENV{MOSAICO_BSP}/components/esp-mosaico-bsp")
+include($ENV{IDF_PATH}/tools/cmake/project.cmake)
+project(glass_marble)

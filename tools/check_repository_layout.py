@@ -22,7 +22,7 @@ source_count=0;python_count=0
 for folder in ('runtime','tools','scripts','tests'):
  for p in (ROOT/folder).rglob('*'):
   if not p.is_file() or '__pycache__' in p.parts:continue
-  if p.suffix not in ('.py','.c','.h','.inc','.S','.ps1'):continue
+  if p.suffix not in ('.py','.c','.h','.cpp','.hpp','.inc','.S','.ps1'):continue
   source_count+=1
   try:text=p.read_text(encoding='utf-8-sig')
   except UnicodeDecodeError:continue
@@ -34,7 +34,7 @@ for folder in ('runtime','tools','scripts','tests'):
   checked='\n'.join(line for line in text.splitlines() if not line.startswith('baseline={'))
   for old in ('runtime/apps/qqmusic_','runtime/apps/fm_','runtime/apps/device_info_','runtime/apps/terminal.c','runtime/apps/terminal.h'):
    if old in checked:errors.append(f'Old source path in {p.relative_to(ROOT)}: {old}')
-  if p.suffix in ('.c','.h','.inc','.S'):
+  if p.suffix in ('.c','.h','.cpp','.hpp','.inc','.S'):
    for include in re.findall(r'#include\s+"([^"\n]+)"',text):
     if include.startswith('.') and not (p.parent/include).exists():errors.append(f'Broken relative include {p.relative_to(ROOT)}: {include}')
   for literal in re.findall(r'''["']((?:runtime|docs)/[A-Za-z0-9_./+\-]+\.(?:c|h|inc|S|md))["']''',text):

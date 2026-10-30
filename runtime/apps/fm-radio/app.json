@@ -17,7 +17,7 @@
     "package": "work/fm-radio-review/package/HOMEBREW/apps/fm-radio"
   },
   "sdk": {
-    "version": "0.2.0-alpha.1",
+    "version": "0.2.0-alpha.8",
     "profile": "native-services",
     "modules": [
       "startup",

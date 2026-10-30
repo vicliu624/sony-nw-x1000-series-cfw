@@ -18,6 +18,7 @@ void pet_tick(struct pet_session *p, unsigned ms) {
   /* Bounded elapsed input: suspend time never causes catch-up starvation. */
   if (ms > 1000)
     ms = 1000;
+  p->interaction_ms = sub(p->interaction_ms, ms);
   if (p->feedback_ms) {
     p->feedback_ms = sub(p->feedback_ms, ms);
     if (!p->feedback_ms) {
@@ -53,6 +54,7 @@ int pet_act(struct pet_session *p, enum pet_action a) {
   if (a < PET_STROKE || a > PET_WAKE)
     return 0;
   p->feedback_ms = 1800;
+  p->interaction_ms = 1800;
   p->idle_ms = 0;
   if (p->state.sleeping && a != PET_WAKE) {
     p->message = "SLEEPING  TAP WAKE";

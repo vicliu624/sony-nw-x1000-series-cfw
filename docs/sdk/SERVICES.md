@@ -27,6 +27,8 @@ make superseded research entry points part of every maintained service module.
 | Parent/child lifetime operations | process.h, child.h |
 | Maintained network market/package services | market.h, repository.h, package_canvas.h, package_platform.h |
 | Read-only device information | system_info.h |
+| Experimental original-player client | player.h, player_remote.h; see [client guide](PLAYER_CLIENT.md) |
+| Experimental ESP-NOW | espnow.h, espnow_chat.h, espnow_mailbox.h, espnow_control.h |
 
 These are low-level C services, not an OS sandbox or a hardware-ownership grant.
 TLS still requires proper trust/hostname/time setup. Physical RF/audio, USB and
@@ -48,7 +50,7 @@ An application-local app.json can declare:
 
 ```json
 "sdk": {
-  "version": "0.2.0-alpha.1",
+  "version": "0.2.0-alpha.3",
   "profile": "native-services",
   "modules": ["startup", "display", "signals-libc", "abi", "hash"]
 }
@@ -80,7 +82,8 @@ the callback profile and does not emulate Sony's OS.
 ## Migration and preservation
 
 The frozen16-app scope and immutable pre-SDK commit are in
-config/sdk-migration.json. ESP-NOW in-progress work is excluded by the user.
+config/sdk-migration.json. ESP-NOW was excluded from that original migration.
+The subsequent optional integration is described in [ESP-NOW](ESPNOW.md).
 Controls, text, pixels, resources, IDs, save formats/paths, protocols, TLS checks,
 ROM requirements and cleanup retain their original code. The callback API's
 64KiB settings/1MiB resource limits are not imposed on these existing apps.

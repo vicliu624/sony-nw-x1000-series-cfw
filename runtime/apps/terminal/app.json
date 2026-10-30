@@ -5,7 +5,7 @@
   "title": "WiFi Terminal",
   "summary": "A computer terminal for your player",
   "description": "Open this app to allow an authenticated computer client to run commands on your X1000 over the same Wi-Fi network. Create a personal TLS identity using the supplied PC pairing tool first. Closing the app stops its session. Commands may run as root: inspect carefully. No shared private key or permanent system service is included.",
-  "changes": "Public package uses a personal identity on user storage. Live command execution has been observed; forced-stop and full USB/sleep cleanup are not fully qualified.",
+  "changes": "Keeps one fixed connection code per personal device identity across app restarts and reconnects. No per-start code rotation or additional persistent file. Forced-stop and full USB/sleep cleanup remain unqualified.",
   "channel": "experimental",
   "artwork": {
     "color": "#4b9f9b",
@@ -25,7 +25,7 @@
     }
   ],
   "sdk": {
-    "version": "0.2.0-alpha.1",
+    "version": "0.2.0-alpha.8",
     "profile": "native-services",
     "modules": [
       "startup",

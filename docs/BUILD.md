@@ -92,6 +92,12 @@ after an unrelated documentation change.
 
 ## Firmware research
 
+The release firmware builder verifies the final UPG with
+tools/test_homebrew_firmware_icon.py. Homebrew must use its appended texture139
+in both Home layouts and the compiled catalog count must be140. The texture is
+generated from the maintained shadow PNG; stock Settings63 and every original
+texture remain unchanged. See releases/0.1.0-dev.22.md for the regression.
+
 Original updater EXEs are inspected/extracted, not executed. Rockbox upgtools is
 built locally; the Japanese package uses the independently verified key in
 KNOWLEDGE.md. Verify original roundtrip before considering modified output.

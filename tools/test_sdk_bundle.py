@@ -11,7 +11,7 @@ import zipfile
 from app_registry import ROOT
 
 def main():
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('archive',type=Path);p.add_argument('--stock-exe',type=Path);a=p.parse_args()
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('archive',type=Path);p.add_argument('--stock-exe',type=Path);p.add_argument('--player-only',action='store_true',help='Verify only the public player client after fresh SDK setup; not the full SDK matrix.');a=p.parse_args()
     if sys.flags.optimize:raise RuntimeError('Do not disable assertions')
     work=ROOT/'work/sdk-bundle-tests'/str(time.time_ns());work.mkdir(parents=True)
     with zipfile.ZipFile(a.archive) as archive:
@@ -29,14 +29,21 @@ def main():
     for name,info in manifest['files'].items():
         data=(work/name).read_bytes();assert len(data)==info['bytes'] and hashlib.sha256(data).hexdigest()==info['sha256']
     env=dict(os.environ,QEMU_UNSET_ENV='LD_LIBRARY_PATH,LD_PRELOAD')
-    def run(*args):
-        result=subprocess.run([sys.executable,*map(str,args)],cwd=work,env=env,capture_output=True,text=True,timeout=120)
+    def run(*args,timeout=120):
+        started=time.monotonic();print('SDK bundle check: '+str(args[0]),flush=True)
+        result=subprocess.run([sys.executable,*map(str,args)],cwd=work,env=env,capture_output=True,text=True,timeout=timeout)
         if result.returncode:raise RuntimeError(result.stdout+result.stderr)
+        print('SDK bundle check passed in %.1fs: %s'%(time.monotonic()-started,args[0]),flush=True)
         return result.stdout
     # The installer can be independently supplied, but no extracted libc/build is copied.
     setup=['tools/sdk.py','setup']
     if a.stock_exe:setup+=['--stock-exe',a.stock_exe.resolve()]
     run(*setup,'--services');run('tools/sdk.py','doctor')
+    if a.player_only:
+        run('tools/test_sdk_player_service.py')
+        report={'passed':True,'scope':'player-client-only','sdk_version':manifest['sdk_version'],'source_archive_sha256':hashlib.sha256(a.archive.read_bytes()).hexdigest(),'clean_inputs':True,'original_installer_only':True,'public_player_consumer':True,'full_sdk_matrix_run':False,'hardware_accessed':False,'firmware_created':False}
+        (work/'player-bundle-test-report.json').write_text(json.dumps(report,indent=2)+'\n')
+        print(json.dumps(report,indent=2));return
     checks=[]
     for template in ('minimal','touch-ui','canvas-game'):
         ident='new-'+template
@@ -51,7 +58,10 @@ def main():
             assert 'HOMEBREW/data/'+ident+'/' in z.namelist()
             assert not any(n.endswith(('.so','.exe','.UPG')) for n in z.namelist())
         checks.append(template)
-    run('tools/test_sdk_services.py')
+    # This checks every selected module independently, including codecs/packages.
+    # Keep per-app command limits unchanged; allow the expanded matrix to finish.
+    run('tools/test_sdk_services.py',timeout=600)
+    run('tools/test_sdk_espnow.py');run('tools/test_sdk_espnow_full.py');run('tools/test_sdk_espnow_owner.py');run('tools/test_sdk_player_service.py')
     report={'passed':True,'sdk_version':manifest['sdk_version'],'source_archive_sha256':hashlib.sha256(a.archive.read_bytes()).hexdigest(),
             'clean_inputs':True,'templates_created_host_rendered_arm_packaged':checks,'external_native_service_client':True,'hardware_accessed':False,'firmware_created':False}
     (work/'bundle-test-report.json').write_text(json.dumps(report,indent=2)+'\n')

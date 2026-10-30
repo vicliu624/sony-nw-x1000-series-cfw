@@ -1,5 +1,7 @@
+#include "../../runtime/apps/pet/link_ui.h"
 #include "../../runtime/apps/pet/ui.h"
 #include <assert.h>
+#include <string.h>
 static unsigned short image[240 * 432];
 int main(void) {
   struct pet_ui u;
@@ -43,5 +45,31 @@ int main(void) {
   u.exit_requested = 0;
   pet_ui_tap(&u, 100, 295);
   assert(u.exit_requested && u.discard);
+  pet_ui_init(&u);
+  u.paired = u.link_enabled = 1;
+  u.net_state = PET_NET_CONNECTED;
+  u.link.state = PET_LINK_WORKING;
+  u.link.revision = 5;
+  strcpy(u.link.thread, "selected");
+  assert(pet_link_pose(&u) == PET_WORKING);
+  pet_ui_tap(&u, 100, 180);
+  assert(u.page == PET_CODEX_DETAILS);
+  pet_ui_tap(&u, 100, 410);
+  assert(u.page == PET_ROOM && u.acknowledged == 5);
+  pet_ui_tap(&u, 180, 20);
+  pet_ui_tap(&u, 20, 20);
+  assert(u.page == PET_CONNECTION);
+  pet_ui_tap(&u, 100, 240);
+  assert(u.link_command == PET_LINK_CMD_DISCONNECT);
+  u.link_command = 0;
+  pet_ui_tap(&u, 100, 295);
+  assert(u.page == PET_FORGET_CONFIRM);
+  pet_ui_tap(&u, 170, 300);
+  assert(u.page == PET_CONNECTION && !u.link_command);
+  pet_ui_tap(&u, 100, 295);
+  pet_ui_tap(&u, 30, 300);
+  assert(u.link_command == PET_LINK_CMD_FORGET);
+  u.net_state = PET_NET_OFFLINE;
+  assert(pet_link_pose(&u) == PET_IDLE);
   return 0;
 }

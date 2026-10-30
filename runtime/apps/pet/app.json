@@ -3,9 +3,9 @@
   "id": "pet",
   "target": "sony-nw-x1000-jp",
   "title": "BSOD Pet",
-  "summary": "A touch companion for your Walkman",
-  "description": "Meet BSOD, a small offline companion for X1000. Tap to greet it, offer a treat, play, or let it rest and tap to wake. It waves, walks and tinkers with a laptop on its own. Chinese controls and UTF-8 text use an external bitmap font. Interactions save on user storage; reset requires confirmation. No hunger chores, network account or live Codex connection. Physical-player qualification is pending.",
-  "changes": "Adds a dedicated monitor-robot icon, packaged introduction and release notes. Includes Chinese text, a bounded glyph cache and menu-only exit. Existing pet state is retained.",
+  "summary": "Your paired Codex task companion",
+  "description": "BSOD follows a selected local Codex session through authenticated LAN auto-discovery and pinned TLS. No fixed computer IP is required after identity pairing. Tap for Chinese task details and acknowledge reminders. Includes working/completed/waiting/interrupted states, offline retries, local touch play/rest and saves. The computer bridge is read-only and cannot approve or execute Codex actions. Initial identity pairing uses USB. Physical-player discovery qualification is pending.",
+  "changes": "Adds authenticated LAN auto-discovery of the paired computer, including bounded unicast fallback for the original firewall. Retains certificate pinning and existing pairings; no fixed computer IP is required. Discovery stops after connecting and offline retries back off.",
   "channel": "experimental",
   "artwork": {
     "color": "#3699d7",
@@ -18,7 +18,7 @@
     "output_suffix": "HOMEBREW/apps/pet"
   },
   "sdk": {
-    "version": "0.2.0-alpha.1",
+    "version": "0.2.0-alpha.8",
     "profile": "native-services",
     "modules": [
       "startup",

@@ -1,5 +1,5 @@
 {
-  "sdk": "0.2.0-alpha.1",
+  "sdk": "0.2.0-alpha.8",
   "modules": [
     "app",
     "canvas",

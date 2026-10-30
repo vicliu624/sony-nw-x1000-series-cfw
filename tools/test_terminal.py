@@ -3,6 +3,7 @@ No player, WiFi hardware, system partition or raw device is accessed.
 """
 from pathlib import Path
 import hashlib
+import hmac
 import importlib.util
 import json
 import os
@@ -14,6 +15,8 @@ import struct
 import subprocess
 import sys
 import time
+import tempfile
+import shutil
 
 ROOT=Path(__file__).resolve().parents[1]
 WORK=ROOT/'work/terminal-review'
@@ -21,6 +24,7 @@ folder=WORK/'package/HOMEBREW/apps/terminal'
 spec=importlib.util.spec_from_file_location('terminal_client',ROOT/'tools/terminal_client.py')
 client=importlib.util.module_from_spec(spec);spec.loader.exec_module(client)
 checks=[]
+stable_codes=[]
 def until(sock,needle,timeout=10):
     end=time.monotonic()+timeout;out=bytearray()
     sock.settimeout(timeout)
@@ -56,6 +60,9 @@ for kind in ('host','arm'):
         ready=server.stdout.readline().decode().strip()
         assert ready.startswith('READY '),ready
         code=ready.split()[1];assert len(code)==32
+        expected=hmac.new((folder/'server-key.der').read_bytes(),b'X1000-WIFI-TERMINAL-CODE-v1',hashlib.sha256).hexdigest()[:32]
+        assert hmac.compare_digest(code,expected),'device code differs from independent HMAC reference'
+        stable_codes.append(code)
         before={p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in folder.iterdir() if p.is_file()}
         # Pin failure happens before any auth secret is sent.
         badpin=WORK/'bad-pin.sha256';badpin.write_text('0'*64+'\n')
@@ -158,6 +165,27 @@ for kind in ('host','arm'):
         log.close()
     stderr=(WORK/(kind+'-stderr.log')).read_text()
     assert 'AddressSanitizer' not in stderr and 'runtime error:' not in stderr,stderr
+assert len(set(stable_codes))==1,'same identity changed code across host/ARM process restart'
+with tempfile.TemporaryDirectory(prefix='fixed-code-identity-',dir=WORK) as temporary:
+    private=Path(temporary);other=private/'terminal';shutil.copytree(folder,other)
+    key=private/'key.pem';certificate=private/'certificate.pem'
+    for command in [
+        ['openssl','ecparam','-name','prime256v1','-genkey','-noout','-out',str(key)],
+        ['openssl','req','-new','-x509','-sha256','-days','1','-key',str(key),'-subj','/CN=Offline identity test/','-out',str(certificate)],
+        ['openssl','ec','-in',str(key),'-outform','DER','-out',str(other/'server-key.der')],
+        ['openssl','x509','-in',str(certificate),'-outform','DER','-out',str(other/'server-cert.der')]]:
+        subprocess.run(command,capture_output=True,check=True)
+    with socket.socket() as probe:probe.bind(('127.0.0.1',0));port=probe.getsockname()[1]
+    other_server=subprocess.Popen([str(WORK/'server-tests.host'),str(other),str(port)],stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+    try:
+        assert select.select([other_server.stdout],[],[],15)[0]
+        ready=other_server.stdout.readline().decode().strip();assert ready.startswith('READY ')
+        other_code=ready.split()[1]
+        assert other_code!=stable_codes[0] and hmac.compare_digest(other_code,hmac.new((other/'server-key.der').read_bytes(),b'X1000-WIFI-TERMINAL-CODE-v1',hashlib.sha256).hexdigest()[:32])
+    finally:
+        other_server.terminate();assert other_server.wait(timeout=5)==0
+checks.append('Fixed identity code matches independent HMAC-SHA256 and remains identical across host/ARM service restarts; no code persisted or echoed in report')
+checks.append('A separately generated personal device identity produces a different fixed code')
 report={'passed':True,'physical_device_access':False,'checks':checks,'limitations':['Both tests use a development-PC Linux PTY and /bin/sh; ARM test uses actual ARM926 candidate service with original Sony libc through QEMU user mode.','No X1060 WiFi, framebuffer, entropy quality, permissions or shell behavior is hardware-qualified.']}
 (WORK/'tests.json').write_text(json.dumps(report,indent=2)+'\n')
 print(json.dumps(report,indent=2))

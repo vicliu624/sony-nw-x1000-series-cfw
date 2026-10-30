@@ -184,8 +184,14 @@ int hb_terminal_open(const char *directory,unsigned port,int test_mode){
  if(identity_error){hb_terminal_close();snprintf(t.status,sizeof t.status,"PAIRING SETUP REQUIRED");return -1;}
  br_skey_decoder_init(&t.decoder);br_skey_decoder_push(&t.decoder,t.private_key,keylen);
  const br_ec_private_key *key=br_skey_decoder_get_ec(&t.decoder);if(!key||key->curve!=BR_EC_secp256r1||br_skey_decoder_last_error(&t.decoder))goto fail;
- unsigned char secret[16];if(random_bytes(secret,sizeof secret))goto fail;
- for(unsigned i=0;i<sizeof secret;i++)snprintf(t.code+i*2,3,"%02x",secret[i]);wipe(secret,sizeof secret);
+ /* Stable for this personal device identity. Never derive the login secret
+  * from the public certificate fingerprint or regenerate it per connection. */
+ static const char domain[]="X1000-WIFI-TERMINAL-CODE-v1";
+ br_hmac_key_context code_key;br_hmac_context code_hash;unsigned char digest[32];
+ br_hmac_key_init(&code_key,&br_sha256_vtable,t.private_key,keylen);
+ br_hmac_init(&code_hash,&code_key,0);br_hmac_update(&code_hash,domain,sizeof domain-1);br_hmac_out(&code_hash,digest);
+ for(unsigned i=0;i<16;i++)snprintf(t.code+i*2,3,"%02x",digest[i]);
+ wipe(digest,sizeof digest);wipe(&code_key,sizeof code_key);wipe(&code_hash,sizeof code_hash);
  signal(SIGPIPE,SIG_IGN);
  t.listener=socket(AF_INET,SOCK_STREAM,0);if(t.listener<0||nonblock(t.listener))goto fail;
  int yes=1;if(term_setsockopt(t.listener,SOL_SOCKET,SO_REUSEADDR,&yes,sizeof yes))goto fail;

@@ -6,7 +6,7 @@ from elftools.elf.elffile import ELFFile
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'scripts'))
 from upg import unpack,KEY,SIGNATURE
-from resources import append_stx,parse_stx
+from resources import append_stx,parse_stx,parse_tgp,append_bgra_texture
 from language_pack import manifest
 
 def pack(parts):
@@ -63,6 +63,14 @@ def build(work,player):
    if m.isfile() and m.name.startswith('./usr/local/share/gemini/res/stx/') and m.name.endswith('.stx'):
     data,tid=append_stx(t.extractfile(m).read(),'Homebrew');data,error_tid=append_stx(data,'Homebrew unavailable.\nCheck HOMEBREW.');assert tid==7308 and error_tid==7309;overlays[m.name[2:]]=data
     wordings[Path(m.name).stem.removeprefix('ucs2-dev-')]=data
+  from PIL import Image
+  texture_path='usr/local/share/GUI/skinRom/TEXGRP00.DAT'
+  textures=t.extractfile('./'+texture_path).read()
+  if len(parse_tgp(textures))!=139:raise ValueError('Unexpected original texture count')
+  icon=Image.open(ROOT/'assets/icons/homebrew-shadow-v2-64.png').convert('RGBA')
+  if icon.size!=(64,64):raise ValueError('Homebrew icon dimensions')
+  overlays[texture_path],texture_id=append_bgra_texture(textures,64,64,icon.tobytes('raw','BGRA'))
+  if texture_id!=139:raise ValueError('Homebrew icon index')
   old=t.extractfile('./etc/AppList.conf').read();assert b'0x00030001' not in old
   overlays['etc/AppList.conf']=old+(b'' if old.endswith(b'\n') else b'\n')+b'0x00030001 * /contents/HOMEBREW/launcher/app --native\n'
   for collection,count in [(10,10),(11,9)]:
@@ -83,6 +91,8 @@ def build(work,player):
  root=gzip.compress(unpacked.getvalue(),compresslevel=9,mtime=0)
  result=pack([*original[:3],root]);_,decoded=unpack(result,require_stock=False);assert decoded[:3]==original[:3] and decoded[3]==root
  (work/'NW_WM_FW.UPG').write_bytes(result)
+ from test_homebrew_firmware_icon import verify as verify_homebrew_icon
+ verify_homebrew_icon(work/'NW_WM_FW.UPG')
  # English and Chinese translation files are derived from the same stock table.
  from wording import complete_missing,replace_verified_texts
  raw=wordings['en'];before=parse_stx(raw)

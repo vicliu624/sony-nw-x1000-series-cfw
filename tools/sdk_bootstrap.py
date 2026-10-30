@@ -11,6 +11,7 @@ from app_registry import ROOT
 from sdk_build import LIBRARIES
 
 SERVICE_LIBRARIES={
+    'libcnmgr.so.1':'688e09dded18c621dba0bf6f0c2bd9088cd495988a3e3e7dadb0a928efd1aac1',
     'libcares.so.2':'87080fcca3ee009ded018c82f9a598f9515b97b0ec07c79f952eae330f76a8f4',
     'librt.so.1':'be0149f8297952ba0dc9ea7aa98f0e2f9d21b6f697af22bf7c1ef776823dba22',
     'libpthread.so.0':'c932fad1e83821f438add6a1e293e3ae6c41dc1e46d252053b346c73bf467474',

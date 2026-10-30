@@ -45,6 +45,19 @@ def service_files(modules):
             if path not in result:result.append(path)
     return result
 
+def prepare_modules(modules):
+    """Build generated host-side inputs for explicitly selected services only."""
+    import sys
+    completed=set()
+    for name in resolve(modules):
+        for relative in manifest()[name].get('prepare',[]):
+            path=(ROOT/relative).resolve()
+            if not path.is_relative_to(ROOT/'runtime/platform') or path.suffix!='.py' or not path.is_file():
+                raise ValueError('Invalid SDK service preparation script')
+            if path not in completed:
+                subprocess.run([sys.executable,str(path)],cwd=ROOT,check=True)
+                completed.add(path)
+
 def inputs(contract):
     modules=manifest();paths={ROOT/'sdk/VERSION',ROOT/'sdk/services.json',Path(__file__)}
     for name in contract['resolved_modules']:
@@ -72,11 +85,19 @@ def compiler(definition):
     implementation graph, then records a new, source-bound SDK build receipt.
     """
     definition=Path(definition).resolve();contract=definition_contract(definition)
+    prepare_modules(contract['modules'])
     allowed=set(service_files(contract['modules']));modules=manifest()
     owned={p for item in modules.values() for p in item['sources']}
     receipt=ROOT/'work/sdk-services'/contract['id']/'compiler.jsonl'
     receipt.parent.mkdir(parents=True,exist_ok=True)
     source_hashes={str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in inputs(contract)}
+    generated_hashes={}
+    for name in contract['resolved_modules']:
+        for relative in modules[name].get('generated',[]):
+            path=(ROOT/relative).resolve()
+            if not path.is_relative_to(ROOT/'work') or not path.is_file():
+                raise ValueError('Missing generated SDK service input')
+            generated_hashes[relative]=hashlib.sha256(path.read_bytes()).hexdigest()
     def run(command,*args,**kwargs):
         if not isinstance(command,(list,tuple)) or not command or Path(str(command[0])).name not in ('gcc','g++','arm-linux-gnueabi-gcc','arm-linux-gnueabi-g++'):
             return subprocess.run(command,*args,**kwargs)
@@ -110,7 +131,7 @@ def compiler(definition):
         row={'sdk_version':contract['version'],'id':contract['id'],'profile':contract['profile'],
              'modules':contract['resolved_modules'],'sdk_sources':used,'exit':result.returncode,
              'ordered_command_sha256':hashlib.sha256(json.dumps(list(map(str,command)),separators=(',',':')).encode()).hexdigest(),
-             'source_hashes':source_hashes,'linked_dependency_hashes':dependencies,
+             'source_hashes':source_hashes,'generated_input_hashes':generated_hashes,'linked_dependency_hashes':dependencies,
              'hardware_accessed':False}
         with receipt.open('a') as stream:stream.write(json.dumps(row,separators=(',',':'))+'\n')
         return result
@@ -174,5 +195,5 @@ def compile_native(definition,output):
     shutil.copyfile(ROOT/'sdk/LICENSE',notices/'X1000-SDK-MIT.txt')
     shutil.copyfile(ROOT/'third_party/qqmusic-stb/Noto-OFL.txt',notices/'Noto-OFL.txt')
     if 'images' in selected:shutil.copyfile(ROOT/'third_party/qqmusic-stb/LICENSE',notices/'stb-LICENSE.txt')
-    if 'network' in selected:shutil.copyfile(ROOT/'work/external-tls-probe/bearssl-0.6/LICENSE.txt',notices/'BearSSL-MIT.txt')
+    if 'network' in selected or 'crypto-aes' in selected:shutil.copyfile(ROOT/'work/external-tls-probe/bearssl-0.6/LICENSE.txt',notices/'BearSSL-MIT.txt')
     return artifact

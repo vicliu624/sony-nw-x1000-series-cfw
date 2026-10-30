@@ -65,7 +65,11 @@ verified user-storage app directory; explicit commands can still write elsewhere
 
    Alternatively use the packaged computer directory, where the pin file is next
    to the client and is selected by default.
-5. Enter the current code at the private prompt. It changes when the app restarts.
+5. Enter the device code at the private prompt. It stays fixed across app restarts,
+   player reboots and client reconnects while the personal pairing identity is
+   unchanged. Save it once with --code-file; there is no need to photograph it
+   after each restart. Explicitly replacing the personal pairing identity changes
+   the code and certificate pin. Each player must have its own personal identity.
 
 The client verifies the exact SHA-256 certificate pin **before** transmitting the
 code. Transport is TLS1.2 ECDHE-ECDSA/AES128-GCM. This is a dedicated protocol,
@@ -78,7 +82,7 @@ The server prints actual UID/EUID/GID, not assumed privileges.
 
 ## Computer-side automation
 
-Save the current code in a private ignored computer file, for example
+Save the fixed device code in a private ignored computer file, for example
 `.tmp/private/terminal-code.txt`. Do not put it in command arguments or source.
 
 ```powershell

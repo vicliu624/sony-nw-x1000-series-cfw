@@ -20,7 +20,7 @@ struct pet_state {
 struct pet_session {
   struct pet_state state;
   enum pet_pose pose;
-  unsigned feedback_ms, decay_ms, idle_ms, variation;
+  unsigned feedback_ms, decay_ms, idle_ms, variation, interaction_ms;
   const char *message;
 };
 void pet_init(struct pet_session *);

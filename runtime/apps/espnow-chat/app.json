@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "id": "espnow-chat",
+  "target": "sony-nw-x1000-jp",
+  "title": "ESP-NOW Chat",
+  "summary": "Chat with a Cardputer",
+  "description": "Touch chat with an original Cardputer using the experimental native ESP-NOW backend. A separate owner restores normal Wi-Fi when the interface exits. Connect stock Wi-Fi before opening; user storage only.",
+  "changes": "Treats premature owner event EOF as recovery uncertainty. Local development candidate; launcher forced-stop integration remains pending.",
+  "channel": "experimental",
+  "build": {
+    "script": "build.py",
+    "package": "work/espnow-chat-app/HOMEBREW/apps/espnow-chat"
+  },
+  "sdk": {
+    "version": "0.2.0-alpha.8",
+    "profile": "native-services",
+    "modules": [
+      "startup",
+      "display",
+      "signals-libc",
+      "espnow-device",
+      "espnow-owner",
+      "espnow-message"
+    ]
+  }
+}

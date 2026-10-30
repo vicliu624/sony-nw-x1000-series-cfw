@@ -23,3 +23,10 @@ SDK source releases use sdk-v<SDK VERSION>, independently of firmware v<VERSION>
 The SDK workflow builds/tests from clean inputs before publishing an experimental
 source-only release. It does not publish application ZIPs or firmware packages.
 Root firmware VERSION and existing app versions are not changed by SDK releases.
+
+The SDK release gate is its own exact-commit verification job: callback/service
+checks, public ESP-NOW core/full/security/device/owner consumers and a clean
+source-archive extraction/build. Historical application migration equivalence
+remains a separate diagnostic, not a release prerequisite after applications
+intentionally change their own logic or versions. A successful SDK release does
+not publish or certify those application payloads or a new firmware image.

@@ -1,0 +1,34 @@
+menu "Glass Marble geometry and mounting"
+config GM_MOSAICO_MM
+ int "Mosaico active glass width/height (hundredths of a millimetre)"
+ range 3000 10000
+ default 4000
+config GM_X_WIDTH_MM
+ int "X1060 active glass width (hundredths of a millimetre)"
+ range 2500 10000
+ default 3700
+config GM_X_HEIGHT_MM
+ int "X1060 active glass height (hundredths of a millimetre)"
+ range 3000 15000
+ default 6660
+config GM_GAP_MM
+ int "Horizontal active-glass edge gap (hundredths of a millimetre)"
+ range 0 5000
+ default 800
+config GM_OFFSET_MM
+ int "X1060 top relative to Mosaico top (hundredths of a millimetre)"
+ range -15000 10000
+ default -1330
+config GM_IMU_ROTATION
+ int "IMU in-plane mounting rotation (quarter turns clockwise, 0..3)"
+ range 0 3
+ default 0
+config GM_IMU_X_SIGN
+ int "IMU X sign (1 or -1)"
+ range -1 1
+ default 1
+config GM_IMU_Y_SIGN
+ int "IMU Y sign (1 or -1)"
+ range -1 1
+ default 1
+endmenu

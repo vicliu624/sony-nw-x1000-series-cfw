@@ -1,5 +1,17 @@
 # SDK validation and capability limits
 
+Current SDK: **0.2.0-alpha.8**. Public ESP-NOW core/message/device/full/security/
+full-device/owner consumers pass original-libc ARM926 checks; owner headers also
+pass C++ syntax checks. These are offline SDK integration checks. Separate X1060
+hardware experiments establish encrypted TX/RX through1470 bytes and same-key
+native-process counter continuation. They do not qualify all applications,
+over-air replay rejection, power-loss behavior, USB or sleep/wake transitions.
+See [ESP-NOW services](ESPNOW.md) for the API and required caller storage policy.
+
+The historical validation scope below records the original callback/native
+service migration and its tests; those results are not new alpha.8 device tests.
+
+
 SDK0.2.0-alpha.1 targets the Japanese1.11 platform only. NW-X1060 has earlier
 selected terminal/device evidence; this SDK has not been installed or tested on
 a physical player as a new acceptance run. The user reports the16 previous
@@ -45,3 +57,41 @@ FM reception, audio output, installation safety or recovery. The device storage
 provider deliberately remains unknown by default. No toolkit operation flashes
 firmware or contacts a real account. Do not turn a passing preview or QEMU result
 into a hardware-qualified badge.
+
+## Optional ESP-NOW services in0.2.0-alpha.2
+
+The original16-app migration excluded ESP-NOW. It is now an independent optional
+SDK addition: generic binary transport, an optional message helper and the
+explicit device backend. See ESPNOW.md. Public-header ARM tests are offline.
+The identified native XNOW0.1.0-dev.8 library separately passed physical
+bidirectional96-byte exchange with application ACKs and stock restoration.
+That component result does not qualify every new SDK application or UI lifecycle.
+
+##0.2.0-alpha.6 malformed datagram handling
+
+The full-runtime fixture reproduced a malformed plaintext IE causing application
+failure-1 despite an unfaulted backend. Wire-error normalization fixes this
+collision with IO/UNCERTAIN. Host ASan/UBSan and ARM926/original libc now discard
+malformed IE/version inputs, accept following valid unknown plaintext, continue
+encrypted1470-byte traffic, and still stop on an injected actual read failure.
+No installed app or physical radio behavior is implied. Alpha.5 artifacts are
+retained; the source/API implementation identity advances independently.
+
+##0.2.0-alpha.5 managed owner source service
+
+Adds explicit espnow-owner selection and seven public forwarding headers. The
+public ARM926/original-libc consumer performs bounded command checks, STOP and
+RAM-only anonymous-pipe handoff; C++ header syntax is checked independently.
+No radio/volume acquisition or device installation occurs. Existing application
+SDK dependency pins advance without new installed-app acceptance. Full owner
+hardware/APF/USB/sleep and encrypted Espressif interoperability remain pending.
+
+##0.2.0-alpha.4 full service delivery
+
+Clean extraction of the source-only SDK passes manifest/hash/path checks, pinned
+original-input setup, minimal/touch-ui/canvas-game build/package checks, existing
+native-service regression and old/full ESP-NOW public ARM926 consumers. Host
+C++11 syntax checks pass for full public headers. XNOWdev.10 minimal/whole-archive
+original-libc linking passes. These are offline delivery checks: no installed
+app, driver, radio image or firmware is changed and no physical full ESP-NOW
+qualification is implied. See ESPNOW.md for module selection and platform guards.

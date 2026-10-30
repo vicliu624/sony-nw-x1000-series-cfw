@@ -203,10 +203,10 @@ hb_code_end:
 .align 2
 .global hb_home_icons_10
 hb_home_icons_10:
-    .word 54,55,56,57,58,59,60,61,62,63,63
+    .word 54,55,56,57,58,59,60,61,62,63,139
 .global hb_home_icons_9
 hb_home_icons_9:
-    .word 62,54,56,57,58,59,63,61,60,63
+    .word 62,54,56,57,58,59,63,61,60,139
 .global hb_frontend_name
 hb_frontend_name:
     .asciz "/contents/HOMEBREW/launcher/app"

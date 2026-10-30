@@ -100,3 +100,7 @@ correspondence, not a whole-device integrity certificate.
 
 Private raw observations remain in ignored work/terminal-live. Durable findings
 are here; device identifiers, connection secrets and account traces are not.
+
+## RF capabilities
+
+See [RF hardware and modulation](RF_HARDWARE.md) for the Si470x FM family, Marvell8686 Wi-Fi evidence, unresolved1seg silicon identity and the distinction between protocol modulation and a raw-IQ receiver. No new physical RF commands were performed for that review.

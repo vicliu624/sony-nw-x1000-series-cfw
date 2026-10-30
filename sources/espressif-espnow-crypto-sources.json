@@ -1,0 +1,26 @@
+{
+  "scope": "ESP-NOW protocol crypto compatibility research; no device qualification",
+  "idf_version": "5.5.1",
+  "ccmp_source": {
+    "url": "https://github.com/espressif/esp-idf/blob/v5.5.1/components/wpa_supplicant/src/crypto/ccmp.c",
+    "sha256": "01296aa4c5b571fb003949b6da84d233b4c88b1b0c7beb2a896e860a6a680222"
+  },
+  "hardware_software_coexistence_commit": {
+    "sha": "d17e6a75e06bc7d16ae0575df759f408a0305a3a",
+    "date": "2020-09-02",
+    "url": "https://github.com/espressif/esp-idf/commit/d17e6a75e06bc7d16ae0575df759f408a0305a3a",
+    "patch": "https://github.com/espressif/esp-idf/commit/d17e6a75e06bc7d16ae0575df759f408a0305a3a.patch"
+  },
+  "wifi_library_provenance": "https://github.com/espressif/esp32-wifi-lib",
+  "esp32s3_archive_sha256": {
+    "libespnow.a": "c7b830e69168339c1d224676180ae048fa2ec47437e2a44d1682b946b962d571",
+    "libnet80211.a": "a306384a21ec8b2f93585983a991401ffbfeea9b1a839ff5e089c1ec533fe725",
+    "libpp.a": "a8f2109ad1bc86a905d388b5c44e973f02f292ee74c48c7bb0481e11d8ea4242"
+  },
+  "local_reproducers": [
+    "tools/test_espressif_ccmp_boundary.py",
+    "tools/analyze_espressif_tx_path.py"
+  ],
+  "physical_encrypted_interoperability_verified": false,
+  "hardware_nonce_aad_mic_profile_proven": false
+}

@@ -111,8 +111,7 @@ struct pet_text_result pet_text(struct pet_font *f, unsigned short *pixels,
                                 int x, int y, unsigned maxw, unsigned maxlines,
                                 const char *s, unsigned short color) {
   struct pet_text_result r = {0, 0, 0, 0};
-  if (!pixels || !s || !maxlines || !maxw || x < 0 || x >= 240 || y < 0 ||
-      y >= 432)
+  if (!s || !maxlines || !maxw || x < 0 || x >= 240 || y < 0 || y >= 432)
     return r;
   if (y + 16 > 432) {
     r.truncated = !!*s;
@@ -162,7 +161,7 @@ struct pet_text_result pet_text(struct pet_font *f, unsigned short *pixels,
                           (glyph[n][j / 2] & (1u << (5 - i))))
                        : (j == 0 || j == 15 || i == 0 || i == w - 1);
         }
-        if (set)
+        if (set && pixels)
           pixel(pixels, x + (int)used + (int)i, y + (int)line * 18 + (int)j,
                 color);
       }
@@ -170,7 +169,7 @@ struct pet_text_result pet_text(struct pet_font *f, unsigned short *pixels,
   }
   r.consumed = (unsigned)(s - start);
   r.lines = line + 1;
-  if (r.truncated) {
+  if (r.truncated && pixels) {
     int end = x + (int)maxw - 12, yy = y + (int)(r.lines - 1) * 18 + 14;
     if (yy < 432)
       for (int i = 0; i < 3; i++)

@@ -2,7 +2,9 @@
 
 A standalone native C touch companion for Japanese X1000 Homebrew. It uses the
 shared original-libc startup and framebuffer/touch adapters. No firmware change,
-Sony UI overlay, Python runtime or live Codex session connection is involved.
+Sony UI overlay or Python runtime on the player is involved. Version0.4.0 adds
+a paired native LAN bridge to an explicitly selected local Codex session.
+See [Codex pairing and protocol](PET_LINK.md) for setup and limits.
 
 ## Install and use
 
@@ -14,9 +16,11 @@ updating. The package does not install or modify system files.
 
 The room focuses on a large BSOD without numeric needs or mandatory chores.
 
-- Tap BSOD to greet/stroke it, or tap a sleeping BSOD to wake it.
+- Without pairing, tap BSOD to greet/stroke it. With pairing, tap to read task
+  details. Tap a sleeping BSOD to wake it.
 - The top-right menu opens treats, play, rest/wake, help, reset and exit.
-  The room has no bottom buttons; the normal exit is inside the menu.
+  The room has no bottom buttons; the normal exit is inside the menu. The menu
+  header also opens Codex connection controls.
 - BACK in the menu returns to the room without choosing an action.
 - Help returns to the room. Reset requires confirmation.
 - The menu exit saves and returns to the app list. Save failure offers retry, leave unsaved or keep
@@ -48,7 +52,8 @@ are not a sandbox against malicious concurrent processes.
 Stop requests release graphics/touch resources and return. A stop arriving during
 save prevents later publication checks, but cannot undo an already completed
 rename. Original launcher lifecycle must stop the app before USB host export.
-No background process, network session or growing log is created. Legacy bounded
+The paired network session is foreground-only; no background service or growing
+log is created. Legacy bounded
 care fields remain in the v1 wire format for decoding compatibility; they are
 neither displayed nor used for starvation or interaction restrictions.
 
@@ -98,8 +103,8 @@ handling rather than silently disappearing.
 runtime/apps/pet/text.c decodes UTF-8, measures actual 8/16-pixel advances, draws
 16-pixel-high text, wraps within a supplied width/line count, clips to the display
 and marks truncated text. Fixed translated captions are kept short for this screen.
-The general text function can render mixed-language future messages, but no Codex
-network bridge or task-message receiver is implemented.
+The text renderer is also used for linked Codex task titles, questions and result
+excerpts; long details have paginated views.
 
 Only a 64-glyph cache is held in RAM (2824 bytes on the target ABI, including
 metadata and the file pointer), not the complete 2162704-byte font. The font file
@@ -130,3 +135,5 @@ generic icon before payload download. No ID-specific fallback table is maintaine
 Use render_market_details.py --app pet with a dedicated work output to inspect
 the actual ARM details painter, and render_launcher_preview.py with the new
 launcher to check package-provided presentation. These are offline fixtures.
+
+The paired computer address is automatically discovered in0.4.0; see PET_LINK.md for authenticated discovery, cached-address compatibility and network limits. Initial pairing still uses an explicit identity file.

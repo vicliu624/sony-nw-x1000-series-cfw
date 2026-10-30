@@ -322,6 +322,211 @@
         "market.h": "runtime/store/remote_store.h",
         "repository.h": "runtime/store/repository.h"
       }
+    },
+    "espnow-core": {
+      "sources": [
+        "runtime/platform/espnow/xnow_version.c",
+        "runtime/platform/espnow/xnow_mailbox.c",
+        "runtime/platform/espnow/xnow_session.c",
+        "runtime/platform/espnow/xnow_wire.c"
+      ],
+      "flags": [
+        "-DXNOW_LIBRARY_VERSION=\"0.1.0-dev.14\""
+      ],
+      "inputs": [
+        "runtime/platform/espnow/VERSION",
+        "runtime/platform/espnow/LIBRARY.md",
+        "runtime/platform/espnow/VALIDATION.md",
+        "docs/ESPNOW_IMPLEMENTATION.md",
+        "docs/ESPNOW_FULL_STACK.md"
+      ],
+      "exports": {
+        "espnow_frame.h": "runtime/platform/espnow/xnow_frame.h",
+        "espnow_channel.h": "runtime/platform/espnow/xnow_channel.h",
+        "espnow_mailbox.h": "runtime/platform/espnow/xnow_mailbox.h",
+        "espnow_session.h": "runtime/platform/espnow/xnow_session.h",
+        "espnow_wire.h": "runtime/platform/espnow/xnow_wire.h"
+      }
+    },
+    "espnow-device": {
+      "sources": [
+        "runtime/platform/espnow/xnow_sd8686.c",
+        "runtime/platform/espnow/xnow_manager.c",
+        "runtime/platform/espnow/xnow_loader_job.c",
+        "runtime/platform/espnow/xnow_rf_init.c",
+        "runtime/platform/espnow/xnow_file_check.c",
+        "runtime/platform/espnow/xnow_control.c",
+        "runtime/platform/espnow/xnow_ipc_guard.c"
+      ],
+      "requires": [
+        "espnow-core",
+        "abi",
+        "hash"
+      ],
+      "flags": [
+        "-Iwork/espnow-radio-bridge"
+      ],
+      "prepare": [
+        "runtime/platform/espnow/build_radio_bridge.py"
+      ],
+      "inputs": [
+        "runtime/platform/espnow/radio_bridge.c",
+        "runtime/platform/espnow/radio_bridge.ld",
+        "runtime/platform/espnow/build_radio_bridge.py"
+      ],
+      "libraries": [
+        "work/stock-resolver-probe/libcnmgr.so.1",
+        "work/stock-resolver-probe/libpthread.so.0"
+      ],
+      "exports": {
+        "espnow.h": "runtime/platform/espnow/xnow.h",
+        "espnow_sd8686.h": "runtime/platform/espnow/xnow_sd8686.h",
+        "espnow_manager.h": "runtime/platform/espnow/xnow_manager.h",
+        "espnow_loader_job.h": "runtime/platform/espnow/xnow_loader_job.h",
+        "espnow_rf_init.h": "runtime/platform/espnow/xnow_rf_init.h",
+        "espnow_file_check.h": "runtime/platform/espnow/xnow_file_check.h",
+        "espnow_control.h": "runtime/platform/espnow/xnow_control.h"
+      },
+      "generated": [
+        "work/espnow-radio-bridge/xnow_radio_build.h"
+      ]
+    },
+    "espnow-message": {
+      "sources": [
+        "runtime/platform/espnow/xnow_chat.c"
+      ],
+      "requires": [
+        "espnow-core"
+      ],
+      "exports": {
+        "espnow_chat.h": "runtime/platform/espnow/xnow_chat.h"
+      }
+    },
+    "espnow-full": {
+      "sources": [
+        "runtime/platform/espnow/xnow_peer.c",
+        "runtime/platform/espnow/xnow_full.c",
+        "runtime/platform/espnow/xnow_endpoint.c",
+        "runtime/platform/espnow/xnow_pn.c"
+      ],
+      "requires": [
+        "espnow-core",
+        "hash"
+      ],
+      "inputs": [
+        "docs/ESPNOW_FULL_STACK.md"
+      ],
+      "exports": {
+        "espnow_full.h": "runtime/platform/espnow/xnow_full.h",
+        "espnow_peer.h": "runtime/platform/espnow/xnow_peer.h",
+        "espnow_endpoint.h": "runtime/platform/espnow/xnow_endpoint.h",
+        "espnow_pn.h": "runtime/platform/espnow/xnow_pn.h"
+      }
+    },
+    "crypto-aes": {
+      "sources": [],
+      "flags": [
+        "-Iwork/external-tls-probe/bearssl-0.6/inc"
+      ],
+      "libraries": [
+        "work/external-tls-probe/arm-build/libbearssl.a"
+      ],
+      "exports": {}
+    },
+    "espnow-security": {
+      "sources": [
+        "runtime/platform/espnow/xnow_ccmp.c",
+        "runtime/platform/espnow/xnow_security.c",
+        "runtime/platform/espnow/xnow_endpoint_security.c",
+        "runtime/platform/espnow/xnow_keywrap.c",
+        "runtime/platform/espnow/xnow_keyring.c",
+        "runtime/platform/espnow/xnow_pn_file.c"
+      ],
+      "requires": [
+        "espnow-full",
+        "crypto-aes",
+        "abi"
+      ],
+      "exports": {
+        "espnow_ccmp.h": "runtime/platform/espnow/xnow_ccmp.h",
+        "espnow_security.h": "runtime/platform/espnow/xnow_security.h",
+        "espnow_endpoint_security.h": "runtime/platform/espnow/xnow_endpoint_security.h",
+        "espnow_keywrap.h": "runtime/platform/espnow/xnow_keywrap.h",
+        "espnow_keyring.h": "runtime/platform/espnow/xnow_keyring.h",
+        "espnow_pn_file.h": "runtime/platform/espnow/xnow_pn_file.h"
+      }
+    },
+    "espnow-owner": {
+      "sources": [
+        "runtime/platform/espnow/xnow_handoff.c",
+        "runtime/platform/espnow/xnow_handoff_owner.c",
+        "runtime/platform/espnow/xnow_managed_process.c",
+        "runtime/platform/espnow/xnow_launcher_bridge.c",
+        "runtime/platform/espnow/xnow_owner_gate.c",
+        "runtime/platform/espnow/xnow_owner_commands.c",
+        "runtime/platform/espnow/xnow_owner_commands_control.c",
+        "runtime/platform/espnow/xnow_owner_stream.c",
+        "runtime/platform/espnow/xnow_owner_runtime.c"
+      ],
+      "requires": [
+        "espnow-full-device",
+        "process"
+      ],
+      "exports": {
+        "espnow_handoff.h": "runtime/platform/espnow/xnow_handoff.h",
+        "espnow_managed_process.h": "runtime/platform/espnow/xnow_managed_process.h",
+        "espnow_launcher_bridge.h": "runtime/platform/espnow/xnow_launcher_bridge.h",
+        "espnow_owner_gate.h": "runtime/platform/espnow/xnow_owner_gate.h",
+        "espnow_owner_commands.h": "runtime/platform/espnow/xnow_owner_commands.h",
+        "espnow_owner_stream.h": "runtime/platform/espnow/xnow_owner_stream.h",
+        "espnow_owner_runtime.h": "runtime/platform/espnow/xnow_owner_runtime.h"
+      }
+    },
+    "espnow-full-device": {
+      "sources": [
+        "runtime/platform/espnow/xnow_full_guard.c",
+        "runtime/platform/espnow/xnow_sd8686_full.c",
+        "runtime/platform/espnow/xnow_full_control.c"
+      ],
+      "requires": [
+        "espnow-full",
+        "espnow-device"
+      ],
+      "inputs": [
+        "tools/build_espnow_full_radio.py",
+        "tools/generate_espnow_full_profile.py",
+        "tools/prepare_espnow_radio_candidate.py",
+        "tools/marvell_firmware.py",
+        "runtime/platform/espnow/radio_full_rx.c",
+        "runtime/platform/espnow/radio_full_tx.c",
+        "runtime/platform/espnow/radio_packet.c",
+        "runtime/platform/espnow/radio_tx_completion.c",
+        "runtime/platform/espnow/radio_word_command.c",
+        "runtime/platform/espnow/radio_command_hook.S",
+        "runtime/platform/espnow/radio_completion_hook.S"
+      ],
+      "exports": {
+        "espnow_full_guard.h": "runtime/platform/espnow/xnow_full_guard.h",
+        "espnow_sd8686_full.h": "runtime/platform/espnow/xnow_sd8686_full.h",
+        "espnow_full_control.h": "runtime/platform/espnow/xnow_full_control.h"
+      }
+    },
+    "player-client": {
+      "sources": [
+        "runtime/platform/player/client.c",
+        "runtime/platform/player/rpc_wire.c",
+        "runtime/platform/player/rpc_posix.c"
+      ],
+      "requires": [
+        "clock-libc"
+      ],
+      "libraries": [
+        "work/stock-resolver-probe/libpthread.so.0"
+      ],
+      "exports": {
+        "player.h": "runtime/platform/player/provider.h",
+        "player_remote.h": "runtime/platform/player/rpc_posix.h"
+      }
     }
   }
 }

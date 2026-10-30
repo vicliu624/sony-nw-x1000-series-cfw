@@ -37,6 +37,13 @@ ASSERT(SIZEOF(.bss)==0,"No payload BSS") }
         after=0xea000000|((delta>>2)&0xffffff)
         struct.pack_into('<I',data,offset,after)
         report['edits'].append({'address':hex(address),'before':hex(before),'after':hex(after)})
+    # The appended Homebrew texture must be mapped by the original catalog loop.
+    # DAT count alone is insufficient; the compiled group count is separate.
+    address=0x4f7930
+    offset=next(s['p_offset']+address-s['p_vaddr'] for s in loads if s['p_vaddr']<=address and address+4<=s['p_vaddr']+s['p_filesz'])
+    if struct.unpack_from('<I',data,offset)[0]!=139:raise ValueError('Unexpected stock texture catalog count')
+    struct.pack_into('<I',data,offset,140)
+    report['edits'].append({'address':hex(address),'before':139,'after':140})
     artifact=output/'SpiderApp.feedback.analysis-only.elf';artifact.write_bytes(data)
     report.update({'candidate_sha256':hashlib.sha256(data).hexdigest(),'symbols':symbols,'profile':'home-feedback','ready_to_flash':False,'hardware_tested':False,'firmware_package_created':False,'source_hashes':{str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in [Path(__file__),ROOT/'scripts/home_candidate.py',ROOT/'runtime/native/home_feedback.S']}})
     (output/'build.json').write_text(json.dumps(report,indent=2)+'\n')

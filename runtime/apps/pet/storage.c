@@ -1,5 +1,6 @@
 #include "storage.h"
 #include "../../../sdk/include/x1000/services/stat.h"
+#include "link_pair.h"
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -8,6 +9,7 @@
 #include <unistd.h>
 extern int pet_statfs(const char *, void *) __asm__("statfs");
 extern int pet_scan(const char *, const char *, ...) __asm__("sscanf");
+int pet_storage_read_pair(struct pet_storage *, unsigned char *, unsigned);
 static unsigned get(const unsigned char *p) {
   return p[0] | (unsigned)p[1] << 8 | (unsigned)p[2] << 16 |
          (unsigned)p[3] << 24;
@@ -240,4 +242,57 @@ int pet_storage_save(struct pet_storage *s, const struct pet_state *state,
   s->slot = slot;
   s->generation++;
   return 1;
+}
+
+int pet_storage_read_pair(struct pet_storage *s, unsigned char *out,
+                          unsigned capacity) {
+  if (!out || !capacity || capacity > PET_PAIR_MAX || !current(s))
+    return -1;
+  char file[128];
+  struct hb_target_stat before, opened, after;
+  if (!path(s, "link.pair", file))
+    return -1;
+  if (hb_target_lstat(file, &before))
+    return errno == ENOENT ? 0 : -1;
+  if (!S_ISREG(before.st_mode) || before.st_nlink != 1 ||
+      before.st_dev != s->device || before.st_size < 124 ||
+      before.st_size > (long long)capacity)
+    return -1;
+  int fd = open(file, O_RDONLY | O_NOFOLLOW | O_NONBLOCK);
+  if (fd < 0)
+    return -1;
+  int ok = !hb_target_fstat(fd, &opened) && S_ISREG(opened.st_mode) &&
+           opened.st_nlink == 1 && opened.st_dev == before.st_dev &&
+           opened.st_ino == before.st_ino && opened.st_size == before.st_size;
+  unsigned used = 0;
+  while (ok && used < (unsigned)before.st_size) {
+    ssize_t n = read(fd, out + used, (unsigned)before.st_size - used);
+    if (n < 0 && errno == EINTR)
+      continue;
+    if (n <= 0) {
+      ok = 0;
+      break;
+    }
+    used += (unsigned)n;
+  }
+  if (hb_target_fstat(fd, &after) || after.st_ino != before.st_ino ||
+      after.st_size != before.st_size || after.st_nlink != 1)
+    ok = 0;
+  if (close(fd))
+    ok = 0;
+  return ok ? (int)used : -1;
+}
+int pet_storage_forget_pair(struct pet_storage *s, volatile int *stop) {
+  if (!stop || *stop || !current(s))
+    return 0;
+  char file[128];
+  struct hb_target_stat st;
+  if (!path(s, "link.pair", file))
+    return 0;
+  if (hb_target_lstat(file, &st))
+    return errno == ENOENT;
+  if (!S_ISREG(st.st_mode) || st.st_nlink != 1 || st.st_dev != s->device ||
+      st.st_size < 124 || st.st_size > PET_PAIR_MAX || *stop)
+    return 0;
+  return !unlink(file) && !fsync(s->fd);
 }

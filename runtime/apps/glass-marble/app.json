@@ -1,0 +1,11 @@
+{
+  "schema": 1,
+  "id": "glass-marble",
+  "target": "sony-nw-x1000-jp",
+  "title": "Glass Marble",
+  "summary": "Shared Mosaico marble tray",
+  "description": "A shared physical-scale glass marble tray driven by the ESP-Mosaico BMI270. Experimental ESP-NOW full-radio managed owner with stock Wi-Fi restoration.",
+  "changes": "Initial two-screen demo with millimetre geometry, collisions, complete state snapshots and stale-link display.",
+  "channel": "experimental",
+  "build": {"script": "build.py", "package": "work/glass-marble/HOMEBREW/apps/glass-marble"}
+}

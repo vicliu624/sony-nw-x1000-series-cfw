@@ -1,4 +1,5 @@
 #include "ui.h"
+#include "link_ui.h"
 #include "text.h"
 #include <stdio.h>
 #include <string.h>
@@ -83,6 +84,8 @@ void pet_ui_init(struct pet_ui *u) {
 void pet_ui_tap(struct pet_ui *u, int x, int y) {
   if (x < 0 || x >= 240 || y < 0 || y >= 432)
     return;
+  if (pet_link_ui_tap(u, x, y, font))
+    return;
   if (u->page == PET_SAVE_ERROR) {
     if (y >= 220 && y < 262) {
       u->exit_requested = 1;
@@ -103,7 +106,7 @@ void pet_ui_tap(struct pet_ui *u, int x, int y) {
   }
   if (u->page == PET_MENU) {
     if (y < 42) {
-      u->page = PET_ROOM;
+      u->page = x < 120 ? PET_CONNECTION : PET_ROOM;
       return;
     }
     if (y >= 76 && y < 118) {
@@ -148,9 +151,9 @@ void pet_ui_tap(struct pet_ui *u, int x, int y) {
   }
 }
 static void sprite(const struct pet_ui *u, const unsigned char *bytes) {
-  static const unsigned rows[] = {0, 3, 6, 4, 8, 6, 7, 1, 2};
-  static const unsigned frames[] = {6, 4, 6, 5, 6, 6, 6, 8, 8};
-  unsigned pose = u->pet.pose, row = rows[pose],
+  static const unsigned rows[] = {0, 3, 6, 4, 8, 5, 7, 1, 2};
+  static const unsigned frames[] = {6, 4, 6, 5, 6, 8, 6, 8, 8};
+  unsigned pose = pet_link_pose(u), row = rows[pose],
            frame = (u->animation_ms / (pose == PET_IDLE ? 600 : 160)) %
                    frames[pose];
   if (pose == PET_ASLEEP)
@@ -181,10 +184,12 @@ static void sprite(const struct pet_ui *u, const unsigned char *bytes) {
 }
 void pet_ui_draw(const struct pet_ui *u, unsigned short *canvas,
                  const unsigned char *sprites) {
+  if (pet_link_ui_draw(u, canvas, font))
+    return;
   screen = canvas;
   box(0, 0, 240, 432, 0x0843);
   box(0, 0, 240, 40, 0x1927);
-  text(12, 13, "BSOD", 2, 0xffff);
+  text(12, 13, u->page == PET_MENU ? "Codex 联动" : "BSOD", 2, 0xffff);
   if (u->page == PET_ROOM || u->page == PET_MENU)
     text(168, 13, u->page == PET_MENU ? "BACK" : "MENU", 2, 0xffff);
   if (u->page == PET_MENU) {
@@ -207,15 +212,16 @@ void pet_ui_draw(const struct pet_ui *u, unsigned short *canvas,
   }
   if (u->page == PET_HELP) {
     text(12, 66, "MEET BSOD", 2, 0xffff);
-    const char *lines[] = {"TAP BSOD TO SAY HELLO",
-                           "TAP SLEEPING PET TO WAKE",
-                           "MENU HAS MORE ACTIONS",
-                           "TREATS ARE JUST FOR FUN",
-                           "NO HUNGER OR CHORES",
-                           "ACTIONS AUTO SAVE",
-                           "HOME RETURNS TO SONY",
-                           "TIME AWAY IS SAFE",
-                           0};
+    const char *lines[] = {
+        u->paired ? "点宠物查看 Codex 任务" : "TAP BSOD TO SAY HELLO",
+        "TAP SLEEPING PET TO WAKE",
+        "MENU HAS MORE ACTIONS",
+        u->paired ? "菜单左上角管理连接" : "TREATS ARE JUST FOR FUN",
+        "NO HUNGER OR CHORES",
+        "ACTIONS AUTO SAVE",
+        "HOME RETURNS TO SONY",
+        u->paired ? "问题需要在电脑上回答" : "TIME AWAY IS SAFE",
+        0};
     for (unsigned i = 0; lines[i]; i++)
       text(12, 112 + (int)i * 22, lines[i], 1, 0xdedb);
     button(12, 330, 216, "BACK");
@@ -226,6 +232,7 @@ void pet_ui_draw(const struct pet_ui *u, unsigned short *canvas,
     button(12, 280, 102, "YES");
     button(126, 280, 102, "NO");
   } else {
+    text(12, u->save_warning ? 76 : 54, pet_link_caption(u), 1, 0xbdf7);
     box(45, 322, 150, 2, 0x1927);
     if (sprites)
       sprite(u, sprites);

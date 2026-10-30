@@ -11,4 +11,6 @@ int pet_storage_open(struct pet_storage *, struct pet_state *);
 int pet_storage_save(struct pet_storage *, const struct pet_state *,
                      volatile int *stop);
 void pet_storage_close(struct pet_storage *);
+int pet_storage_read_pair(struct pet_storage *, unsigned char *, unsigned);
+int pet_storage_forget_pair(struct pet_storage *, volatile int *);
 #endif

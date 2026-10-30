@@ -8,6 +8,9 @@
 #include "home_key.h"
 #include "linux_devices.h"
 #include "linux_signals.h"
+#ifdef HB_MANAGED_RADIO_REVIEW
+#include "../platform/espnow/xnow_launcher_bridge.h"
+#endif
 #ifndef HB_BUILD_VERSION
 #define HB_BUILD_VERSION "unversioned"
 #endif
@@ -49,6 +52,10 @@ static int run_app(struct hb_app *app, char **environment,struct hb_home_key *ho
  char path[256];
  if (stop_requested || hb_app_executable(app,path)) return -1;
  struct hb_process_observer observer={home,poll_home,detach_home};
+#ifdef HB_MANAGED_RADIO_REVIEW
+ int managed=xnow_launcher_managed_mode(app);if(managed<0)return -1;
+ if(managed)return xnow_launcher_run_managed(app->folder,path,environment,&stop_requested,&observer);
+#endif
  return hb_process_run_observed(app->folder,path,environment,&stop_requested,&observer);
 }
 static int native_session(const char *root, char **environment,struct hb_home_key *home) {
@@ -125,6 +132,13 @@ static int native(const char *root,char **environment) {
 int hb_main(int argc,char **argv,char **environment) {
  const char *root=argc>2?argv[2]:"/contents/HOMEBREW/apps";
  if(argc==1&&eq(argv[0],"/contents/HOMEBREW/launcher/app"))return native(root,environment);
+ #ifdef HB_MANAGED_RADIO_REVIEW
+ if(argc>1&&eq(argv[1],"--managed-check")){
+  int result=hb_catalog_scan(&catalog,root,&stop_requested);
+  for(unsigned i=0;i<catalog.count;i++){int managed=xnow_launcher_managed_mode(&catalog.apps[i]);if(managed<0)return 3;logtext(1,catalog.apps[i].id);logtext(1,managed?" MANAGED\n":" LEGACY\n");}
+  return result||catalog.rejected?1:0;
+ }
+#endif
  if(argc>1&&eq(argv[1],"--version")){logtext(1,HB_BUILD_VERSION "\n");return 0;}
  if(argc>1&&eq(argv[1],"--selftest"))return hb_arm_selftest();
  if(argc>1&&(eq(argv[1],"--catalog")||eq(argv[1],"--render")||eq(argv[1],"--check"))) {

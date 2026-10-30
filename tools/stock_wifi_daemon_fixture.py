@@ -39,6 +39,9 @@ class StockWifiDaemon:
     def hook(self,uc,pc,size,unused):
         r0,r1,r2=[uc.reg_read(r) for r in (UC_ARM_REG_R0,UC_ARM_REG_R1,UC_ARM_REG_R2)];result=0
         if pc==self.end:uc.emu_stop();return
+        # Read-only original getter body is executed; its lock delivery is a
+        # fixture boundary, while the1004-byte memcpy uses the existing bridge.
+        if pc==0x1150c:return
         if pc==0x12cfc:
             self.driver_calls.append('cnmgr_ip_cancel_start');return  # original result mutation
         if pc in self.drivers:
@@ -55,7 +58,7 @@ class StockWifiDaemon:
         elif pc==0x9b80:uc.mem_write(r0,bytes(uc.mem_read(r1,r2)));result=r0
         elif pc==0x9b14:
             a=bytes(uc.mem_read(r0,r2)).split(b'\0')[0];b=bytes(uc.mem_read(r1,r2)).split(b'\0')[0];result=0 if a==b else 1
-        elif pc in (0xa1a0,0x14698,0xa14c,0xa760,0x2327c):pass
+        elif pc in (0xa1a0,0x14698,0xa14c,0xa760,0x2327c,0x9d0c,0x9f40):pass
         else:return
         uc.reg_write(UC_ARM_REG_R0,result);uc.reg_write(UC_ARM_REG_PC,uc.reg_read(UC_ARM_REG_LR))
     def run(self,entry,channel=0):

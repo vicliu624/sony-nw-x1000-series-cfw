@@ -121,6 +121,24 @@ int main(void) {
   pet_storage_close(&s);
   struct pet_state loaded;
   assert(pet_storage_open(&s, &loaded) == 1 && loaded.joy == 85);
+  unsigned char pair_bytes[125] = {0}, read_pair[4220];
+  memcpy(pair_bytes, "PETPAIR1", 8);
+  snprintf(dir, sizeof dir, "%s/HOMEBREW/data/pet/link.pair", root);
+  FILE *pair_file = fopen(dir, "wb");
+  assert(pair_file &&
+         fwrite(pair_bytes, 1, sizeof pair_bytes, pair_file) ==
+             sizeof pair_bytes &&
+         !fclose(pair_file));
+  assert(pet_storage_read_pair(&s, read_pair, sizeof read_pair) == 125);
+  stop = 1;
+  assert(!pet_storage_forget_pair(&s, &stop));
+  stop = 0;
+  assert(pet_storage_forget_pair(&s, &stop));
+  assert(pet_storage_read_pair(&s, read_pair, sizeof read_pair) == 0);
+  assert(!symlink("/etc/passwd", dir));
+  assert(pet_storage_read_pair(&s, read_pair, sizeof read_pair) == -1);
+  assert(!pet_storage_forget_pair(&s, &stop));
+  remove_file("link.pair");
   pet_storage_close(&s);
   /* Corrupt newest snapshot; the older complete snapshot survives. */
   snprintf(dir, sizeof dir, "%s/HOMEBREW/data/pet/state-1.bin", root);
