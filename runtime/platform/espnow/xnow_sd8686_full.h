@@ -17,6 +17,7 @@ extern "C" {
 int xnow_sd8686_full_probe(struct xnow_sd8686_full *,const struct xnow_full_profile *,void *,int (*lease_valid)(void *),struct xnow_word_io *,uint8_t local_mac[6]);
 int xnow_sd8686_full_channel_set(struct xnow_sd8686_full *,const struct xnow_session *,unsigned);
 int xnow_sd8686_full_open(struct xnow_sd8686_full *,const struct xnow_full_profile *,void *,int (*lease_valid)(void *),struct xnow_full *,uint8_t local_mac[6]);
+int xnow_sd8686_full_enable_spans(struct xnow_sd8686_full *,struct xnow_full *);
 /* Closes socket only; does NOT imply queues drained, owner released or stock
  * firmware restored. Those are serialized owner responsibilities. */
 void xnow_sd8686_full_close(struct xnow_sd8686_full *);

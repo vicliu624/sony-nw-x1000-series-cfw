@@ -29,6 +29,7 @@ int xnow_sd8686_full_probe(struct xnow_sd8686_full *r,const struct xnow_full_pro
  assert(profile&&check(context)&&fixture_radio_kind==1&&fixture_awake&&!fixture_initialized);r->fd=123;r->lease_context=context;r->lease_valid=check;*out=io;memset(mac,2,6);return 0;
 }
 void xnow_sd8686_full_close(struct xnow_sd8686_full *r){if(r->fd>=0)closes++;r->fd=-1;}
+int xnow_sd8686_full_enable_spans(struct xnow_sd8686_full *r,struct xnow_full *backend){(void)r;(void)backend;return 0;}
 int xnow_sd8686_full_channel_set(struct xnow_sd8686_full *r,const struct xnow_session *s,unsigned ch){assert(r->fd==123&&r->lease_valid(r->lease_context)&&fixture_initialized&&ch==8&&s->pending==XNOW_SESSION_CONFIGURE);return 0;}
 static void le(uint8_t *p,uint32_t n){for(unsigned i=0;i<4;i++)p[i]=(uint8_t)(n>>(8*i));}
 static size_t request(uint8_t *p,unsigned op,unsigned token,unsigned n){memset(p,0,XNOW_OWNER_COMMAND_MAX);memcpy(p,"XNC1",4);p[4]=(uint8_t)op;le(p+8,token);le(p+12,n);return 16+n;}

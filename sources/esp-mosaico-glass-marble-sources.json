@@ -1,0 +1,20 @@
+{
+  "application": "glass-marble",
+  "bsp": {
+    "url": "https://github.com/esp-mosaico/esp-mosaico-bsp",
+    "revision": "7cbfb390638dcb93522fc3cde094b2d43cf907c2",
+    "license": "Apache-2.0",
+    "local_checkout": "work/mosaico-bsp"
+  },
+  "esp_idf": {
+    "url": "https://github.com/espressif/esp-idf",
+    "revision": "d445e947156f276dfe0db5804e4edf6ae90fe6fb",
+    "version": "6.2 development",
+    "local_checkout": "work/mosaico-idf"
+  },
+  "wifi_submodule": {
+    "url": "https://github.com/espressif/esp32-wifi-lib",
+    "revision": "d26b374259d0ead25b7f07c9f0e51cde40db8d55"
+  },
+  "notes": "External sources and vendor dependency licenses remain in ignored work. No Espressif or Sony binary is vendored by this record. Exact dependency resolution belongs to each local firmware build receipt."
+}

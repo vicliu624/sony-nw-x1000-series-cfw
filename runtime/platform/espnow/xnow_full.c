@@ -29,7 +29,8 @@ static int publish(struct xnow_full *s,const uint8_t dst[6],const uint8_t *body,
  uint32_t packet,capacity;
  if(readw(s,s->layout.tx+24,&packet)||readw(s,s->layout.tx+28,&capacity))return bad(s);
  if(!packet_ok(packet)||capacity!=1760)return bad(s);
- for(size_t i=0;i<bytes;i+=4){uint32_t v=0;for(unsigned j=0;j<4&&i+j<bytes;j++)v|=(uint32_t)body[i+j]<<(8*j);
+ if(s->spans.write){if(s->spans.write(s->spans.context,packet+32,body,bytes)){if(operation(s,3))return bad(s);return XNOW_IO;}}
+ else for(size_t i=0;i<bytes;i+=4){uint32_t v=0;for(unsigned j=0;j<4&&i+j<bytes;j++)v|=(uint32_t)body[i+j]<<(8*j);
   if(writew(s,packet+32+(uint32_t)i,v)){if(operation(s,3))return bad(s);return XNOW_IO;}}
  uint32_t lo=0,hi=0;for(unsigned i=0;i<4;i++)lo|=(uint32_t)dst[i]<<(8*i);for(unsigned i=4;i<6;i++)hi|=(uint32_t)dst[i]<<(8*(i-4));
  if(writew(s,s->layout.tx+20,(uint32_t)bytes)||writew(s,s->layout.tx+32,lo)||writew(s,s->layout.tx+36,hi)){
@@ -37,6 +38,12 @@ static int publish(struct xnow_full *s,const uint8_t dst[6],const uint8_t *body,
   return XNOW_IO;
  }
  r=operation(s,kind);if(!r)s->inflight=s->sequence;return r;
+}
+int xnow_full_set_spans(struct xnow_full *s,const struct xnow_full_span_io *ops){
+ if(!s||!s->io.read||!s->io.write||!ops||!ops->read||!ops->write)return XNOW_ARGUMENT;
+ if(s->fault)return XNOW_UNCERTAIN;
+ if(s->stopping||s->inflight)return XNOW_PENDING;
+ s->spans=*ops;return 0;
 }
 int xnow_full_send(struct xnow_full *s,const uint8_t dst[6],unsigned version,const uint8_t random[4],const void *payload,size_t length){
  if(!s||!dst||!random)return XNOW_ARGUMENT;
@@ -88,7 +95,8 @@ int xnow_full_receive(struct xnow_full *s,void *out,size_t capacity,struct xnow_
  if(mac1&0x10000u)return XNOW_FULL_PROTECTED;
  if(!packet_ok(packet)||bytes<15||bytes>XNOW_ESPNOW_BODY_MAX)return bad(s);
  uint8_t body[XNOW_ESPNOW_BODY_MAX],payload[XNOW_ESPNOW_V2_MAX];
- for(uint32_t i=0;i<bytes;i+=4){uint32_t v;if(readw(s,packet+i,&v))return XNOW_IO;for(unsigned j=0;j<4&&i+j<bytes;j++)body[i+j]=(uint8_t)(v>>(8*j));}
+ if(s->spans.read){if(s->spans.read(s->spans.context,packet,body,bytes))return XNOW_IO;}
+ else for(uint32_t i=0;i<bytes;i+=4){uint32_t v;if(readw(s,packet+i,&v))return XNOW_IO;for(unsigned j=0;j<4&&i+j<bytes;j++)body[i+j]=(uint8_t)(v>>(8*j));}
  struct xnow_full_received found;memset(&found,0,sizeof(found));
  found.flags=(mac1&0x20000u)?XNOW_RX_BROADCAST:0;
  int decoded=xnow_espnow_decode_body(body,bytes,payload,sizeof(payload),&found.info);
@@ -126,7 +134,8 @@ int xnow_full_receive_action(struct xnow_full *s,const uint8_t local[6],uint8_t 
  if(flags&2)memset(frame+4,255,6);else memcpy(frame+4,local,6);
  for(unsigned i=0;i<4;i++)frame[10+i]=(uint8_t)(mac0>>(i*8));
  frame[14]=(uint8_t)mac1;frame[15]=(uint8_t)(mac1>>8);memset(frame+16,255,6);
- for(uint32_t i=0;i<bytes;i+=4){uint32_t v;if(readw(s,packet+i,&v))return XNOW_IO;for(unsigned j=0;j<4&&i+j<bytes;j++)frame[24+i+j]=(uint8_t)(v>>(8*j));}
+ if(s->spans.read){if(s->spans.read(s->spans.context,packet,frame+24,bytes))return XNOW_IO;}
+ else for(uint32_t i=0;i<bytes;i+=4){uint32_t v;if(readw(s,packet+i,&v))return XNOW_IO;for(unsigned j=0;j<4&&i+j<bytes;j++)frame[24+i+j]=(uint8_t)(v>>(8*j));}
  int status=pop(s,tail+1);if(status)return status;
  memcpy(out,frame,24+bytes);*written=24+bytes;return 0;
 }

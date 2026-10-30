@@ -45,8 +45,14 @@ int xnow_sd8686_full_open(struct xnow_sd8686_full *r,const struct xnow_full_prof
  if(!r||!profile||!lease||!backend||!out)return XNOW_ARGUMENT;
  struct xnow_word_io io;int result=xnow_sd8686_full_probe(r,profile,context,lease,&io,out);
  if(!result)result=xnow_full_open(backend,&io,&profile->layout);
+ if(!result)result=xnow_sd8686_full_enable_spans(r,backend);
  if(result&&r)xnow_sd8686_full_close(r);
  return result;
+}
+int xnow_sd8686_full_enable_spans(struct xnow_sd8686_full *r,struct xnow_full *backend){
+ if(!r||!backend||r->fd<0||!r->boundary.verified||r->boundary.fault||!r->boundary.profile||backend->io.context!=&r->boundary||memcmp(&backend->layout,&r->boundary.profile->layout,sizeof backend->layout))return XNOW_IDENTITY;
+ struct xnow_full_span_io ops={&r->boundary,xnow_full_guard_read_span,xnow_full_guard_write_span};
+ return xnow_full_set_spans(backend,&ops);
 }
 int xnow_sd8686_full_channel_set(struct xnow_sd8686_full *r,const struct xnow_session *session,unsigned channel){
  if(!r||r->fd<0||!session||!session->lease||session->phase!=XNOW_SESSION_STARTING||session->pending!=XNOW_SESSION_CONFIGURE||channel<1||channel>13||!r->boundary.verified||r->boundary.fault)return XNOW_IDENTITY;

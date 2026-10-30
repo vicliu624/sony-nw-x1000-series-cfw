@@ -21,9 +21,18 @@ m=decode(raw[:480*480*2],480,480);x=decode(raw[480*480*2:],240,432)
 m.save(OUT/'mosaico.png');x.save(OUT/'x1060.png')
 # Both panels are rescaled to the same physical pixels/mm for this desk view.
 scale=8;image=Image.new('RGB',(760,620),'#131923');draw=ImageDraw.Draw(image)
-draw.text((20,12),'GLASS MARBLE / SHARED PHYSICAL SPACE',fill='white')
+draw.text((20,12),'AQUA LINK / SHARED PHYSICAL SPACE',fill='white')
 image.paste(m.resize((320,320)),(20,150));image.paste(x.resize((296,533)),(404,44))
 draw.text((20,490),'ESP-Mosaico 480 x 480',fill='white');draw.text((404,590),'X1060 240 x 432',fill='white')
 draw.text((345,310),'gap',fill='#aab3c2');image.save(OUT/'paired-preview.png')
-report={'passed':True,'host':host,'arm926_original_libc':arm,'packet_bytes':200,'device_accessed':False,'sources':{p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in sources}}
+movie=subprocess.check_output([str(OUT/'test'),'--movie'],cwd=ROOT)
+chunk=(240*240+120*216)*2;assert len(movie)==chunk*120;frames=[]
+for number in range(120):
+ part=movie[number*chunk:(number+1)*chunk];m=decode(part[:240*240*2],240,240);x=decode(part[240*240*2:],120,216)
+ frame=Image.new('RGB',(380,310),'#131923');d=ImageDraw.Draw(frame)
+ d.text((10,5),'AQUA LINK / simulated shared tilt',fill='white')
+ frame.paste(m.resize((160,160)),(10,75));frame.paste(x.resize((148,266)),(202,22))
+ d.text((10,250),'Mosaico',fill='white');d.text((202,293),'X1060',fill='white');frames.append(frame)
+frames[0].save(OUT/'aqua-link-water-alpha2.gif',save_all=True,append_images=frames[1:],duration=60,loop=0)
+report={'passed':True,'host':host,'arm926_original_libc':arm,'packet_bytes':120,'device_accessed':False,'sources':{p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in sources}}
 (OUT/'report.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))

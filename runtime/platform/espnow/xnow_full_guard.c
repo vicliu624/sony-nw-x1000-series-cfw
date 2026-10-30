@@ -59,3 +59,40 @@ int xnow_full_guard_open(struct xnow_full_guard *g,const struct xnow_word_io *ra
  struct xnow_word_io bounded={g,bounded_read,bounded_write};*out=bounded;return 0;
 }
 void xnow_full_guard_close(struct xnow_full_guard *g){if(g)memset(g,0,sizeof(*g));}
+static int receive_interval(struct xnow_full_guard *g,uint32_t address,size_t n,uint32_t *ticket){
+ if(!valid(g))return -1;
+ const struct xnow_full_layout *l=&g->profile->layout;uint32_t head,tail,packet,bytes;
+ if(rawread(g,l->rx+4,&head)||rawread(g,l->rx+8,&tail)||head==tail||(uint32_t)(head-tail)>2)return -1;
+ uint32_t slot=l->rx+24+(tail&1)*16;
+ if(rawread(g,slot,&packet)||rawread(g,slot+4,&bytes)||packet!=address||bytes!=n||!owned(g,packet))return -1;
+ *ticket=tail;return 0;
+}
+int xnow_full_guard_read_span(void *context,uint32_t address,void *out,size_t n){
+ struct xnow_full_guard *g=context;uint32_t before,after;
+ if(!g||!out||n<15||n>1536||(address&3))return -1;
+ if(receive_interval(g,address,n,&before))return -1;
+ uint8_t data[1536];
+ for(size_t i=0;i<n;i+=4){uint32_t value;
+  if(!g->lease_valid(g->lease_context)){g->fault=1;return -1;}
+  if(rawread(g,address+(uint32_t)i,&value))return -1;
+  for(unsigned j=0;j<4&&i+j<n;j++)data[i+j]=(uint8_t)(value>>(j*8));
+ }
+ if(receive_interval(g,address,n,&after)||after!=before){g->fault=1;return -1;}
+ memcpy(out,data,n);return 0;
+}
+static int transmit_interval(struct xnow_full_guard *g,uint32_t address,size_t n){
+ if(!valid(g))return -1;
+ uint32_t packet,capacity;const struct xnow_full_layout *l=&g->profile->layout;
+ if(rawread(g,l->tx+24,&packet)||rawread(g,l->tx+28,&capacity)||capacity!=1760||!owned(g,packet)||address!=packet+32||n>1536)return -1;
+ return 0;
+}
+int xnow_full_guard_write_span(void *context,uint32_t address,const void *source,size_t n){
+ struct xnow_full_guard *g=context;const uint8_t *data=source;
+ if(!g||!source||!n||n>1536||(address&3)||transmit_interval(g,address,n))return -1;
+ for(size_t i=0;i<n;i+=4){uint32_t value=0;
+  if(!g->lease_valid(g->lease_context)){g->fault=1;return -1;}
+  for(unsigned j=0;j<4&&i+j<n;j++)value|=(uint32_t)data[i+j]<<(j*8);
+  if(g->raw.write(g->raw.context,address+(uint32_t)i,value))return -1;
+ }
+ if(transmit_interval(g,address,n)){g->fault=1;return -1;}return 0;
+}

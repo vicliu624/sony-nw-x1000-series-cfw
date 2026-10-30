@@ -4,7 +4,7 @@
 #endif
 #include "ipc.h"
 #include "worker_identity.h"
-#include "../espnow-chat/chat_handoff.h"
+#include "handoff.h"
 #include <x1000/services/espnow_file_check.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -13,25 +13,25 @@
 #include <signal.h>
 #include <errno.h>
 #include <x1000/services/abi.h>
-extern int chat_fcntl(int,int,...) __asm__("fcntl");
+extern int gm_fcntl(int,int,...) __asm__("fcntl");
 #include <stdio.h>
 #include <string.h>
-static int nonblock(int fd){return chat_fcntl(fd,F_SETFL,O_NONBLOCK)<0||chat_fcntl(fd,F_SETFD,FD_CLOEXEC)<0?-1:0;}
+static int nonblock(int fd){return gm_fcntl(fd,F_SETFL,O_NONBLOCK)<0||gm_fcntl(fd,F_SETFD,FD_CLOEXEC)<0?-1:0;}
 static int managed_attempted;
 int gm_client_start(struct gm_client *c){
     struct stat root,volume;int command[2]={-1,-1},events[2]={-1,-1},worker=-1;
     const char *path="/contents/HOMEBREW/apps/glass-marble/radio-worker";
     memset(c,0,sizeof(*c));c->command=c->events=-1;
     if(managed_attempted)return -1;
-    managed_attempted=1;struct chat_handoff handoff;
-    if(chat_handoff_adopt(&handoff))return -2; /* Old launchers must not start RF. */
+    managed_attempted=1;struct gm_handoff handoff;
+    if(gm_handoff_adopt(&handoff))return -2; /* Old launchers must not start RF. */
     if(lstat("/",&root)||lstat("/contents",&volume)||root.st_dev==volume.st_dev||
        xnow_file_check(path,(uint64_t)volume.st_dev,GM_WORKER_BYTES,gm_worker_sha))goto fail;
     worker=open(path,O_RDONLY|O_NOFOLLOW);if(worker<0||pipe(command)||pipe(events))goto fail;
     if(nonblock(command[1])||nonblock(events[0]))goto fail;
     pid_t pid=fork();if(pid<0)goto fail;
     if(!pid){
-        int input=chat_fcntl(command[0],F_DUPFD,10),output=chat_fcntl(events[1],F_DUPFD,10),image=chat_fcntl(worker,F_DUPFD,10),restore=chat_fcntl(handoff.fd,F_DUPFD,10);
+        int input=gm_fcntl(command[0],F_DUPFD,10),output=gm_fcntl(events[1],F_DUPFD,10),image=gm_fcntl(worker,F_DUPFD,10),restore=gm_fcntl(handoff.fd,F_DUPFD,10);
         if(input<0||output<0||image<0||restore<0||setsid()<0)_exit(126);
         int null=open("/dev/null",O_RDWR);if(null<0||dup2(null,0)<0||dup2(null,1)<0||dup2(null,2)<0||dup2(input,3)<0||dup2(output,4)<0||dup2(restore,5)<0)_exit(126);
         long limit=sysconf(_SC_OPEN_MAX);if(limit<5)_exit(126);
@@ -48,7 +48,7 @@ int gm_client_start(struct gm_client *c){
 fail:
     if(worker>=0)close(worker);
     for(unsigned i=0;i<2;i++){if(command[i]>=0)close(command[i]);if(events[i]>=0)close(events[i]);}
-    if(chdir("/")==0)(void)chat_handoff_startup_failed(&handoff);
+    if(chdir("/")==0)(void)gm_handoff_startup_failed(&handoff);
     return -1;
 }
 int gm_client_event(struct gm_client *c,struct gm_event *e){

@@ -113,6 +113,7 @@ no Sony binaries and does not build or install firmware.
 | Game Boy Color | runtime/apps/gbc | [Emulators](docs/apps/EMULATORS.md) |
 | Tamagotchi iD | runtime/apps/tamagotchi-id | [Emulators](docs/apps/EMULATORS.md) |
 | Language | runtime/apps/language | [Localization](docs/LOCALIZATION.md) |
+| Aqua Link | runtime/apps/glass-marble | [Experimental aquarium demo](docs/apps/GLASS_MARBLE.md) |
 | BSOD Pet | runtime/apps/pet | [Companion](docs/apps/PET.md) |
 | Diagnostics / graphics / keys / hello | Separate runtime/apps folders | [Examples](docs/apps/DIAGNOSTICS.md) |
 | Launcher / store | runtime/native, runtime/apps/store | [Store/runtime](docs/apps/STORE.md) |

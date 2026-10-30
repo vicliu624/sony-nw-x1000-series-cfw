@@ -20,6 +20,7 @@ int xnow_sd8686_full_probe(struct xnow_sd8686_full *r,const struct xnow_full_pro
  r->fd=123;r->boundary.verified=1;r->lease_context=context;r->lease_valid=valid;memset(io,0,sizeof(*io));memset(mac,2,6);return 0;
 }
 void xnow_sd8686_full_close(struct xnow_sd8686_full *r){if(r->fd>=0)fixture_closes++;r->fd=-1;r->boundary.verified=0;}
+int xnow_sd8686_full_enable_spans(struct xnow_sd8686_full *r,struct xnow_full *backend){(void)backend;assert(r->boundary.verified);return 0;}
 int xnow_sd8686_full_channel_set(struct xnow_sd8686_full *r,const struct xnow_session *s,unsigned channel){assert(r->fd==123&&r->lease_valid(r->lease_context)&&s->pending==XNOW_SESSION_CONFIGURE&&fixture_initialized&&channel==8);configured=1;return 0;}
 int xnow_full_open(struct xnow_full *b,const struct xnow_word_io *io,const struct xnow_full_layout *l){assert(io&&l&&fixture_initialized&&configured);memset(b,0,sizeof(*b));backend_opens++;return 0;}
 int xnow_endpoint_init(struct xnow_endpoint *e,struct xnow_full *b,unsigned channel,unsigned limit,void *ctx,int (*random)(void *,uint8_t[4])){assert(channel==8&&limit==7&&random);(void)ctx;memset(e,0,sizeof(*e));e->transport=b;return endpoint_error;}

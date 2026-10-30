@@ -18,10 +18,11 @@ lib=ctypes.CDLL(str(shared));U=ctypes.c_uint32;P=ctypes.c_void_p
 READ=ctypes.CFUNCTYPE(ctypes.c_int,P,U,ctypes.POINTER(U));WRITE=ctypes.CFUNCTYPE(ctypes.c_int,P,U,U)
 class IO(ctypes.Structure):_fields_=[('context',P),('read',READ),('write',WRITE)]
 class Layout(ctypes.Structure):_fields_=[('tx',U),('rx',U),('completion',U)]
-class Full(ctypes.Structure):_fields_=[('io',IO),('layout',Layout),('sequence',U),('inflight',U),('fault',ctypes.c_int),('stopping',ctypes.c_int)]
+class Spans(ctypes.Structure):_fields_=[('context',P),('read',P),('write',P)]
+class Full(ctypes.Structure):_fields_=[('io',IO),('layout',Layout),('sequence',U),('inflight',U),('fault',ctypes.c_int),('stopping',ctypes.c_int),('spans',Spans)]
 class Result(ctypes.Structure):_fields_=[('token',U),('status',U),('raw',U)]
 class Wire(ctypes.Structure):_fields_=[('version',ctypes.c_uint8),('random',ctypes.c_uint8*4),('elements',ctypes.c_uint16),('length',ctypes.c_size_t)]
-class Received(ctypes.Structure):_fields_=[('source',ctypes.c_uint8*6),('info',Wire)]
+class Received(ctypes.Structure):_fields_=[('source',ctypes.c_uint8*6),('info',Wire),('flags',U)]
 lib.xnow_full_open.argtypes=[ctypes.POINTER(Full),ctypes.POINTER(IO),ctypes.POINTER(Layout)]
 lib.xnow_full_send.argtypes=[ctypes.POINTER(Full),P,ctypes.c_uint,P,P,ctypes.c_size_t]
 lib.xnow_full_send_protected.argtypes=[ctypes.POINTER(Full),P,P,ctypes.c_size_t]

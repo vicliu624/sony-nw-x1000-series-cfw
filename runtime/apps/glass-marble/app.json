@@ -2,10 +2,13 @@
   "schema": 1,
   "id": "glass-marble",
   "target": "sony-nw-x1000-jp",
-  "title": "Glass Marble",
-  "summary": "Shared Mosaico marble tray",
-  "description": "A shared physical-scale glass marble tray driven by the ESP-Mosaico BMI270. Experimental ESP-NOW full-radio managed owner with stock Wi-Fi restoration.",
-  "changes": "Initial two-screen demo with millimetre geometry, collisions, complete state snapshots and stale-link display.",
+  "title": "Aqua Link",
+  "summary": "A shared aquarium with one goldfish",
+  "description": "A calm, volume-conserving aquarium spanning ESP-Mosaico and X1060. A small water surface and one animated goldfish respond to the mounted BMI270. Millimetre geometry, gentle waves, independent rendering and guarded ESP-NOW packet transactions support both displays.",
+  "changes": "Calm 32-column water surface, 120-byte AQF3 snapshots, corrected camera-up mounting, independent direction controls and fast interpolated ARM rendering. XNOW dev.15 reduces repeated packet guard traffic.",
   "channel": "experimental",
-  "build": {"script": "build.py", "package": "work/glass-marble/HOMEBREW/apps/glass-marble"}
+  "build": {
+    "script": "build.py",
+    "package": "work/glass-marble/HOMEBREW/apps/glass-marble"
+  }
 }

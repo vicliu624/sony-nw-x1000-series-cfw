@@ -14,6 +14,8 @@ extern "C" {
 #endif
 int xnow_full_guard_open(struct xnow_full_guard *,const struct xnow_word_io *,const struct xnow_full_profile *,void *,int (*lease_valid)(void *),struct xnow_word_io *bounded);
 void xnow_full_guard_close(struct xnow_full_guard *);
+int xnow_full_guard_read_span(void *,uint32_t,void *,size_t);
+int xnow_full_guard_write_span(void *,uint32_t,const void *,size_t);
 #ifdef __cplusplus
 }
 #endif

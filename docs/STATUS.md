@@ -103,3 +103,30 @@ version is 0.1.0-dev.19 and consumes external presentation.bin. Unknown-ID rende
 malformed/link/FIFO fallback, metadata and native market list/version checks pass.
 See APP_SPEC.md for commands, formats and the generic remote-icon limitation.
 No device was accessed or firmware built for this maintenance.
+
+## Aqua Link experimental demo
+
+The `glass-marble` app now uses a calm 32-column volume-conserving surface and
+one goldfish, with 120-byte AQF3 snapshots and millimetre viewports. Alpha.6 fixes
+the camera-up/USB-left Mosaico display compensation at 270 degrees, following
+physical user confirmation after runtime rotation and gravity recalibration.
+The main task has 16 KiB stack; the former alpha.2 3584-byte task was smaller than
+its at least 6224-byte compiler call-site frames and physically restarted.
+Rendering and simulation are separate; ARM rendering uses a smaller buffer,
+speed-oriented compilation and snapshot interpolation. Original particle source
+and failure evidence remain distinct from the calm revision.
+
+XNOW dev.16 adds complete owned packet-span transfers, rejects malformed
+sub-minimum RX spans and refuses binding a backend from a different boundary.
+Direct guard tests reduce 1208-byte RX remote operations from 3322 to 322, without
+claiming a physical throughput figure. Host sanitizers, original-libc ARM tests,
+controller/crypto/instruction fixtures cover their stated boundaries. The foreign
+integration fixture now includes the complete receive-flags and span ABI.
+
+The X1060 app and managed launcher were installed on verified exposed user
+storage. Mosaico images were written and byte-readback verified; user feedback
+confirmed recovery from restart and improved connection/flow, with display
+orientation corrected using 270-degree rotation. The user subsequently confirmed
+alpha.6 on both endpoints and normal flow after upright recalibration. Initial
+reference posture remains significant; long load, HOME/USB/sleep and full recovery
+remain separate from those bounded observations. See [Aqua Link](apps/GLASS_MARBLE.md).

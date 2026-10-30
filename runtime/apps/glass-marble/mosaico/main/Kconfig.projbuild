@@ -1,4 +1,4 @@
-menu "Glass Marble geometry and mounting"
+menu "Aqua Link geometry and mounting"
 config GM_MOSAICO_MM
  int "Mosaico active glass width/height (hundredths of a millimetre)"
  range 3000 10000

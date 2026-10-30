@@ -39,6 +39,7 @@ int xnow_full_control_step(struct xnow_full_control *c){
   result=c->options.radio_guard(c->options.context,action);
   if(!result)result=xnow_sd8686_full_channel_set(&c->radio,&c->session,c->options.channel);
   if(!result)result=xnow_full_open(&c->backend,&c->bounded,&c->options.profile->layout);
+  if(!result)result=xnow_sd8686_full_enable_spans(&c->radio,&c->backend);
   if(!result)result=xnow_endpoint_init(&c->endpoint,&c->backend,c->options.channel,c->options.encrypted_limit,c->options.context,c->options.random);
   if(!result)c->endpoint_ready=1;
   break;

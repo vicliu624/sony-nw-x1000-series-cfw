@@ -24,18 +24,20 @@ lib=ROOT/'work/arm-signal-tests/lib';stock=ROOT/'work/stock-resolver-probe'
 flags=['-std=c99','-Os','-Wall','-Wextra','-Werror','-Wno-unused-function','-D_DEFAULT_SOURCE','-DHB_STORE_SONY_LIBC','-DHB_USE_POSIX_DEVICE_IO','-U_FORTIFY_SOURCE','-D_FORTIFY_SOURCE=0','-march=armv5te','-marm','-mfloat-abi=soft','-fno-builtin','-fno-pie','-fno-stack-protector','-ffunction-sections','-fdata-sections','-nostdlib','-no-pie','-Wl,--gc-sections','-Wl,--hash-style=sysv','-Wl,--build-id=none','-Wl,-E','-Wl,--dynamic-linker=/lib/ld-linux.so.3',
  '-DXNOW_CANDIDATE_DIRECTORY="/contents/HOMEBREW/data/glass-marble/candidate"',
  '-I'+str(OUT),'-I'+str(ROOT/'runtime/platform/espnow'),'-I'+str(ROOT/'sdk/include'),'-I'+str(ROOT/'work/espnow-stock-reload-lab')]
-shared=['runtime/apps/glass-marble/marble.c','runtime/apps/espnow-chat/chat_handoff.c','runtime/platform/espnow/xnow_managed_process.c','runtime/platform/espnow/xnow_handoff.c','runtime/native/app_process.c','runtime/native/linux_process_posix.c','runtime/store/start.c','runtime/store/start.S']
-owner=['runtime/apps/glass-marble/owner.c','runtime/platform/espnow/xnow_owner_gate.c','runtime/platform/espnow/xnow_loader_job.c',*shared]
+shared=['runtime/apps/glass-marble/marble.c','runtime/apps/glass-marble/handoff.c','runtime/platform/espnow/xnow_managed_process.c','runtime/platform/espnow/xnow_handoff.c','runtime/native/app_process.c','runtime/native/linux_process_posix.c','runtime/store/start.c','runtime/store/start.S']
+owner=['runtime/apps/glass-marble/owner.c','runtime/apps/glass-marble/platform.c','runtime/platform/espnow/xnow_owner_gate.c','runtime/platform/espnow/xnow_loader_job.c',*shared]
 ui=['runtime/apps/glass-marble/app.c','runtime/apps/glass-marble/client.c','runtime/native/frontend.c','runtime/native/linux_devices.c','runtime/native/linux_device_io_posix.c','runtime/native/linux_signals_posix.c',*shared]
 package=OUT/'HOMEBREW/apps/glass-marble';package.mkdir(parents=True,exist_ok=True)
 dependencies=[library,stock/'libcnmgr.so.1','-Wl,--no-as-needed',stock/'libpthread.so.0',stock/'libm.so.6',lib/'libc.so.6',lib/'ld-linux.so.3','-lgcc']
 run(['arm-linux-gnueabi-gcc',*flags,*owner,*dependencies,'-o',package/'radio-worker'])
 worker=(package/'radio-worker').read_bytes()
 (OUT/'worker_identity.h').write_text('#define GM_WORKER_BYTES '+str(len(worker))+'u\nstatic const unsigned char gm_worker_sha[32]={'+','.join(map(str,hashlib.sha256(worker).digest()))+'};\n')
-run(['arm-linux-gnueabi-gcc',*flags,*ui,*dependencies,'-o',package/'app'])
+run(['arm-linux-gnueabi-gcc',*flags,'-O2',*ui,*dependencies,'-o',package/'app'])
 data=(package/'app').read_bytes();sha=hashlib.sha256(data).hexdigest();app_version=(APP/'VERSION').read_text().strip()
-(package/'app.ini').write_text(f'api=1\nid=glass-marble\nname=Glass Marble\nversion={app_version}\ntarget=sony-nw-x1000-jp\nexec=app\nbytes={len(data)}\nsha256={sha}\n')
+(package/'app.ini').write_text(f'api=1\nid=glass-marble\nname=Aqua Link\nversion={app_version}\ntarget=sony-nw-x1000-jp\nexec=app\nbytes={len(data)}\nsha256={sha}\n')
 (package/'launch.contract').write_text('XNOW-MANAGED-1\n'+sha+'\n')
+from app_presentation import install_presentation
+install_presentation('glass-marble',package,app_version)
 (package/'files.sha256').write_text('HBFILES1\n'+''.join(f'{hashlib.sha256(p.read_bytes()).hexdigest()} {p.stat().st_size} {p.name}\n' for p in sorted(package.iterdir()) if p.is_file() and p.name!='files.sha256'))
 base=['qemu-arm','-cpu','arm926',lib/'ld-linux.so.3','--library-path',str(lib)+':'+str(stock)]
 for binary in ('app','radio-worker'):run([*base,package/binary,'--help'],stdout=subprocess.DEVNULL,timeout=15)
@@ -50,5 +52,7 @@ def image(raw,w,h,path):
 image(raw,240,432,OUT/'x1060-preview.png')
 sources=sorted(set(owner+ui))
 report={'built':True,'version':app_version,'app_sha256':sha,'worker_sha256':hashlib.sha256(worker).hexdigest(),'radio_manifest':str(radio.relative_to(ROOT)/'manifest.json'),'radio_candidate_sha256':manifest['candidate_sha256'],'library_sha256':hashlib.sha256(library.read_bytes()).hexdigest(),'hardware_tested':False,'device_written':False,'managed_launcher_required':True,'deployable':False,'pending':['physical S31 interoperability and latency','managed graphical app and APF/USB/sleep ownership'],'source_hashes':{p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in sources}}
+report['app_inputs']={p.relative_to(ROOT).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in APP.rglob('*') if p.is_file() and '__pycache__' not in p.parts and 'managed_components' not in p.parts and 'dependencies.lock'!=p.name}
+report['original_libraries']={p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in [stock/'libcnmgr.so.1',stock/'libpthread.so.0',stock/'libm.so.6',lib/'libc.so.6',lib/'ld-linux.so.3']}
 (OUT/'build.json').write_text(json.dumps(report,indent=2)+'\n')
 print(json.dumps(report,indent=2))

@@ -8,7 +8,10 @@
  * pointers. No installation, reset or arbitrary-memory public SDK service. */
 enum {XNOW_FULL_PROTECTED=3,XNOW_FULL_TX_PRE_MAC_REJECTED=2};
 struct xnow_full_layout {uint32_t tx,rx,completion;};
-struct xnow_full {struct xnow_word_io io;struct xnow_full_layout layout;uint32_t sequence,inflight;int fault,stopping;};
+/* Optional adapter-owned packet transactions. They attest the complete owned
+ * interval before access and revalidate identity/ownership before publication. */
+struct xnow_full_span_io {void *context;int (*read)(void *,uint32_t,void *,size_t);int (*write)(void *,uint32_t,const void *,size_t);};
+struct xnow_full {struct xnow_word_io io;struct xnow_full_layout layout;uint32_t sequence,inflight;int fault,stopping;struct xnow_full_span_io spans;};
 struct xnow_full_result {uint32_t token,stock_status,raw_fields;};
 enum {XNOW_RX_BROADCAST=1u,XNOW_RX_AUTHENTICATED=2u};
 /* Source ABI: rebuild consumers when this structure changes. AUTHENTICATED
@@ -19,6 +22,7 @@ struct xnow_full_received {uint8_t source[6];struct xnow_wire_info info;uint32_t
 extern "C" {
 #endif
 int xnow_full_open(struct xnow_full *,const struct xnow_word_io *,const struct xnow_full_layout *);
+int xnow_full_set_spans(struct xnow_full *,const struct xnow_full_span_io *);
 int xnow_full_send(struct xnow_full *,const uint8_t destination[6],unsigned,const uint8_t random[4],const void *,size_t);
 /* Experimental pre-encrypted frame path. local must be the adapter-verified
  * transmitter MAC: original header builder supplies that same actual source.
