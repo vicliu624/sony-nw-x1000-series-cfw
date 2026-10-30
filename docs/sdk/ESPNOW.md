@@ -28,7 +28,7 @@ user storage. Resume existing records for used keys; provision only genuinely
 fresh keys. Store no state in system partitions. Native context structs changed,
 so rebuild every consumer with matching headers and sources. Physical encrypted
 1470-byte bidirectional tests and process continuation pass; broader lifecycle,
-over-air replay and power-loss qualification remain open. Linking never starts RF.
+captured-frame replay and power-loss qualification remain open. Linking never starts RF.
 
 SDK0.2.0-alpha.6 includes the XNOW0.1.0-dev.11 C interfaces plus source owner services. Select the modules
 explicitly in a native-services application; linking them does not load radio
@@ -209,3 +209,22 @@ execution and C++ header syntax. It tests bounded command refusal, STOP and an
 anonymous-pipe handoff lifecycle without accessing the radio or user volume.
 The real-process and encrypted journal/radio instruction fixtures remain separate
 evidence and do not constitute a device qualification report.
+
+## Latest physical security observations
+
+On the Japanese X1060/JP1.11 with the standard S3/IDF5.5.1 test peer:
+
+- After resetting only the sender and restoring its disposable test key, the
+  receiver retained its durable high-water38. It reported seven REPLAY (-23)
+  rejections, subsequently authenticated five1470-byte messages and persisted
+  high-water61. This tests stale packet numbers over air, not an exact byte-for-
+  byte retransmission of a recorded ciphertext.
+- A separate fresh-key session used a wrong peer key first: six AUTH (-22)
+  rejections were followed by six authenticated1470-byte messages after the
+  sender switched to the matching key. The first accepted payload digest matched.
+- Both sessions completed normally and authenticated Terminal access returned.
+
+These results supplement the published alpha.8 implementation; they do not
+change its API or frozen source archive. Disposable keys and raw device logs
+remain private. Cross-version peers, multi-peer load, complete original-platform
+lifecycle handling and power-loss behavior remain outside this evidence.

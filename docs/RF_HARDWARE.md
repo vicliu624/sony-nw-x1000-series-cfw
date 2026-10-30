@@ -1418,3 +1418,16 @@ standard application message. Do not count these missing callbacks as solved,
 or keep repeating this same vector as though IDF accepted zero-length sends.
 Local evidence:work/autonomous-espnow-test/live/{enc-tx01,enc-tx02-resume,
 enc-rx01,empty-tx01}; all keys remain private and excluded from publication.
+
+### Stale-PN and wrong-key follow-up
+
+The alpha.3 receiver retained durable high-water38 across a sender restart.
+Seven incoming datagrams produced REPLAY (-23); five subsequent1470-byte
+messages authenticated and the validated durable record advanced to61. This is
+stale-PN rejection over air, not exact recorded-ciphertext replay. Disposable
+bench keys were intentionally reused for this negative test only.
+A separate fresh-key run produced six AUTH (-22) failures with a wrong peer key,
+then six authenticated1470-byte packets after selecting the matching sender key.
+The accepted payload digest matched, and both workers finished with done0 and
+restored authenticated Terminal access. Private reports are enc-rx04-stale-pn and
+enc-rx05-wrong-key under work/autonomous-espnow-test/live. No firmware was flashed.
