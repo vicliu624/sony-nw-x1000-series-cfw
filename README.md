@@ -112,11 +112,15 @@ no Sony binaries and does not build or install firmware.
 | Dictionary | runtime/apps/dictionary | [Dictionary](docs/apps/DICTIONARY.md) |
 | Game Boy Color | runtime/apps/gbc | [Emulators](docs/apps/EMULATORS.md) |
 | Tamagotchi iD | runtime/apps/tamagotchi-id | [Emulators](docs/apps/EMULATORS.md) |
-| Language | runtime/apps/language | [Localization](docs/LOCALIZATION.md) |
 | Aqua Link | runtime/apps/glass-marble | [Experimental aquarium demo](docs/apps/GLASS_MARBLE.md) |
 | BSOD Pet | runtime/apps/pet | [Companion](docs/apps/PET.md) |
 | Diagnostics / graphics / keys / hello | Separate runtime/apps folders | [Examples](docs/apps/DIAGNOSTICS.md) |
 | Launcher / store | runtime/native, runtime/apps/store | [Store/runtime](docs/apps/STORE.md) |
+
+Language switching is part of the original Settings interface in the current
+firmware profile. The separate Language app is retained only as legacy source
+and is not included in new release catalogs or player setup packages. See
+[localization](docs/LOCALIZATION.md).
 
 Each application folder owns its code, app.json, VERSION, artwork and build
 entry. Discover apps with `python tools/build_app.py --list`, then build one with

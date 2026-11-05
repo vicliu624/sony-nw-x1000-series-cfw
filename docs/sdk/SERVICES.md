@@ -6,6 +6,11 @@ apps retain their own framebuffer, event loop, state machine, renderer and polic
 
 ## Public service contracts
 
+The proposed [managed-service lifecycle contract](LIFECYCLE.md) defines sessions,
+background tasks, revocation and confirmed release. It is partially implemented: alpha.9 adds a client-only module; original
+manager/lifecycle integration remains incomplete. Existing low-level services
+do not automatically gain managed ownership.
+
 Import sdk/include/x1000/services headers instead of private implementation
 paths. Proven names and structures are retained: hb_devices/hb_touch, hb_dns/
 hb_tls, hb_pcm, fm_*, dx_* and qq_image_*. Forwarding headers contain only a
@@ -27,7 +32,7 @@ make superseded research entry points part of every maintained service module.
 | Parent/child lifetime operations | process.h, child.h |
 | Maintained network market/package services | market.h, repository.h, package_canvas.h, package_platform.h |
 | Read-only device information | system_info.h |
-| Experimental original-player client | player.h, player_remote.h; see [client guide](PLAYER_CLIENT.md) |
+| Experimental original-player clients | player.h, player_remote.h, player_managed.h; see [client guide](PLAYER_CLIENT.md) |
 | Experimental ESP-NOW | espnow.h, espnow_chat.h, espnow_mailbox.h, espnow_control.h |
 
 These are low-level C services, not an OS sandbox or a hardware-ownership grant.

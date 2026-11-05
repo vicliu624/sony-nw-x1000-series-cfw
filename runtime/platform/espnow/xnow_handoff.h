@@ -14,6 +14,11 @@ extern "C" {
 #endif
 /* Fresh object only; never reset an armed/pending object to bypass failure. */
 int xnow_handoff_create(struct xnow_handoff *,const uint8_t cookie[16]);
+/* Trusted supervisor transfer across exec: fresh zeroed object, explicit
+ * nonblocking read-only FIFO FD >=3 and fresh cookie. Success duplicates with
+ * CLOEXEC and consumes the supplied FD; failure leaves it owned by caller.
+ * Does not create a DONE record or change radio state. No environment lookup. */
+int xnow_handoff_adopt_reader(struct xnow_handoff *,int reader,const uint8_t cookie[16]);
 /* Called only in app-launch child before exec; returns inheritable writer FD. */
 int xnow_handoff_child_inherit(struct xnow_handoff *);
 /* Called by supervisor after fork; drops only its own writer copy. */

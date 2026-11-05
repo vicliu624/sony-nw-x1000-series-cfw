@@ -1,0 +1,14 @@
+/* Shared scalar contracts; no service manager or native ownership objects. */
+#ifndef XW_SERVICE_TYPES_H
+#define XW_SERVICE_TYPES_H
+#include <stdint.h>
+enum xw_session_result {XW_SESSION_OK=0,XW_SESSION_PENDING=1,XW_SESSION_INVALID=-1,XW_SESSION_STALE=-2,XW_SESSION_BUSY=-3,XW_SESSION_DENIED=-4,XW_SESSION_FAULT=-5};
+enum xw_session_state {XW_SESSION_EMPTY,XW_SESSION_ACTIVE,XW_SESSION_CLOSING,XW_SESSION_CLOSED,XW_SESSION_FAILED};
+enum xw_session_reason {XW_SESSION_CLIENT_CLOSE=1,XW_SESSION_CLIENT_LOST,XW_SESSION_HOME,XW_SESSION_USB,XW_SESSION_SLEEP,XW_SESSION_SOURCE_LOST};
+struct xw_session_snapshot {uint32_t state,grants,reason;uint64_t epoch;};
+#define XW_EVENT_SLOTS 16u
+enum {XW_EVENTS_OK=0,XW_EVENTS_INVALID=-1,XW_EVENTS_RESYNC=-2,XW_EVENTS_EXHAUSTED=-3};
+struct xw_service_event {uint64_t sequence,epoch;uint32_t kind,value;};
+enum {XW_PLAYER_GRANT_READ=1,XW_PLAYER_GRANT_CONTROL=2,XW_PLAYER_GRANT_BROWSE=4};
+enum {XW_PLAYER_EVENT_CHANGED=1,XW_PLAYER_EVENT_UNAVAILABLE=2};
+#endif

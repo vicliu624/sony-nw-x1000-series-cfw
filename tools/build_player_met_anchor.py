@@ -9,7 +9,7 @@ def branch(source,target,link):
  if delta%4 or not -(1<<25)<=delta<(1<<25):raise ValueError('ARM branch out of range')
  return (0xeb000000 if link else 0xea000000)|((delta//4)&0xffffff)
 
-def patch_met_anchor(raw):
+def patch_met_anchor(raw,*,mapped_stub=None):
  elf=ELFFile(io.BytesIO(raw));segments=list(elf.iter_segments())
  if elf.elfclass!=32 or not elf.little_endian or elf['e_machine']!='EM_ARM' or elf['e_type']!='ET_EXEC':raise ValueError('Expected ARM32 executable')
  symbols={s.name:s['st_value'] for s in elf.get_section_by_name('.dynsym').iter_symbols()}
@@ -18,12 +18,24 @@ def patch_met_anchor(raw):
  if len(loads)!=2:raise ValueError('Expected two original load segments')
  index,code=loads[0];_,data=loads[1]
  insert=int(code['p_offset']+code['p_filesz']);stub=int(code['p_vaddr']+code['p_filesz']);growth=0x8000
- if code['p_offset']!=0 or code['p_filesz']!=code['p_memsz'] or code['p_flags']!=5 or data['p_offset']!=insert or stub+16>data['p_vaddr']:raise ValueError('Unexpected load boundary')
+ if code['p_offset']!=0 or code['p_filesz']!=code['p_memsz'] or code['p_flags']!=5 or data['p_offset']!=insert:raise ValueError('Unexpected load boundary')
  if any(s['p_align']>growth for s in segments):raise ValueError('Insertion would break alignment')
  def offset(address):
   return next(int(s['p_offset'])+address-int(s['p_vaddr']) for s in segments if s['p_type']=='PT_LOAD' and s['p_vaddr']<=address< s['p_vaddr']+s['p_filesz'])
  at=offset(0x27c610)
  if struct.unpack_from('<II',raw,at)!=(0xebfffdac,0xe3a03f41):raise ValueError('Unexpected Met maintenance callsite')
+ if mapped_stub is not None:
+  # Explicit composition profile: reuse a checked zero slot before language
+  # code. Never search for arbitrary padding or overwrite an existing payload.
+  if mapped_stub!=0x4d7ff0:raise ValueError('Unsupported composed Met slot')
+  stub=mapped_stub
+  if not code['p_vaddr']<=stub or stub+16>code['p_vaddr']+code['p_filesz']:raise ValueError('Met slot is not executable mapped storage')
+  slot=offset(stub)
+  if raw[slot:slot+16]!=bytes(16):raise ValueError('Composed Met slot occupied')
+  trampoline=struct.pack('<4I',0xe92d500f,branch(stub+4,0xda84,True),0xe8bd500f,branch(stub+12,0x27bcc8,False))
+  result=bytearray(raw);result[slot:slot+16]=trampoline;struct.pack_into('<I',result,at,branch(0x27c610,stub,True))
+  return bytes(result),dict(callsite=hex(0x27c610),stub=hex(stub),stub_return=hex(stub+8),original_target=hex(0x27bcc8),growth_bytes=0,added_executable_bytes=16,original_virtual_addresses_preserved=True)
+ if stub+16>data['p_vaddr']:raise ValueError('Unexpected load boundary')
  if elf['e_phoff']+elf['e_phnum']*elf['e_phentsize']>insert or elf['e_shentsize']!=40 or elf['e_phentsize']!=32:raise ValueError('Unexpected ELF tables')
  # Save all incoming argument/scratch registers and LR around the optional
  # argument-free PID anchor; tail-call the original session maintenance.

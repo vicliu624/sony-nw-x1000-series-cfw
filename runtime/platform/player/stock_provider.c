@@ -34,13 +34,13 @@ static int snapshot(void *context, struct xw_player_snapshot *out)
         /* CtrlInfo defaults to primary0 even before any track is bound. Never
          * turn that into PLAYING. Stable GUI phase and controller status must
          * agree; transition, failure and initialization remain unknown. */
-        if (info.primary==0 && info.track_present &&
+        if (info.primary==1 && info.track_present &&
             gui.active && gui.mode==1 && gui.state==5)
             value.state=XW_PLAY_PLAYING;
-        else if (info.primary==1 && info.track_present &&
+        else if (info.primary==2 && info.track_present &&
                  gui.active && gui.mode==2 && gui.state==2)
             value.state=XW_PLAY_PAUSED;
-        else if (info.primary==2 && !gui.active)
+        else if (info.primary==0 && !gui.active)
             value.state=XW_PLAY_STOPPED;
         if (value.state!=XW_PLAY_UNKNOWN) value.valid|=XW_PF_STATE;
     }

@@ -1,5 +1,10 @@
 # Autonomous ESP-NOW native test
 
+The command-line binaries belong in `HOMEBREW/tools/espnow-test`, outside the
+graphical launcher's `HOMEBREW/apps` scan. They have no graphical app.ini entry;
+placing this directory under apps causes the launcher to report unavailable apps.
+The radio candidate, keys and counters remain under HOMEBREW/data/espnow-test.
+
 Local ARM review candidate for Japanese X1060/JP1.11. Build with
 `python runtime/apps/espnow-test/build.py`. No player action is part of building.
 This is an explicit CLI execution engine, not an installed graphical application.

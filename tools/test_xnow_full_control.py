@@ -1,9 +1,14 @@
 """Host sanitizers and actual ARM926/old-Sony-libc full-backend execution with a synthetic radio endpoint."""
 from pathlib import Path
-import hashlib,json,subprocess
+import hashlib,json,subprocess,sys,time
 from app_registry import ROOT
-OUT=ROOT/'work/espnow-full-control-tests';OUT.mkdir(parents=True,exist_ok=True)
+remote_stop='--remote-stop' in sys.argv
+OUT=ROOT/'work/espnow-full-control-tests' if not remote_stop else ROOT/'work/remote-radio-stop'/str(time.time_ns())
+OUT.mkdir(parents=True,exist_ok=True)
 sources=['tools/test_xnow_full_control.c','tools/fixtures/xnow_control_platform.c','runtime/platform/espnow/xnow_full_control.c','runtime/platform/espnow/xnow_session.c','runtime/platform/espnow/xnow_manager.c']
+if remote_stop:
+    sources[0]='tools/test_remote_radio_stop.c'
+    sources+=['runtime/apps/wireless-remote/radio_stop.c','runtime/platform/wireless/radio_release.c','runtime/platform/espnow/xnow_power_off.c','runtime/platform/wireless/radio_modules.c']
 host=OUT/'wire.host'
 subprocess.run(['gcc','-std=c99','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-g',*sources,'-o',str(host)],cwd=ROOT,check=True)
 native=subprocess.run([str(host)],capture_output=True,text=True,timeout=30,check=True)
@@ -19,4 +24,8 @@ target=subprocess.run(['qemu-arm','-cpu','arm926',str(LIB/'ld-linux.so.3'),'--li
 report={'passed':True,'host_asan_ubsan':native.stdout,'arm926_stock_libc':target.stdout,
     'source_hashes':{p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in [*sources,'runtime/platform/espnow/xnow_full_control.h','runtime/platform/espnow/xnow_endpoint.h','runtime/platform/espnow/xnow_sd8686_full.h','tools/fixtures/xnow_control_platform.h']},
     'arm_sha256':hashlib.sha256(arm.read_bytes()).hexdigest(),'experimental_backend_only':True,'over_air_tested':False,'device_accessed':False}
+report['remote_power_off_policy']=remote_stop
+if remote_stop:
+    for p in ('tools/test_xnow_full_control.c','tools/test_xnow_full_control.py','runtime/apps/wireless-remote/radio_stop.h','runtime/platform/wireless/radio_release.h','runtime/platform/wireless/radio_modules.h','runtime/platform/espnow/xnow_power_off.h','runtime/platform/espnow/xnow_manager.h','runtime/platform/espnow/xnow_session.h'):
+        report['source_hashes'][p]=hashlib.sha256((ROOT/p).read_bytes()).hexdigest()
 (OUT/'report.json').write_text(json.dumps(report,indent=2));print(json.dumps(report,indent=2))

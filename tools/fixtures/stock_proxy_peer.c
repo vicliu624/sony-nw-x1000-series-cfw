@@ -21,6 +21,22 @@ extern int guest_setsockopt(int,int,int,const void *,unsigned) __asm__("setsocko
 static int clone_child(void *unused) {(void)unused;return 0;}
 
 static int fd;
+#ifdef HB_SYSTEM_CAPTURE
+static int prepare_capture(void){
+ if(mount("none","/contents","ramfs",0,NULL))return -1;
+ const char *dirs[]={"HOMEBREW","HOMEBREW/launcher","HOMEBREW/apps","HOMEBREW/apps/graphics-demo","HOMEBREW/data","HOMEBREW/data/diagnostics"};
+ char path[256];
+ for(unsigned i=0;i<sizeof dirs/sizeof *dirs;i++){snprintf(path,sizeof path,"/contents/%s",dirs[i]);if(mkdir(path,0700))return -1;}
+ const char *files[]={"launcher/app","launcher/entry-trace-app","apps/graphics-demo/app","apps/graphics-demo/app.ini","data/diagnostics/launcher-capture.bin"};
+ for(unsigned i=0;i<sizeof files/sizeof *files;i++){
+  snprintf(path,sizeof path,"/capture-input/%s",files[i]);FILE *a=fopen(path,"rb");
+  snprintf(path,sizeof path,"/contents/HOMEBREW/%s",files[i]);FILE *b=fopen(path,"wb");if(!a||!b)return -1;
+  char block[512];size_t n;while((n=fread(block,1,sizeof block,a)))if(fwrite(block,1,n,b)!=n)return -1;
+  if(ferror(a)||fclose(a)||fclose(b)||chmod(path,0700))return -1;
+ }
+ return 0;
+}
+#endif
 static int send_words(unsigned port,const uint32_t *words,size_t count) {
     struct sockaddr_un address={.sun_family=AF_UNIX};
     snprintf(address.sun_path,sizeof address.sun_path,"/tmp/apfsock/apfsock.%u",port);
@@ -76,6 +92,34 @@ static int run_round(void) {
     if(done==0){result=25;kill(child,SIGTERM);waitpid(child,&status,0);}
     else if(done<0||!WIFEXITED(status)||WEXITSTATUS(status)!=0)result=26;
     printf("PROXY_WAIT_STATUS %d\n",status);
+#ifdef HB_SYSTEM_CAPTURE
+    if(!result){
+        char trace[4097];FILE *f=fopen("/contents/HOMEBREW/data/diagnostics/launcher-capture.bin","rb");
+        if(!f)result=33;
+        else {size_t n=fread(trace,1,4096,f);fclose(f);trace[4096]=0;
+            if(n!=4096||!strstr(trace+32,"CAPTURE_END status=0 done=1 fault=0"))result=34;
+            else {puts("CAPTURE_RECORD_BEGIN");puts(trace+32);puts("CAPTURE_RECORD_END");}
+        }
+    }
+#endif
+#ifdef HB_SYSTEM_ENTRY_PROBE
+    if(!result){
+        unsigned char record[128];
+        FILE *trace=fopen("/contents/HOMEBREW/data/diagnostics/entry-boundary.bin","rb");
+        if(!trace)result=30;
+        else {
+            size_t length=fread(record,1,sizeof record,trace);fclose(trace);
+#ifdef HB_SYSTEM_ENTRY_REFUSAL
+            unsigned char zero[96]={0};
+            if(length!=128||memcmp(record+32,zero,sizeof zero))result=31;
+            else puts("EXACT_ENTRY_PROBE_REFUSAL_TRACE_UNCHANGED");
+#else
+            if(length!=128||memcmp(record+32,"ENTERED1",8)||memcmp(record+88,"COMMIT01",8))result=31;
+            else puts("EXACT_ENTRY_PROBE_MARKER_VALIDATED");
+#endif
+        }
+    }
+#endif
     if(!result){
         char path[108];
         snprintf(path,sizeof path,"/tmp/apfsock/apfsock.%u",reply_port);
@@ -94,7 +138,12 @@ int main(int argc,char **argv) {
     setbuf(stdout,NULL);setbuf(stderr,NULL);
     if(!strcmp(argv[0],"/test-child")) {puts("CHILD_EXECUTED");return 0;}
 #ifdef HB_FULL_SYSTEM
+#if !defined(HB_SYSTEM_ENTRY_PROBE) || defined(HB_SYSTEM_ENTRY_REFUSAL)
     if(getpid()==1)mount("proc","/proc","proc",0,NULL);
+#endif
+#endif
+#ifdef HB_SYSTEM_CAPTURE
+    if(prepare_capture())return 35;
 #endif
     void *stack=malloc(65536);if(!stack)return 13;
     int flags=CLONE_VM|CLONE_FS|CLONE_FILES|CLONE_SIGHAND|CLONE_SYSVSEM;

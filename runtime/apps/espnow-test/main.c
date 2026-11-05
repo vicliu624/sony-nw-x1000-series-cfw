@@ -10,10 +10,13 @@
 static unsigned encrypted_mode,resume_keys;static uint8_t session_keys[32];
 static uint8_t peer_address[6];
 static struct xnow_pn_file pn_files;static struct xnow_endpoint_security security;
+#ifndef XNOW_USER_DATA_LEAF
+#define XNOW_USER_DATA_LEAF "espnow-test"
+#endif
 static int user_directory(const char *leaf){
  struct stat volume,root,entry;int fd=open("/contents",O_RDONLY|O_DIRECTORY|O_NOFOLLOW);if(fd<0)return -1;
  if(fstat(fd,&volume)||lstat("/",&root)||volume.st_dev==root.st_dev){close(fd);return -1;}
- const char *parts[]={"HOMEBREW","data","espnow-test",leaf};
+ const char *parts[]={"HOMEBREW","data",XNOW_USER_DATA_LEAF,leaf};
  for(unsigned i=0;i<(leaf?4u:3u);i++){char p[128];snprintf(p,sizeof p,"/proc/self/fd/%d/%s",fd,parts[i]);int next=open(p,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);if(next<0||fstat(next,&entry)||!S_ISDIR(entry.st_mode)||entry.st_dev!=volume.st_dev){if(next>=0)close(next);close(fd);return -1;}close(fd);fd=next;}
  return fd;
 }
@@ -89,6 +92,7 @@ static int run_probe(int log_fd){
  }
 }
 static int hex_digit(char c){if(c>='0'&&c<='9')return c-'0';if(c>='a'&&c<='f')return c-'a'+10;if(c>='A'&&c<='F')return c-'A'+10;return -1;}
+#ifndef XNOW_TEST_NO_MAIN
 int main(int argc,char **argv){
  if(argc==2&&!strcmp(argv[1],"--help")){
   puts("ESP-NOW local test 0.1.0-alpha.3\n--detach-rx|--detach-tx|--detach-enc-rx|--detach-enc-tx|--detach-enc-tx-resume|--detach-enc-rx-resume PEER_MAC12 --charger-confirmed --exclusive-radio-confirmed\nEncrypted modes read session.keys (PMK16+API_LMK16) and pn/ on verified user storage; fresh mode refuses existing scopes, resume never resets counters.\n60-second window, stock restoration and bounded user-volume journal. Experimental RAM image; no Sony updater or system-partition changes.\nOperator assertions do not qualify APF/USB/sleep ownership. No encrypted RF acceptance claim. Default/unknown invocation performs no radio action.");return 0;
@@ -106,3 +110,4 @@ int main(int argc,char **argv){
  char path[160];int fd=user_log(path,test_tx?"full-tx":"full-rx");if(fd<0)return 73;
  return probe_detach(fd,path,run_probe);
 }
+#endif

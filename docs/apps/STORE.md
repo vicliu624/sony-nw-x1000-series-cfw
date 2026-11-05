@@ -8,6 +8,14 @@ The launcher dynamically discovers HOMEBREW/apps/<id>/app.ini, verifies package
 identity/integrity/ELF and owns child lifecycle and display release/reacquisition.
 Default entry and Sony return remain tied to the original manager/proxy protocol.
 
+Only graphical application packages belong under HOMEBREW/apps. Standalone
+command-line experiments belong under HOMEBREW/tools. An ordinary directory
+without app.ini is counted as rejected by the launcher and triggers its
+"SOME APPS UNAVAILABLE" message even when the other applications are valid.
+Do not suppress that integrity warning or invent a graphical entry for a raw
+radio test executable. Move the CLI files out of the scanned directory while
+preserving their binaries and independent HOMEBREW/data state.
+
 The store contains local install and network-controller implementations, with
 explicit publisher/trust configuration. CI emits a GitHub Release catalog and
 matching market-source/player-setup files; see ../RELEASES.md. A setup/review

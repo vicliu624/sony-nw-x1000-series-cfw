@@ -1,6 +1,11 @@
-# Language
+# Language (legacy)
 
-Native localization sources. See [localization guide](../../../docs/LOCALIZATION.md).
+This external language-pack switcher is retained for older firmware profiles.
+Current firmware uses the original Settings language selector and built-in
+resources. This app is no longer included in release catalogs or player setup
+packages. Keep the source and old evidence for compatibility research; do not
+install it as part of the current profile. See the
+[localization guide](../../../docs/LOCALIZATION.md).
 
 ## Independent build
 

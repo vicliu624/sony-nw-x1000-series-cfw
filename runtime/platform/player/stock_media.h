@@ -20,6 +20,9 @@ struct xw_stock_audio_identity {struct xw_media_id id;uint32_t object_type,media
  * no GUI command is sent and no title/path is queried. Output must not alias
  * client/ID storage and stays unchanged on error. Close client per job. */
 int xw_stock_media_validate_audio(struct xw_stock_media *,const struct xw_media_id *,struct xw_stock_audio_identity *);
+/* Checks the returned object's canonical identity before reading its text.
+ * A different object returns STALE; an absent object returns UNAVAILABLE.
+ * Output remains unchanged on error. */
 int xw_stock_media_fetch(struct xw_stock_media *,const struct xw_media_id *,struct xw_media_item *);
 /* Raw/local views. FORMAT3 modes implement the original view5 query shape;
  * they are not advertised as SDK playlists until its UI association is qualified. */

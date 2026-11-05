@@ -2,18 +2,21 @@
 from pathlib import Path
 import hashlib,json,subprocess,shutil,argparse
 ROOT=Path(__file__).resolve().parents[1]
-parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--review-output',default='work/libc-launcher-review');parser.add_argument('--managed-radio-review',action='store_true');options=parser.parse_args()
+parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--review-output',default='work/libc-launcher-review');parser.add_argument('--managed-radio-review',action='store_true');parser.add_argument('--entry-trace',action='store_true',help='Diagnostic stderr stage markers only; no log files');options=parser.parse_args()
 work=(ROOT/options.review_output).resolve();assert work.is_relative_to(ROOT/'work') and work!=ROOT/'work'
 assert not any(part.startswith(('integration-','product-review-','network-external-','libc-product-review-')) for part in work.relative_to(ROOT/'work').parts)
 if options.managed_radio_review and (options.review_output=='work/libc-launcher-review' or (work/'launcher.elf').exists()):raise ValueError('Managed review requires a distinct unused output directory')
 work.mkdir(parents=True,exist_ok=True)
+if options.entry_trace:
+ assert options.review_output!='work/libc-launcher-review' and not (work/'launcher.elf').exists(), 'Trace requires distinct unused review output'
 lib=ROOT/'work/arm-signal-tests/lib'
 for name,digest in {'libc.so.6':'5afbf3074dfa9ba0478d6670f220ef4d7ec065a255ee856d9093d39210f23812','ld-linux.so.3':'2f007b0809684fde0ac446ad203135c10b4318eb8c10d4160a9f59b32c3c52de'}.items():
     assert hashlib.sha256((lib/name).read_bytes()).hexdigest()==digest
 names=['frontend.c','sony_bridge.c','sha256.c','selftest.c','platform_arm.c','app_process.c','home_key.c','linux_process_posix.c','linux_devices.c','linux_device_io_posix.c','app_catalog.c','linux_file_ops_posix.c','linux_signals_posix.c','libc_main.c']
 files=['runtime/native/'+name for name in names]+['runtime/store/start.c','runtime/store/start.S']
-artifact=work/'launcher.elf';base_version=(ROOT/'runtime/native/VERSION').read_text().strip();version='0.1.0-alpha.1+managed-radio-review' if options.managed_radio_review else base_version
+artifact=work/'launcher.elf';base_version=(ROOT/'runtime/native/VERSION').read_text().strip();version='0.1.0-alpha.2+managed-radio-review' if options.managed_radio_review else base_version
 flags=['-DHB_USE_POSIX_FILES','-DHB_USE_POSIX_DEVICE_IO','-D_DEFAULT_SOURCE','-DHB_BUILD_VERSION="'+version+'"','-std=c99','-Os','-Wall','-Wextra','-Werror','-march=armv5te','-marm','-mfloat-abi=soft','-ffreestanding','-fno-builtin','-fno-pie','-fno-stack-protector','-nostdlib','-no-pie','-Wl,--hash-style=sysv','-Wl,--build-id=none']
+if options.entry_trace:flags+=['-DHB_LAUNCHER_ENTRY_TRACE']
 if options.managed_radio_review:
  flags+=['-DHB_MANAGED_RADIO_REVIEW','-DHB_STORE_SONY_LIBC','-U_FORTIFY_SOURCE','-D_FORTIFY_SOURCE=0']
  files+=['runtime/platform/espnow/'+name+'.c' for name in ('xnow_launcher_bridge','xnow_managed_process','xnow_handoff')]+['runtime/store/stock_fs_bridge.c','runtime/store/stock_stat64.c']
@@ -45,6 +48,8 @@ tracked=[apps/'hello/app',apps/'hello/app.ini']+[ROOT/f for f in files]+list((RO
 if options.managed_radio_review:
  tracked += [ROOT/'runtime/platform/espnow'/n for n in ('xnow_launcher_bridge.h','xnow_managed_process.h','xnow_handoff.h','xnow_mailbox.h')]+[ROOT/'runtime/store/target_abi.h',ROOT/'runtime/store/stock_fs_bridge.h',ROOT/'runtime/store/stock_stat64.h']
 report={'passed':True,'managed_radio_review':options.managed_radio_review,'base_native_version':base_version,'profile':'stock-libc-runtime-review','version':version,'artifact':str(artifact.relative_to(ROOT)),'bytes':artifact.stat().st_size,'sha256':hashlib.sha256(artifact.read_bytes()).hexdigest(),'checks':checks,'source_hashes':{str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in tracked},'firmware_created':False,'hardware_tested':False,'limits':['Catalog/selftest only; no successful app execution through this launcher yet.','Launcher links stock libc for all OS operations; driver protocol remains target-specific.','Not a replacement for the protected candidate.']}
+report['entry_trace_stderr_only']=options.entry_trace
+report['persistent_log_files_created']=False
 (work/'build.json').write_text(json.dumps(report,indent=2)+'\n')
 print(json.dumps({k:v for k,v in report.items() if k!='source_hashes'},indent=2))
 

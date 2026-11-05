@@ -2,6 +2,8 @@
 from pathlib import Path
 import hashlib,json,os,sqlite3,subprocess,tarfile
 ROOT=Path(__file__).resolve().parents[1];work=ROOT/'work/player-inspect';work.mkdir(exist_ok=True)
+stock_rootfs=ROOT/'work/upg-jp/verified-3.bin'
+assert hashlib.sha256(stock_rootfs.read_bytes()).hexdigest()=='c6307dba718f1faae821e0330b64532f13fe6ef98ff330a5919d7fb10525adf5'
 with tarfile.open(ROOT/'work/upg-jp/verified-3.bin','r:gz') as archive:
  for source,dest in [('usr/lib/libsqlite3.so.0.8.6','libsqlite3.so.0'),('lib/libdl-2.3.3.so','libdl.so.2'),('lib/libpthread-0.10.so','libpthread.so.0')]:
   data=archive.extractfile('./'+source).read();(work/dest).write_bytes(data)
@@ -42,5 +44,9 @@ assert limited_hash==hashlib.sha256(path.read_bytes()).hexdigest() and not path.
 
 
 report=dict(passed=True,artifact=str(app.relative_to(ROOT)),sha256=hashlib.sha256(app.read_bytes()).hexdigest(),bytes=app.stat().st_size,device_accessed=False,read_only_fixture=True,song_data_not_queried=True,aggregate_type_counts_verified=True,missing_database_not_created=True,row_limit_refusal_verified=True,source_sha256=hashlib.sha256((ROOT/source).read_bytes()).hexdigest(),limits=['Production diagnostic has not run on hardware.','Fixture bypasses LinuxThreads process teardown only; stock SQLite query functions execute.'])
+inputs=[stock_rootfs,ROOT/source,Path(__file__),ROOT/'runtime/store/start.c',ROOT/'runtime/store/start.S']+[work/n for n in ('libsqlite3.so.0','libdl.so.2','libpthread.so.0')]+[lib/'libc.so.6',lib/'ld-linux.so.3']
+report['input_hashes']={p.relative_to(ROOT).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in inputs}
 (work/'build.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))
 (work/'REVIEW.md').write_text('Read-only diagnostic, not an SDK backend or firmware package.\n\nArtifact: player-schema-inspect.arm. Keep original Sony libraries on the player; do not copy the local library extraction.\nRun manually only after authorization: ./player-schema-inspect.arm --inspect /db/MTPDB.dat\nIf unavailable, explicitly inspect /contents/MTPDB.dat instead. No automatic path fallback.\nOptional second command: ./player-schema-inspect.arm --inspect-types /db/MTPDB.dat\nAggregate mode reports only object_type/media_type/format/count, including NULL values. No titles, paths, object IDs or playlist names. It is a bounded read-only scan, not a library refresh. No control command or persisted log.\nNo device deployment or execution was performed by this builder.\n')
+with (work/'REVIEW.md').open('a') as review:
+ review.write('\nArtifact SHA-256: '+report['sha256']+'\nArtifact bytes: '+str(report['bytes'])+'\nBuild/source/startup/library provenance: build.json input_hashes.\n')

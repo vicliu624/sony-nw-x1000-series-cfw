@@ -1,6 +1,13 @@
 # SDK validation and capability limits
 
-Current SDK: **0.2.0-alpha.8**. Public ESP-NOW core/message/device/full/security/
+Current SDK source: **0.2.0-alpha.9**. The validation results below retain their
+recorded alpha.8 scope; they are not a new published alpha.9 acceptance run.
+All 16 installed SDK consumers were rebuilt during local maintenance. A later
+startup correction to the player host now reaches the original main menu in a
+user-reported NW-X1060 test. This does not qualify external app entry/return,
+sleep/wake, USB or managed wireless; those physical checks remain pending.
+
+At alpha.8, public ESP-NOW core/message/device/full/security/
 full-device/owner consumers pass original-libc ARM926 checks; owner headers also
 pass C++ syntax checks. These are offline SDK integration checks. Separate X1060
 hardware experiments establish encrypted TX/RX through1470 bytes and same-key

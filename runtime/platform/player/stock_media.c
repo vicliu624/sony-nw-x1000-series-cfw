@@ -47,18 +47,21 @@ int xw_stock_media_adopt(struct xw_stock_media *s){
 static int begin_read(struct xw_stock_media *s){
  int rc=xw_stock_media_adopt(s);if(rc)return rc;s->busy=1;return 0;
 }
+static int copy_identity(uint32_t object,struct xw_media_id *out);
 int xw_stock_media_fetch(struct xw_stock_media *s,const struct xw_media_id *identity,struct xw_media_item *out){
  int rc=begin_read(s);if(rc)return rc;
- uint32_t domain=0,number=0,parts[2]={0,0},id=0,object=0;struct xw_media_item value={0};
+ uint32_t domain=0,number=0,parts[2]={0,0},id=0,object=0;struct xw_media_item value={0};struct xw_media_id requested;
  if(!out){rc=XW_PLAYER_INVALID;goto done;}
  rc=xw_local_media_id_parse(identity,&domain,&number);if(rc)goto done;
  if(!number){rc=XW_PLAYER_UNAVAILABLE;goto done;}parts[0]=number;
+ rc=xw_local_media_id_format(domain,number,&requested);if(rc)goto done;
  uint32_t keys[3]={9u,0x0bu,0x0cu};struct {const uint32_t *values;uint32_t count;} mask={keys,3};
  id=((uint32_t (*)(uint32_t,uint32_t,const uint32_t *))(uintptr_t)0x28d704u)(domain,0,parts);if(!id){rc=XW_PLAYER_UNAVAILABLE;goto done;}
  rc=((int (*)(uint32_t,uint32_t,uint32_t,const void *,uint32_t *))(uintptr_t)0x295ce8u)(s->client,0,id,&mask,&object);
- if(rc||!object){rc=rc==0x106?XW_PLAYER_BUSY:rc==0x210d||rc==0x2214?XW_PLAYER_UNAVAILABLE:XW_PLAYER_IO;goto done;}
+ if(rc||!object){rc=rc==0x106?XW_PLAYER_BUSY:rc==0x2202||rc==0x210d||rc==0x2214||(!rc&&!object)?XW_PLAYER_UNAVAILABLE:XW_PLAYER_IO;goto done;}
+ rc=copy_identity(object,&value.id);if(rc)goto done;
+ for(unsigned i=0;i<sizeof requested.value;i++)if(value.id.value[i]!=requested.value[i]){rc=XW_PLAYER_STALE;goto done;}
  uint32_t metadata=((uint32_t (*)(uint32_t))(uintptr_t)0x298238u)(object);if(!metadata){rc=XW_PLAYER_UNAVAILABLE;goto done;}
- rc=xw_local_media_id_format(domain,number,&value.id);if(rc)goto done;
  if((rc=read_text(metadata,keys[0],value.title,&value.flags,1))||(rc=read_text(metadata,keys[1],value.artist,&value.flags,2))||(rc=read_text(metadata,keys[2],value.album,&value.flags,4)))goto done;
 done:
  if(object)((void (*)(uint32_t))(uintptr_t)0x2981f0u)(object);
@@ -130,13 +133,18 @@ int xw_stock_media_children(struct xw_stock_media *s,const struct xw_stock_child
    uint32_t format_key=2;struct {const uint32_t *values;uint32_t count;} parent_mask={&format_key,1};
    rc=((int (*)(uint32_t,uint32_t,uint32_t,const void *,uint32_t *))(uintptr_t)0x295ce8u)(s->client,0,id,&parent_mask,&object);
    if(rc||!object){rc=rc==0x106?XW_PLAYER_BUSY:XW_PLAYER_UNAVAILABLE;goto done;}
+   struct xw_media_id requested_parent,returned_parent;
+   rc=xw_local_media_id_format(domain,number,&requested_parent);if(rc)goto done;
+   rc=copy_identity(object,&returned_parent);if(rc)goto done;
+   for(unsigned i=0;i<sizeof requested_parent.value;i++)if(requested_parent.value[i]!=returned_parent.value[i]){rc=XW_PLAYER_STALE;goto done;}
    uint32_t metadata=((uint32_t (*)(uint32_t))(uintptr_t)0x298238u)(object),format=UINT32_MAX;
    if(!metadata){rc=XW_PLAYER_UNAVAILABLE;goto done;}
    rc=((int (*)(uint32_t,uint32_t,uint32_t *))(uintptr_t)0x2988f8u)(metadata,2,&format);
    if(rc){rc=rc==0x2204||rc==0x2209?XW_PLAYER_UNAVAILABLE:XW_PLAYER_PROTOCOL;goto done;}
    if(format!=3){rc=XW_PLAYER_UNSUPPORTED;goto done;}
    ((void (*)(uint32_t))(uintptr_t)0x2981f0u)(object);object=0;
-   rc=xw_stock_list_query_build(&track_query,1);if(rc)goto done;predicate=&track_query.nodes[4];sort=track_query.sort;
+   /* Original view5 member transition (0x473b4) uses a null predicate. */
+   rc=xw_stock_list_query_build(&track_query,1);if(rc)goto done;sort=track_query.sort;
   }
   rc=((int (*)(uint32_t,uint32_t,uint32_t,const void *,uint32_t,uint32_t,const void *,const void *,uint32_t *))(uintptr_t)0x295d38u)(s->client,0,id,predicate,q->offset,q->limit,&mask,sort,&list);
  }

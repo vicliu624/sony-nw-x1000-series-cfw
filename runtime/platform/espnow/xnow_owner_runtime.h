@@ -33,6 +33,10 @@ int xnow_owner_runtime_init(struct xnow_owner_runtime *,struct xnow_full_control
  * complete restoration notification+writer close. Pending is not exit permission.
  * UNCERTAIN is retained: no timed kill, fabricated DONE or implicit retry. */
 int xnow_owner_runtime_step(struct xnow_owner_runtime *);
+/* Same stream/gate/receipt lifecycle, with an explicit controller-step policy.
+ * No implicit radio-off behavior is added to ordinary runtime_step(). */
+int xnow_owner_runtime_step_with_controller(struct xnow_owner_runtime *,void *,
+                                           int (*step)(void *,struct xnow_full_control *));
 #ifdef __cplusplus
 }
 #endif

@@ -8,10 +8,11 @@ static struct xw_player_rpc_server service;
 static unsigned ready;
 static unsigned long long next_attempt,last;
 static struct xw_player_broker broker;
+__attribute__((weak)) int xw_player_host_source_attach(struct xw_player_broker *b){(void)b;return XW_PLAYER_UNSUPPORTED;}
 void xw_player_host_dispatch(struct xw_player *player)
 {
     unsigned long long now;
-    if (hb_monotonic_millis(&now)) return;
+    if (hb_monotonic_millis(&now)) {if(broker.player.initialized)xw_player_broker_invalidate(&broker,0);return;}
     if(now<last)next_attempt=0;
     last=now;
     if(!ready&&now>=next_attempt){
@@ -23,5 +24,6 @@ void xw_player_host_dispatch(struct xw_player *player)
     }
     /* Adapter requires a matching observed Met list and current GUI session. */
     if(ready&&!broker.queue.browse)xw_player_host_queue_attach(&broker);
+    if(ready&&!broker.source.command)xw_player_host_source_attach(&broker);
     if (ready) {xw_player_broker_tick(&broker,now);xw_player_rpc_server_tick(&service,now);}
 }

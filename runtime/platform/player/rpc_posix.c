@@ -57,7 +57,10 @@ static int server_tick(struct xw_player_rpc_server *s,unsigned long long now){
  if(s->peer>=0&&now>=s->deadline)drop_peer(s);
  if(s->peer<0){int fd=accept(s->listener,0,0);if(fd<0)return transient()?0:XW_PLAYER_IO;if(nonblocking(fd)){close(fd);return XW_PLAYER_IO;}s->peer=fd;s->deadline=now+PEER_TIMEOUT;s->expected=20;}
  if(!s->total){
-  if(s->received<s->expected){
+  /* Header and already-queued body can be consumed in the same owner tick.
+   * Two nonblocking reads stay bounded by the small request size and avoid an
+   * extra stock idle interval between every command header and body. */
+  for(unsigned pass=0;pass<2&&s->received<s->expected;pass++){
   size_t left=s->expected-s->received;ssize_t n=recv(s->peer,s->input+s->received,left,0);
   if(n<=0){if(n<0&&transient())return 0;drop_peer(s);return XW_PLAYER_IO;}
   s->received+=(size_t)n;

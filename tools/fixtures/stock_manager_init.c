@@ -52,6 +52,9 @@ int main(void){
 #else
  setenv("LD_PRELOAD","/lib/manager-devices.so",1);
 #endif
+#ifdef HB_PLAYER_BOOTSTRAP_FIXTURE
+ setenv("X1000_PLAYER_SERVICE","1",1);
+#endif
  setenv("PATH","/usr/local/bin:/usr/bin:/bin",1);execl("/usr/local/bin/sysmgrd","sysmgrd","-r","/usr/local/bin/moc_repairer.sh","/etc/AppList.conf",NULL);_exit(127);}
  int status=0;pid_t done=0;
  for(unsigned i=0;i<500&&done==0;i++){if(access("/tmp/manager-home-complete",F_OK)==0)break;done=waitpid(child,&status,WNOHANG);if(done==0)usleep(10000);}

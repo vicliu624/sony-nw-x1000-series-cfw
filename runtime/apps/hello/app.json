@@ -17,7 +17,7 @@
     "package": "work/hello-app/package"
   },
   "sdk": {
-    "version": "0.2.0-alpha.8",
+    "version": "0.2.0-alpha.9",
     "profile": "native-services",
     "modules": [
       "startup"

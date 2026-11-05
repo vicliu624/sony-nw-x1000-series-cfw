@@ -12,9 +12,9 @@ player files. No stock-device command transport has been enabled.
 | State, current ID and volume changes | Original snapshots, validity masks and polling | Offline native/state cases and cross-process client |
 | Title, artist and album | Original Moma reader, background cache and local IPC | Original registry/ABI fixtures; live metadata untested |
 | Default songs | Native bounded search -> asynchronous broker -> SDK browse | Native instruction and combined host IPC tests |
-| Named lists and members | FORMAT3 hierarchy connected as a development prototype | Classification/SonicStage semantics remain unqualified |
+| Named lists and members | FORMAT3 hierarchy connected; native music menu/query/projection correspondence checked | Active widget binding and real SonicStage rows/membership remain unqualified |
 | Current playback queue | Matching-session Met capture, exchange, native reader and broker adapter connected in analysis build | Composite full-runtime/device and grouped ordering remain unqualified |
-| Arbitrary track selection | Native descriptor move and source admission mapped; PLAY_ITEM remains unsupported | Complete GUI/error/consumer lifecycle remains unqualified |
+| Individual track selection | Analysis-host broker can advertise PLAY_ITEM after attaching the validation/intent adapter | Component/host routing and GNU link pass; original-loader PID smoke only, physical operation unqualified |
 | Position/duration | Contract fields only; native valid bits remain clear | Units/observations remain unqualified |
 | SDK source module | Public player-client headers and dependency graph | Independent clean source-bundle build/ARM consumer |
 | Original-player startup | Owner anchor, wrapper and composed ELF prepared offline | No installation, full GUI boot or device test |
@@ -251,16 +251,16 @@ phase and changing actors return errors without modifying the caller's view.
 
 CtrlInfo primary0 is not sufficient to report PLAYING: original initializer
 0x275df8 writes primary0/substate0 before a track is bound. The provider requires
-substate0/error0 plus agreement with the original stable GUI phase. Primary0
-with a retained track object and mode1/state5 reports PLAYING. Primary1
-with a track object and mode2/state2 reports PAUSED. Primary2 plus an inactive
+substate0/error0 plus agreement with the original stable GUI phase. Primary1
+with a retained track object and mode1/state5 reports PLAYING. Primary2
+with a track object and mode2/state2 reports PAUSED. Primary0 plus an inactive
 original component reports STOPPED. The original transport handlers establish
 these stable phases: mode1/state5 submits the native pause target, whereas
 mode2/state2 submits the native play target; both leave their stable phases
 when dispatching a change. Inactive activity alone is not used as STOPPED.
 
 All other combinations keep STATE invalid/UNKNOWN, including controller/GUI
-disagreement, pending substate, an error, a missing track object or a busy query.
+disagreement, incompatible substate, an error, a missing track object or a busy query.
 Volume and a supported current track ID can remain valid independently. The
 client core notifies state invalidation and recovery; admission of a command
 does not set an observed state. STOPPED does not imply an empty library/queue.
@@ -305,6 +305,20 @@ offset100 is optional MetChapterInfo, unrelated to the playback queue.
 internal2subState at0x27b004 maps
 native FSM states1/2/0x40 to0, states4/8/0x10/0x20 to1 and0x80 to2. This is why
 a primary target alone must not be treated as observed engine playback.
+
+tools/test_stock_control_state.py executes0x27b1b8, normalization, data snapshot
+and CtrlInfo setters with injected FSM outcomes. Its raw publication pairs must
+not classify stable playback: the original names identify0x20 as RUNNING and
+0x80 as ERROR, while0x40 is RUN. These are intermediate/error outcomes, not
+proof of completed play/pause. tools/test_stock_state_notifications.py instead
+executes observer0xad39c and original GUI dispatch/handlers: primary1/substate0
+emits0x440105 and advances mode1/state8 to state5; primary2/substate0 emits
+0x44001e and advances mode2/state1 to state2. Primary0/substate0 emits0x440104;
+substate1 does not emit these stable-state notifications. Metadata refresh,
+rendering, entry/exit effects and logging are modeled. This verified notification
+mapping supersedes the earlier assumption that primary0/1 meant play/pause or
+that substate1/2 could prove their completion. The provider requires stable
+substate0, no error, a retained track and matching GUI phase for play/pause.
 
 tools/test_stock_info.py executes original session lookup/reference release,
 locked CtrlInfo cloning, and track/chapter retain/release. Across1000 reads,
@@ -444,6 +458,13 @@ copies values before disposing the media object and ID. Closing the per-job
 client disconnects/releases its original manager reference. No private SQLite
 connection, guard descriptor or filesystem fallback is used by this path.
 
+Before reading text, the reader extracts the returned object's canonical local
+identity and compares it with the normalized requested identity. A different
+object returns STALE without publishing metadata. Native missing-object0x2202
+and a successful call with no object return UNAVAILABLE. The instruction fixture
+includes wrong-object and missing-object injection and checks unchanged output
+and balanced cleanup; it does not claim either fault occurred on hardware.
+
 The metadata-set pointer is borrowed from the owned object and is never disposed
 separately. Original ustr/cstr getters run through their own type checks. ustr
 lengths are UTF-16 code units excluding NUL: the original UI0xb8c90 copies len*2
@@ -485,6 +506,99 @@ values are modeled. Native accessor arguments, owner handoff and conversion are
 checked; a live database or power/resource transition is not exercised.
 
 ## Analysis-only owner-loop bootstrap
+
+### Optional exec activation building block
+
+runtime/platform/player/bootstrap.c is a separate C executable candidate, not
+installed by the SDK or firmware builder. The reviewed layout would retain
+/usr/local/bin/SpiderApp as the manager's existing lookup path, place the
+already-composed/anchored payload at /usr/local/lib/x1000-player/SpiderApp, and
+place the service DSO at /usr/local/lib/libx1000-player.so. The payload basename
+remains SpiderApp. Preserve the current Homebrew/language/error composition when
+preparing such a payload; the bootstrap does not build or replace that baseline.
+The pinned original file has mode0775 and absolute RPATH /usr/lib/omf (no
+$ORIGIN-relative search path). A future profile must preserve vendor attributes;
+this inspection does not establish every application self-path assumption.
+
+tools/review_player_footprint.py --composition work/<composition-directory>
+--output work/<new-report.json> performs read-only accounting of the composed
+ELF, default C wrapper and actual DSO. It checks recorded source/artifact hashes,
+the pinned original rootfs and existing DT_NEEDED paths including symlink targets.
+With the reviewed build the proposed relocation layout adds81036 logical bytes:
+6440 wrapper +74596 service, with zero additional composed-main bytes. The main
+payload is moved, not retained as a second full-size copy. The DSO's PT_LOAD
+memory totals299233 bytes, including243672 BSS bytes. These numbers are build
+specific; regenerate the report after changes. They exclude filesystem blocks,
+directories/inodes, installation transients, page rounding, worker stacks,
+allocator/native objects and original-player/language memory. They establish
+neither partition headroom nor peak memory safety. No rootfs or UPG is written.
+
+The optional --layout work/<fresh-directory> additionally copies the three
+review files into a files/ tree and reads them back by SHA-256. manifest.json
+records intended original main attributes for the wrapper and relocated payload,
+0644 for the DSO, and0755 for its new directory. This declared metadata does not
+establish Windows/DrvFS ownership or successful installation. The layout is
+explicitly non-installable: no startup script, AppList edit, activation command,
+resource overlay, updater or UPG is emitted. It must not be copied to a player.
+
+Only X1000_PLAYER_SERVICE=1 prepends the readable service library to LD_PRELOAD.
+Default-off, explicit-off and unreadable/missing library cases execute the payload
+with the previous preload environment intact. Existing preload entries are
+preserved when enabling too. It performs a single execve with the original argv;
+it does not fork, supervise, change credentials, register devices or write state.
+This is not crash recovery: exec failure returns127 and failures after successful
+exec remain loader/application behavior. No boot script or AppList edit is generated.
+
+tools/test_player_bootstrap_system.py uses the original Sony loader and actual
+analysis DSO in the isolated ARM guest. Five cases verify enable/disable, previous
+preload preservation, missing-library behavior, PID, argv including spaces and
+absolute argv0, kernel process name, cwd/environment and an inherited descriptor.
+Ordinary getpid calls pass through without activating the owner anchor. The
+production-default bootstrap is compiled for review only (about6.3KiB); the test
+payload is an identity probe, not SpiderApp.
+
+The separate tools/probe_stock_manager_system.py profile
+--normal-boot-fixture --ram-state-fixture --live-manager-fixture
+--player-bootstrap-fixture executes the original sysmgrd and appproxy with this
+exec layer and the actual analysis DSO. A C replacement Home client confirms the
+loaded module, registers as special application ID1, enters the proxy-routed
+launcher, runs the graphics fixture, returns through the launcher and receives
+the original manager's return acknowledgement. The harness checks event order
+and display release/reopen events. Fork, exec, wait and manager IPC are real;
+getpid is interposed by the player DSO. Devices are simulated and state volumes
+are guest RAM. The same lifecycle passes without the bootstrap profile.
+This qualifies manager registration and switching for that replacement client,
+not complete SpiderApp startup or playback. Full GUI startup, partition capacity,
+sleep/USB behavior and physical operation remain unqualified. Neither profile
+generates a firmware package or accesses a physical player.
+
+The --stock-home-fixture --player-stock-composition work/<composition-directory>
+profile separately runs the actual composed SpiderApp through the C wrapper and
+actual DSO, with the original rootfs and manager in the isolated RAM guest.
+The observed composed and unmodified-original control runs both reach /dev/mem
+and abort at OmfMgr.c:97; sysmgrd then reports the expected abnormal ID1 exit.
+This identifies a shared hardware-initialization limit in this guest, not a
+successful GUI boot or proof that the composition is correct after that point.
+The profile uses original resources, not a final Homebrew resource overlay, and
+does not qualify later Home rendering. It does not bypass the assertion or
+substitute successful hardware responses. Observation completion is recorded
+separately from startup success; ready_to_flash remains false.
+
+The original GUI path0x10644 ->0xb4c54 ->0xe1aa0 performs select with a timeout
+read by0xe44dc. Policy0xeae0c sets200000 microseconds for the traced idle mode
+and zero when leaving it;0xe44a4 bounds accepted timeout settings to60 seconds.
+tools/test_stock_owner_idle.py executes the policy, getter/setter and original
+select-timeval conversion (syscall boundary modeled). This verifies units and
+that policy, not an upper bound on complete UI/hardware work or sleep behavior.
+
+IPC previously consumed a request header and body on separate ticks. Under a
+controlled200ms owner cadence, a300ms command deadline reproduced UNCERTAIN.
+The receiver now permits two nonblocking reads in one tick, bounded by the166-byte
+maximum request, without increasing the one-provider-operation or2048-byte send
+budget. tools/test_player_rpc_idle.py passes the same cadence/deadline under
+host sanitizers and original-libc ARM kernel execution, with exactly two explicit
+commands executed once each. Larger browse responses still need multiple ticks;
+the client guide's example timeout is3000ms. No original wait policy is patched.
 
 tools/build_player_host.py now builds a private ARM DSO and an analysis ELF under
 work/player-host. It requires the pinned stock JP1.11 SpiderApp. The ELF changes
@@ -554,14 +668,17 @@ dispatch and pumps bounded IO thereafter. Native metadata reading starts lazily
 on a supported snapshot request; that query runs in the background. The raw stock
 provider serves controls and its qualified state/track/volume snapshot. The
 broker now provides default-track pages through the asynchronous native search
-reader when the backend has no browse implementation. The analysis host prototypes playlist views with the FORMAT3 reader; queue
-remains UNSUPPORTED; a directory list is never presented as the current queue.
+reader when the backend has no browse implementation. Playlist views use the
+experimental FORMAT3 reader. The GUI/Met composition can attach the matching-
+session queue adapter; a GUI-only host still returns UNSUPPORTED. A directory
+list is never presented as the current queue.
 
 Modern ARM headers redirect scalar fcntl and getsockopt calls through unavailable
 time64 adapters. This transport explicitly binds the original symbol names for
 F_GETFL/F_SETFL/F_SETFD and SO_ERROR, using no flock/timeval option. Monotonic time
 uses the existing two-word original clock bridge. C/C++ linkage guards are
-present; this remains private source, not a published SDK module yet.
+present. The public player-client source module is exported in local SDK review
+archives; native hooks and startup integration remain private analysis sources.
 
 tools/test_player_rpc.py runs actual separate client/server processes under host
 ASan/UBSan (GCC12/O1) and original Sony libc/librt ARM QEMU. It checks explicit wire
@@ -572,19 +689,29 @@ so those playlist/queue cases qualify transport only. Native-provider and anchor
 fixtures qualify their separate original-code paths. No device endpoint is
 installed and physical integration has not been tested.
 
-## Remaining work before SDK availability
+## Requirement audit and remaining acceptance
 
-1. Connect the private owner bootstrap/local endpoint to a reviewed startup
-   profile. No endpoint is installed on a device yet.
-2. Qualify the already-bound controls/state/metadata/default-track service in the
-   actual Sony runtime; the analysis bootstrap alone is not physical acceptance.
-3. Decode original stable media identities, playlist/queue ordering and metadata;
-   provide bounded read-only browsing with observable collection revisions.
-4. Exercise original code paths offline, package a native consumer/example through
-   the public SDK and run clean-source bundle checks. Pure provider tests do not
-   satisfy this step.
-5. Keep physical acceptance separate: original playback plus background service,
-   HOME, sleep, USB and radio coexistence require appropriate device verification.
+The requested SDK covers controls, observed state changes and native media
+browsing. The following distinctions govern availability; passing a model test
+does not complete its native-runtime row.
+
+| Requirement | Current implementation/evidence | Remaining acceptance |
+| --- | --- | --- |
+| Play/pause, next/previous, volume steps | Public command API, owner-thread original bindings, instruction fixtures and real client/broker IPC | Original SpiderApp running the complete service and audible/device state confirmation |
+| Current track, title/artist/album and volume | Validity masks, original CtrlInfo/Moma readers, asynchronous metadata, UTF-8 conversion and bounded cache | Real original library records and changes during playback |
+| State notifications | Poll change masks; failure preserves output and recovery forces refresh; original-libc consumer tests | Real playback transitions and service lifecycle; polling is not a lossless event subscription |
+| Songs and native playlists | Bounded TRACKS/FORMAT3 list/member queries, original menu/query/projection instruction correspondence | Active native widget/SonicStage list identity, membership and ordering on actual data |
+| Current queue | Matching-session GUI/Met capture and bounded OneGrp/unshuffled-group worker paths | Real group identity/order; shuffled groups remain unsupported |
+| Consistent multi-page reads | Opaque IDs and expected-revision refusal implemented | Native catalog/queue revision sources remain unknown0; no consistent cross-page snapshot promise |
+| Developer delivery | Public C example, C++ checks, fresh-source player check and complete SDK offline matrix pass | Native backend cannot be installed or activated by the client archive |
+| Startup composition | Default-off C exec layer, exact Homebrew/language/Met ELF composition, original manager switching with a C replacement Home payload | Complete SpiderApp startup, vendor attributes/self-paths and reviewed activation; no device endpoint is installed |
+| Resource/lifecycle safety | Logical file/DSO-memory accounting, worker cancellation/drain, local IPC deadlines | Filesystem allocation/installation capacity, runtime peak memory, HOME, sleep/wake, USB and radio coexistence |
+
+The frozen local source review and its adjacent validation record are separate
+from later working-tree edits. The full offline SDK matrix establishes package
+usability, not original-player or hardware acceptance. Device access is currently
+disabled by the user's instruction; neither an offline pass nor a source change
+authorizes a connection, device execution, installation or firmware generation.
 
 No raw process-memory writes, synthetic key injection, guessed command IDs or
 fixed-address calls from an independent executable are enabled by this work.
@@ -768,6 +895,77 @@ a device; public SDK source-bundle publication and runtime acceptance remain ope
 
 ## Named-playlist boundary and query mapping
 
+tools/test_stock_music_search_mapping.py joins the six original0x87598 menu
+branches with0x44408/0x46d74 view selection and0x47268 descriptor extraction.
+It executes0x47cac through all projection/sort initialization preceding the
+locale-specific finalizer0x47b48, rather than using uninitialized projection
+objects. The original metadata name registry independently verifies the fields:
+
+| Menu row / word-set category | Query view | First native Moma key | Aggregation |
+| --- | --- | --- | --- |
+| 0 / all songs | 0 | TITLE9 | No |
+| 1 / album | 3 | ALBUM12 | Yes |
+| 2 / artist | 2 | ARTIST11 | Yes |
+| 3 / genre | 1 | GENRE10 | Yes |
+| 4 / release year | 4 | RELEASEYEAR15 | Yes |
+| 5 / playlists | 5 | TITLE9, FORMAT3 predicate | No |
+
+The word-set slots resolve through the pinned original Japanese STX. The
+fixture executes native aggregation selection0xb8404 too, with navigation,
+rendering and availability-count boundaries modeled. UI property indices are a
+separate namespace: UI10 maps to TITLE9, UI11 to GENRE10, UI12 to ARTIST11,
+UI13 to ALBUM12 and UI16 to RELEASEYEAR15.0xb827c stores the mapped Moma keys
+at projection+0x0c and original UI indices at+0x50;0x409b0 converts its aggregation
+index through0xb7ac4 before the native query. This corroborates music-category
+and FORMAT3 correspondence; it does not qualify active widget resource loading
+or real SonicStage database contents. Member traversal/order have their separate
+original-instruction fixtures below.
+
+Selector kinds, internal category/depth mappings, query-view IDs and resource
+text slots are separate namespaces. Original initializer0x435e8 calls0x435a4 to
+store internal category5/depth1 -> view17 and category5/depth2 -> view18. These
+are not the direct menu-index lookup. Original selector0x434dc separately reads
+its kind0 table at0x4e5aa4: indices0..9 map directly to views0..9, including
+index5 -> view5. tools/test_stock_list_descriptor.py executes those ten original
+lookups and all82 initialization mapping writes (unrelated startup calls skipped).
+This corrects an ambiguous interpretation of the internal category table; it
+does not establish which selector kind/index an active resource event supplies.
+FORMAT3 remains an experimental hierarchy reader until that binding is verified.
+
+Original menu producers0x87598 and0x83ad4 map indices0..5 to search indices
+0,3,2,1,4,5. For index5 they check0x46188 with scope0/1 respectively and send
+event0x530002 with payload kind0/index5 only when available; otherwise they
+send notice0x7e. tools/test_stock_search_menu.py verifies both handlers and the
+empty/unavailable branch in14 instruction cases. The availability function itself
+also executes:0x46188 counts objects with the same base+0x4e8/FORMAT3 predicate
+through0x4215c, using context0x10000000. Its count result, context guards and UI
+navigation are modeled. This connects the native menu-index producer to the independently
+verified view5 entry; active SWD/touch dispatch and real database contents remain
+outside that fixture.
+
+The descriptor fixture also executes0x44408 with selector kind0/index5 through
+original0x434dc ->0x47138 ->0x46d74, confirming the active row becomes view5,
+query depth becomes1 and predicate is base+0x4e8/FORMAT3. Only the renderer reset
+and notification consumers are intercepted in this entry step. It establishes
+the conditional entry chain, not which parameters a physical menu click sends.
+Member selection reaches0x473b4 through0x44390; its observed event-side callers
+are0x99f80 and0x9a71c. The former consumes a prior result and updates selection,
+so its existence alone also cannot identify an initial user click.
+
+The local-catalog schema has a separate property namespace from generic MOMA
+metadata keys. Original initializer0x2997fc registers six grouping fields from
+0x610514 and fifty properties from0x6102bc, with twelve-byte records. In this
+namespace MTP_FORMAT is0x27/type h, AUDIOCODEC is0x29/type I and AADPLAYLISTID
+is0x31/type s. These IDs must not replace generic FORMAT key2 in a MOMA query.
+The addresses are virtual addresses resolved through ELF PT_LOAD segments;
+the writable segment has a different file/virtual displacement from text.
+
+tools/test_stock_media_schema.py executes the original registration loop against
+modeled registration callees. It checks all56 calls, the duplicate-registration
+return0x2113 continuation, early failures and finalization0x80/10. It proves the
+registered names/IDs/types and loop behavior, not the meaning of FORMAT enum3,
+the presence of playlists in a device database or a public playlist service.
+
 Sony's Japanese NW-X1050/X1060 operation guide, page45, identifies its playlist
 search as SonicStage-created playlists. This is independent of NWZ playlist
 formats and must not be replaced by a filesystem .m3u scan. Primary reference:
@@ -809,6 +1007,46 @@ resource index identity alone does not establish a menu/query association.
 
 
 ## Original parent-query routing
+
+The special view5 transition0x473b4 resolves the selected row to a parent ID
+through0x428c4, releases any previous parent, and submits0x1f91c with predicate0,
+child flag1, that parent and the depth2 CHILDINDEX sort. It advances the frame
+depth and installs node type7. tools/test_stock_list_transition.py executes the
+transition/node/sort instructions with modeled row lookup and request submission,
+covering both initial selection and parent replacement. This is stronger evidence
+than the generic second-depth condition table: the special branch bypasses its
+OBJECT_TYPE predicate. The private FORMAT3 member reader therefore now uses a
+null predicate while retaining parent validation and CHILDINDEX ordering.
+
+The asynchronous list request entry0x1f91c packs nine words/36 bytes: predicate,
+aggregation flag, aggregation key, projection descriptor, projection metadata,
+sort, child flag, parent identity and completion selector. It retains the parent
+with MomaObjectId_clone only when both child flag and parent are nonzero.
+tools/test_stock_list_request.py executes the original packer for all four
+flag/parent combinations; queue/allocator, classification and clone callees are
+modeled. This qualifies request layout and the retention condition, not lifetime
+through every asynchronous failure path.
+
+Event0x530004 is a query completion, not by itself the user's menu click. Its
+event-map entry at0x4122e0 gives event index3, which must still pass through the
+state/action matrix. It does not directly select handler3/0x960dc. Original
+17c608 routing is checked for all40 states and33 events by
+tools/test_stock_search_dispatch.py (1320 pairs; application handlers intercepted).
+Event0x530002 in state2 selects0x960dc; event0x530004 in state26 selects0x99f80.
+The producer in0x3f17c sends0x530004 after request kind4 has run0x41b3c and wrapped
+results, when payload word8 equals1. Trace upstream construction to identify UI
+selection; do not infer click parameters from a completion handler alone.
+
+Original view reset0x47138 clears the query frame and invokes0x46d74; ordinary
+depth advance0x47598 invokes the same selector without that reset. Their UI
+callers are0x44408 and0x442f8 respectively. Descriptor extractor0x47268 reads
+the last active depth's predicate and obtains its sort through0x471c4. Its fifth
+output comes from0x471fc(view), which returns zero for view5. Do not interpret
+that auxiliary output as the getChildren flag: that downstream decision still
+requires tracing the list request consumer. The offline original-instruction
+fixture tools/test_stock_list_descriptor.py verifies both view5 depths' predicate,
+sort and zero auxiliary value. Projection initialization is outside its executed
+initializer prefix; the two raw projection-related outputs are not qualified.
 
 The UI's0xaaef8 adapter accepts13 arguments: client, cancellation context,
 domain, predicate, aggregation key, start, count, projection, sort, aggregation
@@ -883,10 +1121,21 @@ tools/test_player_composition.py builds the current Homebrew feedback ELF from
 source, applies the maintained release's error descriptor edits, and invokes
 only add_language_cache (not firmware build/pack). It then applies the owner
 anchor and verifies that every other byte matches that composite baseline.
-All17 distinct native provider guard spans, plus the owner-anchor digest, match
+All parsed native provider guard spans, plus the owner-anchor digest, match
 the constants compiled into the provider. VA-to-file mapping is derived from
 each ELF, including shifted data offsets. No language/Homebrew modification is
 replaced with a pristine image. The final anchor edit adds zero ELF bytes.
+
+The combined profile also places the16-byte Met trampoline at0x4d7ff0,
+immediately before the language payload at0x4d8000, in an already mapped slot
+which must be entirely zero. Homebrew starts at0x4d6010, so the original
+standalone trampoline at0x4d6004 would overlap it by four bytes. The composed
+profile rejects an occupied slot and adds no ELF bytes or load segments.
+The DSO accepts each profile only with its exact callsite, trampoline and
+affected native-span hashes. tools/test_player_met_dispatch.py --composed
+<analysis-elf> checks real ARM dispatch, provider binding and rejection of
+changed code/stub/image alongside the standalone profile. These are instruction
+fixtures with modeled native maintenance, not full SpiderApp execution.
 
 Output is an analysis-only ELF/report beneath work/player-composition. No UPG,
 updater, AppList change, player rename or preload installation is generated.
@@ -914,14 +1163,20 @@ before exposing the format-filter candidate as a native playlist service.
 The native reader has two additional explicit internal query kinds:
 XW_STOCK_FORMAT3_LISTS searches the local domain using the verified FORMAT3
 condition/title sort; XW_STOCK_FORMAT3_CHILDREN takes a supported local parent
-identity and reads its children using the verified item condition/CHILDINDEX
-sort. These numeric views underlie the analysis host playlist prototype; its active
+identity and reads its children with no predicate and CHILDINDEX sort, matching
+the special original view5 transition. These numeric views underlie the analysis host playlist prototype; its active
 menu event association and real playlist compatibility remain unqualified.
 
 Before reading members, the reader fetches the parent with a one-field FORMAT
 projection and reads it with the original typed enum getter0x2988f8 (kind9),
 not the int32(kind5) or uint32(kind6) getter. FORMAT is independently verified
-as key2 in the original name registry. Missing format returns UNAVAILABLE;
+as key2 in the original name registry. Before using that format, the returned
+object's canonical local identity must match the normalized requested parent;
+a mismatch returns STALE without issuing getChildren or publishing a page.
+Unused bytes after the input ID terminator do not affect this comparison.
+The58-case instruction fixture includes wrong-parent-identity rejection and
+tailed-parent acceptance, with balanced cleanup and unchanged error output.
+Missing format returns UNAVAILABLE;
 non3 format returns UNSUPPORTED; an incompatible stored type returns PROTOCOL.
 The parent media object is released before querying its children. Parent ID,
 list, each copied child and any domain handle follow existing cleanup paths;
@@ -980,6 +1235,20 @@ and no journal is created. The reviewable executable/REVIEW.md remain only under
 work/player-inspect; no player copy or execution is authorized by building them.
 Device copy/execution requires explicit authorization for this specific
 temporary diagnostic; a completed local build is not such authorization.
+
+The specifically authorized read-only run on the Japanese NW-X1060 subsequently
+completed both schema and aggregate queries against `/db/MTPDB.dat`, with
+SQLite3.6.6.2 reporting OK. The11,024-byte reviewed executable was readback-hash
+checked on verified `/contents` user storage and removed after execution. No
+personal catalog rows were requested. Structural observations include GENRE,
+ARTIST and ALBUM at prop_type1/meta_id1,2,3 (data_type115), and DURATION at
+prop_type2/meta_id12 (data_type119); ALBUMARTIST is prop_type2/meta_id38/type115.
+Observed object_type/media_type/format groups include1/0/1,2/0/0 and2/1/5.
+These database namespaces must not be confused with Moma/UI metadata keys or
+assigned codec meanings solely from numeric resemblance. Counts and raw private
+evidence remain local. This qualifies these limited schema observations on this
+unit, not controls, a production SDK session, arbitrary database compatibility,
+or sleep/USB lifecycle behavior.
 The aggregate shape helps validate real object formats; it does not by itself
 identify a playlist if the user has none or prove current playback queue order.
 
@@ -1781,10 +2050,74 @@ a rejected stop still transitions the GUI and leaves the item owned by the
 wrapper, with an invalid admission ticket. Future native control code must track
 ownership independently from command result, must not free the handed-off ID on
 UNCERTAIN, and must not blindly retry. End-to-end request completion, error
-recovery and source consumer/destructor behavior remain unqualified; native
-PLAY_ITEM remains disabled rather than claiming those guarantees.
+recovery and complete consumer/destructor behavior remain unqualified. The
+standalone native provider does not advertise PLAY_ITEM; analysis-host exposure
+uses the separately bounded adapter below without claiming these guarantees.
 
 ## Experimental source submission component
+
+The single-item factory0x283a38 creates a type2 temporary query descriptor via
+0x27f6bc, constructs a group sequence with0x282b08, prepares it with0x282c50,
+then releases its temporary descriptor. On any failure it releases the partial
+sequence and leaves output null; success transfers one sequence reference.
+tools/test_stock_source_factory.py executes the factory and original descriptor
+create/retain/release and generic group-release instructions for success,
+descriptor allocation failure, group construction failure, empty preparation
+and0x106 preparation refusal (five cases). The query and group mutexes are
+separate modeled handles, including nested destruction. Caller ID ownership
+remains balanced after releasing the successful return. Group internals,
+preparation, resource pools and ID methods remain modeled; the separate
+single-track lifetime fixture covers its constructor/prepare/callback/destructor.
+This does not qualify real database access or an entire playback transaction.
+
+tools/test_stock_source_wrapper.py executes the original single-item wrapper
+0xacc9c through native controller admission/enqueue and reference release, with
+factory success/0x2202 crossed with allocation success/failure (four cases).
+The pending descriptor is freed and cleared on each branch; failed admission
+releases a created sequence, while successful enqueue retains the message's
+reference. Factories, allocation/pools, event consumers, UI and locking primitives
+are modeled. Crucially the wrapper returns1 on all four paths, and factory
+failure can still enqueue a null source. Neither that return nor a preparation
+ticket proves source installation. The source-admission ticket is a separate
+local variable; stock_source_result.ticket only identifies the earlier
+preparation request. Public PLAY_ITEM must not report completed playback from
+these receipts. Actual track/state observation and the original failure path
+remain necessary.
+
+The real MetPlayer constructor0x27ae3c passes state records0x49a128 (eight,
+16-byte stride) and rule records0x499458 (160,20-byte stride) to0x2867e0. For
+operation1, states1/2 select0x2795f4 with allowed targets1|2; states4/8/0x10/
+0x20/0x40/0x80 select0x279554, a literal0x2603 rejection. These are internal FSM
+states, not SDK playback-state enum values. The installing action releases the
+previous sequence, retains the new sequence and chooses state2; a null source
+clears the previous sequence and chooses state1. Other states preserve the old
+sequence. tools/test_stock_source_install.py executes those original rule records,
+dispatcher, actions and retain/release instructions for all eight states with
+present/null sources (16 cases). Lookup-tree resolution and lower data/config,
+track, entry and mutex boundaries are modeled. This proves source ownership and
+state admission, not a complete asynchronous stop/install/play transaction.
+
+Internal dispatch0x286af4 resolves a state/rule pair, invokes its action and
+validates the returned next-state bitmask before committing. In the tested
+non-repeating rule shape, action result0x106 skips the commit, while another
+nonzero result can still commit a valid next state before being returned. Zero
+or multiple target bits yield0x2683; this code is not merely an allocation error.
+tools/test_stock_player_fsm.py executes the original dispatcher and mask check
+against synthetic tree/action records (five cases). It does not recover the
+real source action table. This supports the SDK rule that command failure must
+not imply unchanged playback state or trigger an automatic retry; fresh state
+observation remains necessary. The higher-level session consumer treats0x2683
+as fatal, so source installation still requires actual action-table qualification.
+
+Original service loop0x27c45c consumes queued messages through0x27bba4, passing
+the retained session, message ticket and message+0x0c payload. Operation1 attaches
+the sequence observer/context, calls player command0x27b1b8, samples state and
+releases the message-owned sequence through0x27e774 before forwarding ticket and
+result to0x276544. tools/test_stock_source_consumer.py executes this consumer and
+release for success,0x106,0x2604 and0x2202, with/without a sequence (eight cases).
+Player execution, state getters, observers, mutexes and notification are modeled;
+the fatal0x2683 path and the full player FSM remain unqualified. This narrows the
+request-lifetime gap without proving that any submitted source actually plays.
 
 stock_source.c now implements the private, non-advertised handoff component. It
 checks GUI ownership/stable phase, local-ID encoding, source readiness and exact
@@ -1792,7 +2125,8 @@ source/ID code fingerprints, creates an owned local ID and dispatches original
 0x44001d with a bounded type0 descriptor. Internal result bookkeeping separates
 attempted, moved and observed ticket. Only an untransferred ID is disposed; a
 filtered/uncertain result after ownership move cannot free the original wrapper's
-ID. The public provider command mask is unchanged: PLAY_ITEM is still unsupported.
+ID. The standalone stock provider mask is unchanged; only the analysis broker's
+optional selection adapter advertises PLAY_ITEM.
 
 The component requires the caller to first qualify the item as audio. It does
 not itself prove the media type or item existence and is not a complete arbitrary
@@ -1808,6 +2142,117 @@ original filter/FSM/descriptor/stop-wrapper code with modeled boundaries. Its
 separate output is not labeled as a GNU or original-loader qualification.
 
 ## Per-intent audio identity preflight
+
+### Analysis-host selection adapter
+
+tools/test_player_broker_system.py runs the public-header-only SDK client and
+actual broker/IPC/selection/readers as separate ARM processes inside the isolated
+generic Linux guest, linked to original Sony libc, loader, librt and LinuxThreads.
+PID1 waits for the server's readiness pipe, starts the client, then requests a
+graceful server shutdown and checks both exit statuses plus resource-cleanup
+markers. Controls, polling changes, asynchronous metadata, catalog/list/member
+pages, revision refusal and explicit selection polling pass. The server asserts
+one submission. Fixture synchronization uses original-initialized opaque mutex
+storage rather than modern pthread structure/static-initializer assumptions.
+tools/player_arm_guest.py shares the pinned libraries/kernel, RAM initramfs and
+no-NIC/no-disk guest setup with the standalone worker test. Native player/media/
+GUI responses and eventual audio playback remain modeled; this still does not
+boot SpiderApp or qualify Sony kernel/APF/sleep/USB/hardware behavior.
+
+tools/test_player_worker_system.py runs the production intent, audio preflight
+and metadata worker in an isolated ARM926/Linux2.6.32 guest with the exact original
+Sony libc2.3.3, loader and LinuxThreads0.10. It creates the detached worker using
+original attributes/condition/mutex APIs, replaces a blocked intent, cancels an
+in-flight read, refuses modeled video, revokes on source loss and drains/destroys
+the worker with balanced clients. The child exits successfully; this goes beyond
+the host pthread/Win32 surfaces and original primitive-only smoke tests. The
+guest has no external NIC, stock device nodes or attached disks. Media objects,
+GUI and submission are modeled. Its generic kernel is not Sony's kernel; it does
+not boot SpiderApp or establish APF, audio, sleep/USB or physical qualification.
+
+source_service.c/.h translate explicit broker commands into local intent
+generations. Pending identical item/revision commands reuse a generation; a
+different item/revision replaces it. After admission, a further explicit command
+is a new intent. No owner tick, validation worker or IPC transport silently retries
+the selection. host_source.c obtains the already-bound GUI from the verified
+owner anchor and attaches the adapter to the broker. Core-only builds retain
+inert weak hooks. The full analysis host source list includes this wiring; no
+firmware/package or installed device was changed. A connected client negotiates
+the command mask at bind time and must rebind if attachment occurred later.
+
+The broker advertises PLAY_ITEM only after attachment, refuses container
+selection and mismatched nonzero revisions, and revokes pending selection on
+clock/source loss. Busy revocation is completed before another selection can
+submit. Host-level clock failure explicitly invalidates the broker before
+returning. Close waits for the adapter's worker to drain and preserves the
+original backend lifetime. Metadata, browsing and close also enforce broker
+owner affinity before accessing native state.
+
+All backend snapshot reads share failure invalidation, including the snapshot
+endpoint, revision checks before selection and the catalog-browse fallback.
+Errors other than BUSY revoke metadata, library/queue observations and pending
+selection; busy revocation is retained until the adapter acknowledges it. A
+transient BUSY does not revoke selection/queue intent. The public poll call
+preserves caller outputs on error but resets its comparison history, so recovery
+reports AVAILABLE and fresh field changes. Broker fixtures check failure output
+atomicity, stale-cache refusal, real worker recovery, source revocation/recovery
+and explicit retry only after pending revocation completes.
+
+tools/test_player_broker_source.py exercises SDK command routing and lifecycle;
+tools/test_source_service.py executes the service/intent composition;
+tools/test_player_host_source.py checks owner GUI registration/attachment and
+compiles all three host C modules for ARM. The existing broker and owner-service
+regressions pass on Windows too. The updated full GNU DSO links against the
+original libraries;12 offline suites pass, including sanitizer-backed host
+threads/IPC, original-loader PID interposition and emulated original anchor/provider
+binding. The final DSO hash matches the loader-tested build after fixing the
+assembly STT_FILE name (metadata only). Project player headers are included in
+the build input hashes. These tests retain their modeled boundaries: the stock
+app has not booted with the full service and physical operation remains
+unqualified. This is not a usable installed service or end-to-end playback acceptance.
+
+tools/test_player_broker_rpc.py --source joins the public-header-only client,
+actual local IPC, broker, source_service/source_intent and real validation worker
+in separate host processes under ASan/UBSan. It verifies negotiated PLAY_ITEM,
+revision refusal, initial BUSY followed by explicit polling, a single submission,
+and later target-ID/PLAYING observation with refreshed metadata. The server asserts
+exactly one native-boundary submission and balanced shutdown. GUI, native audio
+validation and delayed playback application are modeled. The default and
+--native-queue profiles are separate regressions; do not combine the two boundary
+profiles or treat their generated rows as Sony playlist compatibility evidence.
+
+source_intent.c/.h compose that worker with stock_source_submit on the GUI owner.
+The caller supplies a strictly increasing local intent generation, independent
+of transport protocol and catalog revision. Worker completion alone never issues
+a command: explicit owner polling must observe the validated identity and stable
+GUI before submission. A terminal attempt caches its native receipt/result;
+same-generation polls, including UNCERTAIN, cannot replay it. Changing an ID under
+the same generation is invalid; superseded or cancelled generations are stale.
+Source loss requires a new generation, and clock regression revokes pending work.
+Pending/error argument paths do not overwrite the caller's receipt; a terminal
+validation refusal supplies an empty receipt. Cancellation does not undo an
+already submitted original request. Stop/drain/destroy the embedded worker before
+freeing its owner structure or GUI binding. This private component is included
+in the analysis host source list; source_service and host_source attach it to the
+broker and extend that broker's negotiated mask only after successful attachment.
+
+xw_source_intent_check_target reads a fresh player snapshot for the current
+submitted intent. It reports OK only when both TRACK/STATE are valid and the
+target identity is currently PLAYING. A different track or paused/stopped target
+returns BUSY; unknown fields or snapshot failures are not success. No success is
+cached, and pending/cancelled/obsolete requests cannot use it to bypass admission.
+This is an observation that the desired state is present, not proof of request
+causality or a restart: the same song may already have been playing. It does not
+promote a preparation ticket or wrapper return into playback completion.
+
+tools/test_source_intent.py checks composition and ARM compilation with modeled
+boundaries. tools/test_source_intent_async.py runs the actual coordinator and
+validation worker with real host threads: blocked obsolete/cancelled reads cannot
+submit, source loss prevents late submission, uncertain receipts do not replay,
+video refusal propagates, worker threads cannot submit and client counts balance
+before submission and after drain. Native media/GUI operations remain modeled;
+Windows uses the test-only Win32 pthread surface without sanitizers. Neither
+test qualifies the original Sony thread ABI or complete stop/install/play cycle.
 
 stock_media_validate_audio now projects only OBJECT_TYPE0 and MEDIA_TYPE1 through
 the original enum getter, verifies the returned canonical object identity matches
@@ -1837,5 +2282,118 @@ fresh validation for repeated IDs under a new intent, source loss, cancellation,
 client drain and wrong-thread refusal before any native readiness call. No title
 reader or GUI command is used. Native instruction cases remain separate evidence
 from the Win32-thread-surface host tests. Both preflight and source submission
-remain internal; PLAY_ITEM is still not exposed until complete integration and
-recovery qualification.
+remain internal helpers. The analysis-host broker can expose the optional
+PLAY_ITEM adapter; this is not an installed or hardware-qualified service.
+
+## Stopping an SDK service without exiting Sony playback
+
+The private owner-side `xw_player_host_service_stop()` starts the ordinary SDK
+drain while borrowing the still-running Sony backend. BUSY is not completion:
+the caller continues owner dispatch until the phase is STOPPED. Sessions,
+channels, metadata/catalog workers and broker providers must retire before a
+new offer is accepted. A later offer requires a strictly newer generation;
+native-exit continuations, faults and retained resources cannot be reset into
+an apparently free workspace. STOPPED dispatch skips broker work and clock reads.
+
+This entry does not stop RF or certify hardware power-off. A registered native
+exit dependency makes it return UNSUPPORTED unless the trusted manager also
+registers a generation-scoped ordinary-stop contract with
+`xw_player_host_stop_dependency()`. That contract must cover complete external
+retirement. It is polled after the SDK drain: BUSY keeps STOPPING, a failure
+latches FAULT, and only0 permits STOPPED/rearm. Native prepare still requires
+its separately qualified epoch contract; a generation poll cannot replace it.
+A remote Settings integration must supply actual radio shutdown/receipt and
+power-off behavior; these callbacks alone are not the complete switch.
+
+`tools/test_player_service_drain.py --host-wrapper --user-toggle` exercises four
+stop cycles, fresh-generation reoffers and successful commands after reopening.
+The ordinary-stop callback stays BUSY for three polls before confirming release.
+After each drain,1000 owner-dispatch calls leave native-handle open counts
+unchanged and balanced. It runs host sanitizers and the actual ARM code with
+Sony LinuxThreads/libc; native media/playback are modeled. This is lifecycle
+evidence, not physical power or sleep/wake qualification.
+`--user-stop-fault` instead rejects the external retirement, checks that FAULT
+remains latched across1000 ticks, and refuses another offer while Sony playback
+remains initialized. No callback failure is relabeled as successful closure.
+
+## Private Settings requests
+
+The opt-in native-remote-settings host recognizes the separately fingerprinted
+menu request anchor only after original-owner binding and outside reentry.
+`xw_player_host_settings_bind()` registers a bounded, nonblocking trusted backend;
+an unbound host returns UNAVAILABLE and does not start a worker or radio.
+`xw_player_host_settings_enqueue()` admits one pending request and returns
+ACCEPTED, never a claim that radio startup succeeded. The backend receives a
+monotonic request serial on a later owner dispatch, once only. Duplicate queued
+requests, wrong-thread calls and unbinding while pending/in-callback are refused.
+The result API reports backend delivery outcome for a known serial, not on/off
+or RF readiness. Stale queries preserve the caller's output. Native exit cancels
+an undelivered request with CLOSED and prevents later admission; it does not
+replace the backend's separate owned-resource drain contract.
+
+The settings-requests variant of test_player_service_drain.py executes this
+actual queue with a modeled backend, a foreign-owner probe thread and original
+Sony LinuxThreads/libc. It checks delayed single delivery, backend error
+propagation, idle dispatch, reentry, stale receipt and native-exit cancellation.
+No media/catalog worker or radio starts in that variant. The native anchor test
+and stock-loader bootstrap are separate evidence; full native GUI and the actual
+owner-launch backend are not qualified by these checks.
+
+The native remote supervisor now has an explicit `--delivery-fd` adoption path
+for an already-running player's trusted SDK grant. It validates a connected
+AF_UNIX datagram socket, receives the existing descriptor protocol, and requires
+the configured generation and exact READ/CONTROL grants before starting children.
+Metadata alone is not authorization: the trusted manager must construct/deliver
+this capability and own launch/exit cleanup. This path does not restart the
+player or create a named startup rendezvous. It still uses a private pinned
+service/owner/config profile, not arbitrary external paths or environment-based
+discovery. Session/profile generation and actual native RF admission remain the
+launch backend's responsibility.
+
+The direct-delivery supervisor fixture executes actual SCM transfer, SDK host,
+remote service and supervisor in an ARM guest; player/media and RF are models.
+It completes metadata/control and managed retirement. Wrong-generation and
+excess-grant variants close the adopted stream before starting either service
+or radio-owner child, and the original SDK host closes the rejected session.
+The old startup-rendezvous chain also passes separately. This establishes the
+transport needed by a Settings launch backend, not its production registration
+or complete original-player/hardware operation.
+
+The private `supervisor_process` application component now provides the actual
+parent launch/reap primitive for that transport. Admission must be bounded and
+use an already-qualified immutable executable/profile and native RF/USB lease;
+there is no permissive default policy. Its fixed root path is not installed by
+the tests. A successful start means a child exists, not that remote RF is ready.
+The trusted SDK caller borrows its delivery FD for one grant, then explicitly
+closes that capability. Descriptor identity checks prevent closing a reused FD.
+The child execs with an explicit environment and closes unrelated inherited
+descriptors. Parent polling is bounded, with a512-byte in-memory log tail and
+WNOHANG reaping. Faults stay faults even after a child is reaped; no kill deadline
+or automatic rearm is supplied. The real-player fork/atfork/SIGCHLD context and
+touch latency still require qualification before a production backend can bind.
+
+The concrete `wireless-remote/settings_backend.c` now connects the Settings
+queue, optional bounded owner-loop polling, supervisor process and SDK offer.
+It requires a separate read-only wireless-mode callback: only an existing
+ESP-NOW selection permits launch. It never selects the mode. User stop uses an
+independent cooperative control socket through the supervisor to the service,
+keeping the player channel alive for its normal close receipt. After the service
+and radio owner retire, the parent reaps the supervisor and drains the SDK broker.
+The process captures bounded RAM logs and the existing stop/native dependency
+contracts retain uncertain ownership.
+
+The settings-backend ARM chain executes these actual components with modeled
+media/RF and mode/admission callbacks. It verifies denied launch, metadata and
+one NEXT command, stop/reap/worker cleanup with the original backend alive, an
+early stop and a modeled mode change away from ESP-NOW. A live LinuxThreads
+probe exists before fork; this is not complete vendor SpiderApp atfork/signal
+qualification. The profile remains finite and pinned: another launch requires a
+fresh prepared generation/config, not silent reuse. It is compiled in the opt-in
+host but is not automatically bound to the installed GUI.
+
+These user-stop checks do not qualify native prepare. Native prepare may close
+the player channel before the remote client obtains a close receipt; verified
+retirement/error reporting and actual sleep/USB/app-switch behavior still need
+separate completion. No current backend result should be promoted to proof of
+physical RF state or production mode arbitration. See [wireless modes](WIRELESS.md)
+for the system/consumer boundary and remaining native menu work.

@@ -6,6 +6,11 @@
  * same DSO. One bounded, nonblocking tick on the original GUI owner thread.
  * The default weak implementation is deliberately inert. */
 void xw_player_host_dispatch(struct xw_player *);
+struct xw_stock_gui;
+struct xw_player_broker;
+/* Optional selection bridge; weak defaults remain inert in the core anchor. */
+void xw_player_host_source_gui(struct xw_stock_gui *);
+int xw_player_host_source_attach(struct xw_player_broker *);
 /* Called only from the separately verified Met anchor. The service adapter
  * selects the proper owner using list/session identity, not first arrival.
  * Weak default is inert; this does not itself bind a queue provider. */
@@ -13,4 +18,9 @@ void xw_player_host_met_dispatch(uint32_t session,uint32_t cancel,uint32_t sessi
 /* Private loader diagnostics, not public SDK services. */
 int xw_player_host_pid_resolved(void);
 int xw_player_host_anchor_ready(void);
+#ifdef XW_PLAYER_NATIVE_WIRELESS_SETTINGS
+struct xw_wireless_mode_policy;
+/* Private trusted same-owner binding. Does not create or bootstrap authority. */
+int xw_player_host_wireless_bind(struct xw_wireless_mode_policy *);
+#endif
 #endif

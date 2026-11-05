@@ -13,12 +13,22 @@ static int parameter_memory=-1;
 extern int guest_ftruncate(int,long) __asm__("ftruncate");
 #endif
 static int usb=-1,pm=-1,pm_writer=-1,power=-1,power_writer=-1,cradle=-1,cradle_writer=-1,cradle_enabled;
+#ifdef HB_INTERDSP_OPEN_PROBE
+/* Diagnostic handle only. Every DSP request fails; no DSP success is modeled. */
+static int dsp_probe=-1;
+static unsigned dsp_setup_seen,dsp_task_seen,dsp_read_seen;
+#endif
 /* F_SETFD has no time structure; bind the stock symbol explicitly. */
 extern int guest_fcntl(int,int,...) __asm__("fcntl");
 static void note(const char *path){char line[200];int n=snprintf(line,sizeof line,"MANAGER_DEVICE OPEN %s\n",path);write(2,line,n);}
 static int open_device(const char *path,int flags,unsigned mode,const char *symbol){
  int (*real_open)(const char *,int,...)=dlsym(RTLD_NEXT,symbol);
  if(!strncmp(path,"/dev/",5))note(path);
+#ifdef HB_INTERDSP_OPEN_PROBE
+ if(!strcmp(path,"/dev/InterDSP/control")){
+  dsp_probe=real_open("/dev/null",flags,mode);return dsp_probe;
+ }
+#endif
 #ifdef HB_OMF_PARAM_RAM
  if(!strcmp(path,"/dev/mem")){
   parameter_memory=real_open("/tmp/omf-parameter-page",O_RDWR|O_CREAT,0600);
@@ -62,6 +72,19 @@ void *guest_mmap(void *address,size_t length,int prot,int flags,int fd,long offs
 }
 #endif
 int ioctl(int fd,unsigned long command,void *value){
+#ifdef HB_INTERDSP_OPEN_PROBE
+ if(fd==dsp_probe){
+  char line[100];int n=snprintf(line,sizeof line,"MANAGER_DEVICE DSP_PROBE_REJECT_IOCTL %08lx\n",command);write(2,line,n);
+  unsigned *seen=command==0x40184411?&dsp_setup_seen:command==0xc0084413?&dsp_task_seen:command==0x80184401?&dsp_read_seen:0;
+  if(seen&&(*seen)++<16&&value){
+   /* These three pinned stock ABI requests have 24/8/24-byte arguments.
+    * Capture input words only, never dereference nested DSP buffer pointers. */
+   unsigned words[6]={0};memcpy(words,value,command==0xc0084413?8:24);
+   char detail[180];int count=snprintf(detail,sizeof detail,"MANAGER_DEVICE DSP_PROBE_ARGS %08lx %08x %08x %08x %08x %08x %08x\n",command,words[0],words[1],words[2],words[3],words[4],words[5]);write(2,detail,count);
+  }
+  errno=EOPNOTSUPP;return -1;
+ }
+#endif
  if(fd==cradle){
   char line[100];int n=snprintf(line,sizeof line,"MANAGER_DEVICE CRADLE_IOCTL %08lx\n",command);write(2,line,n);
   if(command==0x6303){cradle_enabled=1;return 0;}
@@ -90,6 +113,9 @@ int ioctl(int fd,unsigned long command,void *value){
  int (*real_ioctl)(int,unsigned long,void *)=dlsym(RTLD_NEXT,"ioctl");return real_ioctl(fd,command,value);
 }
 int close(int fd){int (*real_close)(int)=dlsym(RTLD_NEXT,"close");if(fd==usb)usb=-1;if(fd==pm){pm=-1;real_close(pm_writer);pm_writer=-1;}if(fd==power){power=-1;real_close(power_writer);power_writer=-1;}if(fd==cradle){cradle=-1;real_close(cradle_writer);cradle_writer=-1;cradle_enabled=0;}
+#ifdef HB_INTERDSP_OPEN_PROBE
+ if(fd==dsp_probe)dsp_probe=-1;
+#endif
 #ifdef HB_OMF_PARAM_RAM
  if(fd==parameter_memory)parameter_memory=-1;
 #endif

@@ -18,6 +18,13 @@ extern int hb_arm_selftest(void);
 static int eq(const char*a,const char*b){while(*a&&*a==*b){a++;b++;}return *a==*b;}
 static unsigned length(const char*s){unsigned n=0;while(s[n])n++;return n;}
 static void logtext(int fd,const char*s){unsigned n=length(s);while(n){long r=hb_file_write(fd,s,n);if(r<=0)return;s+=r;n-=(unsigned)r;}}
+#ifdef HB_LAUNCHER_ENTRY_TRACE
+/* Explicit diagnostic builds only. Never open a log or retain a storage FD.
+ * An external reviewed supervisor must capture stderr if persistence is needed. */
+#define ENTRY_TRACE(stage) logtext(2,"[X1-LAUNCH-ENTRY] " stage "\n")
+#else
+#define ENTRY_TRACE(stage) ((void)0)
+#endif
 static volatile int stop_requested;
 static struct hb_catalog catalog;
 static unsigned short canvas[240*432];
@@ -63,17 +70,25 @@ static int native_session(const char *root, char **environment,struct hb_home_ke
  struct hb_frontend state;
  int pressed=0, cancel=0, startx=0, starty=0, lastx=0, lasty=0;
  const char *message="";
- if(hb_stop_signals_install(&stop_requested))return 2;
+ ENTRY_TRACE("signals.begin");
+ if(hb_stop_signals_install(&stop_requested)){ENTRY_TRACE("signals.failed");return 2;}
+ ENTRY_TRACE("catalog.begin");
  hb_catalog_scan(&catalog,root,&stop_requested);
+ ENTRY_TRACE("catalog.end");
  if(stop_requested)return 0;
  hb_frontend_init(&state,catalog.count);
+ ENTRY_TRACE("devices.begin");
  if(hb_devices_open(&devices,canvas,HB_DISPLAY_PIXELS,&stop_requested)) {
+  ENTRY_TRACE("devices.failed");
   if(stop_requested)return 0;
   logtext(2,"Unsupported or unavailable X1000 display/touch profile\n");return 2;
  }
+ ENTRY_TRACE("devices.ready");
  if(stop_requested)return hb_devices_close(&devices)<0?2:0;
  if(catalog.rejected)message="SOME APPS UNAVAILABLE";
- draw(&state,message);hb_devices_present(&devices);
+ ENTRY_TRACE("draw.begin");
+ draw(&state,message);ENTRY_TRACE("draw.end");hb_devices_present(&devices);
+ ENTRY_TRACE("present.end");
  while(!stop_requested&&!devices.failed) {
   poll_home(home,&stop_requested);
   hb_devices_flush(&devices);
@@ -124,12 +139,16 @@ static int native_session(const char *root, char **environment,struct hb_home_ke
  return stop_requested?0:2;
 }
 static int native(const char *root,char **environment) {
+ ENTRY_TRACE("native.begin");
  struct hb_home_key home;hb_home_key_open(&home);
+ ENTRY_TRACE("home.open.end");
  int result=native_session(root,environment,&home);
+ ENTRY_TRACE("session.end");
  if(hb_home_key_close(&home)<0)return 2;
  return result;
 }
 int hb_main(int argc,char **argv,char **environment) {
+ ENTRY_TRACE("main.begin");
  const char *root=argc>2?argv[2]:"/contents/HOMEBREW/apps";
  if(argc==1&&eq(argv[0],"/contents/HOMEBREW/launcher/app"))return native(root,environment);
  #ifdef HB_MANAGED_RADIO_REVIEW

@@ -11,6 +11,17 @@
 extern int handoff_fcntl(int,int,...) __asm__("fcntl");
 static int pipe_identity(struct xnow_handoff *h,int fd){struct stat s;return fd>=0&&!fstat(fd,&s)&&S_ISFIFO(s.st_mode)&&(uint64_t)s.st_dev==h->device&&(uint64_t)s.st_ino==h->inode;}
 static uint32_t get32(const uint8_t *p){return p[0]|((uint32_t)p[1]<<8)|((uint32_t)p[2]<<16)|((uint32_t)p[3]<<24);}
+int xnow_handoff_adopt_reader(struct xnow_handoff *h,int reader,const uint8_t cookie[16]){
+ if(!h||!cookie||h->pid||h->armed||h->done||h->fault||h->used||reader<3)return XNOW_ARGUMENT;
+ unsigned any=0;for(unsigned i=0;i<16;i++)any|=cookie[i];if(!any)return XNOW_ARGUMENT;
+ struct stat st;int flags=handoff_fcntl(reader,F_GETFL);
+ if(flags<0||(flags&O_ACCMODE)!=O_RDONLY||!(flags&O_NONBLOCK)||fstat(reader,&st)||!S_ISFIFO(st.st_mode))return XNOW_IDENTITY;
+ int copy=handoff_fcntl(reader,F_DUPFD,3);if(copy<0)return XNOW_IO;
+ if(handoff_fcntl(copy,F_SETFD,FD_CLOEXEC)<0){close(copy);return XNOW_IO;}
+ uint8_t token[16];memcpy(token,cookie,16);
+ memset(h,0,sizeof *h);h->reader=copy;h->writer=-1;h->pid=(int)getpid();h->armed=1;
+ h->device=st.st_dev;h->inode=st.st_ino;memcpy(h->cookie,token,16);close(reader);return 0;
+}
 int xnow_handoff_create(struct xnow_handoff *h,const uint8_t cookie[16]){
  if(!h||!cookie)return XNOW_ARGUMENT;
  unsigned any=0;for(unsigned i=0;i<16;i++)any|=cookie[i];if(!any)return XNOW_ARGUMENT;

@@ -27,6 +27,23 @@ int main(int argc,char **argv){
  q.view=XW_MEDIA_PLAYLISTS;assert(!browse_wait(&q,rows,&page)&&page.count==1&&!strcmp(rows[0].title,"Modeled playlist"));
  q.container=rows[0].id;q.view=XW_MEDIA_PLAYLIST_TRACKS;assert(!browse_wait(&q,rows,&page)&&page.count==3&&!strcmp(rows[0].title,"Library 1"));
  memcpy(saved,rows,sizeof rows);prior=page;q.expected_revision=99;assert(xw_media_browse(&player,&q,rows,16,&page)==XW_PLAYER_STALE&&!memcmp(saved,rows,sizeof rows)&&!memcmp(&prior,&page,sizeof page));
+#ifdef XW_TEST_SOURCE
+ assert(player.provider.commands&(1u<<XW_OP_PLAY_ITEM));send_command(XW_OP_PAUSE,0);
+ struct xw_player_command select={0};select.operation=XW_OP_PLAY_ITEM;select.item=rows[2].id;select.expected_revision=99;
+ assert(xw_player_command(&player,&select)==XW_PLAYER_STALE);select.expected_revision=0;
+ assert(xw_player_command(&player,&select)==XW_PLAYER_BUSY);
+ int selected=XW_PLAYER_BUSY;
+ for(unsigned i=0;i<2000&&(selected==XW_PLAYER_BUSY||selected==XW_PLAYER_UNAVAILABLE);i++){poll(0,0,1);selected=xw_player_command(&player,&select);}
+ assert(selected==XW_PLAYER_ACCEPTED);
+ unsigned reached=0;
+ for(unsigned i=0;i<2000;i++){
+  assert(!xw_player_poll(&player,&state,&changed));
+  if((state.valid&(XW_PF_STATE|XW_PF_TRACK))==(XW_PF_STATE|XW_PF_TRACK)&&state.state==XW_PLAY_PLAYING&&!strcmp(state.track.id.value,select.item.value)){reached=1;break;}
+  poll(0,0,1);
+ }
+ assert(reached);metadata_wait("Song 3 猫");
+ puts("Selection pipeline: negotiated capability, stale revision refusal, pending validation, one native submission and observed target playback passed");
+#endif
  q.view=XW_MEDIA_QUEUE;q.expected_revision=0;
 #ifdef XW_TEST_NATIVE_QUEUE
  memset(&q.container,0,sizeof q.container);q.limit=2;q.offset=0;

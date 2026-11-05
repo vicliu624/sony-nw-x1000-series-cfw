@@ -31,7 +31,7 @@ assert named_key('MOMA_LC_METADATA_KEY_TITLE_INITIAL')==0xfe130002
 assert named_key('MOMA_LC_METADATA_KEY_TITLE_SORTSTR')==0xfe130003
 helper=artifact.read_bytes();elf=ELFFile(io.BytesIO(helper));symbols={s.name:s['st_value'] for s in elf.get_section_by_name('.symtab').iter_symbols()}
 cases=[]
-for scenario in ('probe-audio','probe-video','probe-nonmedia','probe-missing-field','probe-unwritten-type','probe-wrong-scalar','probe-wrong-id','probe-missing-object','snapshot-page','snapshot-page-child','snapshot-page-empty','snapshot-page-full','snapshot-page-error','snapshot-search','snapshot-domainall','snapshot-child','snapshot-bad-query','snapshot-bad-parent','snapshot-eof','snapshot-error','snapshot-domain-failure','invalid-id','invalid-parent','format3-lists','format3-children','format3-wrong-parent','format3-missing-parent','format3-malformed','tracks','tracks-domain-failure','tracks-error','tracks-malformed','tracks-full','children','children-empty','children-error','children-malformed','children-full','utf16','utf8','missing-artist','truncated','malformed','oversized','repeat','inactive','invalid-token','missing-manager','connect-failure','client-allocation','id-allocation','query-failure','wrong-image','changed-code'):
+for scenario in ('metadata-wrong-id','metadata-missing-object','probe-audio','probe-video','probe-nonmedia','probe-missing-field','probe-unwritten-type','probe-wrong-scalar','probe-wrong-id','probe-missing-object','snapshot-page','snapshot-page-child','snapshot-page-empty','snapshot-page-full','snapshot-page-error','snapshot-search','snapshot-domainall','snapshot-child','snapshot-bad-query','snapshot-bad-parent','snapshot-eof','snapshot-error','snapshot-domain-failure','invalid-id','invalid-parent','format3-lists','format3-children','format3-wrong-parent-id','format3-parent-tail','format3-wrong-parent','format3-missing-parent','format3-malformed','tracks','tracks-domain-failure','tracks-error','tracks-malformed','tracks-full','children','children-empty','children-error','children-malformed','children-full','utf16','utf8','missing-artist','truncated','malformed','oversized','repeat','inactive','invalid-token','missing-manager','connect-failure','client-allocation','id-allocation','query-failure','wrong-image','changed-code'):
  u=Uc(UC_ARCH_ARM,UC_MODE_ARM)
  for raw in (stock,helper):
   for segment in ELFFile(io.BytesIO(raw)).iter_segments():
@@ -89,6 +89,8 @@ for scenario in ('probe-audio','probe-video','probe-nonmedia','probe-missing-fie
   if pc==0x299648:
    assert uc.reg_read(UC_ARM_REG_R0)==search_domain and domain_live[0] and not list_live[0];domain_live[0]=0;finish();return
   if pc==callback+4:
+   assert scenario!='format3-wrong-parent-id' # Reject before any member query.
+   if scenario.startswith('format3-'):put(child_impl+8,0x124)
    frame=uc.reg_read(UC_ARM_REG_SP)
    assert live['guard'] and uc.reg_read(UC_ARM_REG_R0)==plugin and uc.reg_read(UC_ARM_REG_R3)==(search_domain if scenario.startswith('tracks') or scenario=='format3-lists' or (scenario.startswith('snapshot-') and scenario not in ('snapshot-child','snapshot-page-child','snapshot-bad-parent')) else native_id)
    if scenario.startswith('snapshot-'):
@@ -100,7 +102,9 @@ for scenario in ('probe-audio','probe-video','probe-nonmedia','probe-missing-fie
     root=get(frame);assert get(root)==9 and get(root+4)==0xffffffff
     sort=get(frame+16);assert get(sort+4)==3 and struct.unpack('<6I',uc.mem_read(get(sort),24))==(0xfe130002,0,0xfe130003,0,9,0)
    elif scenario.startswith('format3-'):
-    root=get(frame);assert struct.unpack('<5I',uc.mem_read(root,20))==(1,2 if scenario=='format3-lists' else 0,9,0,3 if scenario=='format3-lists' else 0)
+    root=get(frame)
+    if scenario=='format3-lists':assert struct.unpack('<5I',uc.mem_read(root,20))==(1,2,9,0,3)
+    else:assert root==0 # Original view5 member transition submits no predicate.
     sort=get(frame+16)
     if scenario=='format3-lists':assert get(sort+4)==3 and struct.unpack('<6I',uc.mem_read(get(sort),24))==(0xfe130002,0,0xfe130003,0,9,0)
     else:assert get(sort+4)==1 and struct.unpack('<2I',uc.mem_read(get(sort),8))==(0x22,0)
@@ -123,8 +127,9 @@ for scenario in ('probe-audio','probe-video','probe-nonmedia','probe-missing-fie
    assert live['guard'] and uc.reg_read(UC_ARM_REG_R0)==plugin and uc.reg_read(UC_ARM_REG_R2)==native_id;queries.append(pc)
    if scenario.startswith('probe-'):
     projection=uc.reg_read(UC_ARM_REG_R3);assert get(projection+4)==2 and struct.unpack('<2I',uc.mem_read(get(projection),8))==(0,1)
-   if scenario=='probe-missing-object':finish(0x2202);return
+   if scenario in ('probe-missing-object','metadata-missing-object'):finish(0x2202);return
    if scenario=='query-failure':finish(0x210d);return
+   if scenario.startswith('format3-'):put(child_impl+8,0x124 if scenario=='format3-wrong-parent-id' else 0x123)
    assert not live['object'];live['object']=1;put(get(uc.reg_read(UC_ARM_REG_SP)),object_);finish();return
   if pc==0x29672c:assert live['guard'];live['guard']=0;finish();return
   if pc==0x2988f8 and scenario=='probe-unwritten-type' and uc.reg_read(UC_ARM_REG_R1)==0:finish();return
@@ -228,8 +233,9 @@ for scenario in ('probe-audio','probe-video','probe-nonmedia','probe-missing-fie
   put(query+72,3);put(query+68,0x7fffffff);assert call('xw_stock_media_children',context,query,page_out)==-1
   put(query+68,7)
   if scenario=='invalid-parent':u.mem_write(query,b'invalid\0')
+  if scenario=='format3-parent-tail':u.mem_write(query+64,b'x')
   rc=call('xw_stock_media_children',context,query,page_out)
-  expected=-1 if scenario=='invalid-parent' else -3 if scenario=='format3-wrong-parent' else -2 if scenario in ('tracks-domain-failure','format3-missing-parent') else -4 if scenario in ('children-error','tracks-error') else -8 if scenario in ('children-malformed','tracks-malformed','format3-malformed') else 0
+  expected=-1 if scenario=='invalid-parent' else -5 if scenario=='format3-wrong-parent-id' else -3 if scenario=='format3-wrong-parent' else -2 if scenario in ('tracks-domain-failure','format3-missing-parent') else -4 if scenario in ('children-error','tracks-error') else -8 if scenario in ('children-malformed','tracks-malformed','format3-malformed') else 0
   assert rc==expected,(scenario,rc)
   if rc:assert bytes(u.mem_read(page_out,844*16+8))==b'\x5a'*(844*16+8)
   else:
@@ -241,11 +247,12 @@ for scenario in ('probe-audio','probe-video','probe-nonmedia','probe-missing-fie
   assert not list_live[0] and not domain_live[0] and live=={'client':1,'id':0,'object':0,'guard':0}
   assert call('xw_stock_media_close',context)==0 and manager_refs[0]==1
   cases.append(dict(case=scenario,result=rc,emitted=emitted[0],balanced=True));continue
+ put(child_impl+8,0x124 if scenario=='metadata-wrong-id' else 0x123)
  assert call('xw_stock_media_fetch',context,identity,out)==-4 and not queries
  put(symbols['xw_test_thread'],18)
  for _ in range(100 if scenario=='repeat' else 1):
   rc=call('xw_stock_media_fetch',context,identity,out)
-  expected=-8 if scenario in ('malformed','oversized') else -2 if scenario in ('id-allocation','query-failure') else 0
+  expected=-8 if scenario in ('malformed','oversized') else -5 if scenario=='metadata-wrong-id' else -2 if scenario in ('id-allocation','query-failure','metadata-missing-object') else 0
   assert rc==expected,(scenario,rc)
   if rc:assert bytes(u.mem_read(out,844))==b'\x5a'*844
   else:

@@ -1,7 +1,10 @@
 """Read-only Japanese X1000 1.11 UPG inspection. No device access."""
 import hashlib
 import struct
-from Crypto.Cipher import DES
+if __package__:
+    from .upg_crypto import decrypt_verified
+else:
+    from upg_crypto import decrypt_verified
 
 KEY = b"466c8cd0"
 SIGNATURE = b"daefe603"
@@ -12,8 +15,7 @@ def unpack(data, require_stock=True):
         raise ValueError("Invalid container size")
     if hashlib.md5(data[16:]).digest() != data[:16]:
         raise ValueError("UPG MD5 mismatch")
-    cipher = DES.new(KEY, DES.MODE_ECB)
-    header = cipher.decrypt(data[16:64])
+    header = decrypt_verified(data[16:64], KEY)
     if struct.unpack_from("<8sII", header) != (SIGNATURE, 4, 0):
         raise ValueError("Not the Japanese X1000 four-component header")
     entries = [struct.unpack_from("<II", header, 16 + i * 8) for i in range(4)]
@@ -26,4 +28,4 @@ def unpack(data, require_stock=True):
             raise ValueError("Truncated component")
     if require_stock and hashlib.sha256(data).hexdigest() != STOCK_SHA256:
         raise ValueError("Input is not the pinned Sony Japanese 1.11 UPG")
-    return entries, [cipher.decrypt(data[o:o + ((n + 7) & ~7)])[:n] for o, n in entries]
+    return entries, [decrypt_verified(data[o:o + ((n + 7) & ~7)], KEY)[:n] for o, n in entries]

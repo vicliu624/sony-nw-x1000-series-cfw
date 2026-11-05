@@ -17,6 +17,9 @@ int xw_stock_info_bind(struct xw_stock_info *);
 /* GUI owner only. Copies controller service-list identity and session number;
  * no reference or pointer ownership is transferred. */
 int xw_stock_info_session_key(struct xw_stock_info *,struct xw_stock_session_key *);
+/* Leaves output unchanged on failure. An observed controller/service/session
+ * replacement during the read returns BUSY after releasing the owned snapshot.
+ * This consistency check does not replace the host's native lifetime guard. */
 int xw_stock_info_read(struct xw_stock_info *,struct xw_stock_info_view *);
 int xw_stock_info_unbind(struct xw_stock_info *);
 #endif

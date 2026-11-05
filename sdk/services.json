@@ -511,6 +511,13 @@
         "espnow_full_control.h": "runtime/platform/espnow/xnow_full_control.h"
       }
     },
+    "espnow-client": {
+      "sources": ["runtime/platform/espnow/xnow_client.c"],
+      "requires": ["abi"],
+      "exports": {
+        "espnow_client.h": "runtime/platform/espnow/xnow_client.h"
+      }
+    },
     "player-client": {
       "sources": [
         "runtime/platform/player/client.c",
@@ -526,6 +533,20 @@
       "exports": {
         "player.h": "runtime/platform/player/provider.h",
         "player_remote.h": "runtime/platform/player/rpc_posix.h"
+      }
+    },
+    "player-managed-client": {
+      "sources": [
+        "runtime/platform/player/managed_client.c",
+        "runtime/platform/player/managed_remote.c",
+        "runtime/platform/player/managed_codec.c",
+        "runtime/platform/player/managed_clock.c"
+      ],
+      "requires": [
+        "player-client"
+      ],
+      "exports": {
+        "player_managed.h": "runtime/platform/player/managed_client.h"
       }
     }
   }

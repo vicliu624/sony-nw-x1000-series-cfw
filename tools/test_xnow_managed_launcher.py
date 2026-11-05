@@ -1,8 +1,9 @@
 """Actual ARM review launcher classification; no native hardware mode/app exec."""
 from pathlib import Path
-import hashlib,json,os,subprocess,errno
+import hashlib,json,os,subprocess,errno,argparse
 from app_registry import ROOT
-OUT=ROOT/'work/managed-launcher-review-3';artifact=OUT/'launcher.elf';build=json.loads((OUT/'build.json').read_text());assert build['managed_radio_review']
+parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--review',default='work/managed-launcher-review-3');options=parser.parse_args()
+OUT=(ROOT/options.review).resolve();assert OUT.is_relative_to(ROOT/'work');artifact=OUT/'launcher.elf';build=json.loads((OUT/'build.json').read_text());assert build['managed_radio_review']
 lib=ROOT/'work/arm-signal-tests/lib';base=['qemu-arm','-cpu','arm926',str(lib/'ld-linux.so.3'),'--library-path',str(lib),str(artifact)]
 folder=OUT/'apps/hello';marker=folder/'launch.contract';assert not marker.exists() and not marker.is_symlink()
 fields=dict(line.split('=',1) for line in (folder/'app.ini').read_text().splitlines());record=b'XNOW-MANAGED-1\n'+fields['sha256'].encode()+b'\n';assert len(record)==80

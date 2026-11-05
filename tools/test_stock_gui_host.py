@@ -1,6 +1,6 @@
 """Strict stock GUI query binding executing the original FSM and receivers."""
 from pathlib import Path
-import hashlib,io,json,struct,subprocess
+import hashlib,io,json,struct,subprocess,sys
 from elftools.elf.elffile import ELFFile
 from unicorn import Uc,UC_ARCH_ARM,UC_MODE_ARM,UC_HOOK_CODE
 from unicorn.arm_const import UC_ARM_REG_R0,UC_ARM_REG_R1,UC_ARM_REG_R2,UC_ARM_REG_R3,UC_ARM_REG_SP,UC_ARM_REG_LR,UC_ARM_REG_PC
@@ -18,8 +18,12 @@ scenarios += [(f'transport-{operation}-m{mode}-{failure}',mode,state) for operat
 scenarios += [('transport-play-m1-already',1,5),('transport-pause-m2-already',2,2)]
 scenarios += [('skip-next-m1-provider',1,5),('skip-previous-m2-provider',2,2),('transport-play-m2-provider',2,2),('transport-pause-m1-provider',1,5)]
 scenarios += [('view-active',1,5),('view-paused',2,2),('view-inactive',1,1),('view-shifted-state',1,5),('view-switched-actor',1,5)]
+scenarios += [('direct-play',2,2),('direct-pause',1,5),('direct-next',1,5),('direct-previous',2,2)]
+captured_arguments={}
+direct_only='--direct-only' in sys.argv
+if direct_only:scenarios=[row for row in scenarios if row[0] in ('transport-play-m2-accepted','transport-pause-m1-accepted','skip-next-m1-accepted','skip-previous-m2-accepted') or row[0].startswith('direct-')]
 for scenario,mode,state in scenarios:
- is_transport=scenario.startswith('transport-');is_skip=scenario.startswith('skip-') or is_transport;direction=1 if '-next-' in scenario else -1
+ is_direct=scenario.startswith('direct-');is_transport=scenario.startswith('transport-') or scenario in ('direct-play','direct-pause');is_skip=scenario.startswith('skip-') or is_transport or is_direct;direction=1 if '-next' in scenario else -1
  u=Uc(UC_ARCH_ARM,UC_MODE_ARM)
  for data in (stock,program):
   image=ELFFile(io.BytesIO(data))
@@ -27,11 +31,13 @@ for scenario,mode,state in scenarios:
    if segment['p_type']!='PT_LOAD':continue
    start=int(segment['p_vaddr']);base=start&~4095;size=(start-base+int(segment['p_memsz'])+4095)&~4095;u.mem_map(base,size);u.mem_write(start,segment.data())
  u.mem_map(stack,65536);u.mem_map(context,65536);u.mem_map(done,4096)
+ call_stack=stack+65520
  def put(address,value):u.mem_write(address,struct.pack('<I',value&0xffffffff))
  def get(address):return struct.unpack('<I',u.mem_read(address,4))[0]
  put(0x6831dc,0 if scenario=='no-actor' else actor);u.mem_write(actor,b'\1'+(b'\0' if scenario=='unready-state' else b'\x0a' if scenario=='unwritten' else b'\1' if scenario=='inactive' else b'\5'));put(actor+4,0x3f11d8);u.mem_write(actor+13,b'\2');u.mem_write(actor+8,struct.pack('<H',7 if scenario=='handler-busy' else 0xffff));put(output,0x5a5a5a5a)
  if scenario.startswith(('mode-','view-')):u.mem_write(actor,bytes((mode,state)))
- callbacks=set();allocations=[];lower=[]
+ callbacks=set();allocations=[];lower=[];lower_arguments=[];ui_callbacks=[]
+ if is_direct:put(0x6831dc,0)
  if is_skip:
   u.mem_write(actor,bytes((mode,1 if scenario.endswith('-transition') else state)))
   put(0x6922d8,0 if scenario.endswith('-no-controller') else context+0x3000)
@@ -55,7 +61,11 @@ for scenario,mode,state in scenarios:
   if is_skip:
    if pc in (0x27dacc,0x27db98,0x27d6a0):
     lower.append(pc)
-    if is_transport:assert uc.reg_read(UC_ARM_REG_R1)==(1 if '-play-' in scenario else 2)
+    lower_arguments.append(dict(entry=hex(pc),registers=[hex(uc.reg_read(r)) for r in (UC_ARM_REG_R0,UC_ARM_REG_R1,UC_ARM_REG_R2,UC_ARM_REG_R3)],wrapper_words=[hex(get(context+0x3000+i*4)) for i in range(2)],controller_words=[hex(get(context+0x4000+i*4)) for i in range(16)],options_words=[hex(get(0x692310+i*4)) for i in range(2)]))
+    saved_sp=uc.reg_read(UC_ARM_REG_SP);assert stack<=saved_sp<stack+65536
+    lower_arguments[-1].update(stack_pointer=hex(saved_sp),caller_stack=bytes(uc.mem_read(saved_sp,stack+65536-saved_sp)).hex())
+    if is_transport:assert uc.reg_read(UC_ARM_REG_R1)==(1 if '-play' in scenario else 2)
+   if pc in callbacks:ui_callbacks.append(hex(pc))
    if pc==0x27c378:
     assert uc.reg_read(UC_ARM_REG_R0)==context+0x4000
     kind=uc.reg_read(UC_ARM_REG_R2);assert kind==(0x12 if is_transport else 0x15 if direction==1 else 0x16);allocations.append(kind)
@@ -74,12 +84,33 @@ for scenario,mode,state in scenarios:
    if scenario=='view-switched-actor':put(0x6831dc,actor+0x200)
  u.hook_add(UC_HOOK_CODE,hook)
  def call(address,*arguments):
-  u.reg_write(UC_ARM_REG_SP,stack+65520);u.reg_write(UC_ARM_REG_LR,done)
+  u.reg_write(UC_ARM_REG_SP,call_stack);u.reg_write(UC_ARM_REG_LR,done)
   for reg,value in zip((UC_ARM_REG_R0,UC_ARM_REG_R1,UC_ARM_REG_R2,UC_ARM_REG_R3),arguments):u.reg_write(reg,value&0xffffffff)
   u.emu_start(address,done+4,count=20000000);assert u.reg_read(UC_ARM_REG_PC)==done;result=u.reg_read(UC_ARM_REG_R0);return result if result<0x80000000 else result-0x100000000
  bound=call(symbols['test_bind']) if scenario.endswith('-provider') else call(symbols['xw_stock_gui_bind'],context)
  if scenario in ('wrong-image','changed-code'):assert bound==-3 and not receiver;cases.append(dict(case=scenario,bind=bound));continue
  assert bound==0
+ if is_direct:
+  operation=scenario.removeprefix('direct-');original=captured_arguments[operation]
+  arguments=[int(v,16) for v in original['registers']];options=[]
+  if is_transport:options=[int(v,16) for v in original['options_words']]
+  elif operation=='previous':
+   caller_stack=bytes.fromhex(original['caller_stack']);offset=arguments[2]-int(original['stack_pointer'],16)
+   assert 0<=offset<=len(caller_stack)-16;options=list(struct.unpack_from('<4I',caller_stack,offset))
+  # Rebuild explicit options in fresh memory, not the UI's globals/call stack.
+  if options:
+   arguments[2]=context+0x7000
+   for i,value in enumerate(options):put(arguments[2]+i*4,value)
+  else:arguments[2]=0
+  arguments[3]=context+0x8000;put(arguments[3],0x5a5a5a5a)
+  rc=call(int(original['entry'],16),*arguments)
+  assert get(arguments[3])==7 and get(0x6922d8+0x10)==6 and len(allocations)==1 and not receiver and not ui_callbacks,(scenario,rc,allocations,lower_arguments)
+  if options:
+   copied=struct.unpack('<'+str(len(options))+'I',u.mem_read(context+0x5028,len(options)*4));assert list(copied)==options,(operation,copied,options)
+   assert get(context+0x5018)==context+0x501c
+   u.mem_write(arguments[2],bytes(len(options)*4));assert tuple(copied)==struct.unpack('<'+str(len(options))+'I',u.mem_read(context+0x5028,len(options)*4))
+  assert get(0x6831dc)==0 and bytes(u.mem_read(actor,2))==bytes((mode,state))
+  cases.append(dict(case=scenario,native_return=rc,ticket_after=7,audio_ui_actor_absent=True,ui_callbacks=ui_callbacks,rebuilt_options=options,options_copied_into_request=True,ui_ticket_unchanged=True,original_caller_arguments=original));continue
  if scenario.startswith('view-'):
   previous=bytes(u.mem_read(output,12))
   rc=call(symbols['xw_stock_gui_read'],context,output)
@@ -104,7 +135,10 @@ for scenario,mode,state in scenarios:
    assert struct.unpack('<H',u.mem_read(actor+8,2))[0]==0xffff
   if scenario.endswith('-already'):assert get(0x6922d8+0x10)==6 and bytes(u.mem_read(actor,2))==bytes((mode,state)) and not receiver
   if scenario.endswith('-provider'):assert call(symbols['test_close'])==0
-  cases.append(dict(case=scenario,result=rc,receiver_calls=len(receiver),controller_calls=len(lower),allocations=len(allocations)))
+  if scenario in ('transport-play-m2-accepted','transport-pause-m1-accepted','skip-next-m1-accepted','skip-previous-m2-accepted'):
+   operation='play' if '-play-' in scenario else 'pause' if '-pause-' in scenario else 'next' if '-next-' in scenario else 'previous'
+   captured_arguments[operation]=lower_arguments[0]
+  cases.append(dict(case=scenario,result=rc,receiver_calls=len(receiver),controller_calls=len(lower),controller_arguments=lower_arguments,allocations=len(allocations)))
   continue
  if scenario=='wrong-thread':put(symbols['xw_test_thread'],18)
  rc=call(symbols['xw_stock_gui_audio_active'],context,output)
@@ -121,4 +155,5 @@ for scenario,mode,state in scenarios:
  if scenario in ('no-actor','unwritten'):raw_value=call(0x18150,0);assert raw_value==0
  cases.append(dict(case=scenario,result=rc,receiver_calls=len(receiver),stock_wrapper_value=raw_value))
 report=dict(passed=True,original_dispatch_and_filter=True,stock_receiver_modeled=False,native_player_play_state=False,physical_device_accessed=False,cases=cases,source_hashes={name:hashlib.sha256((ROOT/name).read_bytes()).hexdigest() for name in sources+['runtime/platform/player/stock_gui.h','runtime/platform/player/stock_image.h','tools/test_stock_gui_host.py']},limits=['Loaded-image identity and the negative filtered case are modeled; final receiver instructions execute.','Skip tests model UI entry/exit, logging, track-selector validation, allocator and mutex/ticket/wakeup primitives. Original stable-state handlers, controller request construction and queue admission execute.','The active component flag is not PLAYING/PAUSED.','The binding requires an installed in-process owner-thread service; it is not an independent client endpoint.'])
-(work/'report.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))
+report['complete_matrix_run']=not direct_only
+(work/('report-direct.json' if direct_only else 'report.json')).write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))

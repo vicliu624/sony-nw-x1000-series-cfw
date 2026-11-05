@@ -22,7 +22,10 @@ struct xw_media_id {char value[XW_MEDIA_ID_BYTES];};
 struct xw_media_item {struct xw_media_id id;char title[XW_MEDIA_TEXT_BYTES],artist[XW_MEDIA_TEXT_BYTES],album[XW_MEDIA_TEXT_BYTES];uint32_t duration_ms,flags;};
 struct xw_player_snapshot {uint32_t valid;enum xw_play_state state;struct xw_media_item track;uint32_t position_ms,duration_ms;int32_t volume,volume_min,volume_max;uint64_t library_revision,queue_revision;};
 /* IDs are opaque stable provider identities, never filesystem paths or UI rows. */
+/* Zero unused fields. Only volume operations use value; only PLAY_ITEM uses
+ * item/container/revision. Invalid extra fields cause no provider action. */
 struct xw_player_command {enum xw_player_operation operation;int32_t value;struct xw_media_id item,container;uint64_t expected_revision;};
+/* container is required only for PLAYLIST_TRACKS and empty for other views. */
 struct xw_media_query {enum xw_media_view view;struct xw_media_id container;uint32_t offset,limit;uint64_t expected_revision;};
 /* revision0 means unknown: no cross-page consistency claim. A nonzero
  * expected_revision must match a qualified provider revision or returns STALE. */
@@ -33,6 +36,9 @@ struct xw_media_page {uint64_t revision;uint32_t offset,count,total,next_offset;
  * or retries are performed here. */
 int xw_player_command(struct xw_player *,const struct xw_player_command *);
 int xw_player_snapshot(struct xw_player *,struct xw_player_snapshot *);
+/* Failed provider reads leave outputs unchanged and invalidate poll history.
+ * Inspect the return code before consuming changes; the next successful read
+ * reports AVAILABLE and a full refresh. Argument/reentry errors perform no read. */
 int xw_player_poll(struct xw_player *,struct xw_player_snapshot *,uint32_t *changes);
 int xw_media_browse(struct xw_player *,const struct xw_media_query *,struct xw_media_item *,uint32_t capacity,struct xw_media_page *);
 int xw_player_close(struct xw_player *);

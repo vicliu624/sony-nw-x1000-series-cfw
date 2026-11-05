@@ -16,6 +16,9 @@ from unicorn.arm_const import UC_ARM_REG_R0, UC_ARM_REG_R1, UC_ARM_REG_R2, UC_AR
 
 ROOT = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--defer-coordinator',action='store_true',help='Hold command6 before coordinator, then resume with fresh scratch output; virtual research only.')
+parser.add_argument('--lookup-manifest',help='Explicit offline integration manifest for native name lookup; identity is recorded, never treated as the current release.')
+parser.add_argument('--report',help='Write a fresh report under ignored work/ instead of the legacy evidence path.')
 parser.add_argument('--reverse-equal-sort', action='store_true',
                     help='Reverse equal-key input order before virtual sorting; preserve comparator order.')
 parser.add_argument('--touch-outside', action='store_true',
@@ -51,6 +54,7 @@ parser.add_argument('--native-activation-route',action='store_true',help='Origin
 parser.add_argument('--three-home-cycles',action='store_true',help='Three Home cycles in one model per menu, producing a second native recovery confirmation.')
 parser.add_argument('--activation-frame-report',help='Use captured original manager activation frame in Home receiver; offline transport only.')
 args = parser.parse_args()
+if args.defer_coordinator:args.native_activation_route=True
 activation_frame_input=None
 if args.activation_frame_report:
     from evidence_checks import verify_report
@@ -66,11 +70,16 @@ lookup_config=None;lookup_source=None
 if args.native_name_lookup:
     from native_lookup_fixture import lookup
     args.native_switch_client=True
-    version=(ROOT/'VERSION').read_text().strip();path=ROOT/'work'/('integration-'+version)/'system-overlay/etc/AppList.conf';content=path.read_bytes()
-    manifest=json.loads((ROOT/'work'/('integration-'+version)/'manifest.json').read_text())
+    version=(ROOT/'VERSION').read_text().strip()
+    manifest_path=(ROOT/args.lookup_manifest).resolve() if args.lookup_manifest else ROOT/'work'/('integration-'+version)/'manifest.json'
+    if not manifest_path.is_relative_to((ROOT/'work').resolve()):raise ValueError('Lookup manifest must be a local work input')
+    path=manifest_path.parent/'system-overlay/etc/AppList.conf';content=path.read_bytes()
+    manifest=json.loads(manifest_path.read_text())
     assert hashlib.sha256(content).hexdigest()==next(row['sha256'] for row in manifest['files'] if row['path']=='system-overlay/etc/AppList.conf')
     lookup_config=content
-    lookup_source={'path':str(path.relative_to(ROOT)),'sha256':hashlib.sha256(content).hexdigest()}
+    lookup_source={'path':str(path.relative_to(ROOT)),'sha256':hashlib.sha256(content).hexdigest(),
+                   'manifest':manifest_path.relative_to(ROOT).as_posix(),'manifest_sha256':hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
+                   'explicit_input':bool(args.lookup_manifest),'current_release_qualification':False}
 if args.native_switch_client:
     if args.native_name_lookup and args.native_frame_receiver:
         assert not any((args.reopen_home,args.reopen_manager,args.command7_reopen,args.native_frame_update,args.touch_outside))
@@ -158,9 +167,9 @@ for menu in (0, 1):
     close_trace = []
     lifecycle_running = False
     resume_running=False;resume_trace=[];resume_events=[];resume_threads=[];resume_worker_services=[];page_rebuild_services=[];virtual_page_frames=[]
-    activation_route_running=False;activation_route_phase='';activation_route_events=[];activation_route_calls=[];activation_route_modules=[];activation_route_pending=[];activation_route_delivery=[]
+    activation_route_running=False;activation_route_phase='';activation_route_events=[];activation_route_calls=[];activation_route_callers=[];activation_route_modules=[];activation_route_pending=[];activation_route_delivery=[]
     root_initializing=False;root_initialization_events=[];root_initialization=None
-    stop_route_running=False;stop_route_stage='';stop_route_events=[];stop_route_calls=[];stop_route_modules=[];stop_route_pending=[];stop_gui_results=[];stop_gui_tokens=[]
+    stop_route_running=False;stop_route_stage='';stop_route_events=[];stop_route_calls=[];stop_route_callers=[];stop_defer=[args.defer_coordinator];stop_route_modules=[];stop_route_pending=[];stop_gui_results=[];stop_gui_tokens=[]
     stop_receiver_running=False;stop_receiver_received=0;stop_receiver_returned=False;stop_receiver_callbacks=[]
     receiver_notice=(20,0,6,0,0);activation_receiver_info=None
     stop_snapshot_services=[];stop_snapshot_times=[];stop_snapshot_submissions=[];stop_snapshot_gate_states=[]
@@ -168,7 +177,7 @@ for menu in (0, 1):
     resume_modules=[(0x16b74,0xc),(0x143c0,0x10),(0xf32c,0x18),(0x3b498,0x1c),(0x37f08,0x20),(0x49d6c,0x38),(0x4492c,0x28),(0x499f8,0x34),(0x4f3dc,0x40)]
     lifecycle_events, cleanup_boundaries = [], []
     lifecycle_acks = []
-    apf_requests=[];resume_acks=[];apf_expected_state=1;switch_wire_requests=[];lookup_wire_requests=[]
+    apf_requests=[];apf_completion_sites=[];resume_acks=[];apf_expected_state=1;switch_wire_requests=[];lookup_wire_requests=[]
     if args.native_switch_client:
         for offset,value in ((0,1),(4,2),(12,55),(16,500),(20,0),(40,88)):put(0x820f68+offset,value)
     heap = 0x63200000
@@ -212,7 +221,11 @@ for menu in (0, 1):
             if pc==0x113a4:stop_gui_tokens.append(word(stop_gui_results[-1]));return
             if pc==0xa57f0 and a[0] in (0x420024,0x430113,0x420032):
                 stop_route_events.append(a.copy());uc.reg_write(UC_ARM_REG_R0,0);uc.reg_write(UC_ARM_REG_PC,uc.reg_read(UC_ARM_REG_LR));return
-            if stop_route_stage=='command' and pc==0x112fc:stop_route_calls.append(a.copy());return
+            if stop_route_stage=='command' and pc==0x112fc:
+                stop_route_calls.append(a.copy());stop_route_callers.append(hex(uc.reg_read(UC_ARM_REG_LR)-4))
+                if stop_defer[0]:
+                    stop_defer[0]=False;uc.reg_write(UC_ARM_REG_R0,0);uc.reg_write(UC_ARM_REG_PC,uc.reg_read(UC_ARM_REG_LR))
+                return
             if stop_route_stage=='command' and pc in {p for p,offset in resume_modules}:
                 assert a[1]==6;stop_route_modules.append(hex(pc))
                 if pc==0x143c0:stop_gui_results.append(a[2]);return
@@ -241,7 +254,7 @@ for menu in (0, 1):
             if pc in (0xe5ac,0x3b2b8,0xe600):uc.reg_write(UC_ARM_REG_R0,0);uc.reg_write(UC_ARM_REG_PC,uc.reg_read(UC_ARM_REG_LR));return
             if pc==0xa57f0 and a[0] in (0x420011,0x420023,0x20303,0x580101):
                 activation_route_events.append(a.copy());uc.reg_write(UC_ARM_REG_R0,0);uc.reg_write(UC_ARM_REG_PC,uc.reg_read(UC_ARM_REG_LR));return
-            if activation_route_phase=='command' and pc==0x112fc:activation_route_calls.append(a.copy());return
+            if activation_route_phase=='command' and pc==0x112fc:activation_route_calls.append(a.copy());activation_route_callers.append(hex(uc.reg_read(UC_ARM_REG_LR)-4));return
             if activation_route_phase=='command' and pc in {pc for pc,offset in resume_modules}:
                 assert a[1]==7;activation_route_modules.append(hex(pc))
                 if pc==0x143c0:assert a[0]==0x613f00;return
@@ -362,6 +375,7 @@ for menu in (0, 1):
             packet = list(struct.unpack('<6I',uc.mem_read(a[2],24)))
             assert a[:2] == [500,55] and a[3] == 24 and packet == [24,len(apf_requests)+len(switch_wire_requests)+len(lookup_wire_requests)+len(snapshot_wire_requests)+len(battery_wire_requests)+len(argument_wire_requests),1,1,55,apf_expected_state],(a,packet,rebuild_cycle)
             apf_requests.append(packet.copy())
+            apf_completion_sites.append({"caller":hex(uc.reg_read(UC_ARM_REG_LR)-4),"state":apf_expected_state,"sequence":packet[1]})
             if resume_running:resume_acks.append(packet.copy())
             else:
                 lifecycle_acks.append(packet)
@@ -573,7 +587,7 @@ for menu in (0, 1):
         if rebuild_cycle:
             lifecycle_running=False
             resume_trace.clear();resume_events.clear();resume_threads.clear();resume_worker_services.clear();page_rebuild_services.clear();virtual_page_frames.clear();resume_acks.clear();worker_group_requests.clear()
-            activation_route_events.clear();activation_route_calls.clear();activation_route_modules.clear();activation_route_pending.clear();activation_route_delivery.clear()
+            activation_route_events.clear();activation_route_calls.clear();activation_route_callers.clear();activation_route_modules.clear();activation_route_pending.clear();activation_route_delivery.clear()
             # Reuse supplied object backing after GUI-page close; no OS remap is claimed.
             allocations.clear();styles.clear();selection_events.clear();switch_requests.clear();close_trace.clear()
             lifecycle_events.clear();cleanup_boundaries.clear();lifecycle_acks.clear()
@@ -847,7 +861,7 @@ for menu in (0, 1):
         if not args.touch_outside:
             assert selection_events[-1] == [0x4a0111, 0, new_index, menu]
         assert switch_requests == ([] if args.touch_outside else [[0x30001, 0, 0]])
-        rows.append({'menu': menu,'rebuild_cycle':rebuild_cycle, 'native_root_factory': '0x1096e0', 'native_object_allocator': '0xe9300','reserved_root_present':args.native_open_root,'outer_mode0_open_returned':args.native_open_complete,'command7_restore_trace':resume_trace.copy(),'command7_events':[e.copy() for e in resume_events],'native_page_rebuild_executed':args.native_page_rebuild,'native_page_rebuild_services':[v.copy() for v in page_rebuild_services],'virtual_page_frames':virtual_page_frames.copy(),'recovery_frame_pixels':frame_pixel_allocations.copy(),'command7_activation_acks':[a.copy() for a in resume_acks],'command7_thread_requests':[t.copy() for t in resume_threads],'command7_worker_services':resume_worker_services.copy(),'native_input_restorations':native_input_restorations.copy(),
+        rows.append({'menu': menu,'rebuild_cycle':rebuild_cycle, 'native_root_factory': '0x1096e0', 'native_object_allocator': '0xe9300','reserved_root_present':args.native_open_root,'outer_mode0_open_returned':args.native_open_complete,'command7_restore_trace':resume_trace.copy(),'command7_events':[e.copy() for e in resume_events],'native_page_rebuild_executed':args.native_page_rebuild,'native_page_rebuild_services':[v.copy() for v in page_rebuild_services],'virtual_page_frames':virtual_page_frames.copy(),'recovery_frame_pixels':frame_pixel_allocations.copy(),'command7_activation_acks':[a.copy() for a in resume_acks],'apf_completion_sites':[a.copy() for a in apf_completion_sites],'command7_thread_requests':[t.copy() for t in resume_threads],'command7_worker_services':resume_worker_services.copy(),'native_input_restorations':native_input_restorations.copy(),
                      'native_pending_object_count': pending_after_creation,
                      'native_pending_after_pool_commit': word(0x60000788),
                      'native_active_after_pool_commit': word(0x6000037c),
@@ -870,7 +884,7 @@ for menu in (0, 1):
                      'native_factory_styles': styles.copy(), 'cell_centers_in_current_content': centers})
         if args.native_switch_client:rows[-1]['native_switch_wire_requests']=[e.copy() for e in switch_wire_requests]
         if args.native_name_lookup:rows[-1]['native_lookup_wire_requests']=[e.copy() for e in lookup_wire_requests]
-        if args.native_activation_route:rows[-1]['native_activation_route']={'events':[e.copy() for e in activation_route_events],'coordinator_calls':[e.copy() for e in activation_route_calls],'module_calls':activation_route_modules.copy(),'pending_registered':[e.copy() for e in activation_route_pending],'delivery_order':activation_route_delivery.copy(),'root_initialization':root_initialization,'native_receiver':activation_receiver_info,'native_battery_query_requests':[entry.copy() for entry in battery_wire_requests],'native_argument_query_requests':[entry.copy() for entry in argument_wire_requests],'other_modules_virtual':True}
+        if args.native_activation_route:rows[-1]['native_activation_route']={'events':[e.copy() for e in activation_route_events],'coordinator_calls':[e.copy() for e in activation_route_calls],'coordinator_callers':activation_route_callers.copy(),'module_calls':activation_route_modules.copy(),'pending_registered':[e.copy() for e in activation_route_pending],'delivery_order':activation_route_delivery.copy(),'root_initialization':root_initialization,'native_receiver':activation_receiver_info,'native_battery_query_requests':[entry.copy() for entry in battery_wire_requests],'native_argument_query_requests':[entry.copy() for entry in argument_wire_requests],'other_modules_virtual':True}
         if args.close_gui:
             assert word(0x65000000) == 1 and word(descriptor + 0x98) == 1
             close_status = call(0x109a24, (0x65000000,))
@@ -894,7 +908,7 @@ for menu in (0, 1):
                 put(0x6bafb8,7)
                 lifecycle_running = True
                 if args.native_activation_route:
-                    stop_route_events.clear();stop_route_calls.clear();stop_route_modules.clear();stop_route_pending.clear();stop_gui_results.clear();stop_gui_tokens.clear()
+                    stop_route_events.clear();stop_route_calls.clear();stop_route_callers.clear();stop_route_modules.clear();stop_route_pending.clear();stop_gui_results.clear();stop_gui_tokens.clear()
                     stop_snapshot_services.clear();stop_snapshot_times.clear();stop_snapshot_submissions.clear();stop_snapshot_gate_states.clear()
                     for index,(procedure,offset) in enumerate(resume_modules):put(0x613e60+offset,0x613f00 if procedure==0x143c0 else 0x68001000+index*32)
                     put(0x613e60+0x2c,0x68000900);put(0x613e60+0x14,0x68000a00)
@@ -916,9 +930,17 @@ for menu in (0, 1):
                     put(0x613e2c+32,saved_mode)
                     assert stop_route_events[-1]==[0x420032,0,0x683348,0]
                     snapshot_before_submission=bytes(u.mem_read(0x683348,108));assert word(0x683348+36)==1
-                    stop_route_stage='command';packet=stop_route_events[-1]
+                    stop_route_stage='command';stop_defer[0]=args.defer_coordinator;packet=stop_route_events[-1]
+                    handoff_manager_before=word(0x60000000)
                     assert call(0x17c608,(0x6833dc,packet[0],packet[2],packet[3]))==0
+                    if args.defer_coordinator:
+                        assert len(stop_route_calls)==1 and not stop_gui_results and not stop_route_modules and not stop_route_pending
+                        assert not lifecycle_events and word(0x60000000)==handoff_manager_before
+                        # The caller has returned. Do not reuse its stack output.
+                        put(0x68000840,0)
+                        assert call(0x112fc,(0x613e60,6,0x68000840))==0
                     stop_route_running=False
+                    assert len(stop_route_calls)==(2 if args.defer_coordinator else 1)
                     assert len(stop_gui_results)==1 and stop_route_calls[0][:2]==[0x613e60,6]
                     assert stop_gui_tokens==[0x206];close_token=stop_gui_tokens[0]
                     assert stop_route_modules==[hex(p) for p,offset in resume_modules]
@@ -973,7 +995,7 @@ for menu in (0, 1):
                                                'descriptor_created_after':word(descriptor + 0x98)}
             if args.consume_manager_close:
                 rows[-1]['native_manager_close']['via_command6_consumer'] = True
-                if args.native_activation_route:rows[-1]['native_manager_close']['native_stop_route']={'callback_entry':'0xeb9c','callback_invoked_by_harness':False,'native_receiver':'0x26551c','native_registration':True,'notification_fixture':[20,0,6,0,0],'returned_to_receive':stop_receiver_returned,'events':[e.copy() for e in stop_route_events],'coordinator_calls':[e.copy() for e in stop_route_calls],'module_calls':stop_route_modules.copy(),'pending_registered':[e.copy() for e in stop_route_pending],'consumer_initialization':{'constructor':'0x6dec0','context':'0x683328','mode_state':[1,1],'context_byte13':11,'constructed_before_first_home':True,'context_preserved':True},'snapshot_mode_field_fixture':0,'snapshot_native_gate_client_states':stop_snapshot_gate_states.copy(),'snapshot_submissions_virtual':stop_snapshot_submissions.copy(),'snapshot_service_fixtures':stop_snapshot_services.copy(),'snapshot_converted_times':stop_snapshot_times.copy(),'snapshot_apf_transport_executed':True,'snapshot_wire_requests':[entry.copy() for entry in snapshot_wire_requests],'other_eight_modules_virtual':True,'root_context_retained':True}
+                if args.native_activation_route:rows[-1]['native_manager_close']['native_stop_route']={'callback_entry':'0xeb9c','callback_invoked_by_harness':False,'native_receiver':'0x26551c','native_registration':True,'notification_fixture':[20,0,6,0,0],'returned_to_receive':stop_receiver_returned,'events':[e.copy() for e in stop_route_events],'coordinator_calls':[e.copy() for e in stop_route_calls],'coordinator_callers':stop_route_callers.copy(),'module_calls':stop_route_modules.copy(),'pending_registered':[e.copy() for e in stop_route_pending],'consumer_initialization':{'constructor':'0x6dec0','context':'0x683328','mode_state':[1,1],'context_byte13':11,'constructed_before_first_home':True,'context_preserved':True},'snapshot_mode_field_fixture':0,'snapshot_native_gate_client_states':stop_snapshot_gate_states.copy(),'snapshot_submissions_virtual':stop_snapshot_submissions.copy(),'snapshot_service_fixtures':stop_snapshot_services.copy(),'snapshot_converted_times':stop_snapshot_times.copy(),'snapshot_apf_transport_executed':True,'snapshot_wire_requests':[entry.copy() for entry in snapshot_wire_requests],'other_eight_modules_virtual':True,'root_context_retained':True}
                 rows[-1]['native_manager_close']['other_mocked_cleanup_boundaries'] = cleanup_boundaries.copy()
             if args.ack_manager_close:
                 assert next(i for i,item in enumerate(close_trace) if item.get('call') == 'close') < next(i for i,item in enumerate(close_trace) if 'apf_ack' in item)
@@ -1040,9 +1062,11 @@ if args.native_switch_client:
     report['source_hashes']={'tools/check_home_parent.py':hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}
     report['limits'].append('Original switch client executes with active client2 and initial sequence0 supplied; switch seq0 precedes inactive ack seq1 in this same instance. Lookup ID and actual IPC replies remain virtual.')
 if args.native_name_lookup:
+    report['lookup_input']=lookup_source
     report['source_hashes'][lookup_source['path']]=lookup_source['sha256']
+    report['source_hashes'][lookup_source['manifest']]=lookup_source['manifest_sha256']
     report['source_hashes']['tools/native_lookup_fixture.py']=hashlib.sha256((ROOT/'tools/native_lookup_fixture.py').read_bytes()).hexdigest()
-    report['limits'].append('Original1574c parses current staged AppList in the same lookup emulator before1084c; stdio/accounts/string/allocation/IPC boundaries virtual, core state2 supplied. Client seq0 lookup, seq1 switch, seq2 inactive ack.')
+    report['limits'].append('Original1574c parses the explicitly identified AppList input before1084c; stdio/accounts/string/allocation/IPC boundaries virtual, core state2 supplied. Client seq0 lookup, seq1 switch, seq2 inactive ack. This input does not qualify the current release.')
 if args.native_activation_route:
     report['source_hashes']['tools/native_alarm_fixture.py']=hashlib.sha256((ROOT/'tools/native_alarm_fixture.py').read_bytes()).hexdigest()
     report['source_hashes']['work/targets-jp/sysmgrd']=hashlib.sha256((ROOT/'work/targets-jp/sysmgrd').read_bytes()).hexdigest()
@@ -1059,6 +1083,8 @@ if args.native_frame_receiver:
     report['native_frame_receiver']={'frame_returns':True,'scheduling':frame_schedule_records,'physical_display_validated':False}
     report['limits']=[line.replace('Final receiver scheduling, actual framebuffer rendering/presentation, animation and hardware remain unqualified.','Actual framebuffer rendering/presentation, animation and hardware remain unqualified; see native_frame_receiver for CPU queue scheduling.') for line in report['limits']]
     report['limits'].append('Full original e8de8 returns after104a14/resource getter1072c0/107514/104f64. Queue scheduling is native but callbacks, files, OS synchronization and float helpers remain supplied; not actual thread scheduling or physical display recovery.')
+if args.defer_coordinator:
+    report['deferred_coordinator']={'held_before_original':True,'resumed_after_action_return':True,'caller_stack_output_retained':False,'sdk_or_radio_wait_integrated':False}
 if args.native_activation_route:
     report['native_activation_route']=True
     report['limits'].append('Original APF receiver/callback, constructed Root and coordinator enter original GUI resume. Client/manager query instructions execute with supplied records/cache; module objects and other module-command services virtual. Event/thread delivery scheduled, not physical OS/hardware.')
@@ -1070,5 +1096,8 @@ if activation_frame_input:
     report['activation_frame_input']=activation_frame_input
     report['source_hashes'][activation_frame_input['path']]=activation_frame_input['sha256']
     report['limits'].append('Activation receiver bytes come from captured original manager return notification via separate original framing model; destination registry and delivery remain fixtures, not a live IPC connection.')
-(ROOT / f'sources/native-home-parent{suffix}.json').write_text(json.dumps(report, indent=2) + '\n')
+report_path=(ROOT/args.report).resolve() if args.report else ROOT/f'sources/native-home-parent{suffix}.json'
+if args.report and not report_path.is_relative_to((ROOT/'work').resolve()):raise ValueError('Fresh test reports belong under work/')
+report_path.parent.mkdir(parents=True,exist_ok=True)
+report_path.write_text(json.dumps(report, indent=2) + '\n')
 print(str(len(rows))+' bounded Home cases verified; content252x400, capacity49 and new entry constructed')

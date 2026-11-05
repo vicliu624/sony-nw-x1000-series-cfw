@@ -40,11 +40,11 @@ static int finish(struct xnow_owner_runtime *r){
  if(result||close(r->writer)){r->fault=1;return XNOW_UNCERTAIN;}
  r->writer=-1;erase(r->cookie,sizeof r->cookie);erase(r->receive,sizeof r->receive);r->done=1;return 0;
 }
-int xnow_owner_runtime_step(struct xnow_owner_runtime *r){
+static int runtime_step(struct xnow_owner_runtime *r,void *context,int (*advance)(void *,struct xnow_full_control *)){
  if(!r||!r->control||r->pid!=(int)getpid())return XNOW_ARGUMENT;
  if(r->done)return 0;
  if(r->fault)return XNOW_UNCERTAIN;
- int phase=xnow_owner_gate_step(r->gate,r->control);
+ int phase=advance?xnow_owner_gate_step_with_controller(r->gate,r->control,context,advance):xnow_owner_gate_step(r->gate,r->control);
  if(phase<0)return phase;
  if(xnow_full_control_finished(r->control))return finish(r);
  if(phase!=XNOW_SESSION_READY)return XNOW_PENDING;
@@ -67,4 +67,10 @@ int xnow_owner_runtime_step(struct xnow_owner_runtime *r){
  else if(result==XNOW_SECURITY_AUTH||result==XNOW_SECURITY_REPLAY||result==XNOW_SECURITY_FORMAT||result==XNOW_RADIO_REJECTED||result==XNOW_ENDPOINT_CRYPTO_UNAVAILABLE)r->dropped++;
  else if(result<0)stop(r,result);
  erase(r->receive,sizeof r->receive);return XNOW_PENDING;
+}
+int xnow_owner_runtime_step(struct xnow_owner_runtime *r){return runtime_step(r,0,0);}
+int xnow_owner_runtime_step_with_controller(struct xnow_owner_runtime *r,void *context,
+                                           int (*advance)(void *,struct xnow_full_control *)){
+ if(!advance)return XNOW_ARGUMENT;
+ return runtime_step(r,context,advance);
 }

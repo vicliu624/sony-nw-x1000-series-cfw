@@ -23,6 +23,10 @@ int xnow_owner_gate_storage_guard(void *);
 /* Owner loop calls this before accepting IPC work: handles pipe/stop request,
  * then advances the real full controller without prematurely dropping lease. */
 int xnow_owner_gate_step(struct xnow_owner_gate *,struct xnow_full_control *);
+/* Explicit internal policy entry. Stop-token/HUP processing still runs first;
+ * the caller supplies one serialized controller step, not another gate owner. */
+int xnow_owner_gate_step_with_controller(struct xnow_owner_gate *,struct xnow_full_control *,
+                                         void *,int (*step)(void *,struct xnow_full_control *));
 /* Refuses release until the original-action controller proves finished. */
 int xnow_owner_gate_release(struct xnow_owner_gate *,const struct xnow_full_control *);
 #ifdef __cplusplus

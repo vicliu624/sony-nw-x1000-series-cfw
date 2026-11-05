@@ -5,7 +5,7 @@ ROOT=Path(__file__).resolve().parents[3];work=ROOT/'work/autonomous-espnow-test'
 build=json.loads((work/'build.json').read_text());assert build['built'] and not build['device_written']
 for name,digest in build['source_sha256'].items():assert hashlib.sha256((ROOT/name).read_bytes()).hexdigest()==digest,name
 binary=work/'espnow-test.arm';assert hashlib.sha256(binary.read_bytes()).hexdigest()==build['sha256']
-files={'PLAYER_FILES/HOMEBREW/apps/espnow-test/espnow-test.arm':binary.read_bytes(),'READ_FIRST.md':(ROOT/'runtime/apps/espnow-test/README.md').read_bytes()}
+files={'PLAYER_FILES/HOMEBREW/tools/espnow-test/espnow-test.arm':binary.read_bytes(),'READ_FIRST.md':(ROOT/'runtime/apps/espnow-test/README.md').read_bytes()}
 radio=ROOT/'work/espnow-full-radio-review-3';manifest=json.loads((radio/'manifest.json').read_text())
 for name,key in [('sd8686.bin','candidate_sha256'),('helper_sd.bin','helper_sha256')]:
  data=(radio/'candidate'/name).read_bytes();assert hashlib.sha256(data).hexdigest()==manifest[key];files['PLAYER_FILES/HOMEBREW/data/espnow-test/candidate/'+name]=data

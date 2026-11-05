@@ -1,4 +1,5 @@
 #include "provider.h"
+#include "snapshot.h"
 #include <string.h>
 #define ALL_FIELDS 63u
 static int string_ok(const char *p,unsigned size,int ascii,int empty){
@@ -28,6 +29,8 @@ int xw_player_bind(struct xw_player *p,const struct xw_player_provider *provider
 }
 int xw_player_command(struct xw_player *p,const struct xw_player_command *command){
  int rc;if(!command||command->operation<0||command->operation>=XW_OP_COUNT||!id_ok(&command->item,1)||!id_ok(&command->container,1))return XW_PLAYER_INVALID;
+ if(command->operation!=XW_OP_PLAY_ITEM&&(command->item.value[0]||command->container.value[0]||command->expected_revision))return XW_PLAYER_INVALID;
+ if(command->operation!=XW_OP_SET_VOLUME&&command->operation!=XW_OP_STEP_VOLUME&&command->value)return XW_PLAYER_INVALID;
  if(command->operation==XW_OP_PLAY_ITEM&&!command->item.value[0])return XW_PLAYER_INVALID;
  if(command->operation==XW_OP_STEP_VOLUME&&!command->value)return XW_PLAYER_INVALID;
  if((rc=enter(p)))return rc;
@@ -35,9 +38,9 @@ int xw_player_command(struct xw_player *p,const struct xw_player_command *comman
  rc=p->provider.command(p->provider.context,command);p->busy=0;
  return rc>1?XW_PLAYER_PROTOCOL:rc;
 }
-static int read_snapshot(struct xw_player *p,struct xw_player_snapshot *out){
- struct xw_player_snapshot next;int rc;memset(&next,0,sizeof next);
- rc=p->provider.snapshot(p->provider.context,&next);if(rc)return rc>0?XW_PLAYER_PROTOCOL:rc;
+int xw_player_snapshot_validate(const struct xw_player_snapshot *input,struct xw_player_snapshot *out){
+ if(!input||!out)return XW_PLAYER_INVALID;
+ struct xw_player_snapshot next=*input;
  if(next.valid&~ALL_FIELDS)return XW_PLAYER_PROTOCOL;
  if((next.valid&XW_PF_STATE)&&(next.state<XW_PLAY_STOPPED||next.state>XW_PLAY_BUFFERING))return XW_PLAYER_PROTOCOL;
  if((next.valid&XW_PF_TRACK)&&!id_ok(&next.track.id,0))return XW_PLAYER_PROTOCOL;
@@ -50,6 +53,11 @@ static int read_snapshot(struct xw_player *p,struct xw_player_snapshot *out){
  if(!(next.valid&XW_PF_DURATION))next.duration_ms=0;
  if(!(next.valid&XW_PF_VOLUME))next.volume=next.volume_min=next.volume_max=0;
  *out=next;return 0;
+}
+static int read_snapshot(struct xw_player *p,struct xw_player_snapshot *out){
+ struct xw_player_snapshot next;memset(&next,0,sizeof next);
+ int rc=p->provider.snapshot(p->provider.context,&next);if(rc)return rc>0?XW_PLAYER_PROTOCOL:rc;
+ return xw_player_snapshot_validate(&next,out);
 }
 int xw_player_snapshot(struct xw_player *p,struct xw_player_snapshot *out){int rc;if(!out)return XW_PLAYER_INVALID;if((rc=enter(p)))return rc;rc=read_snapshot(p,out);p->busy=0;return rc;}
 int xw_player_poll(struct xw_player *p,struct xw_player_snapshot *out,uint32_t *changes){
@@ -71,6 +79,7 @@ int xw_media_browse(struct xw_player *p,const struct xw_media_query *query,struc
  struct xw_media_item *staged;struct xw_media_page result;int rc;
  if(!query||!items||!page||query->view<0||query->view>XW_MEDIA_QUEUE||!query->limit||query->limit>XW_MEDIA_PAGE_MAX||query->limit>capacity||!id_ok(&query->container,1)||query->offset>UINT32_MAX-query->limit)return XW_PLAYER_INVALID;
  if(query->view==XW_MEDIA_PLAYLIST_TRACKS&&!query->container.value[0])return XW_PLAYER_INVALID;
+ if(query->view!=XW_MEDIA_PLAYLIST_TRACKS&&query->container.value[0])return XW_PLAYER_INVALID;
  if((rc=enter(p)))return rc;if(!p->provider.browse){p->busy=0;return XW_PLAYER_UNSUPPORTED;}
  staged=p->browse_scratch;memset(staged,0,sizeof p->browse_scratch);memset(&result,0,sizeof result);
  rc=p->provider.browse(p->provider.context,query,staged,&result);p->busy=0;if(rc)return rc>0?XW_PLAYER_PROTOCOL:rc;

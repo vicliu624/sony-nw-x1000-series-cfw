@@ -3,6 +3,8 @@
 #define XW_STOCK_SOURCE_H
 #include "stock_gui.h"
 #include "player.h"
+/* ticket is the preparation request's admission ticket. The later source
+ * installation uses a separate local ticket, not captured by this receipt. */
 struct xw_stock_source_result {uint32_t attempted,moved,ticket;};
 /* For valid disjoint arguments, bookkeeping is initialized even on failure.
  * Invalid output/aliases are rejected without writing it. Caller must first

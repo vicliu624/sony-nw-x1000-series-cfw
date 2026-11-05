@@ -12,7 +12,14 @@
 #include <unistd.h>
 static unsigned short pixels[0xc0000/2];
 static int fb,touch,mapped,events,frames,opens;
-static int launcher(void){char path[256];ssize_t n=readlink("/proc/self/exe",path,sizeof path-1);assert(n>0);path[n]=0;return strstr(path,"/launcher/app")!=0;}
+static int launcher(void){char path[256];ssize_t n=readlink("/proc/self/exe",path,sizeof path-1);assert(n>0);path[n]=0;return strstr(path,"/launcher/app")!=0||strstr(path,"/launcher/entry-trace-app")!=0;}
+#ifdef HB_CAPTURE_RAM_MOUNTS
+/* Explicit integration fixture: actual /contents is RAM, not Sony VFAT. */
+FILE *fopen(const char *path,const char *mode){
+ FILE *(*real_open)(const char *,const char *)=dlsym(RTLD_NEXT,"fopen");assert(real_open);
+ return real_open(!strcmp(path,"/proc/mounts")?"/capture-mounts":path,mode);
+}
+#endif
 #ifdef HB_DIAGNOSTIC_APP
 #include "../../runtime/native/frontend.h"
 #include "../../runtime/native/font.inc"

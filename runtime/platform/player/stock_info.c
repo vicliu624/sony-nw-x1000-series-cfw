@@ -58,9 +58,10 @@ int xw_stock_info_read(struct xw_stock_info *s,struct xw_stock_info_view *out)
     if (s->busy || s->owner!=pthread_self()) return XW_PLAYER_BUSY;
     uintptr_t handle=*(const volatile uint32_t *)(uintptr_t)0x6922d8u;
     if (!handle) return XW_PLAYER_UNAVAILABLE;
-    if (handle&3u) return XW_PLAYER_PROTOCOL;
+    if ((handle&3u) || handle>UINT32_MAX-7u) return XW_PLAYER_PROTOCOL;
     const volatile uint32_t *controller=(const volatile uint32_t *)handle;
-    if (!controller[0] || controller[1]==UINT32_MAX) return XW_PLAYER_UNAVAILABLE;
+    uint32_t service=controller[0],session=controller[1];
+    if (!service || session==UINT32_MAX) return XW_PLAYER_UNAVAILABLE;
     s->busy=1;
     int rc=((int (*)(uintptr_t,uint32_t *))(uintptr_t)0x27d4e4u)(handle,&owned);
     if (!owned) {s->busy=0;return XW_PLAYER_UNAVAILABLE;}
@@ -74,6 +75,13 @@ int xw_stock_info_read(struct xw_stock_info *s,struct xw_stock_info_view *out)
     ((void (*)(uintptr_t))(uintptr_t)0x275f48u)(owned);
     s->busy=0;
     if (rc) return XW_PLAYER_UNAVAILABLE;
+    /* A retained snapshot is memory-safe to copy but can belong to a replaced
+     * session. Do not publish that stale observation to SDK subscribers.
+     * Check the global wrapper first, before inspecting its captured fields. */
+    if (*(const volatile uint32_t *)(uintptr_t)0x6922d8u!=handle)
+        return XW_PLAYER_BUSY;
+    if (controller[0]!=service || controller[1]!=session)
+        return XW_PLAYER_BUSY;
     *out=view;
     return 0;
 }

@@ -1,5 +1,121 @@
 # Experimental ESP-NOW services
 
+## Client-only transport
+
+The `espnow-client` source module exports `<x1000/services/espnow_client.h>`.
+It communicates with an already authorized owner through two explicitly supplied
+nonblocking FIFO descriptions. It contains no driver loader, radio backend,
+default endpoint or automatic activation. A system owner must supply admission,
+ordinary-Wi-Fi exclusion and final hardware cleanup receipts.
+
+Requests support peer add/modify/delete, one-peer sends and stop. Generated IDs,
+partial transfers and one retained event avoid implicit replay. A queued command
+ACK is distinct from TX completion and from application acknowledgement. Local
+close or a stop ACK does not establish hardware power-off. Payloads are bounded
+to 1470 bytes; no RSSI is fabricated. Pending key material is wiped after writing
+or failure, while callers remain responsible for wiping their own key copies.
+
+The pinned stock `libcnmgr.so.1` has a separate `cnmgr_power_off()` entry.
+`tools/check_cnmgr_power_off.py` executes its ARM body with RAM-modeled IPC:
+it sends request kind4 in a1020-byte request and returns the status at offset0
+of the1012-byte response. Success and failure status propagation are checked.
+This establishes the client protocol, not daemon transition, exclusive ownership,
+physical RF power-off or standby current. Neither `cnmgr_fin()` nor disconnect
+is a substitute for a qualified power-off operation. The system remote switch
+still needs restoration, original manager power policy and hardware validation.
+
+`tools/replay_cnmgr_power_off.py` executes the original daemon request handler
+under12 supplied contexts. Internal states2/3 call `cnmgr_wlan_power_off`, move
+to internal state0 and return success when the modeled driver succeeds. Supplied
+states0/6/7/8 reject this request without that driver call. These are daemon
+internal values, not public `cnmgr_get_state()` values. Client reference counts1
+and2 have the same power-off behavior: a held cnmgr client is not exclusive
+radio ownership. Do not use its reference count as a power-off admission check.
+
+The low-level wrapper closes its two WLAN pipe descriptors and invokes the
+stock `wlanapi.sh stop` then `wlanapi.sh unload`. Four replay cases verify that
+both commands are attempted and shell failures produce wrapper error16. No
+shell command actually runs in these tests. The stock unload script removes
+sd8xxx, mp200_sdio, wlan_pm_register and finally wlan_pwr_ctrl, in that order.
+`tools/replay_wlan_power_exit.py` replays the last module's original exit section
+with RAM-backed GPIO: it calls `pwc_regulator_off(0x50806)` then performs the
+original GPIO/PMU reset writes. This establishes the original power-off intent
+and software path. Kernel import results are modeled; rail voltage/current and
+successful physical unload remain unqualified. Production should use the
+original cnmgr path after exclusive admission, not copy the raw register writes.
+
+`xnow_power_off.c` is an optional internal platform helper, not automatically
+selected by public service manifests or ordinary close. It requires the serialized
+manager owner, held lease and STOPPING/RELEASE boundary. A separate callback
+must return exactly1 before the original power-off API can run. Public cnmgr
+state4 or transition/error states are refused; successful power-off must be
+followed by state2, all four WLAN modules absent and a still-valid ownership check.
+The shared read-only `platform/wireless/radio_modules.c` parser is also used by
+native startup/retirement; stock script success can hide partial unload. A
+reported-off manager with residual modules is uncertain too. Failures latch
+manager uncertainty and retain the lease. `tools/test_xnow_power_off.py` covers
+admission, reentry, repeated close, ownership loss and API/state failures with
+host sanitizers and actual ARM926/stock-libc code; cnmgr/module effects are modeled.
+
+The remote-specific adapter `runtime/apps/wireless-remote/radio_stop.c` calls
+this helper after normal controller restoration and before normal RELEASE/fin.
+It rejects disconnect-enabled/borrowed-Wi-Fi sessions, preserving the generic
+SDK restoration behavior. The full-controller fixture tests power-off ordering,
+no fin after failed power-off, retained uncertainty after fin failure and refusal
+to report completion with a borrowed connection. This adapter still requires a
+qualified production admission callback and integration with Settings.
+`tools/build_remote_owner.py --power-off-exit` selects it in the finite lab owner
+through explicit `xnow_owner_runtime_step_with_controller()` and gate stepping.
+These entry points preserve stop-token/HUP revocation and actual completion
+notification, without changing object layouts or default runtime behavior.
+The lab admission combines its existing explicit operator assertion and gate/IPC
+identity checks; it is not automatic original Sony/APF arbitration.
+`tools/test_full_owner_runtime.py --power-off` exercises the full real-pipe path
+with modeled driver/API effects and confirms power-off before cleanup/receipt.
+
+## Native Settings routing analysis
+
+The pinned JP1.11 Settings list is descriptor ID2 in the table at0x3f611c.
+The stock selection callback0x950f0 is referenced at0x411350. It converts the
+selected index through0x74634 and returns a native transition encoding; it is
+not a driver API. Native SWD sid-050-00 maps Japanese list labels by row index.
+The completed-language data profile contains Language at index10. That table
+edit alone did not establish physical visibility: the user later reported only
+ten entries. The former media-list adapter was rejected after the physical failure. Current
+combined-host analysis changes only the Japanese Pcs descriptor count fields;
+original Pcs pool/object construction now reproduces the failed count10 and
+corrected count12. It is not full GUI/hardware acceptance. See LOCALIZATION.md
+and KNOWLEDGE.md for the separate selection/display tables.
+
+`tools/prepare_remote_settings_row.py` prepares a separate analysis profile:
+it extends the checked RX list at0x4d8000 to12 entries, appends0xfd0000,
+redirects the single selection pointer to a68-byte source-built callback at
+0x4d8040 and maps label index11 to new wording ID7310. Labels are Japanese,
+English, Simplified and Traditional Chinese; other native wording files use an
+English fallback for this new label only. Existing text is preserved. All95
+list IDs under two classifications replay with only the Japanese Settings list
+changed (190 cases). Thirteen callback cases verify original argument/return
+forwarding and one request for the new item. No ELF file growth or writable-data
+extension is needed, and reverting the declared edits reconstructs the base.
+
+The request anchor LR0x4d8078 falls through ordinary getpid behavior in default
+hosts. The opt-in `--native-remote-settings` player-host profile now consumes it
+after checking the68-byte callback, selection pointer and48-byte list hashes,
+the original bound owner and non-reentry. It forwards to a bounded private
+Settings request queue; no activation backend is automatically registered.
+The callback replay models the stock selection boundary/delegate. A separate
+anchor test executes the actual guarded shim, rejecting code/pointer/list changes
+and wrong-thread requests. Queue tests execute actual admission/delivery/cancel
+code with a modeled nonblocking backend. No on/off state or physical UI
+acceptance is implied.
+This analysis ELF/resources must not be mistaken for an installable remote
+switch. The completed SDK/owner admission and explicit progress/failure UI remain
+required before final firmware composition.
+
+`tools/test_xnow_client.py` exercises the actual owner stream and client with
+partial FIFO transfers under host sanitizers and original-libc ARM926 execution.
+Radio operations in this test are synthetic, not physical link qualification.
+
 SDK0.2.0-alpha.7 extends xnow_full_received with RX flags: BROADCAST1 and
 AUTHENTICATED2. Rebuild native consumers with the matching headers/library;
 the frozen0.2.0-alpha.6 source zip and its verification receipt are unchanged.

@@ -41,6 +41,10 @@ for row in listing.decode('ascii').splitlines()[1:]:
 sys.path.insert(0,str(ROOT/'scripts'));from upg import unpack
 with zipfile.ZipFile(upload/('NW-X1000-'+report['version']+'-firmware.zip')) as z:firmware=z.read('NW_WM_FW.UPG')
 assert digest(firmware)==report['firmware']['firmware_sha256'];_,parts=unpack(firmware,require_stock=False)
+assert report['firmware']['native_language_settings'] and not report['firmware']['external_language_files_generated']
+assert 'language' not in policy['apps']
+with zipfile.ZipFile(upload/('NW-X1000-'+report['version']+'-player-setup.zip')) as setup:
+ assert not any(name.startswith(('HOMEBREW/apps/language/','HOMEBREW/languages/')) for name in setup.namelist())
 for i in range(3):assert parts[i]==(ROOT/f'work/upg-jp/verified-{i}.bin').read_bytes()
 workspace=ROOT/'work/ci/release-verification';workspace.mkdir(parents=True,exist_ok=True)
 sources=['runtime/store/'+n+'.c' for n in ('remote_catalog','download_plan','inventory','package','cleanup_plan','https_url')]+['runtime/native/sha256.c','tools/verify_release_catalog.c']

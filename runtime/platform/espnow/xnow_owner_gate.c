@@ -62,6 +62,12 @@ int xnow_owner_gate_step(struct xnow_owner_gate *g,struct xnow_full_control *con
  if(xnow_owner_gate_stop_requested(g))xnow_full_control_stop(controller);
  return xnow_full_control_step(controller);
 }
+int xnow_owner_gate_step_with_controller(struct xnow_owner_gate *g,struct xnow_full_control *controller,
+                                         void *context,int (*step)(void *,struct xnow_full_control *)){
+ if(!g||!controller||!step||g->pid!=(int)getpid())return XNOW_ARGUMENT;
+ if(xnow_owner_gate_stop_requested(g))xnow_full_control_stop(controller);
+ return step(context,controller);
+}
 int xnow_owner_gate_release(struct xnow_owner_gate *g,const struct xnow_full_control *controller){
  if(!g||g->pid!=(int)getpid()||!controller||!xnow_full_control_finished(controller))return XNOW_UNCERTAIN;
  int result=0;struct stat st;

@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 static int state,clients,allowed,configured,stop_pending,stop_error,endpoint_error;static unsigned backend_opens,endpoint_stops,probes;static enum xnow_session_action denied;
+int xw_wireless_modules_unloaded(void){return 1;}
 int cnmgr_init(void *a,const void *b){assert(!a&&!b&&!clients);clients=1;return 0;}
 int cnmgr_get_state(void){return state;}
 int cnmgr_get_target_connect_info(void *out){memset(out,0x5a,1004);return 0;}

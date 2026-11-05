@@ -1,20 +1,26 @@
 """Source-built Japanese 1.11 Homebrew/cache firmware composition, PC only."""
 from pathlib import Path
 import copy,gzip,hashlib,io,json,struct,subprocess,sys,tarfile
-from Crypto.Cipher import DES
 from elftools.elf.elffile import ELFFile
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'scripts'))
 from upg import unpack,KEY,SIGNATURE
+from upg_crypto import encrypt_verified
 from resources import append_stx,parse_stx,parse_tgp,append_bgra_texture
 from language_pack import manifest
 
 def pack(parts):
- cipher=DES.new(KEY,DES.MODE_ECB);entries=[];body=bytearray();offset=64
+ entries=[];body=bytearray();offset=64
  for data in parts:
-  entries.append((offset,len(data)));padded=data+bytes((-len(data))%8);body.extend(cipher.encrypt(padded));offset+=len(padded)
+  entries.append((offset,len(data)));padded=data+bytes((-len(data))%8)
+  if padded[:len(data)]!=data:raise ValueError('UPG component padding copy mismatch')
+  encoded=encrypt_verified(padded,KEY)
+  start=len(body);body.extend(encoded)
+  if body[start:]!=encoded:raise ValueError('UPG encrypted body assembly mismatch')
+  offset+=len(padded)
  header=struct.pack('<8sII',SIGNATURE,4,0)+b''.join(struct.pack('<II',*e) for e in entries)
- encrypted=cipher.encrypt(header)+body
+ encrypted=encrypt_verified(header,KEY)+body
+ if encrypted[48:]!=body:raise ValueError('UPG header/body assembly mismatch')
  return hashlib.md5(encrypted).digest()+encrypted
 
 def add_language_cache(raw,work):
@@ -47,7 +53,20 @@ def add_language_cache(raw,work):
  checked=ELFFile(io.BytesIO(out));assert next(s for s in checked.iter_segments() if s['p_type']=='PT_LOAD' and s['p_flags']&2).data()==rw.data()
  return bytes(out)
 
-def build(work,player):
+def complete_wordings(wordings):
+ from wording import complete_missing,replace_verified_texts
+ raw=wordings['en']
+ missing={int(i):s for i,s in json.loads((ROOT/'translations/x1000-en-missing.json').read_text())['translations'].items()}
+ raw=complete_missing(raw,wordings['jp'],missing)
+ changes={int(i):s for i,s in json.loads((ROOT/'translations/x1000-en-japanese-fallbacks.json').read_text())['translations'].items()}
+ wordings['en']=replace_verified_texts(raw,{i:parse_stx(raw)[i] for i in changes},changes)
+ for ident,code in [('zh-CN','cs'),('zh-TW','ct')]:
+  document=json.loads((ROOT/f'translations/x1000-{ident}.json').read_text());changes={int(i):s for i,s in document['translations'].items()}
+  old=parse_stx(wordings[code]);missing={i:s for i,s in changes.items() if not old[i]}
+  full=complete_missing(wordings[code],wordings['jp'],missing);other={i:s for i,s in changes.items() if i not in missing}
+  wordings[code]=replace_verified_texts(full,{i:old[i] for i in other},other)
+
+def build(work,player,*,builtin_localization=False):
  work=Path(work);work.mkdir(parents=True,exist_ok=False)
  original=[(ROOT/f'work/upg-jp/verified-{i}.bin').read_bytes() for i in range(4)]
  stock=pack(original);assert hashlib.sha256(stock).hexdigest()=='002b6720b59f093a84440f554ffabe29f5879646839a5a28d43487b5cb41914b'
@@ -56,13 +75,24 @@ def build(work,player):
  descriptor=symbols['hb_error_descriptor'];parsed=ELFFile(io.BytesIO(spider))
  descriptor_offset=next(s['p_offset']+descriptor-s['p_vaddr'] for s in parsed.iter_segments() if s['p_type']=='PT_LOAD' and s['p_vaddr']<=descriptor and descriptor+48<=s['p_vaddr']+s['p_filesz'])
  editable=bytearray(spider);struct.pack_into('<I',editable,descriptor_offset+4,99999);struct.pack_into('<I',editable,descriptor_offset+20,0);spider=bytes(editable)
- spider=add_language_cache(spider,work)
+ if builtin_localization:
+  from builtin_language import enable_settings
+  spider=enable_settings(spider)
+ else:spider=add_language_cache(spider,work)
  overlays={'usr/local/bin/SpiderApp':spider};wordings={}
  with tarfile.open(fileobj=io.BytesIO(original[3]),mode='r:gz') as t:
   for m in t:
    if m.isfile() and m.name.startswith('./usr/local/share/gemini/res/stx/') and m.name.endswith('.stx'):
     data,tid=append_stx(t.extractfile(m).read(),'Homebrew');data,error_tid=append_stx(data,'Homebrew unavailable.\nCheck HOMEBREW.');assert tid==7308 and error_tid==7309;overlays[m.name[2:]]=data
     wordings[Path(m.name).stem.removeprefix('ucs2-dev-')]=data
+  complete_wordings(wordings)
+  if builtin_localization:
+   from language_pack import validate_wording
+   for code in ('jp','en','cs','ct'):
+    texts=validate_wording(wordings[code]);japanese=parse_stx(wordings['jp'])
+    if any(text and (i>=len(texts) or not texts[i]) for i,text in enumerate(japanese)):
+     raise ValueError('Incomplete built-in wording: '+code)
+    overlays['usr/local/share/gemini/res/stx/ucs2-dev-'+code+'.stx']=wordings[code]
   from PIL import Image
   texture_path='usr/local/share/GUI/skinRom/TEXGRP00.DAT'
   textures=t.extractfile('./'+texture_path).read()
@@ -94,28 +124,16 @@ def build(work,player):
  from test_homebrew_firmware_icon import verify as verify_homebrew_icon
  verify_homebrew_icon(work/'NW_WM_FW.UPG')
  # English and Chinese translation files are derived from the same stock table.
- from wording import complete_missing,replace_verified_texts
- raw=wordings['en'];before=parse_stx(raw)
- missing={int(i):s for i,s in json.loads((ROOT/'translations/x1000-en-missing.json').read_text())['translations'].items()}
- raw=complete_missing(raw,wordings['jp'],missing)
- changes={int(i):s for i,s in json.loads((ROOT/'translations/x1000-en-japanese-fallbacks.json').read_text())['translations'].items()}
- raw=replace_verified_texts(raw,{i:parse_stx(raw)[i] for i in changes},changes)
- wordings['en']=raw
- for ident,code in [('zh-CN','cs'),('zh-TW','ct')]:
-  document=json.loads((ROOT/f'translations/x1000-{ident}.json').read_text());changes={int(i):s for i,s in document['translations'].items()}
-  old=parse_stx(wordings[code]);missing={i:s for i,s in changes.items() if not old[i]}
-  full=complete_missing(wordings[code],wordings['jp'],missing);other={i:s for i,s in changes.items() if i not in missing}
-  wordings[code]=replace_verified_texts(full,{i:old[i] for i in other},other)
- for ident,code,name in [('jp','jp','Japanese'),('en','en','English'),('zh-CN','cs','Simplified Chinese'),('zh-TW','ct','Traditional Chinese')]:
+ for ident,code,name in ([] if builtin_localization else [('jp','jp','Japanese'),('en','en','English'),('zh-CN','cs','Simplified Chinese'),('zh-TW','ct','Traditional Chinese')]):
   folder=Path(player)/'HOMEBREW/languages'/ident;folder.mkdir(parents=True,exist_ok=True)
   data=None if ident=='jp' else wordings[code]
   (folder/'language.ini').write_bytes(manifest(ident,name,code,data))
   if data:(folder/'wording.stx').write_bytes(data)
- report={'firmware_sha256':hashlib.sha256(result).hexdigest(),'original_roundtrip_verified':True,'original_installer_kernel_initrd_preserved':True,'language_cache':'process-owned','system_changes':sorted(overlays),'hardware_qualified':False,'flashed':False,'historical_candidate_dependency':False}
+ report={'firmware_sha256':hashlib.sha256(result).hexdigest(),'original_roundtrip_verified':True,'original_installer_kernel_initrd_preserved':True,'language_cache':'stock-system-resources' if builtin_localization else 'process-owned','native_language_settings':builtin_localization,'external_language_files_generated':not builtin_localization,'system_changes':sorted(overlays),'hardware_qualified':False,'flashed':False,'historical_candidate_dependency':False}
  (work/'verification.json').write_text(json.dumps(report,indent=2)+'\n')
  return work/'NW_WM_FW.UPG',report
 
 if __name__=='__main__':
  import argparse
- parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--output',type=Path,required=True);parser.add_argument('--player',type=Path,required=True);args=parser.parse_args()
- print(json.dumps(build(args.output,args.player)[1],indent=2))
+ parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--output',type=Path,required=True);parser.add_argument('--player',type=Path,required=True);parser.add_argument('--builtin-localization',action='store_true');args=parser.parse_args()
+ print(json.dumps(build(args.output,args.player,builtin_localization=args.builtin_localization)[1],indent=2))

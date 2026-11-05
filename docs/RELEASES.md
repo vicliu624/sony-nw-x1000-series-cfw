@@ -16,15 +16,17 @@ The tag must exactly match VERSION. `--skip-bootstrap` is for an already verifie
 local input set, not an exemption from stock component checks.
 
 The firmware profile is built from original Japanese1.11 components and current
-Homebrew/error-message/process-cache sources. It preserves the original installer,
-kernel and initrd, adds the launcher registration/resources, and supplies external
-Japanese/English/Simplified/Traditional packs. It is an experimental source-built
+Homebrew/error-message/built-in localization sources. It preserves the original
+installer, kernel and initrd, adds the launcher registration/resources, and uses
+the original Settings language selector with completed Japanese/English/Simplified/
+Traditional resources. No separate Language app or external language packs are
+included. It is an experimental source-built
 profile, not a claim of byte identity with a historical numbered candidate.
 
 ## Release contents
 
 - `NW-X1000-<version>-firmware.zip`: NW_WM_FW.UPG and verification information.
-- `NW-X1000-<version>-player-setup.zip`: launcher, market, language app/packs and
+- `NW-X1000-<version>-player-setup.zip`: launcher, market and
   repository configuration on visible user storage.
 - One `<app>-<app-version>.zip` per native application.
 - `catalog.tsv` plus flat, hash-indexed per-file release assets used by the market.

@@ -36,6 +36,7 @@ for scenario in ('normal','apply-error','wrong-image','partial-bind','partial-in
   if scenario=='chapterless-states':put(info+100,0)
  actor=area+0xd000
  if has_state:
+  put(info+4,2)
   put(0x6831dc,actor);u.mem_write(actor,b'\2\2');put(actor+4,0x3f11d8);u.mem_write(actor+8,b'\xff\xff');u.mem_write(actor+13,b'\2')
  applied=[];depth=[0];info_locks={1:0,2:0,3:0,4:0};live=[False];allocations=[0];frees=[0];fail_info=[False]
  def hook(uc,pc,size,data):
@@ -90,15 +91,15 @@ for scenario in ('normal','apply-error','wrong-image','partial-bind','partial-in
   transitions=[
    # primary, substate, error, GUI mode/state, bound objects, observed state, mask
    (0,0,0,2,2,1,0,1), # controller and GUI disagree
-   (0,0,0,1,4,1,0,0), # original GUI is still starting
-   (0,0,0,1,5,1,3,1), # both sources agree on stable playback
-   (0,1,0,1,5,1,0,1), # native controller pending despite a stable GUI
-   (0,0,0,1,5,1,3,1),
-   (0,0,7,1,5,1,0,1), # native error must not remain PLAYING
-   (0,0,0,1,5,1,3,1),
-   (2,0,0,1,1,1,1,1), # stopped target plus inactive original component
-   (0,0,0,1,5,0,0,3), # default target0 and stale GUI cannot create playback
-   (1,0,0,2,2,1,2,3),
+   (1,0,0,1,4,1,0,0), # original GUI is still starting
+   (1,0,0,1,5,1,3,1), # both sources agree on stable playback
+   (1,1,0,1,5,1,0,1), # running operation is not a completed state
+   (1,0,0,1,5,1,3,1),
+   (1,0,7,1,5,1,0,1), # native error must not remain PLAYING
+   (1,0,0,1,5,1,3,1),
+   (0,0,0,1,1,1,1,1), # stopped primary plus inactive original component
+   (1,0,0,1,5,0,0,3), # missing track and stale GUI cannot create playback
+   (2,0,0,2,2,1,2,3),
   ]
   for primary,substate,error,mode,phase,objects,state,mask in transitions:
    put(info+4,primary);put(info+8,substate);put(info+12,error);u.mem_write(actor,bytes((mode,phase)))

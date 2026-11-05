@@ -16,6 +16,10 @@ def tree(folder,prefix=''):
   if p.is_symlink():raise ValueError('Linked package input: '+str(p))
   if p.is_file():result[prefix+p.relative_to(folder).as_posix()]=p.read_bytes()
  return result
+
+def player_setup_files(launcher,repository,apps):
+ # Language selection belongs to stock Settings; legacy app/packs are not shipped.
+ return {**tree(launcher,'HOMEBREW/launcher/'),**tree(repository,'HOMEBREW/repository/'),**tree(apps/'store','HOMEBREW/apps/store/')}
 def main():
  parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--repository');parser.add_argument('--tag');parser.add_argument('--output',type=Path);parser.add_argument('--skip-bootstrap',action='store_true');a=parser.parse_args()
  os.chdir(ROOT)
@@ -40,6 +44,7 @@ def main():
  if not a.skip_bootstrap:run('tools/ci_bootstrap.py')
  bootstrap=json.loads((ROOT/'work/ci/bootstrap.json').read_text())
  for i,sha in enumerate(bootstrap['stock_components']):assert digest((ROOT/f'work/upg-jp/verified-{i}.bin').read_bytes())==sha
+ run('tools/test_upg_crypto.py')
  run('tools/build_hello_app.py');run('tools/build_libc_frontend.py','--review-output','work/libc-launcher-review')
  def copy_app(ident,source):
   dest=apps/ident;shutil.copytree(source,dest);return dest
@@ -66,7 +71,7 @@ def main():
  base='https://github.com/'+repo+'/releases/download/'+tag+'/'
  catalog=[];release_apps=[]
  from release_firmware import build as firmware_build
- firmware,firmware_report=firmware_build(work/'firmware',player)
+ firmware,firmware_report=firmware_build(work/'firmware',player,builtin_localization=True)
  launcher=player/'HOMEBREW/launcher';launcher.mkdir();shutil.copyfile(ROOT/'work/libc-launcher-review/launcher.elf',launcher/'app')
  shutil.copyfile(ROOT/'third_party/qqmusic-stb/Noto-OFL.txt',launcher/'Noto-OFL.txt')
  descriptions_by_id=descriptions()
@@ -100,7 +105,7 @@ def main():
  repository=player/'HOMEBREW/repository';repository.mkdir();trust=(crypto/'github-ca.der').read_bytes();(repository/'ca.der').write_bytes(trust)
  configuration=f'HBREPO1\ncatalog_url={base}catalog.tsv\ncatalog_bytes={len(listing)}\ncatalog_sha256={digest(listing)}\nca_sha256={digest(trust)}\n'.encode();(repository/'repository.conf').write_bytes(configuration)
  archive(upload/'market-source.zip',tree(repository,'HOMEBREW/repository/'))
- starter={**tree(launcher,'HOMEBREW/launcher/'),**tree(repository,'HOMEBREW/repository/'),**tree(apps/'store','HOMEBREW/apps/store/'),**tree(apps/'language','HOMEBREW/apps/language/'),**tree(player/'HOMEBREW/languages','HOMEBREW/languages/')}
+ starter=player_setup_files(launcher,repository,apps)
  archive(upload/('NW-X1000-'+version+'-player-setup.zip'),starter)
  archive(upload/('NW-X1000-'+version+'-firmware.zip'),{'NW_WM_FW.UPG':firmware.read_bytes(),'README.md':(ROOT/'docs/RELEASES.md').read_bytes(),'verification.json':json.dumps(firmware_report,indent=2).encode()})
  archive(upload/'terminal-computer.zip',{'terminal_client.py':(ROOT/'tools/terminal_client.py').read_bytes(),'prepare_terminal_identity.py':(ROOT/'tools/prepare_terminal_identity.py').read_bytes(),'README.md':(ROOT/'docs/apps/TERMINAL.md').read_bytes()})

@@ -6,7 +6,7 @@
 #include <string.h>
 #include <stdio.h>
 static unsigned long long now=100;
-static unsigned clock_fail=1,binds,opens,broker_ticks,server_ticks;
+static unsigned clock_fail=1,binds,opens,broker_ticks,server_ticks,invalidations;
 int hb_monotonic_millis(unsigned long long *out){if(clock_fail)return -1;*out=now;return 0;}
 int xw_player_broker_bind(struct xw_player_broker *broker,struct xw_player *backend){
  assert(backend&&backend->initialized&&!broker->player.initialized);binds++;
@@ -18,6 +18,7 @@ int xw_player_rpc_server_open(struct xw_player_rpc_server *server,struct xw_play
  if(opens==1)return XW_PLAYER_BUSY;server->bound=1;return 0;
 }
 void xw_player_broker_tick(struct xw_player_broker *b,unsigned long long t){assert(b->player.initialized&&t==now);broker_ticks++;}
+void xw_player_broker_invalidate(struct xw_player_broker *b,uint64_t t){assert(b->player.initialized&&clock_fail&&!t);invalidations++;}
 int xw_player_rpc_server_tick(struct xw_player_rpc_server *s,unsigned long long t){assert(s->bound&&t==now);server_ticks++;return XW_PLAYER_IO;}
 int xw_player_host_queue_attach(struct xw_player_broker *b){assert(b->player.initialized);return XW_PLAYER_UNAVAILABLE;}
 int main(int argc,char **argv){
@@ -36,7 +37,7 @@ int main(int argc,char **argv){
  now=2100;xw_player_host_dispatch(&original);assert(binds==2&&opens==2&&server_ticks==1);
  for(unsigned i=0;i<200;i++){now++;xw_player_host_dispatch(&original);}
  assert(binds==2&&opens==2&&server_ticks==201&&broker_ticks==201);
- clock_fail=1;xw_player_host_dispatch(&original);assert(server_ticks==201);
+ clock_fail=1;xw_player_host_dispatch(&original);assert(server_ticks==201&&invalidations==1);
  clock_fail=0;now=1;xw_player_host_dispatch(&original);assert(binds==2&&opens==2&&server_ticks==202&&original.initialized);
  puts("Owner service: clock refusal, rate-limited broker/listener startup recovery, retained broker and bounded dispatch passed");return 0;
 }

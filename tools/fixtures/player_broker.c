@@ -19,11 +19,12 @@ static struct xw_player_broker broker;
 static unsigned track=1,available=1,version=1,opened,closed,live,backend_closed;
 static unsigned long long now=1000;
 static unsigned clock_fail;
-static pthread_mutex_t counters=PTHREAD_MUTEX_INITIALIZER;
+static int backend_fault;
+static union xw_pthread_storage counters;
 int hb_monotonic_millis(unsigned long long *out){if(clock_fail)return -1;*out=now;return 0;}
 int xw_stock_media_source_ready(void){return available!=0;}
-int xw_stock_media_open(struct xw_stock_media *s){if(!available)return XW_PLAYER_UNAVAILABLE;memset(s,0,sizeof *s);s->client=1;s->bound=1;s->gui_owner=pthread_self();pthread_mutex_lock(&counters);opened++;live++;pthread_mutex_unlock(&counters);return 0;}
-int xw_stock_media_fetch(struct xw_stock_media *s,const struct xw_media_id *id,struct xw_media_item *out){assert(pthread_self()!=s->gui_owner);s->worker_set=1;s->worker=pthread_self();poll(0,0,20);memset(out,0,sizeof *out);out->id=*id;uint32_t domain,number;assert(!xw_local_media_id_parse(id,&domain,&number));snprintf(out->title,sizeof out->title,"Song %u 猫",number);pthread_mutex_lock(&counters);unsigned v=version;pthread_mutex_unlock(&counters);snprintf(out->artist,sizeof out->artist,"Artist %u",v);out->flags=3;return 0;}
+int xw_stock_media_open(struct xw_stock_media *s){if(!available)return XW_PLAYER_UNAVAILABLE;memset(s,0,sizeof *s);s->client=1;s->bound=1;s->gui_owner=pthread_self();pthread_mutex_lock((void *)&counters);opened++;live++;pthread_mutex_unlock((void *)&counters);return 0;}
+int xw_stock_media_fetch(struct xw_stock_media *s,const struct xw_media_id *id,struct xw_media_item *out){assert(pthread_self()!=s->gui_owner);s->worker_set=1;s->worker=pthread_self();poll(0,0,20);memset(out,0,sizeof *out);out->id=*id;uint32_t domain,number;assert(!xw_local_media_id_parse(id,&domain,&number));snprintf(out->title,sizeof out->title,"Song %u 猫",number);pthread_mutex_lock((void *)&counters);unsigned v=version;pthread_mutex_unlock((void *)&counters);snprintf(out->artist,sizeof out->artist,"Artist %u",v);out->flags=3;return 0;}
 int xw_stock_media_children(struct xw_stock_media *s,const struct xw_stock_children_query *q,struct xw_stock_children_page *out){
  assert(s->client&&pthread_self()!=s->gui_owner&&q->kind>=XW_STOCK_TRACKS&&q->kind<=XW_STOCK_FORMAT3_CHILDREN);s->worker_set=1;s->worker=pthread_self();poll(0,0,20);memset(out,0,sizeof *out);
  if(q->kind==XW_STOCK_FORMAT3_LISTS){
@@ -34,8 +35,8 @@ int xw_stock_media_children(struct xw_stock_media *s,const struct xw_stock_child
  for(unsigned n=q->offset;n<3&&out->count<q->limit;n++){struct xw_media_item *item=&out->items[out->count++];assert(!xw_local_media_id_format(1,n+1,&item->id));snprintf(item->title,sizeof item->title,"Library %u",n+1);item->flags=XW_MEDIA_TITLE_PRESENT;}
  out->exhausted=q->offset+out->count>=3;return 0;
 }
-int xw_stock_media_close(struct xw_stock_media *s){assert(s->client);assert(pthread_self()==s->gui_owner||(s->worker_set&&pthread_self()==s->worker));pthread_mutex_lock(&counters);closed++;assert(live);live--;pthread_mutex_unlock(&counters);memset(s,0,sizeof *s);return 0;}
-static int snapshot(void *ctx,struct xw_player_snapshot *out){(void)ctx;memset(out,0,sizeof *out);out->valid=XW_PF_TRACK|XW_PF_STATE|XW_PF_VOLUME;out->state=XW_PLAY_PAUSED;out->volume=12;out->volume_max=30;assert(!xw_local_media_id_format(1,track,&out->track.id));return 0;}
+int xw_stock_media_close(struct xw_stock_media *s){assert(s->client);assert(pthread_self()==s->gui_owner||(s->worker_set&&pthread_self()==s->worker));pthread_mutex_lock((void *)&counters);closed++;assert(live);live--;pthread_mutex_unlock((void *)&counters);memset(s,0,sizeof *s);return 0;}
+static int snapshot(void *ctx,struct xw_player_snapshot *out){(void)ctx;if(backend_fault)return backend_fault;memset(out,0,sizeof *out);out->valid=XW_PF_TRACK|XW_PF_STATE|XW_PF_VOLUME;out->state=XW_PLAY_PAUSED;out->volume=12;out->volume_max=30;assert(!xw_local_media_id_format(1,track,&out->track.id));return 0;}
 static int command(void *ctx,const struct xw_player_command *request){(void)ctx;if(request->operation==XW_OP_NEXT)track++;return XW_PLAYER_ACCEPTED;}
 static int close_backend(void *ctx){(void)ctx;backend_closed++;return 0;}
 static void wait_metadata(struct xw_player_snapshot *out,const char *title){for(unsigned i=0;i<2000;i++){assert(!xw_player_snapshot(&broker.player,out));if(out->valid&XW_PF_METADATA){assert(!strcmp(out->track.title,title));return;}poll(0,0,1);}assert(0);}
@@ -49,16 +50,17 @@ static int queue_browse(void *context,const struct xw_media_query *q,uint64_t cl
 static int queue_revoke(void *context,uint64_t clock){assert(context==&queue_reads&&clock==(clock_fail?0:now));queue_revokes++;if(queue_revoke_busy){queue_revoke_busy=0;return XW_PLAYER_BUSY;}return 0;}
 static int queue_close(void *context){assert(context==&queue_reads);return ++queue_closes==1?XW_PLAYER_BUSY:0;}
 int main(void){
+ assert(!pthread_mutex_init((void *)&counters,0));
  struct xw_player_provider provider={XW_PLAYER_API,1u<<XW_OP_NEXT,0,snapshot,command,0,close_backend};assert(!xw_player_bind(&original,&provider)&&!xw_player_broker_bind(&broker,&original));
  struct xw_player_snapshot out;assert(!xw_player_snapshot(&broker.player,&out)&&!(out.valid&XW_PF_METADATA));
  struct xw_player_command next={0};next.operation=XW_OP_NEXT;assert(xw_player_command(&broker.player,&next)==XW_PLAYER_ACCEPTED);now++;
  wait_metadata(&out,"Song 2 猫");assert(!strcmp(out.track.artist,"Artist 1"));uint32_t changes;assert(!xw_player_poll(&broker.player,&out,&changes)&&(changes&XW_PC_METADATA));assert(!xw_player_poll(&broker.player,&out,&changes)&&!changes);
- pthread_mutex_lock(&counters);version=2;pthread_mutex_unlock(&counters);now=5000;
+ pthread_mutex_lock((void *)&counters);version=2;pthread_mutex_unlock((void *)&counters);now=5000;
  for(unsigned i=0;i<2000;i++){assert(!xw_player_poll(&broker.player,&out,&changes));if(!strcmp(out.track.artist,"Artist 2")){assert(changes==XW_PC_METADATA);break;}poll(0,0,1);}assert(!strcmp(out.track.artist,"Artist 2"));
  available=0;xw_player_broker_tick(&broker,now);assert(!xw_player_poll(&broker.player,&out,&changes)&&!(out.valid&XW_PF_METADATA)&&changes==XW_PC_METADATA);
  available=1;now++;wait_metadata(&out,"Song 2 猫");assert(!strcmp(out.track.artist,"Artist 2"));
  assert(!xw_player_poll(&broker.player,&out,&changes)&&(out.valid&XW_PF_METADATA));
- pthread_mutex_lock(&counters);version=3;pthread_mutex_unlock(&counters);clock_fail=1;
+ pthread_mutex_lock((void *)&counters);version=3;pthread_mutex_unlock((void *)&counters);clock_fail=1;
  assert(!xw_player_poll(&broker.player,&out,&changes)&&!(out.valid&XW_PF_METADATA)&&(changes&XW_PC_METADATA));
  clock_fail=0;now++;
  assert(!xw_player_poll(&broker.player,&out,&changes)&&!(out.valid&XW_PF_METADATA));
@@ -94,8 +96,20 @@ int main(void){
  memcpy(old_rows,rows,sizeof rows);old_page=page;unsigned before_clock_reads=queue_reads,before_clock_revokes=queue_revokes;clock_fail=1;
  assert(xw_media_browse(&broker.player,&query,rows,2,&page)==XW_PLAYER_UNAVAILABLE&&queue_reads==before_clock_reads&&queue_revokes==before_clock_revokes+1&&!memcmp(rows,old_rows,sizeof rows)&&!memcmp(&page,&old_page,sizeof page));clock_fail=0;now++;
  assert(!xw_media_browse(&broker.player,&query,rows,2,&page)&&queue_reads==before_clock_reads+1);
+ query.view=XW_MEDIA_TRACKS;ready=0;
+ for(unsigned i=0;i<2000;i++){int result=xw_media_browse(&broker.player,&query,rows,2,&page);if(!result){ready=1;break;}assert(result==XW_PLAYER_BUSY||result==XW_PLAYER_UNAVAILABLE);poll(0,0,1);}assert(ready);
+ wait_metadata(&out,"Song 2 猫");uint32_t observed_changes;
+ assert(!xw_player_poll(&broker.player,&out,&observed_changes));struct xw_player_snapshot prior_observation=out;
+ observed_changes=0x5a5a5a5a;unsigned prior_revokes=queue_revokes;backend_fault=XW_PLAYER_IO;
+ assert(xw_player_poll(&broker.player,&out,&observed_changes)==XW_PLAYER_IO&&!memcmp(&out,&prior_observation,sizeof out)&&observed_changes==0x5a5a5a5a&&queue_revokes==prior_revokes+1);
+ backend_fault=0;assert(!xw_player_poll(&broker.player,&out,&observed_changes)&&(observed_changes&XW_PC_AVAILABLE)&&!(out.valid&XW_PF_METADATA));
+ int fresh_page=xw_media_browse(&broker.player,&query,rows,2,&page);assert(fresh_page==XW_PLAYER_BUSY||fresh_page==XW_PLAYER_UNAVAILABLE);
+ wait_metadata(&out,"Song 2 猫");
+ memcpy(old_rows,rows,sizeof rows);old_page=page;prior_revokes=queue_revokes;backend_fault=XW_PLAYER_UNAVAILABLE;
+ assert(xw_media_browse(&broker.player,&query,rows,2,&page)==XW_PLAYER_UNAVAILABLE&&!memcmp(rows,old_rows,sizeof rows)&&!memcmp(&page,&old_page,sizeof page)&&queue_revokes==prior_revokes+1);backend_fault=0;
  assert(xw_player_close(&broker.player)==XW_PLAYER_BUSY&&broker.backend==&original&&original.initialized&&!backend_closed);
  int rc=XW_PLAYER_BUSY;for(unsigned i=0;i<2000&&rc==XW_PLAYER_BUSY;i++){rc=xw_player_close(&broker.player);if(rc==XW_PLAYER_BUSY)poll(0,0,1);}assert(!rc&&original.initialized&&!backend_closed&&queue_closes==2);
- pthread_mutex_lock(&counters);assert(opened==closed&&!live);pthread_mutex_unlock(&counters);assert(!xw_player_close(&original)&&backend_closed==1);
- puts("Broker: background metadata, stale-track discard, periodic text changes, source-off invalidation and original-player preservation passed");return 0;
+ pthread_mutex_lock((void *)&counters);assert(opened==closed&&!live);pthread_mutex_unlock((void *)&counters);assert(!xw_player_close(&original)&&backend_closed==1);
+ assert(!pthread_mutex_destroy((void *)&counters));
+ puts("Broker: background metadata, stale-track discard, periodic text changes, source/backend-loss invalidation and original-player preservation passed");return 0;
 }
