@@ -27,6 +27,18 @@ QQ Music protocol work cross-checks the locally installed qqmusic-api-python 0.8
 
 Sony executables, extracted system files and official source archives remain local under ignored firmware/ and work/. Download URLs and hashes are recorded; no license to redistribute proprietary Sony code is implied.
 
+The optional QEMU FAT32 fixture uses PC-only dosfstools4.2 (Ubuntu package
+4.2-1.1build1, GPL-3.0-or-later) and mtools4.0.43 (Ubuntu package4.0.43-1build1,
+GPL-3.0). Package hashes are pinned in tools/stock_user_volume.py. Original
+packages and their copyright notices remain under ignored work/fat-pc-tools/.
+Matching FAT/NLS kernel modules come from the already pinned Debian generic
+kernel package. These tools/modules are not linked into a Walkman app or added
+to production firmware; no package publication is performed.
+
+The PC-only QEMU viewer uses Pillow13.0.0 for framebuffer conversion and PNG
+output. Its package and upstream license notices remain in the local Python
+environment. Pillow is not linked into a Walkman app or production firmware.
+
 A820 homebrew is a research reference, not yet incorporated or ported. Its license and hardware assumptions must be reviewed before reuse.
 
 Optional research uses vmlinux-to-elf 1.3.6 (GPL-3.0-or-later, https://github.com/marin-m/vmlinux-to-elf) to recover analysis-only kernel symbols, pyelftools and Unicorn 2.1.4 to inspect and replay bounded instruction slices. These are host research tools, not linked into a device application. The recovered Sony kernel ELF remains ignored and is not a firmware output.

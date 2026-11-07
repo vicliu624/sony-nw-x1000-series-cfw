@@ -2,6 +2,16 @@
 from pathlib import Path
 import gzip,hashlib,os,stat,subprocess,time
 from app_registry import ROOT
+
+def verified_guest_kernel():
+ kernel=ROOT/'work/arm-system-probe/vmlinuz-2.6.32-5-versatile'
+ digest=hashlib.sha256(kernel.read_bytes()).hexdigest()
+ profiles={
+  '73165e27d6f80536b0a803bd3e7c5735860df8c9056316be95c32ace4ebdaba9':'historical-versatile',
+  '1af9b9649bccce019f16d9177be3d3c344585368ea60055d3407c07e30b208d2':'debian-2.6.32-48squeeze6',
+ }
+ if digest not in profiles:raise ValueError('Unrecognized offline ARM guest kernel')
+ return kernel,profiles[digest]
 def stock_libraries(include_rt=False,include_dl=False):
  lib=ROOT/'work/arm-signal-tests/lib';res=ROOT/'work/stock-resolver-probe'
  files={'libc.so.6':lib/'libc.so.6','ld-linux.so.3':lib/'ld-linux.so.3','libpthread.so.0':res/'libpthread.so.0'}
@@ -12,9 +22,8 @@ def stock_libraries(include_rt=False,include_dl=False):
  for name,path in files.items():assert hashlib.sha256(path.read_bytes()).hexdigest()==expected[name],name
  return files
 def run_guest(work,init,programs,libraries,markers,timeout=30):
- kernel=ROOT/'work/arm-system-probe/vmlinuz-2.6.32-5-versatile'
+ kernel,kernel_profile=verified_guest_kernel()
  extract=ROOT/'work/qemu-system-tool/extracted';qemu=extract/'usr/bin/qemu-system-arm'
- assert hashlib.sha256(kernel.read_bytes()).hexdigest()=='73165e27d6f80536b0a803bd3e7c5735860df8c9056316be95c32ace4ebdaba9'
  assert hashlib.sha256(qemu.read_bytes()).hexdigest()=='e5dc5f9ef15a3f39d65666ae0ff8facc3ae08c97cf642dfa1164531aa91bfdfb'
  archive=bytearray();names=[]
  def add(name,data=b'',mode=stat.S_IFREG|0o755,major=0,minor=0):
@@ -45,4 +54,5 @@ def run_guest(work,init,programs,libraries,markers,timeout=30):
    try:process.wait(timeout=5)
    except subprocess.TimeoutExpired:process.kill();process.wait()
  artifacts=[Path(__file__),kernel,qemu,init,initrd,serial,errors,*programs.values(),*libraries.values()]
- return dict(passed=complete,physical_device_accessed=False,kernel_is_sony=False,external_network_disabled=True,guest_entries=names,command=command,guest_artifact_hashes={p.relative_to(ROOT).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in artifacts})
+ artifacts += [p for p in sorted((extract/'usr/lib/x86_64-linux-gnu').glob('*.so*')) if p.is_file()]
+ return dict(passed=complete,physical_device_accessed=False,kernel_is_sony=False,kernel_profile=kernel_profile,external_network_disabled=True,guest_entries=names,command=command,guest_artifact_hashes={p.relative_to(ROOT).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in artifacts})

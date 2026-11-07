@@ -11,6 +11,13 @@ Python runs only on the development computer.
 [Validation status](docs/STATUS.md) · [Developer SDK](docs/sdk/README.md) ·
 [Project website](https://vicliu624.github.io/sony-nw-x1000-series-cfw/)
 
+The [QEMU viewer](docs/QEMU.md) now displays the original Japanese Sony interface
+and accepts touch input. Home, Settings, Music Settings and return navigation
+have been observed in the isolated ARM guest. It uses a generic kernel and
+explicit device adapters; audio, DSP, RF and physical firmware acceptance remain
+outside this environment. Start the prepared local viewer with
+`tools/Start-StockGui.ps1`.
+
 ## Launcher and app market
 
 One Homebrew entry opens a native launcher with individual color icons, readable

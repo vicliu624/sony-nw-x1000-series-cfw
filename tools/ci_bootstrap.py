@@ -17,7 +17,8 @@ def fetch(url,path,digest):
    if attempt==2:raise
    time.sleep(2)
 def main():
- p=argparse.ArgumentParser(description=__doc__);p.add_argument('--stock-exe',type=Path);p.add_argument('--skip-data',action='store_true');a=p.parse_args()
+ p=argparse.ArgumentParser(description=__doc__);p.add_argument('--stock-exe',type=Path);p.add_argument('--skip-data',action='store_true');p.add_argument('--stock-only',action='store_true',help='Extract verified local Japanese stock inputs only; requires --stock-exe and performs no downloads or builds');a=p.parse_args()
+ if a.stock_only and not a.stock_exe:p.error('--stock-only requires --stock-exe')
  original=json.loads((ROOT/'sources/downloads.json').read_text())[0]
  exe=a.stock_exe or fetch(original['url'],original['path'],original['sha256'])
  if sha(exe.read_bytes())!=original['sha256']:raise ValueError('Wrong Japanese updater')
@@ -43,11 +44,13 @@ def main():
    if dynamic:
     for tag in dynamic.iter_tags():
      if tag.entry.d_tag=='DT_NEEDED':copy_library(tag.needed)
-  for name in ('libcares.so.2','libpthread.so.0','librt.so.1','libm.so.6'):copy_library(name)
+  for name in ('libcares.so.2','libpthread.so.0','librt.so.1','libm.so.6','libcnmgr.so.1','libdl.so.2'):copy_library(name)
   codec=ROOT/'work/qqmusic-codec';codec.mkdir(parents=True,exist_ok=True);(codec/'libm.so.6').write_bytes(get('libm.so.6'))
   target=ROOT/'work/targets-jp';target.mkdir(parents=True,exist_ok=True)
   for m in t:
    if m.isfile() and (m.name.startswith('./lib/modules/') or m.name in ['./usr/local/bin/'+n for n in ('SpiderApp','sysmgrd','appproxy','Responder')]):(target/Path(m.name).name).write_bytes(t.extractfile(m).read())
+ if a.stock_only:
+  print(json.dumps(dict(stock_upg_sha256=sha(packed),stock_components=[sha(x) for x in parts],device_accessed=False,stock_only=True),indent=2));return
  fetch('https://raw.githubusercontent.com/c-ares/c-ares/cares-1_5_2/ares.h','work/cares-1_5_2-ares.h','ed0804876d9dc6846acd30165ccc5a866cd7e6987aa5907adb53130dc3868f04')
  shutil.copyfile(ROOT/'work/cares-1_5_2-ares.h',resolver/'ares.h')
  bear=fetch('https://www.bearssl.org/bearssl-0.6.tar.gz','work/bearssl-0.6.tar.gz','6705bba1714961b41a728dfc5debbe348d2966c117649392f8c8139efc83ff14')

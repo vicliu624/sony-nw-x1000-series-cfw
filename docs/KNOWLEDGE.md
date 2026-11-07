@@ -8,29 +8,34 @@ comparison inputs, not compatibility guarantees.
 
 ### QEMU startup boundary
 
-The generic ARM system harness runs a Versatile ARM926 kernel, original Sony
-user-space binaries/libraries and explicit guest-only device/state models. It
-is not an MP200 machine emulator and does not yet display the original GUI.
-A fresh stock-root startup still aborts at OmfMgr.c:225 when opening
-`/dev/InterDSP/control` fails. The optional `--interdsp-open-probe` on
-tools/probe_stock_manager_system.py supplies only a diagnostic handle and
-rejects every DSP ioctl with EOPNOTSUPP. In that bounded run the original media
-layer issues SET_CHINFO (0x40184411), SET_TASKCH (0xc0084413), and repeatedly
-READ (0x80184401); the run times out without a startup-completion observation.
-READ is a DSP message operation, not GET_CHINFO. Simply supplying the device
-path does not create a valid GUI baseline. DSP channel/message behavior must
-be understood before this environment can compare full stock/custom startup.
-No DSP execution, audio, physical failure reproduction or boot pass is claimed.
-The argument-capture probe and tools/inspect_qemu_dsp_requests.py establish six
-channel setups (directions 0/1, channels 0..2), each with one 0x1000-word
-(16KiB) block and initial offsets 0xffffffff. GPL `new_chinfo` always assigns
-the header offset and allocates the buffer when its offset is all ones;
-SET_CHINFO copies the resulting metadata back. Ten task mappings are supplied:
-task2 uses channel1, task3 channel2, others channel0. Captured READ calls request
-16KiB with zero initial header/offset/flags. These are requests from an
-all-ioctls-rejected diagnostic run, not successful DSP initialization or a
-complete successful-run protocol trace. The argument logger never follows
-nested buffer pointers and captures at most sixteen inputs per known command.
+The generic Versatile ARM926 guest now displays the original Japanese Sony UI
+and accepts portrait touch. The exact original AppList is essential: its
+cnmgr_daemon unblocks the original Home client's connection-manager FIFO open.
+A minimal AppList is insufficient even after graphics initialization succeeds.
+Original SpiderApp, sysmgrd, appproxy and libraries remain unchanged. The separate
+PC preload adapts selected libc device calls and an empty OpenMAX registry;
+no native menu states or queue events are injected by the viewer. See
+[the QEMU guide](QEMU.md) for preparation, models and controls.
+
+The GUI profile uses synthetic RAM state/platform configuration, unplugged USB,
+idle power, a numeric NC control cache, silent mixer/beep controls, the original
+framebuffer ABI and touch decoder. Framebuffer mmap must accept SpiderApp's
+5MiB mapping, although its display pages are smaller. Sony RGB565 pages must be
+converted into the actual generic CLCD bitfields; assuming the generic device
+is RGB565 produces incorrect colors. Cached component lookup tables avoid
+three software divisions per pixel on ARM926. The timer bridge uses the stock
+two-word clock ABI, not a modern time64 structure. The touch device exposes a
+latest shared snapshot, not a lossless edge FIFO. The local UART transports
+coordinates into that model. A fresh guest has no populated media database;
+the original startup-error notice can be dismissed to Home. Do not attribute
+that notice to the database merely because the catalog is empty.
+
+The silent mixer must accept sound-effect PLAY0x40046115, STOP0x6116 and
+SYNC0x6117 without dereferencing an argument when its effect controller is
+absent, matching the pinned GPL driver's early-return branches. STOP/SYNC are
+argumentless requests. Rejecting SYNC previously terminated the original AudioC
+caller. The bounded model test passes host sanitizers and Sony-libc ARM926;
+it provides no sound, DSP or complete media startup.
 
 - NW-X1000_V1_11.exe: 46849232 bytes; SHA-256
   25c8290dbac1065809f39332614491958ef7c93ce6e2e67e8cb5f815009a5a81.

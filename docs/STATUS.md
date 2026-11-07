@@ -8,6 +8,13 @@ archive has been published by this maintenance.
 
 # Current status and validation scope
 
+The original-interface QEMU viewer runs the pinned Japanese Sony userspace
+with framebuffer and touch adapters. Home, Settings, Music Settings and return
+navigation have been observed in an isolated ARM926 guest. It uses a generic
+kernel, an empty media-component registry and explicit peripheral models; it
+does not qualify physical RF/audio, Wi-Fi retention, sleep/USB or recovery.
+See [the QEMU guide](QEMU.md) for local preparation, controls and limitations.
+
 Physical clarification: after selecting ESP-NOW, the screen remains the
 three-choice Wireless Mode list, but its selected label temporarily reads On.
 Reopening shows ESP-NOW. This is a refresh-path symptom, distinct from the

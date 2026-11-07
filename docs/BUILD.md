@@ -1,5 +1,9 @@
 # Build and offline verification
 
+For the original-interface guest and reviewed-candidate root viewer, see
+[QEMU preparation and controls](QEMU.md). This PC environment does not flash a
+player and cannot qualify physical wireless behavior.
+
 Run supported Python tools from the project root in Linux/WSL. Device-side builds
 use arm-linux-gnueabi-gcc targeting ARMv5TE, ARM mode and soft float. QEMU ARM926
 and the pinned original loader/libc provide offline execution. Use each script's
