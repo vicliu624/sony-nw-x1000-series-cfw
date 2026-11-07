@@ -1,5 +1,9 @@
 # Pocket FM
 
+The [stock driver reconstruction](../FM_DRIVER_REVERSE_ENGINEERING.md) records
+the complete register transport, initialization payload, private ABI limits and
+conditional SNR/calibration command path. It does not establish IQ access.
+
 Source: runtime/apps/fm-radio. Build: tools/build_fm_radio.py. This is an independent
 native application using the stock tuner/audio drivers, not a replacement Sony
 FM binary. Its skeuomorphic micro-radio interface was accepted by the user.

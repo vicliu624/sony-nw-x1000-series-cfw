@@ -1,0 +1,153 @@
+{
+  "retrieved_on": "2026-11-02",
+  "scope": "PC-only Si470x driver comparison; no revision match to the player has been established",
+  "sources": [
+    {
+      "name": "The Public Radio product firmware and one-touch programming jig",
+      "url": "https://codeload.github.com/The-Public-Radio/Firmware/zip/9992fcd29607f820a7c01bc8fa092ffb1ce17514",
+      "revision": "9992fcd29607f820a7c01bc8fa092ffb1ce17514",
+      "local_input": "work/fm-driver-comparison/public-radio-firmware.zip",
+      "sha256": "e50ad11b49225e4268c5cff7f63d23bd750b737ac3e099c0f6c4d53123ed6500",
+      "main_c_sha256": "558068654fb8ad271b2787d3adf270b6ca5f29823f68cff2e291add755040652",
+      "license": "Upstream GPL files and CC attribution notices; local static analysis only, no source redistributed",
+      "revision_scope": "Product-maker Si4702 driver and AVR parameter-programming jig; exact tuner suffix/stepping unverified; not Silicon Labs factory characterization software"
+    },
+    {
+      "name": "Complete IanCass USB radio source archive for caller audit",
+      "url": "https://codeload.github.com/IanCass/silabsradiodll/zip/1ab1a15112b625958c15a3962dc014f63b432cdd",
+      "revision": "1ab1a15112b625958c15a3962dc014f63b432cdd",
+      "local_input": "work/fm-driver-comparison/iancass-source.zip",
+      "sha256": "064be12b19ef6ea61450c006ae0f8b65505f850ad7f597a1d0a210d130c80312",
+      "license": "Local analysis only; inspect upstream terms before reuse; no source redistributed",
+      "revision_scope": "Complete pinned repository: stream serializer has no call site in C++/VB sources; not proof of exact Sony tuner stepping"
+    },
+    {
+      "name": "Third-party-retained USB FM MCU image header",
+      "url": "https://raw.githubusercontent.com/IanCass/silabsradiodll/1ab1a15112b625958c15a3962dc014f63b432cdd/radiodll/FMRadioMCUImage.h",
+      "revision": "1ab1a15112b625958c15a3962dc014f63b432cdd",
+      "local_input": "work/fm-driver-comparison/iancass-FMRadioMCUImage.h",
+      "sha256": "b3b833cfcdb2e2f16e497784e6bcac58281717aebcc2889252ab4009f7485f89",
+      "decoded_candidate_sha256": "858660efc61badf83544b4c00a4f393d813d3e7abbb31d1228430a828fe3f0a5",
+      "license": "No redistribution here; binary/header retained locally for analysis, provenance and reuse license unresolved",
+      "revision_scope": "7680-byte USB MCU image candidate; no confirmed Si4702/03 subtype/stepping; original page CRC unresolved"
+    },
+    {
+      "name": "USB FM DLL companion host implementation",
+      "url": "https://raw.githubusercontent.com/IanCass/silabsradiodll/1ab1a15112b625958c15a3962dc014f63b432cdd/radiodll/FMRadioDevice.cpp",
+      "revision": "1ab1a15112b625958c15a3962dc014f63b432cdd",
+      "local_input": "work/fm-driver-comparison/iancass-FMRadioDevice.cpp",
+      "sha256": "85f9e40435082627d1b1dc8f935b10b4c6f3852883801ffb210770bec04ad76e",
+      "license": "No source redistribution or reuse here; inspect upstream terms before reuse",
+      "revision_scope": "Third-party host implementation; BootloadDevice stub does not validate retained image"
+    },
+    {
+      "name": "William Gao Si470x Arduino implementation",
+      "url": "https://raw.githubusercontent.com/w-gao/Si470x/main/Si470x.cpp",
+      "local_input": "work/fm-driver-comparison/wgao.cpp",
+      "sha256": "409637b2584a2ed2c59fcbec61645a11fc7bb30fab0b570bdbe892ccbd238f51",
+      "git_blob_sha1": "83c5916b22a990f10d82df173409389be183096e",
+      "git_tree_sha1": "504739f81c983e6a76112d751a8b2011a256ed53",
+      "license": "See upstream LICENSE; source retained locally, not redistributed",
+      "revision_scope": "2024 third-party family implementation; six-word control writes only; no identified hidden command sequence",
+      "verification": "Downloaded file Git blob hash matches repository tree entry"
+    },
+    {
+      "name": "Original Silicon Labs AN230 Rev 0.61, May 2008",
+      "url": "https://cdn.sparkfun.com/datasheets/BreakoutBoards/AN230_0.61.pdf",
+      "local_input": "work/fm-driver-comparison/AN230-0.61.pdf",
+      "sha256": "02f9f208f4e37483907c7390fe499444cb8f5ed66cdea05ff7687d28c42cbc14",
+      "license": "Original Silicon Laboratories document; retained locally, not redistributed",
+      "revision_scope": "Firmware 15+; contains command summary/detail contradiction, not proof of alternate silicon opcodes"
+    },
+    {
+      "name": "SkyRadio Windows USB device implementation",
+      "url": "https://raw.githubusercontent.com/skynetto/RadioRds/e0b2b15b72491f5aab627f8071b318fb46620e53/SkyRadio/RadioDevice.cpp",
+      "revision": "e0b2b15b72491f5aab627f8071b318fb46620e53",
+      "local_input": "work/fm-driver-comparison/skyradio-RadioDevice.cpp",
+      "sha256": "6cefabb32c89c1de5e479de4408b700483dff2e61cb84a4e2ce77a658f384495",
+      "license": "No redistribution here; retain upstream notices and verify license before reuse",
+      "revision_scope": "Third-party host USB implementation; not vendor GUI or verified Si4703 stepping"
+    },
+    {
+      "name": "SkyRadio Windows USB register/report definitions",
+      "url": "https://raw.githubusercontent.com/skynetto/RadioRds/e0b2b15b72491f5aab627f8071b318fb46620e53/SkyRadio/Enums.h",
+      "revision": "e0b2b15b72491f5aab627f8071b318fb46620e53",
+      "local_input": "work/fm-driver-comparison/skyradio-Enums.h",
+      "sha256": "22f23b27010cd4e0a719eb9a3794fa6ac8cc2615836ab283abd16be4f5bd7a9a",
+      "license": "No redistribution here; retain upstream notices and verify license before reuse",
+      "revision_scope": "Old DEV/firmware field masks, not suitable for blind newer-chip identity decoding"
+    },
+    {
+      "name": "Freescale original mxc_si4702 driver in Toradex kernel distribution",
+      "url": "https://git.toradex.cn/cgit/linux-toradex.git/plain/drivers/char/mxc_si4702.c?id=2731b2eadeaa141e6f305fa8086106608112bbaa",
+      "revision": "2731b2eadeaa141e6f305fa8086106608112bbaa",
+      "local_input": "work/fm-driver-comparison/freescale-mxc-si4702.c",
+      "sha256": "2b68600a131204e57df701a179ee0fb493986f424767d9b2d23bbe7e2a77c1ef",
+      "license": "GPL-2.0-or-later; Copyright 2008-2010 Freescale Semiconductor",
+      "revision_scope": "Original Si4702 family driver; startup checks TEST1 0x3c04; does not establish the player's silicon stepping"
+    },
+    {
+      "name": "Rockbox tuner middleware",
+      "url": "https://raw.githubusercontent.com/Rockbox/rockbox/master/firmware/drivers/tuner/si4700.c",
+      "local_input": "work/fm-driver-comparison/rockbox-si4700.c",
+      "sha256": "bda929e57b886c4fd5d46332a3cc1c87292460aa4f08d511ff6d9f3df26d7e57",
+      "license": "GPL-2.0-or-later",
+      "revision_scope": "Moving master snapshot pinned by content hash; family driver with explicit Si4702-16 oscillator comment"
+    },
+    {
+      "name": "Linux v6.12 Si470x I2C driver",
+      "url": "https://raw.githubusercontent.com/torvalds/linux/v6.12/drivers/media/radio/si470x/radio-si470x-i2c.c",
+      "local_input": "work/fm-driver-comparison/linux-i2c.c",
+      "sha256": "870f514bf229801cb749fe8ef2fce0044fd60376ec9f620a6f2a0ffb70837c02",
+      "license": "GPL-2.0-or-later",
+      "revision_scope": "Family driver, not a measured Si4703 stepping"
+    },
+    {
+      "name": "SparkFun Si4703 Arduino driver",
+      "url": "https://raw.githubusercontent.com/sparkfun/SparkFun_Si4703_Arduino_Library/master/src/SparkFunSi4703.cpp",
+      "local_input": "work/fm-driver-comparison/sparkfun.cpp",
+      "sha256": "2290a8e3e6dd771c20e6776fff874edd9ae5eaddcf05b8ca1f3a69f0437d1e1a",
+      "license": "See upstream file and repository notices; no source redistributed here",
+      "revision_scope": "Moving master snapshot pinned by content hash; AN230 revision-dependent initialization comments"
+    }
+  ],
+  "unacquired_software_candidates": [
+    {
+      "name": "Historical Silicon Labs software endpoints recovered from product-page copy",
+      "discovery_page": "https://radioamadornovacruzrn.blogspot.com/2011/06/usb-fm-radio-rd.html",
+      "urls": [
+        "https://www.silabs.com/Support%20Documents/Software/AN264SW.zip",
+        "https://www.silabs.com/Support%20Documents/Software/USBRadio.zip"
+      ],
+      "observed_result": "Both historical endpoints returned HTTP 403 text/html; no archive acquired"
+    },
+    {
+      "name": "EVB GUI installer identities from vendor guide illustrations",
+      "names": ["Si47XXGui.msi", "Readme(2.5.2).doc", "SilabsAudioGui.msi"],
+      "source_urls": [
+        "https://www.skyworksinc.com/-/media/Skyworks/SL/documents/public/user-guides/Si4700-01-02-03EVB.pdf",
+        "https://www.skyworksinc.com/-/media/Skyworks/SL/documents/public/user-guides/Si47xxEVB.pdf"
+      ],
+      "observed_result": "Package names identified, installers not acquired",
+      "scope_limit": "Shared GUI can support other Si47xx parts; guide register screenshot depicts Si4709 Rev B"
+    },
+    {
+      "name": "AN264SW.rar community mirror",
+      "discovery_page": "https://whycan.com/t_2221.html",
+      "url": "https://whycan.com/files/members/1401/AN264SW.rar",
+      "download_endpoint": "https://whycan.com/dl.php?file=%2Ffiles%2Fmembers%2F1401%2FAN264SW.rar",
+      "observed_result": "File page is HTML; download endpoint requires login and forum points or payment. No archive obtained. The original whycan.cn link fails TLS validation; validation was retained.",
+      "provenance_limit": "Community attribution to Silicon Labs; bytes not acquired or authenticated"
+    },
+    {
+      "name": "AN264SW.zip",
+      "url": "https://www.silabs.com/documents/public/software/AN264SW.zip",
+      "observed_result": "419-byte Access Denied HTML, not a ZIP"
+    },
+    {
+      "name": "AN264SW.zip candidate Skyworks path",
+      "url": "https://www.skyworksinc.com/-/media/Skyworks/SL/documents/public/software/AN264SW.zip",
+      "observed_result": "HTML response, not a ZIP; guessed migration path is not a verified download"
+    }
+  ]
+}
