@@ -8,7 +8,9 @@ import re
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 import time
+import traceback
 import zipfile
 from urllib.parse import unquote, urlsplit
 from app_registry import ROOT
@@ -33,10 +35,7 @@ def check_documentation(archive):
         raise ValueError('Broken source-SDK documentation links:\n' + '\n'.join(missing))
     return count
 
-def main():
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('archive',type=Path);p.add_argument('--stock-exe',type=Path);p.add_argument('--player-only',action='store_true',help='Verify only the public player client after fresh SDK setup; not the full SDK matrix.');a=p.parse_args()
-    if sys.flags.optimize:raise RuntimeError('Do not disable assertions')
-    work=ROOT/'work/sdk-bundle-tests'/str(time.time_ns());work.mkdir(parents=True)
+def verify_bundle(a, work):
     with zipfile.ZipFile(a.archive) as archive:
         documentation_count = check_documentation(archive)
         names=archive.namelist()
@@ -66,8 +65,7 @@ def main():
     if a.player_only:
         run('tools/test_sdk_player_service.py')
         report={'passed':True,'scope':'player-client-only','sdk_version':manifest['sdk_version'],'source_archive_sha256':hashlib.sha256(a.archive.read_bytes()).hexdigest(),'clean_inputs':True,'original_installer_only':True,'public_player_consumer':True,'full_sdk_matrix_run':False,'documentation_links_checked':documentation_count,'hardware_accessed':False,'firmware_created':False}
-        (work/'player-bundle-test-report.json').write_text(json.dumps(report,indent=2)+'\n')
-        print(json.dumps(report,indent=2));return
+        return 'player-bundle-test-report.json', report
     checks=[]
     for template in ('minimal','touch-ui','canvas-game'):
         ident='new-'+template
@@ -91,6 +89,28 @@ def main():
     report={'passed':True,'sdk_version':manifest['sdk_version'],'source_archive_sha256':hashlib.sha256(a.archive.read_bytes()).hexdigest(),
             'documentation_links_checked':documentation_count,
             'clean_inputs':True,'templates_created_host_rendered_arm_packaged':checks,'external_native_service_client':True,'hardware_accessed':False,'firmware_created':False}
-    (work/'bundle-test-report.json').write_text(json.dumps(report,indent=2)+'\n')
-    print(json.dumps(report,indent=2))
+    return 'bundle-test-report.json', report
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('archive', type=Path)
+    parser.add_argument('--stock-exe', type=Path)
+    parser.add_argument('--player-only', action='store_true',
+                        help='Verify only the public player client after fresh SDK setup')
+    args = parser.parse_args()
+    if sys.flags.optimize:
+        raise RuntimeError('Do not disable assertions')
+    output = ROOT / 'work/sdk-bundle-tests' / str(time.time_ns())
+    output.mkdir(parents=True)
+    try:
+        with tempfile.TemporaryDirectory(prefix='source-', dir=output) as directory:
+            report_name, report = verify_bundle(args, Path(directory))
+    except Exception:
+        (output / 'failure.log').write_text(traceback.format_exc(), encoding='utf-8')
+        raise
+    (output / report_name).write_text(json.dumps(report, indent=2) + '\n', encoding='utf-8')
+    print(json.dumps(report, indent=2))
+
+
 if __name__=='__main__':main()

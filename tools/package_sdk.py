@@ -15,6 +15,7 @@ HEADERS=['runtime/native/linux_devices.h','runtime/native/linux_device_io.h','ru
          'runtime/store/termination.h','runtime/store/deadline.h','runtime/store/stock_fs_bridge.h',
          'runtime/store/stock_stat64.h','runtime/store/target_abi.h',
          'runtime/platform/storage/qqmusic_volume.h','runtime/platform/storage/qqmusic_storage.h']
+PUBLIC_PROVENANCE = ('sources/downloads.json', 'sources/fm-comparison-sources.json')
 
 def documentation_inputs(paths):
     """Retain local documentation dependencies of the exported SDK guides.
@@ -53,13 +54,13 @@ def source_files():
         'runtime/native/app_catalog.c','runtime/native/app_catalog.h','runtime/native/linux_files.c','runtime/native/linux_files.h',
         'runtime/native/sha256.c','runtime/native/sha256.h']))]
     paths += [ROOT/'tools'/n for n in TOOLS]
-    paths += [ROOT/'VERSION',ROOT/'scripts/upg.py',ROOT/'scripts/upg_crypto.py',ROOT/'sources/downloads.json',ROOT/'third_party/qqmusic-stb/Noto-OFL.txt']
+    paths += [ROOT/'VERSION',ROOT/'scripts/upg.py',ROOT/'scripts/upg_crypto.py',ROOT/'third_party/qqmusic-stb/Noto-OFL.txt']
+    paths += [ROOT / name for name in PUBLIC_PROVENANCE]
     paths += [p for d in ('sdk','docs/sdk','runtime/apps/sdk-counter','runtime/apps/sdk-canvas') for p in (ROOT/d).rglob('*') if p.is_file() and '__pycache__' not in p.parts]
     from sdk_services import inputs,manifest
     # Export every service implementation and transitive header, not only the
     # small callback-profile subset. External clients never need private checkout paths.
-    for name in manifest():
-        paths += inputs({'resolved_modules':[name]})
+    paths += inputs({'resolved_modules': list(manifest())})
     return sorted(documentation_inputs(paths))
 
 def package(output):
