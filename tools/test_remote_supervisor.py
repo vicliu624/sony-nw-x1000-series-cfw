@@ -1,6 +1,7 @@
 """Full native supervisor/service chain in an isolated ARM guest; RF/media modeled."""
 import contextlib,hashlib,io,json,runpy,struct,subprocess,sys,time
 from app_registry import ROOT
+from build_remote_owner import build as build_owner
 from build_remote_supervisor import build as build_supervisor
 from player_arm_guest import stock_libraries,run_guest
 out=ROOT/'work/remote-supervisor-integration'/str(time.time_ns());out.mkdir(parents=True)
@@ -112,13 +113,10 @@ if diagnostic_ready:owner_flags+=['-DWR_CHAIN_DIAGNOSTIC_READY']
 if delayed_pairing_ready:owner_flags+=['-DWR_CHAIN_DELAYED_PAIRING_READY']
 real_owner_report=None
 if real_owner_refusal:
- saved_owner_args=sys.argv
- try:
-  sys.argv=['build_remote_owner.py','--power-off-exit','--mode-view-required']+(['--managed-session'] if real_owner_managed else ['--window-seconds','180'])
-  if formal_data_layout:sys.argv+=['--data-leaf','wireless-remote']
-  with contextlib.redirect_stdout(io.StringIO()):real_owner=runpy.run_path(str(ROOT/'tools/build_remote_owner.py'))
- finally:sys.argv=saved_owner_args
- owner=real_owner['artifact'];real_owner_report=real_owner['report'];owner_sources=[]
+ owner,real_owner_report=build_owner(legacy_radio=True, power_off_exit=True, mode_view_required=True,
+  managed_session=real_owner_managed, window_seconds=None if real_owner_managed else 180,
+  data_leaf='wireless-remote' if formal_data_layout else 'espnow-test', output=out/'real-owner-build')
+ owner_sources=[]
  libs['libcnmgr.so.1']=ROOT/'work/stock-resolver-probe/libcnmgr.so.1'
 else:
  compile(owner_sources,owner,owner_flags)

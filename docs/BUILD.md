@@ -204,6 +204,23 @@ bundle original Sony files, private identities, session codes, ROMs or music.
 
 ## Shared Wi-Fi candidate
 
+Build the Root Radio Owner with the native ESP-NOW SDK receipt, exact radio
+review and verified legacy RF files used by the diagnostic kit:
+
+```sh
+.venv/bin/python tools/build_remote_owner.py \
+  --sdk-review work/example/native-sdk/sdk/build.json \
+  --rx-diagnostic-radio work/example/wifi-image/radio-build \
+  --external-radio-inputs work/radio-inputs/candidate \
+  --power-off-exit --mode-view-required --managed-session --root-cold \
+  --data-leaf wireless-remote --link-keys --output work/example/owner
+```
+
+The builder derives the stock reload table from the verified Japanese 1.11 root
+and checks the selected radio image against its ELF and source receipt. Root
+builds run the owner entry and admission checks. The separate finite test
+executable is built only with `--legacy-radio`.
+
 Build the embedded Remote supervisor directly from the owner and service
 build receipts:
 
