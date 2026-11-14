@@ -1,29 +1,135 @@
 """Full native supervisor/service chain in an isolated ARM guest; RF/media modeled."""
-import hashlib,json,struct,subprocess,sys,time
+import argparse,hashlib,json,struct,subprocess,sys,time
+from pathlib import Path
 from app_registry import ROOT
+parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
+profile_flags = (
+    ('reusable-sessions', 'Retire and restart with a new managed generation'),
+    ('bad-generation', 'Reject a delivery stamped with the wrong generation'),
+    ('bad-grants', 'Reject a delivery with the wrong grants'),
+    ('direct-delivery', 'Use direct inherited delivery rather than the older handoff'),
+    ('managed-process', 'Run the supervisor through the managed process interface'),
+    ('settings-backend', 'Drive the Settings backend'),
+    ('settings-factory', 'Run the Settings factory with explicit initialization'),
+    ('automatic-factory', 'Run the original-owner factory adapter'),
+    ('owner-view-forward', 'Forward the qualified owner mode view'),
+    ('shared-wifi', 'Exercise shared Wi-Fi authority and retirement'),
+    ('application-handoff', 'Exercise the native Homebrew switch and return'),
+    ('native-owner-wait', 'Exercise owner descriptor wakeups during retirement'),
+    ('native-worker-retirement', 'Exercise the native worker retirement path'),
+    ('native-exit-bridge', 'Exercise the native exit interceptor and coordinator'),
+    ('exit-idle-progress', 'Keep retirement progressing while the player is idle'),
+    ('revoked-exit-context', 'Revoke the exit context while cleanup is in progress'),
+    ('artwork-transfer', 'Transfer a generated JPEG through the Remote service'),
+    ('service-start-refusal', 'Inject a refusal while binding the player client'),
+    ('service-handoff-refusal', 'Inject a refusal while adopting the owner handoff'),
+    ('device-pairing', 'Exercise device pairing and the saved binding'),
+    ('play-mode-control', 'Exercise native writes of playback modes'),
+    ('diagnostic-ready', 'Expose the pairing readiness checkpoint'),
+    ('delayed-pairing-ready', 'Delay the pairing readiness notification'),
+    ('embedded-runtime', 'Use the embedded-runtime fixture layout'),
+    ('real-owner-startup-refusal', 'Run the actual owner through a refused startup'),
+    ('real-owner-managed', 'Use managed delivery for the actual owner'),
+    ('formal-data-layout', 'Use the formal storage layout for the actual owner'),
+    ('sleep-retirement', 'Exercise the native sleep retirement path'),
+    ('native-page-chain', 'Connect the native Settings page to the backend'),
+    ('rf-admission', 'Check Settings RF admission'),
+    ('early-stop', 'Request stop before startup completes'),
+    ('mode-switch', 'Switch the system wireless mode during the check'),
+)
+for flag, description in profile_flags:
+    parser.add_argument('--' + flag, action='store_true', help=description)
+parser.add_argument('--service-review', type=Path, help='Reuse an existing validated service build')
+parser.add_argument('--plan', action='store_true', help='Show the effective fixture without building or touching work/')
+args = parser.parse_args()
+
+reusable = args.reusable_sessions or args.settings_factory or args.automatic_factory
+bad_generation, bad_grants = args.bad_generation, args.bad_grants
+automatic_factory, owner_view_forward, shared_wifi = args.automatic_factory, args.owner_view_forward, args.shared_wifi
+settings_factory = args.settings_factory or automatic_factory
+settings_backend = args.settings_backend or settings_factory
+managed_process = args.managed_process or settings_backend
+direct_delivery = args.direct_delivery or bad_generation or bad_grants or managed_process
+application_handoff = args.application_handoff
+native_owner_wait = args.native_owner_wait or application_handoff
+native_worker_retirement = args.native_worker_retirement or native_owner_wait
+native_exit_bridge = args.native_exit_bridge or native_worker_retirement
+exit_idle_progress = args.exit_idle_progress or native_exit_bridge
+revoked_exit_context = args.revoked_exit_context
+artwork_transfer = args.artwork_transfer
+service_handoff_refusal = args.service_handoff_refusal
+service_start_refusal = args.service_start_refusal or service_handoff_refusal
+device_pairing, play_mode_control = args.device_pairing, args.play_mode_control
+diagnostic_ready, delayed_pairing_ready = args.diagnostic_ready, args.delayed_pairing_ready
+embedded_runtime = args.embedded_runtime
+real_owner_refusal, real_owner_managed = args.real_owner_startup_refusal, args.real_owner_managed
+formal_data_layout, sleep_retirement = args.formal_data_layout, args.sleep_retirement
+native_page_chain = args.native_page_chain
+rf_admission, early_stop, mode_switch = args.rf_admission, args.early_stop, args.mode_switch
+
+constraints = (
+    (bad_generation and bad_grants, 'Select one delivery refusal per run'),
+    (revoked_exit_context and not exit_idle_progress, '--revoked-exit-context requires exit progress'),
+    (native_exit_bridge and (not automatic_factory or revoked_exit_context),
+     'Native exit bridge needs --automatic-factory and excludes the revoked-context fixture'),
+    (service_start_refusal and not shared_wifi, 'Service refusal fixtures require --shared-wifi'),
+    (artwork_transfer and (not (shared_wifi and automatic_factory and owner_view_forward) or service_start_refusal),
+     'Artwork transfer requires the shared Wi-Fi factory and an uninjected service'),
+    (play_mode_control and not (device_pairing and shared_wifi), 'Playback mode writes require shared Wi-Fi device pairing'),
+    (any((diagnostic_ready, delayed_pairing_ready, embedded_runtime)) and not device_pairing,
+     'Pairing readiness and embedded-runtime fixtures require --device-pairing'),
+    (device_pairing and not shared_wifi, '--device-pairing requires --shared-wifi'),
+    (shared_wifi and (not (automatic_factory and owner_view_forward) or real_owner_refusal),
+     'Shared Wi-Fi requires the automatic factory and forwarded owner view, and excludes the real-owner refusal fixture'),
+    (owner_view_forward and not automatic_factory, '--owner-view-forward requires --automatic-factory'),
+    (real_owner_refusal and (not owner_view_forward or sleep_retirement),
+     'Real-owner startup refusal requires the forwarded owner view and excludes sleep retirement'),
+    (real_owner_managed and not real_owner_refusal, '--real-owner-managed requires --real-owner-startup-refusal'),
+    (formal_data_layout and not real_owner_managed, '--formal-data-layout requires --real-owner-managed'),
+    (exit_idle_progress and (not shared_wifi or sleep_retirement),
+     'Exit idle progress requires shared Wi-Fi and excludes the separate sleep fixture'),
+    (sleep_retirement and not automatic_factory, '--sleep-retirement requires --automatic-factory'),
+    (native_page_chain and (not settings_backend or settings_factory or
+                            any((mode_switch, early_stop, rf_admission, bad_generation, bad_grants))),
+     'The native page chain needs the standalone Settings backend and excludes fault/switch fixtures'),
+    ((rf_admission or early_stop or mode_switch) and not settings_backend,
+     'RF admission, early stop and mode switch require --settings-backend'),
+    (mode_switch and early_stop, 'Select either mode switch or early stop'),
+    (settings_factory and any((bad_generation, bad_grants, early_stop, mode_switch, rf_admission)),
+     'Delivery and stop fault fixtures use the standalone backend, not the Settings factory'),
+    (args.service_review and service_start_refusal, 'A service build cannot replace the failure-injection fixture'),
+)
+for invalid, message in constraints:
+    if invalid:
+        parser.error(message)
+
+if args.plan:
+    selected = {flag for flag, _ in profile_flags if getattr(args, flag.replace('-', '_'))}
+    implied = (
+        ('reusable-sessions', reusable), ('direct-delivery', direct_delivery),
+        ('managed-process', managed_process), ('settings-backend', settings_backend),
+        ('settings-factory', settings_factory), ('native-owner-wait', native_owner_wait),
+        ('native-worker-retirement', native_worker_retirement), ('native-exit-bridge', native_exit_bridge),
+        ('exit-idle-progress', exit_idle_progress), ('service-start-refusal', service_start_refusal),
+    )
+    selected.update(name for name, enabled in implied if enabled)
+    service = 'build refusal fixture' if service_start_refusal else 'build service'
+    if args.service_review:
+        service = 'reuse review'
+    print(json.dumps(dict(checks=sorted(selected), service=service,
+                          service_review=str(args.service_review) if args.service_review else None,
+                          radio_owner='real startup refusal' if real_owner_refusal else 'modeled'), indent=2))
+    raise SystemExit(0)
+
 from build_remote_owner import build as build_owner
 from build_remote_service import build as build_service, reviewed_service
 from build_remote_supervisor import build as build_supervisor
 from player_arm_guest import stock_libraries,run_guest
-out=ROOT/'work/remote-supervisor-integration'/str(time.time_ns());out.mkdir(parents=True)
-reusable='--reusable-sessions' in sys.argv
-bad_generation='--bad-generation' in sys.argv
-bad_grants='--bad-grants' in sys.argv
-assert not (bad_generation and bad_grants)
-direct_delivery='--direct-delivery' in sys.argv or bad_generation or bad_grants
-managed_process='--managed-process' in sys.argv
-automatic_factory='--automatic-factory' in sys.argv
-owner_view_forward='--owner-view-forward' in sys.argv
-shared_wifi='--shared-wifi' in sys.argv
-application_handoff='--application-handoff' in sys.argv
-native_owner_wait='--native-owner-wait' in sys.argv or application_handoff
-native_worker_retirement='--native-worker-retirement' in sys.argv or native_owner_wait
-native_exit_bridge='--native-exit-bridge' in sys.argv or native_worker_retirement
-exit_idle_progress='--exit-idle-progress' in sys.argv or native_exit_bridge
-revoked_exit_context='--revoked-exit-context' in sys.argv
-assert not revoked_exit_context or exit_idle_progress
-assert not native_exit_bridge or (automatic_factory and not revoked_exit_context)
-artwork_transfer='--artwork-transfer' in sys.argv
+
+if args.service_review:
+    _, service_artifact, service_report = reviewed_service(args.service_review)
+out = ROOT / 'work/remote-supervisor-integration' / str(time.time_ns())
+out.mkdir(parents=True)
 if artwork_transfer:
  from PIL import Image
  image=Image.new('RGB',(64,64))
@@ -32,57 +138,13 @@ if artwork_transfer:
  image_data=image_path.read_bytes()
  artwork_header=out/'artwork_test_payload.h'
  artwork_header.write_text('#define WR_CHAIN_ARTWORK_BYTES '+str(len(image_data))+'u\nstatic const unsigned char wr_chain_artwork_data[]={'+','.join(map(str,image_data))+'};\n')
-service_handoff_refusal='--service-handoff-refusal' in sys.argv
-service_start_refusal='--service-start-refusal' in sys.argv or service_handoff_refusal
-assert not service_start_refusal or shared_wifi
-assert not artwork_transfer or (shared_wifi and automatic_factory and owner_view_forward and not service_start_refusal)
-device_pairing='--device-pairing' in sys.argv
-play_mode_control='--play-mode-control' in sys.argv
-assert not play_mode_control or (device_pairing and shared_wifi)
-diagnostic_ready='--diagnostic-ready' in sys.argv
-assert not diagnostic_ready or device_pairing
-delayed_pairing_ready='--delayed-pairing-ready' in sys.argv
-assert not delayed_pairing_ready or device_pairing
-embedded_runtime='--embedded-runtime' in sys.argv
-assert not embedded_runtime or device_pairing
-assert not device_pairing or shared_wifi
-assert not shared_wifi or (automatic_factory and owner_view_forward and '--real-owner-startup-refusal' not in sys.argv)
-assert not owner_view_forward or automatic_factory
-real_owner_refusal='--real-owner-startup-refusal' in sys.argv
-assert not real_owner_refusal or (owner_view_forward and '--sleep-retirement' not in sys.argv)
-real_owner_managed='--real-owner-managed' in sys.argv
-assert not real_owner_managed or real_owner_refusal
-formal_data_layout='--formal-data-layout' in sys.argv
-assert not formal_data_layout or real_owner_managed
-sleep_retirement='--sleep-retirement' in sys.argv
-assert not exit_idle_progress or (shared_wifi and not sleep_retirement)
-assert not sleep_retirement or automatic_factory
-settings_factory='--settings-factory' in sys.argv or automatic_factory
-settings_backend='--settings-backend' in sys.argv or settings_factory
-native_page_chain='--native-page-chain' in sys.argv
-assert not native_page_chain or (settings_backend and not settings_factory)
-if settings_factory:reusable=True
-rf_admission='--rf-admission' in sys.argv
-assert not rf_admission or settings_backend
-early_stop='--early-stop' in sys.argv
-mode_switch='--mode-switch' in sys.argv
-assert not mode_switch or (settings_backend and not early_stop)
-assert not native_page_chain or not any((mode_switch,early_stop,rf_admission,bad_generation,bad_grants))
-assert not early_stop or settings_backend
-assert not settings_factory or not any((bad_generation,bad_grants,early_stop,mode_switch,rf_admission))
-if settings_backend:managed_process=True
-if managed_process:direct_delivery=True
-if '--service-review' in sys.argv:
- if service_start_refusal:
-  raise ValueError('A service build cannot replace the failure-injection fixture')
- _,service_artifact,service_report=reviewed_service(sys.argv[sys.argv.index('--service-review')+1])
-elif service_start_refusal:
+if service_start_refusal:
  fixture_flags=['-Wl,--wrap=xw_managed_client_bind_stock']
  if service_handoff_refusal:
   fixture_flags+=['-DWR_TEST_HANDOFF_REFUSAL','-Wl,--wrap=xnow_handoff_adopt_reader']
  service_artifact,service_report=build_service(out/'fixture-service',
   fixture_sources=['tools/fixtures/remote_bind_refusal.c'],fixture_flags=fixture_flags)
-else:
+elif not args.service_review:
  service_artifact,service_report=build_service(out/'service-build')
 libs=stock_libraries(include_rt=True)
 flags=['-std=c99','-Os','-Wall','-Wextra','-Werror','-Wno-misleading-indentation','-DHB_STORE_SONY_LIBC','-DHB_STORE_LIBC_CLOCK',

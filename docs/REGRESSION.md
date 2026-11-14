@@ -458,6 +458,8 @@ Mutable configuration is data and is not treated as a code build receipt.
 
 The integration group includes
 `test_remote_supervisor.py --automatic-factory --owner-view-forward --shared-wifi --native-exit-bridge`.
+Append `--plan` to this command to see implied checks and service-build reuse
+before reserving an output directory or compiling the guest.
 This connects the actual native-exit interceptor and owner tick to the Settings
 factory, supervisor/service processes, SDK session drain and wireless policy.
 It requires custom children/readers and the shared borrow to retire, then holds
