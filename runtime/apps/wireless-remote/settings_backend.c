@@ -83,6 +83,7 @@ static int request(void *context,uint64_t serial){
   if(!generation||generation<b->generation)return start_result(b,WR_START_PREPARE,XW_PLAYER_STALE);
   b->generation=generation;
  }
+ b->last_start.generation=b->generation;
  int rc=wr_supervisor_process_start(&b->process,b->generation,b->context,b->admit);
  if(rc)return start_result(b,WR_START_PROCESS,rc);
  b->phase=WR_SETTINGS_STARTING;

@@ -113,6 +113,22 @@ with tempfile.TemporaryDirectory(prefix='pairing-trace-', dir=ROOT / 'work') as 
     assert decoded['comparison']['append_only'] and 23 not in decoded['comparison']['new_committed_slots']
     assert 26 in decoded['comparison']['new_committed_slots']
     assert next(row for row in decoded['records'] if row['stage'] == 23)['since_before'] == 'unchanged'
+    latest_start = 32 + 27 * 64
+    payload = [0xfffffffa, 4, 0, 0, 71, 0, 3, 0, 0x89abcdef, 0x12345678, 0x76543210, 0xfedcba98]
+    for serial, target in [(71, baseline), (72, trace)]:
+        payload[4] = serial
+        raw = struct.pack('<15I', 0x31504248, 28, 1, *payload)
+        target[latest_start:latest_start+64] = raw + struct.pack('<I', zlib.crc32(raw))
+    before.write_bytes(baseline)
+    path.write_bytes(trace)
+    decoded = json.loads(subprocess.run(command,capture_output=True,text=True,check=True).stdout)
+    assert decoded['attempt_identity_present'] and decoded['comparison']['latest_settings_start_changed']
+    assert decoded['latest_settings_start'] == dict(
+        operation='spawn-supervisor',result=-6,request_serial=72,generation=3,
+        player_process='1234567889abcdef',player_build='fedcba9876543210',
+        child_reaped=False,child_wait_status=None)
+    baseline[latest_start:latest_start+64] = bytes(64)
+    before.write_bytes(baseline)
     path.write_bytes(SEED)
     reset = subprocess.run(command, capture_output=True, text=True)
     comparison = json.loads(reset.stdout)['comparison']

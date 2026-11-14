@@ -7,6 +7,7 @@ from review_managed_remote_profile import private
 HEADER = b'X1000-REMOTE-PAIRING-TRACE-1'.ljust(32, b'\0')
 SEED = HEADER.ljust(2048, b'\0')
 SLOTS = 31
+SETTINGS_RESULT = 28
 STAGES = {
     1: 'pairing-confirmed',
     2: 'binding-lookup-completed',
@@ -35,7 +36,11 @@ STAGES = {
     25: 'remote-service-start-refusal',
     26: 'remote-receive-and-link-retirement-summary',
     27: 'remote-packet-backend-start-failure',
+    SETTINGS_RESULT: 'latest-settings-start-result',
 }
+SETTINGS_STAGES = ('none', 'host-admission', 'wireless-mode', 'prepare-generation',
+                   'spawn-supervisor', 'offer-player', 'attach-dependencies',
+                   'offer-accepted', 'child-exit', 'ready')
 OWNER_STARTUP_FAILURES = {
     101: 'mode-view-open',
     102: 'root-storage-or-radio-preflight',
@@ -63,11 +68,31 @@ def main():
     data = private(args.trace).read_bytes()
     result = decode(SEED, data, prefix=HEADER, names=STAGES, slots=SLOTS)
     result['limits'] = [
-        'Record CRC validates bytes. This trace format records no firmware, boot or start-request identity.',
+        'Only the latest Settings result records a build, player process and start request identity.',
+        'Other slots are legacy observations and cannot be attributed to that request.',
         'An empty or unchanged slot can also mean refused storage, an occupied slot or an interrupted write.',
         'New records describe writes between the two copies. They do not independently identify a start request.',
     ]
+    latest = next((row for row in result['records'] if row['stage'] == SETTINGS_RESULT), None)
+    result['latest_settings_start'] = None
     result['attempt_identity_present'] = False
+    if latest:
+        result['records'].remove(latest)
+        code, stage, reaped, status, *identity = latest['payload']
+        serial, generation, process, build = (
+            low | high << 32 for low, high in zip(identity[::2], identity[1::2])
+        )
+        if (latest['sequence'] != 1 or not 1 <= stage < len(SETTINGS_STAGES) or
+                reaped not in (0, 1) or not serial or not process or not build):
+            result['integrity_valid'] = False
+            result['invalid_slots'].append(dict(slot=SETTINGS_RESULT, reason='settings-result-fields'))
+        else:
+            result['attempt_identity_present'] = True
+            result['latest_settings_start'] = dict(
+                operation=SETTINGS_STAGES[stage], result=code if code < 2**31 else code - 2**32,
+                request_serial=serial, generation=generation or None, player_process=f'{process:016x}',
+                player_build=f'{build:016x}', child_reaped=bool(reaped),
+                child_wait_status=status if reaped else None)
     if args.before is not None:
         before = private(args.before).read_bytes()
         baseline = decode(SEED, before, prefix=HEADER, names=STAGES, slots=SLOTS)
@@ -77,6 +102,9 @@ def main():
             previous = before[start:start + 64]
             current = data[start:start + 64]
             if previous != current:
+                if slot == SETTINGS_RESULT and result['attempt_identity_present']:
+                    changes[slot] = 'settings-result-updated'
+                    continue
                 changes[slot] = 'changed-occupied' if any(previous) else 'new'
         changed_occupied_slots = [slot for slot, change in changes.items() if change == 'changed-occupied']
         append_only = baseline['integrity_valid'] and result['integrity_valid'] and not changed_occupied_slots
@@ -85,6 +113,7 @@ def main():
         result['comparison'] = dict(append_only=append_only,
                                     baseline_invalid_slots=baseline['invalid_slots'],
                                     changed_occupied_slots=changed_occupied_slots,
+                                    latest_settings_start_changed=SETTINGS_RESULT in changes,
                                     new_committed_slots=[slot for slot, change in changes.items()
                                                          if append_only and change == 'new'])
     for row in result['records']:

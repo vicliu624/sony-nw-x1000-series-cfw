@@ -13,7 +13,7 @@ enum wr_settings_start_stage {
  WR_START_OFFER,WR_START_DEPENDENCIES,WR_START_OFFERED,WR_START_CHILD_EXIT,WR_START_READY
 };
 struct wr_settings_start_result {
- uint64_t serial;
+ uint64_t serial,generation;
  enum wr_settings_start_stage stage;
  int result;
  unsigned child_reaped;

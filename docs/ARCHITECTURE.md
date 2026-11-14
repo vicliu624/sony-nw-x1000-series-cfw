@@ -48,7 +48,7 @@ implementation has the following confirmed coupling points:
 | Player composition | Built-in and external language profiles use maintained builder functions. Tests call the same functions, then verify the mapped edits independently | Keep production validation with the builder and test execution with the selected verification entry point |
 | Compiled component identity cascade | The owner checks the selected radio image. The supervisor verifies owner and service sizes and hashes. The player library checks the supervisor's compiled size. The startup wrapper uses fixed paths | Reuse independently verified build inputs where their compile inputs match. Preserve runtime file checks until their replacement is verified at the same launch boundary |
 | Incomplete startup error contract | The owner records the FRM1 or bulk enable operation and original XNOW result at retirement. Service startup reports a numeric result and a post-cleanup flag. Both use the bounded process log | Correlate diagnostic results with the launch. Keep readiness, failure and resource retirement independent |
-| Diagnostic records lack attempt identity | `parent_trace_store.c` fills a preallocated slot only once; `read_remote_pairing_trace.py` has no firmware/build or boot identity to validate | Use bounded, versioned records correlated to a build, boot and start request. Reading diagnostics must not depend on manually copying an empty file before each attempt |
+| Diagnostic attempt identity | The latest Settings slot records player build, process, request serial and generation. Older event slots are first-write observations | Correlate child results with the same launch and preserve the limited scope of legacy slots |
 | Historical local paths in supported tooling | The script audit found fixed review/candidate paths in maintained scripts and separate local orchestration files | Maintained entry points accept current input descriptors. Historical negative controls are explicit test inputs; ignored scripts and prior candidate directories are outside the normal build graph |
 
 The host receipt records its compile contract separately from the exact
@@ -108,6 +108,15 @@ live radio lease. Keep diagnostic evidence independent of readiness and of the
 cookie, DONE, EOF and reap checks used for retirement. The legacy decoder's
 before/after comparison establishes an interval of writes only. See
 [regression diagnostics](REGRESSION.md#groups).
+
+The latest Settings result can replace its own slot in the existing 2 KiB user
+file. It records the parent's result, the launch generation if assigned, and the
+child wait status if reaped. The player build identifier is recorded in the
+host build receipt; the process identifier is a separate random token obtained
+once per player process after retirement. It is not a kernel boot identifier.
+The parent waits for its existing ownership and quiescence checks, and retains
+one bounded snapshot write per observed request. Legacy slots remain untouched
+once populated and their timestamps cannot be inferred from the latest slot.
 
 Migration is incremental:
 

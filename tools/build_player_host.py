@@ -12,7 +12,7 @@ MANAGED_SOURCES+=['runtime/platform/player/host_inherited.c']
 PREPARE_SOURCES=['runtime/platform/player/host_prepare_bridge.c','runtime/platform/player/stock_prepare_view.c','runtime/platform/player/stock_play_mode.c','runtime/platform/player/play_mode.c']
 
 
-def build_player_library(library, sources, flags):
+def build_player_library(library, sources, flags, *, trace_identity=False):
     from evidence_checks import gcc_project_dependencies
     from player_arm_guest import stock_libraries
 
@@ -25,18 +25,26 @@ def build_player_library(library, sources, flags):
     dependencies = gcc_project_dependencies(ROOT, compiler, sources)
     dependencies.update(path.relative_to(ROOT).as_posix() for path in libraries)
     before = {name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest() for name in sorted(dependencies)}
-    command = [*compiler, *sources, *map(str, libraries), '-lgcc', '-o', str(library)]
     version = subprocess.check_output([compiler[0], '--version'], cwd=ROOT, text=True).splitlines()[0]
     libgcc_path = subprocess.check_output([*compiler, '-print-libgcc-file-name'], cwd=ROOT, text=True).strip()
     libgcc = ROOT / libgcc_path
     libgcc_sha256 = hashlib.sha256(libgcc.read_bytes()).hexdigest()
+    compile_receipt = dict(compiler=version, libgcc_sha256=libgcc_sha256)
+    if trace_identity:
+        inputs = json.dumps([before, flags, version, libgcc_sha256],
+                            sort_keys=True).encode('utf-8')
+        identity = hashlib.sha256(inputs).hexdigest()[:16]
+        compiler.append('-DXW_REMOTE_TRACE_BUILD=0x' + identity + 'ULL')
+        compile_receipt['remote_trace_build'] = identity
+    command = [*compiler, *sources, *map(str, libraries), '-lgcc', '-o', str(library)]
     subprocess.run(command, cwd=ROOT, check=True)
     if hashlib.sha256(libgcc.read_bytes()).hexdigest() != libgcc_sha256:
         raise ValueError('Player host libgcc changed during compilation')
     for name, expected in before.items():
         if hashlib.sha256((ROOT / name).read_bytes()).hexdigest() != expected:
             raise ValueError('Player host input changed during compilation: ' + name)
-    return before, dict(compiler=version, libgcc_sha256=libgcc_sha256, arguments=command[1:])
+    compile_receipt['arguments'] = command[1:]
+    return before, compile_receipt
 
 
 def patch_owner_anchor(stock):
@@ -222,7 +230,8 @@ def build(engine_provider=False,managed_host=False,native_prepare=False,builtin_
              *native_flags, '-U_FORTIFY_SOURCE', '-D_FORTIFY_SOURCE=0', '-march=armv5te',
              '-marm', '-mfloat-abi=soft', '-fPIC', '-fvisibility=hidden', '-fno-builtin',
              '-fno-stack-protector', '-nostdlib', '-shared', '-Wl,--hash-style=sysv,--build-id=none,-z,defs']
-    compiled_inputs, compile_receipt = build_player_library(library, sources, flags)
+    compiled_inputs, compile_receipt = build_player_library(
+        library, sources, flags, trace_identity=bool(factory_contract and factory_contract['root_cold_supported']))
     output.write_bytes(candidate)
     dso=ELFFile(io.BytesIO(library.read_bytes()))
     needed=[tag.needed for tag in dso.get_section_by_name('.dynamic').iter_tags() if tag.entry.d_tag=='DT_NEEDED']

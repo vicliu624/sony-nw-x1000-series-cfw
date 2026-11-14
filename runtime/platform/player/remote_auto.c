@@ -13,9 +13,11 @@
 #include "../../apps/wireless-remote/pairing_auto.h"
 #include <sys/stat.h>
 #include <unistd.h>
-#ifdef WR_PAIRING_PROCESS
+#if defined(WR_PAIRING_PROCESS) || defined(WR_PAIRING_TRACE)
 #include <fcntl.h>
 #include <string.h>
+#endif
+#ifdef WR_PAIRING_PROCESS
 #include "../../store/deadline.h"
 #endif
 #if defined(__arm__) && !defined(HB_STORE_SONY_LIBC)
@@ -68,12 +70,25 @@ __attribute__((weak)) int xw_player_host_remote_idle(int active) {
     (void)active;
     return XW_PLAYER_UNSUPPORTED;
 }
+#if defined(WR_PAIRING_PROCESS) || defined(WR_PAIRING_TRACE)
+static int remote_random(void *random, size_t bytes) {
+    int fd = open("/dev/urandom", O_RDONLY | O_NOFOLLOW | O_NONBLOCK);
+    if (fd < 0)
+        return -1;
+    struct stat info;
+    int ready = !fstat(fd, &info) && S_ISCHR(info.st_mode) &&
+                read(fd, random, bytes) == (ssize_t)bytes;
+    return close(fd) || !ready ? -1 : 0;
+}
+#endif
 #ifdef WR_PAIRING_TRACE
 #include "parent_trace_store.h"
 #include "../../apps/wireless-remote/retirement_log.h"
 static struct xw_parent_trace_store pairing_trace;
 static uint32_t trace_pending, trace_committed, trace_order, trace_armed;
 static uint32_t trace_payload[XW_PARENT_TRACE_SLOTS][12], trace_sequence[XW_PARENT_TRACE_SLOTS];
+enum { TRACE_SETTINGS_RESULT = 28 };
+static uint64_t trace_process_id, trace_last_serial;
 static int trace_owned(void *context) {
     (void)context;
     return xw_player_host_wireless_player_active() && !xw_player_host_original_exiting() &&
@@ -132,9 +147,40 @@ static void runtime_trace_flush(void) {
         xw_parent_trace_store_init(&pairing_trace, header, 0, trace_owned))
         return;
     (void)xw_parent_trace_store_snapshot(&pairing_trace, trace_pending, trace_payload,
-                                         trace_sequence);
-    trace_committed |= trace_pending;
+                                         trace_sequence, TRACE_SETTINGS_RESULT);
+    trace_committed |= trace_pending & ~(1u << (TRACE_SETTINGS_RESULT - 1));
     trace_pending = 0;
+}
+
+static void runtime_trace_settings_result(void) {
+    const struct wr_settings_backend *backend = &factory.backend;
+    const struct wr_settings_start_result *start = &backend->last_start;
+    if (!start->serial || start->serial == trace_last_serial || start->stage == WR_START_NONE ||
+        factory.held || backend->pending_enabled ||
+        (backend->phase != WR_SETTINGS_OFF && backend->phase != WR_SETTINGS_RETIRED &&
+         backend->phase != WR_SETTINGS_FAULT) ||
+        (backend->process.child > 0 && !backend->process.reaped) ||
+        (factory.pairing.owner && !factory.pairing.reaped) || factory.pairing_store_job.child > 0 ||
+        !trace_owned(0))
+        return;
+    trace_last_serial = start->serial;
+    if (!trace_process_id) {
+        uint64_t token;
+        if (remote_random(&token, sizeof token) || !token)
+            return;
+        trace_process_id = token;
+    }
+    uint64_t build = XW_REMOTE_TRACE_BUILD;
+    uint32_t payload[12] = {
+        (uint32_t)start->result, start->stage, start->child_reaped, (uint32_t)start->child_wait_status,
+        (uint32_t)start->serial, (uint32_t)(start->serial >> 32),
+        (uint32_t)start->generation, (uint32_t)(start->generation >> 32),
+        (uint32_t)trace_process_id, (uint32_t)(trace_process_id >> 32),
+        (uint32_t)build, (uint32_t)(build >> 32)
+    };
+    memcpy(trace_payload[TRACE_SETTINGS_RESULT - 1], payload, sizeof payload);
+    trace_sequence[TRACE_SETTINGS_RESULT - 1] = 1; /* This slot is its own observation. */
+    trace_pending |= 1u << (TRACE_SETTINGS_RESULT - 1);
 }
 void xw_player_pairing_trace_exit(const struct wr_supervisor_process *process) {
     struct wr_retirement_log log;
@@ -179,20 +225,12 @@ static int candidate_matches(void) {
            !memcmp(chosen_invite, factory.pairing_state.transcript.controller_nonce, 16) &&
            !memcmp(chosen_public, factory.pairing_state.controller_public, 32);
 }
-static int pairing_random(uint8_t random[16]) {
-    int fd = open("/dev/urandom", O_RDONLY | O_NOFOLLOW | O_NONBLOCK);
-    if (fd < 0)
-        return -1;
-    struct stat info;
-    int ready = !fstat(fd, &info) && S_ISCHR(info.st_mode) && read(fd, random, 16) == 16;
-    return close(fd) || !ready ? -1 : 0;
-}
 static int start_pairing_discovery(void) {
     memset(chosen_candidate, 0, sizeof chosen_candidate);
     memset(chosen_invite, 0, sizeof chosen_invite);
     memset(chosen_public, 0, sizeof chosen_public);
     uint8_t cookie[16];
-    int rc = pairing_random(cookie) ? XW_PLAYER_UNAVAILABLE
+    int rc = remote_random(cookie, sizeof cookie) ? XW_PLAYER_UNAVAILABLE
                                     : wr_settings_factory_pairing_start(&factory, cookie);
     volatile uint8_t *p = cookie;
     for (unsigned i = 0; i < sizeof cookie; i++)
@@ -324,7 +362,8 @@ int xw_player_host_remote_pairing_select(void) {
         return XW_PLAYER_STALE;
     uint8_t private_key[32], nonce[16];
     int rc =
-        pairing_random(private_key) || pairing_random(private_key + 16) || pairing_random(nonce)
+        remote_random(private_key, 16) || remote_random(private_key + 16, 16) ||
+        remote_random(nonce, sizeof nonce)
             ? XW_PLAYER_UNAVAILABLE
             : wr_settings_factory_pair_auto_offer(&factory, private_key, nonce);
     volatile uint8_t *p = private_key, *q = nonce;
@@ -419,6 +458,7 @@ void xw_player_host_remote_auto(void) {
 #endif
     (void)xw_player_host_remote_idle(idle_active);
 #ifdef WR_PAIRING_TRACE
+    runtime_trace_settings_result();
     runtime_trace_flush();
 #endif
     if (factory.backend.phase == WR_SETTINGS_OFF && !factory.held

@@ -103,8 +103,11 @@ For a retained pairing trace, run `tools/read_remote_pairing_trace.py` with the
 local copy under `work/`. Pass `--before work/<capture>/before.bin` when both
 copies already exist. The comparison only attributes a write to the interval
 between copies when both pass CRC checks and previously populated slots were
-preserved. The legacy format stores no build, boot or request identifier. An
-empty or unchanged trace cannot establish whether startup was attempted.
+preserved. The latest Settings result may replace slot 28. Its player build
+matches `library_compile.remote_trace_build` in the host receipt. Its process
+token and Settings serial identify the observation within that build, and the
+generation identifies a launched supervisor when assigned. It is independent
+of the legacy slots. An empty or unchanged trace remains inconclusive.
 
 Each new aggregate retains `checked-source.zip` and its SHA-256 alongside the
 report. It contains exactly the inventory's checked source/configuration bytes,
