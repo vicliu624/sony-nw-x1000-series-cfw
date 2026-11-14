@@ -69,64 +69,25 @@ def build(engine_provider=False,managed_host=False,native_prepare=False,builtin_
     lib=ROOT/'work/arm-signal-tests/lib';extra=ROOT/'work/player-sqlite-ro'
     library=work/'libx1000-player-analysis.so'
     native_flags=['-DXW_PLAYER_NATIVE_REMOTE_SETTINGS'] if native_remote_settings else []
-    factory_profile=None;shared_wifi=None
+    factory_profile = factory_contract = shared_wifi = None
     if remote_profile is not None:
-        profile_path=Path(remote_profile).resolve()
-        if not profile_path.is_relative_to(ROOT/'work'):raise ValueError('Use a private reviewed profile under work')
-        profile=json.loads(profile_path.read_text(encoding='utf-8'))
-        if not profile.get('built') or not profile.get('reusable_sessions'):raise ValueError('Reusable supervisor review required')
-        executable=(ROOT/profile['artifact']).resolve()
-        if not executable.is_relative_to(ROOT/'work'):raise ValueError('Supervisor artifact must stay under work')
-        payload=executable.read_bytes()
-        if len(payload)!=profile['bytes'] or not 0<len(payload)<=1048576 or hashlib.sha256(payload).hexdigest()!=profile['sha256']:raise ValueError('Supervisor identity mismatch')
-        for name,digest in profile['source_hashes'].items():
-            source=(ROOT/name).resolve()
-            if not source.is_relative_to(ROOT) or hashlib.sha256(source.read_bytes()).hexdigest()!=digest:raise ValueError('Supervisor source identity changed: '+name)
-        from review_managed_remote_profile import input_artifact
-        for role,leaf in (('owner','remote-rf-owner.arm'),('service','wireless-remote-service.arm')):
-            input_artifact(profile,role,leaf)
-        factory_header=work/'remote_factory_profile.h'
-        factory_header.write_text('#ifndef XW_REMOTE_FACTORY_PROFILE_H\n#define XW_REMOTE_FACTORY_PROFILE_H\n#define XW_PLAYER_REMOTE_FACTORY\n#define WR_REMOTE_SUPERVISOR_BYTES '+str(len(payload))+'u\n#endif\n')
-        if profile.get('owner_mode_view_forwarded'):
-            factory_header.write_text(factory_header.read_text()+'#define WR_REMOTE_OWNER_VIEW\n')
-        if profile.get('root_cold_supported'):
-            if not (shared_wifi_review and profile.get('embedded_runtime')):
-                raise ValueError('Cold remote requires the embedded shared Wi-Fi profile')
-            factory_header.write_text(factory_header.read_text()+'#define WR_REMOTE_ROOT_COLD\n')
-            factory_header.write_text(factory_header.read_text()+'#define WR_PAIRING_TRACE\n#define XW_TRACE_STORE_PATH "/contents/HOMEBREW/data/diagnostics/remote-pairing.bin"\n')
-            sources+=['runtime/platform/player/parent_trace_store.c']
-        if profile.get('device_pairing'):
+        from review_managed_remote_profile import player_remote_inputs, player_remote_header
+        factory_contract, factory_profile, _, image_review = player_remote_inputs(remote_profile, shared_wifi_review)
+        if image_review is not None:
+            shared_wifi = image_review.relative_to(ROOT).as_posix()
+        factory_header = work / 'remote_factory_profile.h'
+        factory_header.write_text(player_remote_header(factory_contract), encoding='utf-8')
+        native_flags += ['-I', str(work), '-include', str(factory_header)]
+        if factory_contract['root_cold_supported']:
+            sources += ['runtime/platform/player/parent_trace_store.c']
+        if factory_contract['device_pairing']:
             from pairing_crypto import inputs as pairing_crypto_inputs
             crypto_sources,crypto_flags=pairing_crypto_inputs()
-            sources+=crypto_sources;native_flags+=crypto_flags
-            if not shared_wifi_review:raise ValueError('Device pairing requires the shared Wi-Fi profile')
-            factory_header.write_text(factory_header.read_text()+'#define WR_PAIRING_PROCESS\n')
-            native_flags+=['-DHB_STORE_SONY_LIBC']
+            sources+=crypto_sources;native_flags+=crypto_flags+['-DHB_STORE_SONY_LIBC']
             sources+=['runtime/platform/espnow/xnow_client.c','runtime/platform/espnow/xnow_handoff.c',
                       'runtime/apps/wireless-remote/pairing_proof.c','runtime/apps/wireless-remote/status_auth.c',
                       'runtime/apps/wireless-remote/link.c','runtime/apps/wireless-remote/run_profile.c']
-        if shared_wifi_review:
-            if not profile.get('owner_mode_view_forwarded') or not profile.get('shared_wifi_owner_review'):
-                raise ValueError('Expected supervisor pinned to a reviewed shared Wi-Fi owner')
-            image_review=(ROOT/shared_wifi_review).resolve()
-            if not image_review.is_relative_to(ROOT/'work'):raise ValueError('Use a private radio overlay review')
-            image=json.loads(image_review.read_text())
-            if not image.get('rx_initially_disabled') or set(image['overlay'])!={'lib/modules/sd8686.bin'}:
-                raise ValueError('Expected shared Wi-Fi image overlay')
-            image_row=image['overlay']['lib/modules/sd8686.bin']
-            if image_row['sha256']!=profile.get('shared_wifi_radio_sha256'):
-                raise ValueError('Shared Wi-Fi owner expects another radio image')
-            image_path=(ROOT/image_row['artifact']).resolve()
-            if (not image_path.is_relative_to(image_review.parent) or
-                hashlib.sha256(image_path.read_bytes()).hexdigest()!=image_row['sha256']):
-                raise ValueError('Shared Wi-Fi image identity mismatch')
-            shared_wifi=image_review.relative_to(ROOT).as_posix()
-            factory_header.write_text(factory_header.read_text()+'#define XW_PLAYER_SHARED_WIFI_ANALYSIS\n')
-        native_flags+=['-I',str(work),'-include',str(factory_header)]
-        factory_profile=dict(review=profile_path.relative_to(ROOT).as_posix(),supervisor_artifact=executable.relative_to(ROOT).as_posix(),sha256=profile['sha256'],bytes=len(payload),inputs=profile['inputs'],software_admission_only=True,hardware_qualified=False)
-        factory_profile['owner_mode_view_forwarded']=bool(profile.get('owner_mode_view_forwarded'))
-        factory_profile['play_mode_control']=bool(profile.get('play_mode_control'))
-        if factory_profile['play_mode_control'] and not (managed_host and native_prepare):
+        if factory_contract['play_mode_control'] and not (managed_host and native_prepare):
             raise ValueError('Mode control requires the managed native player composition')
     stock=(ROOT/'work/targets-jp/SpiderApp').read_bytes()
     if hashlib.sha256(stock).hexdigest()!=STOCK_SHA:raise ValueError('Pinned Japanese1.11 image required')
@@ -213,7 +174,7 @@ def build(engine_provider=False,managed_host=False,native_prepare=False,builtin_
     if native_remote_page_analysis:
         from compose_remote_native_page import compose as compose_page
         page_dir=work/'remote-page'
-        page_artifact,page=compose_page(candidate,page_dir,bool(profile.get('device_pairing')))
+        page_artifact,page=compose_page(candidate,page_dir,factory_contract['device_pairing'])
         candidate=combined=page_artifact.read_bytes()
         header=ROOT/page['guard_profile']
         native_flags+=['-I'+str(header.parent),'-include',str(header)]
@@ -240,15 +201,15 @@ def build(engine_provider=False,managed_host=False,native_prepare=False,builtin_
     if settings_visible_count:inputs+=list(settings_visible_count['source_hashes'])
     if native_remote_settings:inputs+=['runtime/apps/wireless-remote/settings_backend.h','runtime/apps/wireless-remote/supervisor_process.h','runtime/platform/wireless/mode.h','runtime/store/stock_fs_bridge.h','runtime/store/stock_stat64.h','runtime/store/target_abi.h']
     if native_rf_gate and native_remote_settings:inputs+=['runtime/apps/wireless-remote/settings_factory.h']
-    if factory_profile:inputs+=[factory_profile['review'],factory_profile['supervisor_artifact'],'runtime/platform/player/remote_ready.h','tools/review_managed_remote_profile.py']
-    if shared_wifi:inputs+=[shared_wifi,image_path.relative_to(ROOT).as_posix()]
+    if factory_profile:
+        inputs += [factory_header.relative_to(ROOT).as_posix(), 'tools/review_managed_remote_profile.py']
     if native_wireless_settings:inputs+=list(wireless_composition['source_hashes'])+['runtime/platform/wireless/native_setting.h','runtime/platform/wireless/mode_policy.h','runtime/platform/wireless/mode.h']
     if native_rf_gate:inputs+=list(rf_composition['source_hashes'])+[p.relative_to(ROOT).as_posix() for p in (ROOT/'runtime/platform/wireless').glob('*.h')]+['runtime/store/target_abi.h','runtime/store/stock_fs_bridge.h','runtime/store/stock_stat64.h']
     if sleep_composition:inputs+=list(sleep_composition['source_hashes'])
     inputs+=page_inputs
     if stock_artwork_fix:inputs+=['tools/stock_artwork_fix.py']
     if warm_homebrew:inputs+=list(warm_homebrew['source_hashes'])
-    if remote_profile and profile.get('device_pairing'):
+    if factory_contract and factory_contract['device_pairing']:
         from pairing_crypto import dependencies as pairing_crypto_dependencies
         inputs+=pairing_crypto_dependencies()
     report=dict(passed=True,analysis_only=True,ready_to_flash=False,firmware_package_created=False,device_accessed=False,
@@ -279,6 +240,7 @@ def build(engine_provider=False,managed_host=False,native_prepare=False,builtin_
     if native_prepare:report['limits'].append('Explicit native-prepare analysis pairing only; original manager descriptor delivery, complete intervening-event ordering, loader/hardware acceptance and recovery remain unqualified. No firmware activation.')
     report['native_sleep_analysis']=native_sleep_analysis
     report['warm_homebrew_analysis']=warm_homebrew
+    if factory_contract is not None:report['remote_factory_contract']=factory_contract
     if shared_wifi:report['shared_wifi_review']=shared_wifi
     if native_remote_page_analysis:
         report['native_remote_page_analysis']=(page_dir/'report.json').relative_to(ROOT).as_posix()

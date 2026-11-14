@@ -51,6 +51,13 @@ implementation has the following confirmed coupling points:
 | Diagnostic records lack attempt identity | `parent_trace_store.c` fills a preallocated slot only once; `read_remote_pairing_trace.py` has no firmware/build or boot identity to validate | Use bounded, versioned records correlated to a build, boot and start request. Reading diagnostics must not depend on manually copying an empty file before each attempt |
 | Historical local paths in supported tooling | The script audit found fixed review/candidate paths in maintained scripts and separate local orchestration files | Maintained entry points accept current input descriptors. Historical negative controls are explicit test inputs; ignored scripts and prior candidate directories are outside the normal build graph |
 
+The host receipt records its compile contract separately from the exact
+supervisor and radio identities selected by layout assembly. A new supervisor
+and matching radio review can reuse a checked host when the supervisor size and
+feature contract agree. Layout receipts bind the actual deployed executables,
+radio image and selected reviews. Older host receipts retain their original
+deployment pairing.
+
 The build and runtime dependencies differ. The startup wrapper is rebuilt by
 layout assembly. It carries the player library's path and can use the same
 bytes whenever its own build inputs match. It carries no child hash or size.

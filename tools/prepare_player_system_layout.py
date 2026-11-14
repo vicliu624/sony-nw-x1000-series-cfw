@@ -13,6 +13,7 @@ from build_player_host import build
 from builtin_language import SETTINGS_SHA
 from player_arm_guest import stock_libraries
 from review_managed_root_capacity import read_root_input
+from review_managed_remote_profile import receipt, artifact, select_player_remote_inputs
 from remote_choice_resource import SOURCE as REMOTE_TEMPLATE, TARGET as REMOTE_RESOURCE
 from remote_choice_resource import BOUND_TARGET,CONFIRM_TARGET,CONFIRM_SOURCE,PAIR_TARGET
 
@@ -22,7 +23,11 @@ def main():
     base_input.add_argument('--localization-root', type=Path, help='Built-in localization root tarball under work/')
     base_input.add_argument('--localization-firmware', type=Path, help='Legacy built-in localization UPG under work/')
     parser.add_argument('--host-review',type=Path,help='Reuse a fresh composed managed host receipt instead of building the base profile')
+    parser.add_argument('--supervisor-review', type=Path, help='Select a supervisor with the compiled host contract')
+    parser.add_argument('--radio-review', type=Path, help='Select the shared Wi-Fi overlay matched to that supervisor')
     args=parser.parse_args()
+    if (args.supervisor_review or args.radio_review) and not args.host_review:
+        parser.error('Replacing Remote inputs requires --host-review')
     source, localized_root, source_sha = read_root_input(args.localization_root or args.localization_firmware,
                                                          root_only=args.localization_root is not None)
     kind = 'localization_root' if args.localization_root else 'localization_input'
@@ -48,11 +53,11 @@ def main():
     replacement=app_list
     out=ROOT/'work/player-system-layout'/str(time.time_ns());out.mkdir(parents=True)
     supervisor=None
+    binding = image_review = None
     runtime_source_hashes={}
     new_ownership={}
     page_review=None
     if args.host_review:
-        from review_managed_remote_profile import receipt,artifact
         host_path,host=receipt(args.host_review)
         runtime_source_hashes.update(host['source_hashes'])
         runtime_source_hashes[host_path.relative_to(ROOT).as_posix()]=hashlib.sha256(host_path.read_bytes()).hexdigest()
@@ -62,11 +67,15 @@ def main():
         payload=host_path.parent/'SpiderApp.player-prepare.analysis-only.elf'
         artifact(library,host['library_sha256'],host['library_bytes'])
         if hashlib.sha256(payload.read_bytes()).hexdigest()!=host['candidate_sha256']:raise ValueError('Player identity mismatch')
-        supervisor_path,supervisor_review=receipt(host['remote_factory_profile']['review'])
+        binding, supervisor_review, image_review = select_player_remote_inputs(
+            host, args.supervisor_review, args.radio_review)
+        supervisor_path = ROOT / binding['review']
+        supervisor = ROOT / binding['supervisor_artifact']
         runtime_source_hashes.update(supervisor_review['source_hashes'])
-        runtime_source_hashes[supervisor_path.relative_to(ROOT).as_posix()]=hashlib.sha256(supervisor_path.read_bytes()).hexdigest()
-        supervisor=ROOT/supervisor_review['artifact']
-        artifact(supervisor,supervisor_review['sha256'],supervisor_review['bytes'])
+        for path in (supervisor_path, supervisor):
+            runtime_source_hashes[path.relative_to(ROOT).as_posix()] = hashlib.sha256(path.read_bytes()).hexdigest()
+        if image_review is not None:
+            runtime_source_hashes[image_review.relative_to(ROOT).as_posix()] = hashlib.sha256(image_review.read_bytes()).hexdigest()
     else:
         with contextlib.redirect_stdout(io.StringIO()):
             library,payload,host=build(managed_host=True,engine_provider=True,native_prepare=True,builtin_localization=True)
@@ -99,6 +108,9 @@ def main():
                 path,_=input_artifact(supervisor_review,kind,leaf)
                 code_path,code_review=receipt(path.parent/'build.json')
                 runtime_source_hashes.update(code_review['source_hashes'])
+                runtime_source_hashes.update({name.replace('\\','/'): sha
+                                              for key in ('linked_input_hashes','linked_library_hashes')
+                                              for name,sha in code_review.get(key,{}).items()})
                 runtime_source_hashes[code_path.relative_to(ROOT).as_posix()]=hashlib.sha256(code_path.read_bytes()).hexdigest()
                 destination=supervisor_review['inputs'][kind]['path']
                 if destination!='/usr/local/libexec/x1000-remote-'+kind+'.arm' or destination.lstrip('/') in archive_names:
@@ -132,10 +144,9 @@ def main():
                 new_ownership[name]=(row['uid'],row['gid'])
             page_review=page_path
     manifest={}
-    if host.get('shared_wifi_review'):
+    if image_review is not None:
         radio_path='lib/modules/sd8686.bin'
-        image_path=ROOT/host['shared_wifi_review']
-        image=json.loads(image_path.read_text())
+        image=json.loads(image_review.read_text(encoding='utf-8'))
         row=image['overlay'][radio_path]
         candidate=ROOT/row['artifact']
         artifact(candidate,row['sha256'],row['bytes'])
@@ -148,6 +159,7 @@ def main():
                 if hashlib.sha256(archive.extractfile('./'+name).read()).hexdigest()!=sha:
                     raise ValueError('Stock radio dependency changed: '+name)
         entries[radio_path]=(candidate.read_bytes(),row['mode'])
+        runtime_source_hashes[candidate.relative_to(ROOT).as_posix()] = row['sha256']
     for name,(data,mode) in entries.items():
         target=out/'root-overlay'/name;target.parent.mkdir(parents=True,exist_ok=True)
         target.write_bytes(data);target.chmod(mode)
@@ -191,6 +203,9 @@ def main():
     report['source_hashes'].update(runtime_source_hashes)
     report['source_hashes'][source.relative_to(ROOT).as_posix()] = source_sha
     if args.host_review:
+        report['remote_factory_profile'] = binding
+        if image_review is not None:
+            report['shared_wifi_review'] = image_review.relative_to(ROOT).as_posix()
         report['source_hashes']['tools/review_managed_remote_profile.py']=hashlib.sha256((ROOT/'tools/review_managed_remote_profile.py').read_bytes()).hexdigest()
     for name,expected in report['source_hashes'].items():
         if hashlib.sha256((ROOT/name).read_bytes()).hexdigest()!=expected:

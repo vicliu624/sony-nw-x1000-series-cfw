@@ -119,7 +119,8 @@ def reviewed_inputs(firmware_review, allocation_review, regressions):
     if any(private(extracted / ('part-' + str(i) + '.bin')).read_bytes() != part
            for i, part in enumerate(parts)):
         raise ValueError('Independent Rockbox extraction differs')
-    _, supervisor = receipt(layout['host_build']['remote_factory_profile']['review'])
+    binding = layout.get('remote_factory_profile', layout['host_build']['remote_factory_profile'])
+    _, supervisor = receipt(binding['review'])
     if not supervisor.get('embedded_runtime'):
         raise ValueError('This material profile requires embedded Remote programs')
     _, owner = receipt(supervisor['shared_wifi_owner_review'])

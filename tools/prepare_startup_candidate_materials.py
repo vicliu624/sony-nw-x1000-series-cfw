@@ -9,7 +9,7 @@ from review_managed_root_capacity import inventory
 from remote_choice_resource import BOUND_TARGET,CONFIRM_TARGET,PAIR_TARGET
 
 def review_wireless_delta(rp,review,upg,layout):
- shared=bool(layout['host_build'].get('shared_wifi_review'))
+ shared=bool(layout.get('shared_wifi_review',layout['host_build'].get('shared_wifi_review')))
  if shared:
   baseline=private('work/startup-candidate-materials/1793858639057351161/01_PC_UPDATE/NW_WM_FW.UPG')
   assert digest(baseline)=='2328d7375e1c1a87b4ff8e1cd77a8bf6d06be0e6498fff953692a7651abb410e'
@@ -28,7 +28,8 @@ def review_wireless_delta(rp,review,upg,layout):
  added_resources=set()
  if shared:
   radio='lib/modules/sd8686.bin';supervisor='usr/local/libexec/x1000-remote-supervisor'
-  _,profile=receipt(layout['host_build']['remote_factory_profile']['review'])
+  binding=layout.get('remote_factory_profile',layout['host_build']['remote_factory_profile'])
+  _,profile=receipt(binding['review'])
   if profile.get('device_pairing'):
    added_resources={BOUND_TARGET,CONFIRM_TARGET}
    if PAIR_TARGET in layout['files']:added_resources.add(PAIR_TARGET)
@@ -64,7 +65,7 @@ def main():
  for name,sha in inputs.items():assert digest(private(name))==sha
  layout_path=next(name for name in inputs if '/player-system-layout/' in name)
  _,layout=receipt(layout_path)
- shared=bool(layout['host_build'].get('shared_wifi_review'))
+ shared=bool(layout.get('shared_wifi_review',layout['host_build'].get('shared_wifi_review')))
  off_review=None
  if args.wifi_off_replay:
   off_review=private(args.wifi_off_replay)
@@ -76,7 +77,7 @@ def main():
   assert not any(cases[name]['dispatched'] for name in ('busy','denied','left-page','changed-row','exiting','bad-image','bad-dispatch'))
  owner_update=None;pairing_service=None;core2=None;embedded=False
  if shared:
-  profile=layout['host_build']['remote_factory_profile']
+  profile=layout.get('remote_factory_profile',layout['host_build']['remote_factory_profile'])
   _,supervisor=receipt(profile['review'])
   _,owner=receipt(supervisor['shared_wifi_owner_review'])
   source=private(owner['artifact']);target=profile['inputs']['owner']

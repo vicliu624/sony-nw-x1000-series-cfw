@@ -8,7 +8,8 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'tools'))
-from review_managed_remote_profile import component_build, input_artifact
+from review_managed_remote_profile import (component_build, input_artifact, player_remote_header,
+                                           player_remote_inputs, select_player_remote_inputs)
 
 
 def digest(path):
@@ -93,6 +94,50 @@ class ManagedComponentProvenanceTests(unittest.TestCase):
         linked.write_bytes(b'changed linked input')
         with self.assertRaisesRegex(ValueError, 'Component linked input differs'):
             component_build(receipt, path.name)
+
+    def supervisor(self, name, data, **flags):
+        profile = dict(built=True, reusable_sessions=True, source_hashes={}, inputs={}, local_inputs={})
+        for role in ('owner', 'service'):
+            area = self.directory / role
+            area.mkdir(exist_ok=True)
+            leaf = {'owner':'remote-rf-owner.arm', 'service':'wireless-remote-service.arm'}[role]
+            executable = area / leaf
+            executable.write_bytes(role.encode())
+            identity = dict(bytes=executable.stat().st_size, sha256=digest(executable))
+            local = executable.relative_to(ROOT).as_posix()
+            (area/'build.json').write_text(json.dumps(dict(built=True, artifact=local, source_hashes={}, **identity)))
+            profile['inputs'][role] = identity
+            profile['local_inputs'][role] = dict(local=local, **identity)
+        binary = self.directory / (name + '.arm')
+        binary.write_bytes(data)
+        profile.update(flags, artifact=binary.relative_to(ROOT).as_posix(), bytes=len(data), sha256=digest(binary))
+        path = self.directory / (name + '.json')
+        path.write_text(json.dumps(profile), encoding='utf-8')
+        return path
+
+    def test_layout_can_select_a_new_supervisor_with_the_same_compiled_contract(self):
+        original = self.supervisor('original', b'old')
+        replacement = self.supervisor('replacement', b'new')
+        expected, binding, _, _ = player_remote_inputs(original)
+        host = dict(remote_factory_profile=binding, remote_factory_contract=expected)
+        (self.directory/'original.arm').unlink()
+        selected, _, _ = select_player_remote_inputs(host, replacement)
+        self.assertNotEqual(selected['sha256'], binding['sha256'])
+        self.assertEqual(player_remote_header(expected), player_remote_header(player_remote_inputs(replacement)[0]))
+        self.assertEqual(host['remote_factory_profile'], binding)
+
+    def test_layout_refuses_supervisor_with_changed_size_or_owner_mode(self):
+        original = self.supervisor('original', b'old')
+        expected, binding, _, _ = player_remote_inputs(original)
+        host = dict(remote_factory_profile=binding, remote_factory_contract=expected)
+        cases = [(self.supervisor('different-size', b'longer'), 'supervisor_bytes'),
+                 (self.supervisor('different-mode', b'new', owner_mode_view_forwarded=True),
+                  'owner_mode_view_forwarded')]
+        for review, field in cases:
+            with self.subTest(field=field), self.assertRaisesRegex(ValueError, field):
+                select_player_remote_inputs(host, review)
+        with self.assertRaisesRegex(ValueError, 'recorded compile contract'):
+            select_player_remote_inputs(dict(remote_factory_profile=binding), cases[0][0])
 
 
 if __name__ == '__main__':

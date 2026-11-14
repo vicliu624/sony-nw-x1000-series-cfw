@@ -21,7 +21,7 @@ def main():
  if len(layout_paths)!=1:raise ValueError('Firmware layout provenance is ambiguous')
  layout_path,layout=receipt(layout_paths[0])
  if digest(layout_path)!=firmware['layout_review_sha256']:raise ValueError('Firmware layout review changed')
- factory=layout['host_build']['remote_factory_profile']
+ factory=layout.get('remote_factory_profile',layout['host_build']['remote_factory_profile'])
  if factory['sha256']!=component['components']['supervisor']['sha256']:raise ValueError('Firmware/external supervisor mismatch')
  supervisor_path,supervisor=receipt(factory['review'])
  if digest(supervisor_path)!=component['receipts']['supervisor']['sha256']:raise ValueError('Supervisor receipt mismatch')

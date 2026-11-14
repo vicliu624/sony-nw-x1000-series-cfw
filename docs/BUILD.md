@@ -247,6 +247,13 @@ receipt from `prepare_shared_wifi_image.py` and pin the matching owner and
 supervisor artifacts together. Existing pairing state and packet-number
 journals belong on the player volume and must carry forward for the same keys.
 
+After rebuilding the supervisor or radio image, reuse a current host with
+`prepare_player_system_layout.py --host-review ... --supervisor-review ...
+--radio-review ...`. The build record must contain the same supervisor size and
+feature contract required by the selected inputs. Layout assembly checks the
+new binaries, their receipts and the matched radio image. A changed compile
+contract requires building the host again.
+
 Before qualifying the candidate, replay the final Wireless Mode page with
 `test_wireless_mode_refresh.py` and the deferred Off action with
 `test_shared_wifi_auto_off.py`. Use independent Rockbox extraction to compare
