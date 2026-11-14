@@ -12,6 +12,7 @@ import threading
 import time
 
 from app_registry import ROOT
+from evidence_checks import gcc_project_dependencies
 from generate_espnow_full_profile import profile_header, reviewed_radio, verify_image
 from owner_native_profile import file_initializer, render as render_native_profile, stock_header
 from player_arm_guest import stock_libraries
@@ -130,9 +131,19 @@ def build(*, sdk_review=None, rx_diagnostic_radio=None, external_radio_inputs=No
     if managed_session:flags+=['-DXNOW_REMOTE_MANAGED']
     if root_cold:flags+=['-DXNOW_REMOTE_ROOT_COLD']
     if link_keys:flags+=['-DXNOW_REMOTE_LINK_KEYS']
+    compiler=['arm-linux-gnueabi-gcc',*flags]
+    libraries=[archive,crypto,cnmgr,*libs.values()]
+    link_args=[str(archive),str(crypto),str(cnmgr),'-Wl,--no-as-needed',str(libs['libpthread.so.0']),
+               *([str(libs['librt.so.1'])] if mode_view_required else []),
+               str(libs['libc.so.6']),str(libs['ld-linux.so.3']),'-lgcc']
+    dependencies=gcc_project_dependencies(ROOT,compiler,sources)
+    dependencies.update(radio_inputs)
+    dependencies.update(('tools/evidence_checks.py','tools/owner_native_profile.py','tools/build_remote_owner.py'))
+    dependencies.update(path.relative_to(ROOT).as_posix() for path in (stock_root,sdk_receipt))
+    source_hashes={**{p:digest(ROOT/p) for p in sorted(dependencies)},**radio_source_hashes,**external_hashes}
+    linked_hashes={p.relative_to(ROOT).as_posix():digest(p) for p in libraries}
     artifact=out/'remote-rf-owner.arm'
-    subprocess.run(['arm-linux-gnueabi-gcc',*flags,*sources,str(archive),str(crypto),str(cnmgr),
-                    '-Wl,--no-as-needed',str(libs['libpthread.so.0']),*([str(libs['librt.so.1'])] if mode_view_required else []),str(libs['libc.so.6']),str(libs['ld-linux.so.3']),'-lgcc','-o',str(artifact)],cwd=ROOT,check=True)
+    subprocess.run([*compiler,*sources,*link_args,'-o',str(artifact)],cwd=ROOT,check=True)
     base=['qemu-arm','-cpu','arm926',str(libs['ld-linux.so.3']),'--library-path',':'.join(dict.fromkeys(str(p.parent) for p in [*libs.values(),cnmgr])),str(artifact)]
     env=dict(os.environ,QEMU_UNSET_ENV='LD_LIBRARY_PATH,LD_PRELOAD')
     for args,expected in [(['--help'],0),([],64),(['--owner','3','3','4','00'*16,'020102030405','--charger-confirmed','--exclusive-radio-confirmed'],64)]:
@@ -185,29 +196,20 @@ def build(*, sdk_review=None, rx_diagnostic_radio=None, external_radio_inputs=No
         for fd in pair:
          if fd>=0:os.close(fd)
     baseline_sha256=None
-    diagnostic_sources=[]
     if legacy_radio:
         baseline=out/'espnow-test-baseline.arm'
-        diagnostic_sources=['runtime/apps/espnow-test/main.c','runtime/apps/espnow-test/runner.c','runtime/apps/espnow-test/detached.c']
-        subprocess.run(['arm-linux-gnueabi-gcc',*flags,*diagnostic_sources,*sources[1:],str(archive),str(crypto),str(cnmgr),
-                        '-Wl,--no-as-needed',str(libs['libpthread.so.0']),*([str(libs['librt.so.1'])] if mode_view_required else []),str(libs['libc.so.6']),str(libs['ld-linux.so.3']),'-lgcc','-o',str(baseline)],cwd=ROOT,check=True)
+        diagnostic_sources=['runtime/apps/espnow-test/main.c','runtime/apps/espnow-test/runner.c',
+                            'runtime/apps/espnow-test/detached.c',*sources[1:]]
+        for name in sorted(gcc_project_dependencies(ROOT,compiler,diagnostic_sources)-source_hashes.keys()):
+            source_hashes[name]=digest(ROOT/name)
+        subprocess.run([*compiler,*diagnostic_sources,*link_args,'-o',str(baseline)],cwd=ROOT,check=True)
         for args,expected in [(['--help'],0),([],64)]:
             run=subprocess.run(base[:-1]+[str(baseline)]+args,cwd=ROOT,env=env,capture_output=True,text=True,timeout=10)
             assert run.returncode==expected,run.stdout+run.stderr
         baseline_sha256=digest(baseline)
-    inputs=sources+diagnostic_sources+radio_inputs+['runtime/platform/espnow/native_entry.h',
-     'runtime/platform/espnow/native_environment.h','tools/owner_native_profile.py','tools/build_remote_owner.py',
-     (out/'native_inputs.h').relative_to(ROOT).as_posix()]
-    if legacy_radio:inputs.append('runtime/apps/espnow-test/runner.h')
-    if power_off_exit:inputs+=['runtime/platform/wireless/radio_release.h','runtime/platform/wireless/radio_modules.h']
-    if mode_view_required:inputs+=['runtime/apps/wireless-remote/owner_admission.h','runtime/platform/wireless/mode_client.h','runtime/platform/wireless/mode_channel.h','runtime/platform/wireless/mode_policy.h','runtime/platform/wireless/mode.h','runtime/store/deadline.h']
-    inputs += [p.relative_to(ROOT).as_posix() for p in (ROOT/'runtime/platform/espnow').glob('*.h')]
-    inputs += [p.relative_to(ROOT).as_posix() for p in (stock_root, sdk_receipt, out/'full_profile.h', out/'exchange_inputs.h')]
-    if managed_session:inputs.append((out/'shared_wifi_input.h').relative_to(ROOT).as_posix())
-    inputs.append('runtime/apps/wireless-remote/pairing_proof.h')
-    inputs.append('runtime/apps/wireless-remote/run_profile.h')
-    inputs.append('runtime/apps/wireless-remote/startup_result.h')
-    inputs.append('runtime/apps/wireless-remote/pairing_store.h')
+    for name,expected in {**source_hashes,**linked_hashes}.items():
+        if digest(ROOT/name)!=expected:
+            raise ValueError('Radio Owner input changed during build: '+name)
     report=dict(built=True,artifact=str(artifact.relative_to(ROOT)),bytes=artifact.stat().st_size,sha256=digest(artifact),
                 original_libc_arm_entry_checks=True,lab_only=True,window_seconds=None if managed_session else window_seconds,radio_started=False,device_accessed=False,
                 finite_owner=not managed_session,lifetime_mode='supervised-session' if managed_session else 'finite-qualification',ready_for_native_settings=False,
@@ -222,8 +224,8 @@ def build(*, sdk_review=None, rx_diagnostic_radio=None, external_radio_inputs=No
                 non_sony_root_startup_refusal_receipt=startup_refusal,
                 data_directory=data_directory,exchange_header=str((out/'exchange_inputs.h').relative_to(ROOT)),exchange_header_sha256=digest(out/'exchange_inputs.h'),
                 candidate_sha256=manifest['candidate_sha256'],
-                source_hashes={**{p:digest(ROOT/p) for p in inputs},**radio_source_hashes,**external_hashes},
-                linked_input_hashes={str(p.relative_to(ROOT)):digest(p) for p in (archive,crypto,cnmgr,*libs.values())},
+                source_hashes=source_hashes,
+                linked_input_hashes=linked_hashes,
                 limits=['No hardware run or physical acceptance.','Legacy test storage/context remains unqualified for production.','Cooperative custom exclusion is not global Sony Wi-Fi/APF/USB/sleep arbitration.',
                         'Power-off-exit controller compiled; physical radio-off remains unqualified.' if power_off_exit else 'Default controller restores stock driver without proving radio-off.',
                         'Supervised lifetime compiled; persistent native Settings operation remains unqualified.' if managed_session else 'Finite test owner must not be presented as a persistent native Settings remote.'])

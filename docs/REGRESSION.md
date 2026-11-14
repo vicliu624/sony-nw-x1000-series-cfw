@@ -82,9 +82,11 @@ service once for its service and supervisor checks. `--service-review` supplies
 an existing verified build and skips that build step. Use the receipt from
 `tools/build_remote_service.py --output work/<review>/service`. The individual
 Remote checks accept the option as well. Supervisor and test fixtures still
-build per scenario when their inputs differ. The player and service builders
-use GCC's dependency output to record the headers actually selected for each
-translation unit. A changed header invalidates the corresponding build receipt.
+build per scenario when their inputs differ. The player, service, owner and
+supervisor builders use GCC's dependency output to record headers selected for
+each translation unit, including generated headers. A changed compiler input
+invalidates the corresponding receipt; layout selection also checks the
+libraries linked by the selected supervisor.
 
 `test_shared_owner_retirement.py` combines the actual Root stop wrapper and
 full controller. It checks delayed drain, both native connection states,

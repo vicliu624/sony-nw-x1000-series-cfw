@@ -35,6 +35,14 @@ def native_sdk_build(path):
     return path, ROOT / identity['local'], build
 
 
+def validate_linked_inputs(built):
+ for key in ('linked_input_hashes','linked_library_hashes'):
+  for name,expected in built.get(key,{}).items():
+   linked=(ROOT/name.replace('\\','/')).resolve()
+   if digest(private(linked))!=expected:
+    raise ValueError('Component linked input differs: '+name)
+
+
 def component_build(path,leaf):
  path,built=receipt(path)
  if (path.name!='build.json' or built.get('built') is not True or
@@ -43,11 +51,7 @@ def component_build(path,leaf):
  executable=private(built['artifact'])
  if executable!=path.parent/leaf:
   raise ValueError('Component build receipt differs: '+leaf)
- for key in ('linked_input_hashes','linked_library_hashes'):
-  for name,expected in built.get(key,{}).items():
-   linked=(ROOT/name.replace('\\','/')).resolve()
-   if digest(private(linked))!=expected:
-    raise ValueError('Component linked input differs: '+name)
+ validate_linked_inputs(built)
  return path,built,artifact(executable,built['sha256'],built['bytes'])
 def input_artifact(supervisor,name,leaf):
  item=supervisor['inputs'][name]
@@ -70,6 +74,7 @@ def player_remote_inputs(supervisor_review, radio_review=None):
     profile_path, profile = receipt(supervisor_review)
     if not profile.get('built') or not profile.get('reusable_sessions'):
         raise ValueError('Reusable supervisor review required')
+    validate_linked_inputs(profile)
     if not 0 < profile['bytes'] <= 1048576:
         raise ValueError('Supervisor size outside the supported range')
     executable = artifact(profile['artifact'], profile['sha256'], profile['bytes'])

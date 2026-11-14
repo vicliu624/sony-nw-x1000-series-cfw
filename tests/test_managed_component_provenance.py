@@ -126,6 +126,20 @@ class ManagedComponentProvenanceTests(unittest.TestCase):
         self.assertEqual(player_remote_header(expected), player_remote_header(player_remote_inputs(replacement)[0]))
         self.assertEqual(host['remote_factory_profile'], binding)
 
+    def test_layout_rejects_changed_supervisor_linked_library(self):
+        library = self.directory / 'supervisor-dependency.so'
+        library.write_bytes(b'original library')
+        original = self.supervisor('original', b'old')
+        expected, binding, _, _ = player_remote_inputs(original)
+        host = dict(remote_factory_profile=binding, remote_factory_contract=expected)
+        replacement = self.supervisor('replacement', b'new', linked_library_hashes={
+            library.relative_to(ROOT).as_posix(): digest(library)})
+        self.assertEqual(select_player_remote_inputs(host, replacement)[0]['sha256'],
+                         digest(self.directory / 'replacement.arm'))
+        library.write_bytes(b'different library')
+        with self.assertRaisesRegex(ValueError, 'linked input differs: .*supervisor-dependency'):
+            select_player_remote_inputs(host, replacement)
+
     def test_layout_refuses_supervisor_with_changed_size_or_owner_mode(self):
         original = self.supervisor('original', b'old')
         expected, binding, _, _ = player_remote_inputs(original)

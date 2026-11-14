@@ -72,6 +72,9 @@ def main():
         supervisor_path = ROOT / binding['review']
         supervisor = ROOT / binding['supervisor_artifact']
         runtime_source_hashes.update(supervisor_review['source_hashes'])
+        runtime_source_hashes.update({name.replace('\\','/'): sha
+                                      for key in ('linked_input_hashes','linked_library_hashes')
+                                      for name,sha in supervisor_review.get(key,{}).items()})
         for path in (supervisor_path, supervisor):
             runtime_source_hashes[path.relative_to(ROOT).as_posix()] = hashlib.sha256(path.read_bytes()).hexdigest()
         if image_review is not None:

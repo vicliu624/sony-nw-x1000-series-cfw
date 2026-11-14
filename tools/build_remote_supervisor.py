@@ -10,8 +10,9 @@ import subprocess
 import time
 
 from app_registry import ROOT
+from evidence_checks import gcc_project_dependencies
 from player_arm_guest import stock_libraries
-from review_managed_remote_profile import component_build, private, receipt
+from review_managed_remote_profile import component_build, digest, private
 from sdk_build import fresh_work
 
 
@@ -75,12 +76,15 @@ def build(*, review=None, service_review=None, shared_wifi_owner_review=None, ou
  shared_owner_review=None;shared_wifi_radio_sha256=None
  root_cold_supported=False
  if shared_wifi_owner_review:
-  owner_path,owner=(components['owner'][:2] if 'owner' in components else receipt(shared_wifi_owner_review))
+  owner_path,owner,owner_identity=components['owner']
+  if private(shared_wifi_owner_review)!=owner_path:
+   owner_path,owner,owner_identity=component_build(shared_wifi_owner_review, CHILDREN['owner'])
   expected=review['files']['owner']
   if (not forward_owner_mode_view or not reusable_sessions or not owner.get('shared_wifi_supported') or
-      owner['data_directory']+'/runtime'!=directory or owner['sha256']!=expected['sha256'] or owner['bytes']!=expected['bytes']):
+      owner['data_directory']+'/runtime'!=directory or owner_identity['sha256']!=expected['sha256'] or owner_identity['bytes']!=expected['bytes']):
    raise ValueError('Shared Wi-Fi owner receipt does not match launch profile')
   shared_owner_review=owner_path.relative_to(ROOT).as_posix();inputs.append(shared_owner_review)
+  inputs.append(owner_identity['local'])
   shared_wifi_radio_sha256=owner['candidate_sha256']
   root_cold_supported=bool(owner.get('root_cold_supported'))
   if root_cold_supported:header.append('#define WR_ROOT_COLD_OWNER 1')
@@ -130,11 +134,19 @@ def build(*, review=None, service_review=None, shared_wifi_owner_review=None, ou
   sources+=['runtime/apps/wireless-remote/pairing_store.c']
   inputs+=['runtime/apps/wireless-remote/pairing_store.h']
  libs=stock_libraries(include_rt=True);artifact=out/'remote-supervisor.arm'
- subprocess.run(['arm-linux-gnueabi-gcc','-std=c99','-Os','-Wall','-Wextra','-Werror','-Wno-misleading-indentation',
+ compiler=['arm-linux-gnueabi-gcc','-std=c99','-Os','-Wall','-Wextra','-Werror','-Wno-misleading-indentation',
                  '-DHB_STORE_SONY_LIBC','-DHB_STORE_LIBC_CLOCK',*(['-DWR_REUSABLE_SESSIONS'] if reusable_sessions else []),*(['-DWR_OWNER_MODE_VIEW'] if forward_owner_mode_view else []),*(['-DWR_DEVICE_PAIRING'] if device_pairing else []),*(['-DWR_EMBEDDED_RUNTIME'] if embedded_runtime else []),'-U_FORTIFY_SOURCE','-D_FORTIFY_SOURCE=0',
                  '-march=armv5te','-marm','-mfloat-abi=soft','-fno-builtin','-fno-pie','-fno-stack-protector',
-                 '-nostdlib','-no-pie','-Wl,--hash-style=sysv,--build-id=none','-I'+str(out),*sources,
-                 str(libs['librt.so.1']),str(libs['libpthread.so.0']),str(libs['libc.so.6']),str(libs['ld-linux.so.3']),'-lgcc','-o',str(artifact)],cwd=ROOT,check=True)
+                 '-nostdlib','-no-pie','-Wl,--hash-style=sysv,--build-id=none','-I'+str(out)]
+ inputs += [*[row['local'] for row in local_rows.values()], 'tools/evidence_checks.py',
+            'tools/review_managed_remote_profile.py']
+ if review_path:
+  inputs.append(review_path.relative_to(ROOT).as_posix())
+ dependencies=gcc_project_dependencies(ROOT, compiler, sources)
+ source_hashes={p:digest(ROOT/p) for p in sorted(dependencies.union(inputs))}
+ libraries=[libs[name] for name in ('librt.so.1','libpthread.so.0','libc.so.6','ld-linux.so.3')]
+ linked_hashes={p.relative_to(ROOT).as_posix():digest(p) for p in libraries}
+ subprocess.run([*compiler,*sources,*map(str,libraries),'-lgcc','-o',str(artifact)],cwd=ROOT,check=True)
  base=['qemu-arm','-cpu','arm926',str(libs['ld-linux.so.3']),'--library-path',':'.join(dict.fromkeys(str(p.parent) for p in libs.values())),str(artifact)]
  for argv,expected in [(['--help'],0),([],64),(['/tmp/invalid','00'*16,'23','--charger-confirmed','--exclusive-radio-confirmed'],64),(['--delivery-fd','0','23','--charger-confirmed','--exclusive-radio-confirmed'],64),(['--delivery-fd','65535','23','--charger-confirmed','--exclusive-radio-confirmed'],64)]:
   run=subprocess.run(base+argv,cwd=ROOT,env=dict(os.environ,QEMU_UNSET_ENV='LD_LIBRARY_PATH,LD_PRELOAD'),capture_output=True,text=True,timeout=10);assert run.returncode==expected,run.stdout+run.stderr
@@ -149,10 +161,9 @@ def build(*, review=None, service_review=None, shared_wifi_owner_review=None, ou
    assert run.returncode==0 and os.read(reader,16)==b'WPS1\x02'+bytes(11),run.stderr
   finally:
    os.close(writer);os.close(reader)
- inputs += [*[row['local'] for row in local_rows.values()],
-            'tools/review_managed_remote_profile.py']
- if review_path:
-  inputs.append(review_path.relative_to(ROOT).as_posix())
+ for name,expected in {**source_hashes,**linked_hashes}.items():
+  if digest(ROOT/name)!=expected:
+   raise ValueError('Remote supervisor input changed during build: '+name)
  report=dict(built=True,artifact=str(artifact.relative_to(ROOT)),bytes=artifact.stat().st_size,
              sha256=hashlib.sha256(artifact.read_bytes()).hexdigest(),original_libc_arm_entry_checks=True,
              private_launch_profile=True,reusable_sessions=reusable_sessions,device_accessed=False,radio_started=False,inputs=rows,
@@ -165,8 +176,8 @@ def build(*, review=None, service_review=None, shared_wifi_owner_review=None, ou
              shared_wifi_radio_sha256=shared_wifi_radio_sha256,
              launch_review=review_path.relative_to(ROOT).as_posix() if review_path else None,local_inputs=local_rows,
              mode_host_snapshot=mode_host_snapshot,
-             generation=review['generation'],source_hashes={p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in sources+inputs},
-             linked_library_hashes={str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in libs.values()},
+             generation=review['generation'],source_hashes=source_hashes,
+             linked_library_hashes=linked_hashes,
              generated_header_sha256=hashlib.sha256((out/'remote_launch_inputs.h').read_bytes()).hexdigest())
  (out/'build.private.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')
  return artifact,report
