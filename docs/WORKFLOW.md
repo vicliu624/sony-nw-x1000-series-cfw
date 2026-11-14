@@ -14,6 +14,10 @@ criteria instead of continually expanding a nearly completed patch.
 Do not create one-off executable helpers, even in ignored storage. A supported
 workflow uses maintained purpose-based entry points with explicit inputs; version
 numbers identify delivery artifacts, not another implementation of the workflow.
+Recover retired candidate recipes from Git history when investigating an old
+artifact. Keep its original inputs, resulting package and failure evidence as
+data. Use the explicit-input builders and packer in [BUILD.md](BUILD.md) for a
+new review.
 
 ## Build and verification inputs
 
@@ -24,7 +28,9 @@ the compiler command, the project headers selected by GCC and the linked Sony
 libraries. A changed tracked input invalidates reuse. Independent tests use the
 same builder, then execute the refusal cases and ARM replay. Packaging consumes
 reviewed outputs through their receipts. Build the localized root once and use
-its archive directly for managed layout, capacity and QEMU checks. See the
+its archive directly for managed layout, capacity and QEMU checks. Use the same
+reviewed wireless image for radio replay, the owner build and the system overlay.
+See the
 [build guide](BUILD.md) for the
 supported commands and [architecture](ARCHITECTURE.md) for module ownership.
 
