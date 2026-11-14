@@ -1,5 +1,6 @@
 """Freeze a reviewed local diagnostic with Sony's untouched updater; never installs."""
 import argparse
+from contextlib import ExitStack
 import hashlib
 import json
 from pathlib import Path
@@ -273,31 +274,7 @@ stage; this package makes no automatic repair or recovery promise.
 '''
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--firmware-review', required=True)
-    parser.add_argument('--allocation-review', required=True)
-    parser.add_argument('--regression-review', required=True)
-    parser.add_argument('--controller-review', help='Required matching Core2 build for negotiated-link firmware')
-    parser.add_argument('--updater-template', type=Path, required=True, help='Stock UPG, updater files and licenses under work/')
-    parser.add_argument('--radio-inputs', type=Path, required=True, help='Directory under work/ containing reviewed external radio files')
-    parser.add_argument('--output', type=Path, required=True)
-    args = parser.parse_args()
-    output = args.output.resolve()
-    dist = (ROOT / 'dist').resolve()
-    if not output.is_relative_to(dist) or output == dist or output.exists():
-        raise ValueError('Use a new local directory under dist/')
-    archive = output.parent / (output.name + '.zip')
-    if archive.exists():
-        raise ValueError('Preserve the earlier diagnostic archive')
-    reviewed = reviewed_inputs(args.firmware_review, args.allocation_review, args.regression_review)
-    supervisor=reviewed['supervisor']
-    service_path=private(supervisor['local_inputs']['service']['local']).parent/'build.json'
-    controller = matching_controller(reviewed['owner'], args.controller_review,
-                                     play_mode_control=bool(supervisor.get('play_mode_control')),
-                                     service_review=service_path)
-    updater, radio = delivery_inputs(ROOT / args.updater_template, ROOT / args.radio_inputs, reviewed['owner'])
-    staging = Path(tempfile.mkdtemp(prefix='diagnostic-materials-', dir=ROOT / 'work')).resolve()
+def stage_materials(staging, reviewed, controller, updater, radio):
     for folder in ('01_PC_UPDATE', '02_ORIGINAL_SONY'):
         for name, source in updater.items():
             if folder == '01_PC_UPDATE' and name == 'NW_WM_FW.UPG':
@@ -338,24 +315,88 @@ def main():
     (staging / 'materials.json').write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8')
     (staging / 'SHA256SUMS.txt').write_text(''.join(row['sha256'] + '  ' + name + '\n'
                                                 for name, row in files.items()), encoding='utf-8')
-    output.parent.mkdir(parents=True, exist_ok=True)
-    if not staging.is_relative_to((ROOT / 'work').resolve()) or output.exists():
-        raise ValueError('Unsafe promotion path')
-    staging.rename(output)
+    for name in ('materials.json', 'SHA256SUMS.txt'):
+        path = staging / name
+        files[name] = dict(bytes=path.stat().st_size, sha256=digest(path))
+    return files
+
+
+def write_verified_archive(staging, archive, bundle_name, files):
+    names = {bundle_name + '/' + name: row for name, row in files.items()}
     with zipfile.ZipFile(archive, 'x', zipfile.ZIP_DEFLATED, compresslevel=1) as bundle:
-        for path in sorted(output.rglob('*')):
-            if path.is_file():
-                bundle.write(path, output.name + '/' + path.relative_to(output).as_posix())
+        for name in sorted(files):
+            bundle.write(staging / name, bundle_name + '/' + name)
     with zipfile.ZipFile(archive) as bundle:
-        if bundle.testzip() is not None:
-            raise ValueError('Archive CRC verification failed')
-        for name, row in files.items():
-            raw = bundle.read(output.name + '/' + name)
-            if len(raw) != row['bytes'] or hashlib.sha256(raw).hexdigest() != row['sha256']:
+        if sorted(bundle.namelist()) != sorted(names):
+            raise ValueError('Archive file inventory differs')
+        for name, row in names.items():
+            with bundle.open(name) as stream:
+                actual = hashlib.file_digest(stream, 'sha256').hexdigest()
+            if bundle.getinfo(name).file_size != row['bytes'] or actual != row['sha256']:
                 raise ValueError('Archived file differs: ' + name)
-    archive.with_suffix('.zip.sha256').write_text(digest(archive) + '  ' + archive.name + '\n', encoding='utf-8')
+    with archive.open('rb') as stream:
+        return hashlib.file_digest(stream, 'sha256').hexdigest()
+
+
+def new_delivery_paths(output):
+    archive = output.with_name(output.name + '.zip')
+    checksum = archive.with_suffix('.zip.sha256')
+    if any(path.exists() or path.is_symlink() for path in (output, archive, checksum)):
+        raise FileExistsError('Diagnostic output already exists: ' + str(output))
+    return archive, checksum
+
+
+def assemble_materials(output, reviewed, controller, updater, radio):
+    archive, checksum = new_delivery_paths(output)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix='.diagnostic-materials-', dir=output.parent) as folder:
+        temporary = Path(folder)
+        staging = temporary / output.name
+        staged_archive = temporary / archive.name
+        staged_checksum = temporary / checksum.name
+        files = stage_materials(staging, reviewed, controller, updater, radio)
+        archive_sha256 = write_verified_archive(staging, staged_archive, output.name, files)
+        staged_checksum.write_text(archive_sha256 + '  ' + archive.name + '\n', encoding='utf-8')
+
+        # Claim both file names exclusively before publishing. Another packer
+        # targeting the same name cannot replace this run's files.
+        with ExitStack() as rollback:
+            for target, prepared in ((archive, staged_archive), (checksum, staged_checksum)):
+                target.touch(exist_ok=False)
+                rollback.callback(target.unlink)
+                prepared.replace(target)
+            if output.exists() or output.is_symlink():
+                raise FileExistsError(output)
+            staging.rename(output)
+            rollback.pop_all()
+    return archive, archive_sha256
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--firmware-review', required=True)
+    parser.add_argument('--allocation-review', required=True)
+    parser.add_argument('--regression-review', required=True)
+    parser.add_argument('--controller-review', help='Required matching Core2 build for negotiated-link firmware')
+    parser.add_argument('--updater-template', type=Path, required=True, help='Stock UPG, updater files and licenses under work/')
+    parser.add_argument('--radio-inputs', type=Path, required=True, help='Directory under work/ containing reviewed external radio files')
+    parser.add_argument('--output', type=Path, required=True)
+    args = parser.parse_args()
+    output = args.output.resolve()
+    dist = (ROOT / 'dist').resolve()
+    if args.output.is_symlink() or not output.is_relative_to(dist) or output == dist:
+        raise ValueError('Use a new local directory under dist/')
+    new_delivery_paths(output)
+    reviewed = reviewed_inputs(args.firmware_review, args.allocation_review, args.regression_review)
+    supervisor = reviewed['supervisor']
+    service_path = private(supervisor['local_inputs']['service']['local']).parent / 'build.json'
+    controller = matching_controller(reviewed['owner'], args.controller_review,
+                                     play_mode_control=bool(supervisor.get('play_mode_control')),
+                                     service_review=service_path)
+    updater, radio = delivery_inputs(ROOT / args.updater_template, ROOT / args.radio_inputs, reviewed['owner'])
+    archive, archive_sha256 = assemble_materials(output, reviewed, controller, updater, radio)
     print(json.dumps(dict(prepared=True, directory=output.relative_to(ROOT).as_posix(),
-                          archive=archive.relative_to(ROOT).as_posix(), archive_sha256=digest(archive),
+                          archive=archive.relative_to(ROOT).as_posix(), archive_sha256=archive_sha256,
                           firmware_sha256=reviewed['firmware']['sha256'], device_accessed=False)))
 
 

@@ -161,7 +161,10 @@ Use reusable local inputs for the updater and external radio files. The updater
 executables, INI and stock UPG must match the original Japanese 1.11 hashes.
 The radio files must match the sizes and hashes recorded by the selected owner.
 It preserves an original Sony package, adds only reviewed immutable external
-RF inputs and a fresh bounded diagnostic record, and verifies the resulting ZIP.
+RF inputs and a fresh bounded diagnostic record. The directory, ZIP and checksum
+are staged beside the destination. The ZIP's inventory and file hashes are
+checked before publishing. A failed attempt clears its staging files and leaves
+previous deliveries available.
 No pairing keys, configuration or PN journals are supplied. Copying external
 files and running the unchanged updater remain manual device operations.
 

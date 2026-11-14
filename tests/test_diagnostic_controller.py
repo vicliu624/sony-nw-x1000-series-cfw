@@ -5,6 +5,8 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
+import zipfile
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'tools'))
@@ -143,6 +145,69 @@ class DiagnosticControllerTests(unittest.TestCase):
         self.assertNotIn('No Core2 update is required',text)
         legacy=materials.instructions('0.1.0-dev.33',reviewed,None)
         self.assertNotIn('04_CORE2',legacy);self.assertIn('legacy transport profile',legacy)
+
+
+class DiagnosticOutputTests(unittest.TestCase):
+    def setUp(self):
+        area = tempfile.TemporaryDirectory(dir=ROOT / 'work', prefix='diagnostic-output-test-')
+        self.addCleanup(area.cleanup)
+        self.folder = Path(area.name)
+        self.output = self.folder / 'delivery' / 'example'
+        self.stock = self.folder / 'stock.upg'
+        self.firmware = self.folder / 'candidate.upg'
+        self.stock.write_bytes(b'fixture original')
+        self.firmware.write_bytes(b'fixture candidate')
+        self.reviewed = dict(upg=self.firmware, firmware={'sha256': digest(self.firmware)},
+                             model=dict(used_growth_bytes=0, model_nonreserved_margin_bytes=0),
+                             input_paths=[], subsequent_pc_changes=[])
+
+    def assemble(self):
+        return materials.assemble_materials(self.output, self.reviewed, None,
+                                            {'NW_WM_FW.UPG': self.stock}, {})
+
+    def test_archive_and_directory_contain_the_same_verified_files(self):
+        archive, sha256 = self.assemble()
+        self.assertEqual(digest(archive), sha256)
+        self.assertEqual(archive.with_suffix('.zip.sha256').read_text(), f'{sha256}  {archive.name}\n')
+        with zipfile.ZipFile(archive) as bundle:
+            files = {str(path.relative_to(self.output).as_posix()): path.read_bytes()
+                     for path in self.output.rglob('*') if path.is_file()}
+            self.assertEqual(set(bundle.namelist()), {f'example/{name}' for name in files})
+            for name, data in files.items():
+                self.assertEqual(bundle.read(f'example/{name}'), data)
+        self.assertEqual(files['01_PC_UPDATE/NW_WM_FW.UPG'], self.firmware.read_bytes())
+        self.assertEqual(files['02_ORIGINAL_SONY/NW_WM_FW.UPG'], self.stock.read_bytes())
+        self.assertEqual(len(list(self.output.parent.iterdir())), 3)
+
+    def test_failed_archive_verification_leaves_no_staging_or_final_outputs(self):
+        original = materials.stage_materials
+
+        def corrupt_staged_copy(staging, *args):
+            files = original(staging, *args)
+            (staging / 'materials.json').write_bytes(b'corrupted after inventory')
+            return files
+
+        with patch.object(materials, 'stage_materials', side_effect=corrupt_staged_copy):
+            with self.assertRaisesRegex(ValueError, 'Archived file differs: example/materials.json'):
+                self.assemble()
+        self.assertEqual(list(self.output.parent.iterdir()), [])
+        self.assemble()
+
+    def test_output_collision_preserves_existing_checksum_and_removes_partial_zip(self):
+        existing = self.output.with_name('example.zip.sha256')
+        original = materials.write_verified_archive
+
+        def add_conflicting_file(*args):
+            result = original(*args)
+            existing.write_text('other delivery\n', encoding='utf-8')
+            return result
+
+        with patch.object(materials, 'write_verified_archive', side_effect=add_conflicting_file):
+            with self.assertRaises(FileExistsError):
+                self.assemble()
+        self.assertEqual(list(self.output.parent.iterdir()), [existing])
+        self.assertEqual(existing.read_text(encoding='utf-8'), 'other delivery\n')
+
 
 if __name__=='__main__':
     unittest.main()
