@@ -37,6 +37,10 @@ int wr_settings_factory_tick(struct wr_settings_factory *);
 int wr_settings_factory_unbind(struct wr_settings_factory *);
 int wr_settings_factory_forward_owner_view(struct wr_settings_factory *);
 int wr_settings_factory_use_shared_wifi(struct wr_settings_factory *);
+/* A native Wi-Fi-off request can proceed on zero. PENDING keeps the existing
+ * radio view alive while the pairing or playback owner retires. DENIED means
+ * retirement could not be requested safely. */
+int wr_settings_factory_before_wifi_off(struct wr_settings_factory *, int host_blocked);
 /* Private GUI-owner wait interface. The host controls admission and the Sony
  * timeout; the factory decides which of its work still needs owner turns. */
 struct xw_owner_wait_fd;

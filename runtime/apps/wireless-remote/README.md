@@ -53,9 +53,10 @@ Original menu callbacks, choice-view access and stock layout constants live in
 descriptor interests and whether retirement still needs a short wait. The
 factory also owns binding lookup, the displayed invitation and the transition
 from selection to approval. The player adapter supplies entropy and the native
-page displays the result. The player's owner loop controls native admission and
-the wait timeout. Third-party apps use public SDK modules for player and radio
-access.
+page displays the result. On Wi-Fi Off, the factory requests retirement of its
+owner and reports whether Sony can proceed. The player's owner loop controls
+native admission, wait timeouts and native mode changes. Third-party apps use
+public SDK modules for player and radio access.
 
 The shared radio implementation belongs in `runtime/platform/espnow`; original
 player access belongs in `runtime/platform/player`. Neither should depend on a

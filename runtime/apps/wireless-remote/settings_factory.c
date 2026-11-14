@@ -559,6 +559,26 @@ int wr_settings_factory_needs_short_wait(const struct wr_settings_factory *f) {
     return active;
 }
 
+int wr_settings_factory_before_wifi_off(struct wr_settings_factory *f, int host_blocked) {
+    if (!xw_player_host_wireless_shared_pending()
+#ifdef WR_REMOTE_ROOT_COLD
+        && !(f->held && f->radio.mode == XW_WIRELESS_MODE_ESPNOW)
+#endif
+    )
+        return 0;
+#ifdef WR_PAIRING_PROCESS
+    if (f->pairing.owner)
+        return wr_settings_factory_pairing_stop(f) == XW_PLAYER_ACCEPTED ? XW_MODE_PENDING
+                                                                        : XW_MODE_DENIED;
+#endif
+    if (host_blocked || !f->initialized || !f->shared_wifi || !f->held ||
+        f->fault_latched || f->backend.phase == WR_SETTINGS_FAULT)
+        return XW_MODE_DENIED;
+    int rc = wr_settings_backend_request_stop(&f->backend);
+    return rc == 0 || rc == XW_PLAYER_ACCEPTED || rc == XW_PLAYER_BUSY ? XW_MODE_PENDING
+                                                                       : XW_MODE_DENIED;
+}
+
 int wr_settings_factory_tick(struct wr_settings_factory *f){
  if(!owner(f))return XW_PLAYER_BUSY;
  struct wr_settings_backend *b=&f->backend;

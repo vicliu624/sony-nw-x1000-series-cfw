@@ -237,23 +237,7 @@ void xw_player_host_remote_pairing_cancel(void) {
 int xw_player_host_remote_pairing_store_busy(void) { return factory.pairing_store_job.child > 0; }
 #endif
 int xw_player_host_remote_before_wifi_off(void) {
-    if (!xw_player_host_wireless_shared_pending()
-#ifdef WR_REMOTE_ROOT_COLD
-        && !(factory.held && factory.radio.mode == XW_WIRELESS_MODE_ESPNOW)
-#endif
-    )
-        return 0;
-#ifdef WR_PAIRING_PROCESS
-    if (factory.pairing.owner)
-        return wr_settings_factory_pairing_stop(&factory) == XW_PLAYER_ACCEPTED ? XW_MODE_PENDING
-                                                                                : XW_MODE_DENIED;
-#endif
-    if (blocked || !factory.initialized || !factory.shared_wifi || !factory.held ||
-        factory.fault_latched || factory.backend.phase == WR_SETTINGS_FAULT)
-        return XW_MODE_DENIED;
-    int rc = wr_settings_backend_request_stop(&factory.backend);
-    return rc == 0 || rc == XW_PLAYER_ACCEPTED || rc == XW_PLAYER_BUSY ? XW_MODE_PENDING
-                                                                       : XW_MODE_DENIED;
+    return wr_settings_factory_before_wifi_off(&factory, blocked);
 }
 #ifdef XW_PLAYER_NATIVE_REMOTE_PAGE
 struct wr_settings_backend *xw_player_host_remote_page_backend(void) {
