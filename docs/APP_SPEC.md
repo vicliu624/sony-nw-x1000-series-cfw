@@ -157,7 +157,10 @@ wrappers. Application-specific CLI options are forwarded to the local builder.
 Use a new output directory; packaging does not overwrite a previous candidate.
 
 The --package-from option skips compilation and packages an explicitly selected
-fresh build tree. The package assembly report identifies the output through its
+fresh build tree. If that tree has an `app.ini`, its app ID and version must
+match the selected definition, and its byte count and SHA-256 must match the ARM
+executable. This prevents packaging a retained older binary with a new version.
+The package assembly report identifies the output through its
 `files.sha256` digest and records the metadata, artwork, mapped resources and
 tooling used for assembly. Compiler inputs belong in the app builder's own
 report. Retain that report to substantiate build provenance. Clean-source release

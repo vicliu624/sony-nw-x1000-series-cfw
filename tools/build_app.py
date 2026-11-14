@@ -14,12 +14,19 @@ def package(ident,source,output,app_root=None):
     files=list(source.rglob('*'))
     if any(p.is_symlink() for p in files):raise ValueError('Linked package input')
     version=(root/ident/'VERSION').read_text().strip();parse_version(version)
-    if (source/'app.ini').is_file():
-        manifest=dict(line.split('=',1) for line in (source/'app.ini').read_text().splitlines())
+    manifest = None
+    manifest_path = source / 'app.ini'
+    if manifest_path.is_file():
+        manifest=dict(line.split('=',1) for line in manifest_path.read_text().splitlines())
         if manifest.get('id')!=ident:raise ValueError('Package input belongs to another app')
-    executable='app' if (source/'app.ini').is_file() else info.get('build',{}).get('executable','app')
+        if manifest.get('version')!=version:
+            raise ValueError(f'Package input version {manifest.get("version")!r} differs from {ident} VERSION {version!r}')
+    executable='app' if manifest is not None else info.get('build',{}).get('executable','app')
     data=(source/executable).read_bytes()
     if len(data)<52 or data[:6]!=b'\x7fELF\x01\x01' or int.from_bytes(data[18:20],'little')!=40:raise ValueError('Expected little-endian ARM ELF')
+    digest = hashlib.sha256(data).hexdigest()
+    if manifest is not None and (manifest.get('bytes') != str(len(data)) or manifest.get('sha256') != digest):
+        raise ValueError('Package input executable does not match its manifest')
     output.mkdir(parents=True)
     # A build directory may contain objects, logs or profiles: only package trees
     # are copied. Single-executable recipes must explicitly declare that mode.
@@ -33,7 +40,7 @@ def package(ident,source,output,app_root=None):
         if not origin.is_relative_to(ROOT) or not dest.is_relative_to(output) or Path(ROOT/row['source']).is_symlink():raise ValueError('Unsafe resource mapping')
         if not origin.is_file():raise ValueError('Missing required resource: '+str(origin))
         dest.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(origin,dest)
-    (output/'app.ini').write_text(f'api=1\nid={ident}\nname={info["title"]}\nversion={version}\ntarget={info["target"]}\nexec=app\nbytes={len(data)}\nsha256={hashlib.sha256(data).hexdigest()}\n')
+    (output/'app.ini').write_text(f'api=1\nid={ident}\nname={info["title"]}\nversion={version}\ntarget={info["target"]}\nexec=app\nbytes={len(data)}\nsha256={digest}\n')
     install_presentation(ident,output,version,app_root)
     (output/'files.sha256').write_text('HBFILES1\n'+''.join(f'{hashlib.sha256(p.read_bytes()).hexdigest()} {p.stat().st_size} {p.relative_to(output).as_posix()}\n' for p in sorted(output.rglob('*')) if p.is_file() and p.name!='files.sha256'))
     return output
@@ -55,7 +62,7 @@ def main():
             builder_args+=['--output',str(args.build_output)]
         subprocess.run([sys.executable,str(script),*builder_args],cwd=ROOT,check=True)
         source=(args.build_output/recipe['output_suffix']) if args.build_output else ROOT/recipe['package']
-    elif extra:parser.error('Unexpected packaging arguments')
+    elif args.build_output or extra:parser.error('--package-from skips the builder and does not take builder options')
     output=args.output or ROOT/'work/app-packages'/args.id/(definition/'VERSION').read_text().strip()
     result=package(args.id,source,output)
     # The app builder owns compilation evidence. Here the inventory identifies
