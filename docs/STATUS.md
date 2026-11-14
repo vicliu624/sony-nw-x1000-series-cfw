@@ -22,8 +22,13 @@ physical IRQ/DMA and shared lifecycle qualification remain outstanding.
 Dev.37 applies the same release ownership to scalar, BLK1 and BLK2 profiles.
 Their common packet queue interface cancels tracking before rejection free;
 only the callback holding the release claim can publish completion.
-No dev.37 update image or physical throughput result is available. The target is
-1 Mbps of validated application payload; see [performance](reference/ESPNOW_PERFORMANCE.md).
+The local dev.37 `frame-01` package has UPG SHA-256
+`7b4f35a46dde9cc4f3bbd9faa76101b17f70f82f9d25de0867daae5c5eca7f32`.
+The user reports that Wireless Remote cannot be enabled. This candidate is
+withdrawn from further testing; its direct startup failure has not been located.
+Runtime changes and new candidates are on hold pending cause/architecture review.
+The 1 Mbps application target remains unmeasured; see
+[performance](reference/ESPNOW_PERFORMANCE.md).
 The user reports installing the dev.34 diagnostic. Core2 alpha.30 established
 visible artwork on hardware; alpha.31 supplied mode-write UI, and alpha.32 is
 the current application-only timing diagnostic. Its stored binding/channel are
@@ -102,7 +107,7 @@ Mode changes, sleep and USB behavior remain physical acceptance items.
 | Packet IO | Installed dev.34 transfers artwork at about 2.8 KiB/s. Offline BLK2 costs 41 complete-path commands; FRM1 costs eight in the native/MCU replay and retains the 1,500-byte command boundary and full packet limits | Measure actual command/PHY timing, qualify the final shared composition and physical lifecycle; no physical FRM1 throughput result exists |
 | Sleep and recovery | Native observer tests retain qualified wake entry/completion during a pending transition, defer rearm until stable, and reject recovery after exit | Physical screen-off, suspend and wake timing remain unqualified |
 | USB after remote use | `shared-rx-02` hung after confirmed Remote Off. Actual Root stop functions plus the full controller reproduce a source bug: endpoint drain can execute manager RELEASE before the outer receive/sleep cleanup runs. Dev.19 yields at this transition; host/ARM tests pass connected/unassociated, channel-change and cleanup-failure paths | Physical USB recovery remains unverified. New retirement summaries need a fresh diagnostic seed; the old occupied-slot trace does not describe the failed trial |
-| Root capacity | The new mode/bulk layout adds 640 KiB in an ordinary 148 MiB ext2 model using Sony's formatter, 8 KiB above the installed profile, with about 27.09 MiB nonreserved margin; full content and inode metadata readback pass | Actual NAND geometry, installation and recovery remain unqualified; see [system footprint](SYSTEM_FOOTPRINT.md) |
+| Root capacity | The dev.37 frame layout adds 648 KiB in an ordinary 148 MiB ext2 model using Sony's formatter, with about 27.08 MiB nonreserved margin; full content and inode metadata readback pass | This model does not explain the reported Remote startup failure. Actual NAND geometry, installation and recovery remain unqualified; see [system footprint](SYSTEM_FOOTPRINT.md) |
 | QEMU | Original Home/Settings UI and touch run with explicit adapters; USB/NCAN models are checked against original driver instructions; original and composed players reach actual Responder entry with the explicit idle NCAN wait model | Responder stops at missing mgscsi setup; warm capture mode1/state7, complete target return, active Remote/RF, audio/DSP, Sony power management, physical USB and installation remain unqualified |
 
 A green offline test does not resolve an outstanding hardware result in this table.

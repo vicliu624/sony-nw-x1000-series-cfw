@@ -11,6 +11,9 @@ affected component. Inspect its current callers, builders and test adapters.
 For ABI, structure or protocol changes, include every consumer before compiling.
 Keep one focused reproducer. Separate new findings from the current acceptance
 criteria instead of continually expanding a nearly completed patch.
+Do not create one-off executable helpers, even in ignored storage. A supported
+workflow uses maintained purpose-based entry points with explicit inputs; version
+numbers identify delivery artifacts, not another implementation of the workflow.
 
 ## Select verification
 

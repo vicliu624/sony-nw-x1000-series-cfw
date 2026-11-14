@@ -48,6 +48,13 @@ Target Japanese NW-X1050/NW-X1060 only. Do not edit sibling projects as a side e
 
 Follow docs/WORKFLOW.md. Define the current acceptance criteria and affected
 consumers before editing; inspect shared ABI/test adapters before changing them.
+- Runtime bug fixes, feature expansion and further firmware candidates are on
+  hold at the user's request while regression causes and module boundaries are
+  established. Continue architecture/cause analysis and development-tool cleanup;
+  offline test counts do not lift this hold.
+- Do not create one-off, candidate-specific or revision-specific intermediate
+  scripts, including under ignored work/. Use maintained entry points or direct
+  bounded commands. Evidence data may be retained without executable helpers.
 - Use one focused reproducer and the smallest adequate check set per iteration.
   Stop expanding work once those criteria pass. Repeat only for changed tested
   inputs, an observed failure or a specific unresolved concern.

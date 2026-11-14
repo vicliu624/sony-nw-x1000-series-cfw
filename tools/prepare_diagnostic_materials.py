@@ -41,7 +41,8 @@ def reviewed_inputs(firmware_review, allocation_review, regressions):
         raise ValueError('Expected an explicit PC allocation model')
     if not bulk.get('passed') or bulk.get('source_changed_during_run'):
         raise ValueError('Passing immutable regression snapshot required')
-    if digest(private(bulk['source_snapshot'])) != bulk['source_snapshot_sha256']:
+    snapshot = bulk.get('source_snapshot', (bp.parent / 'checked-source.zip').relative_to(ROOT).as_posix())
+    if digest(private(snapshot)) != bulk['source_snapshot_sha256']:
         raise ValueError('Regression source snapshot changed')
     for check in bulk['checks']:
         if check['exit_code'] or digest(private(check['log'])) != check['log_sha256']:
@@ -163,8 +164,9 @@ def instructions(version, reviewed, controller):
     margin = model['model_nonreserved_margin_bytes'] / 1048576
     controller_files = (f'- 04_CORE2: matching Core2 {controller["version"]} application and build receipt.\n'
                         '  It contains no bootloader, partition table, NVS or saved pairing data.\n') if controller else ''
-    controller_requirement = (f'Core2 {controller["version"]} is required with this firmware. Update both\n'
-                              '   sides before the radio test. Controller updating must verify the actual\n'
+    controller_requirement = (f'Use the matching Core2 {controller["version"]} application. If that exact\n'
+                              '   image is already installed, keep it; a repeated flash is unnecessary.\n'
+                              '   Controller updating must verify the actual\n'
                               '   application partition and preserve NVS; never erase the whole Flash.\n'
                               '   Keep the existing pairing.\n') if controller else (
                               'Use the controller matched to this legacy transport profile.\n'
