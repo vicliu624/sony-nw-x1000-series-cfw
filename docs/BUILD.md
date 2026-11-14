@@ -123,6 +123,14 @@ container/hash, small increment or 148MiB model does not establish safe flashing
 Firmware candidates stay local and experimental. Routine checks do not generate
 an update package or install firmware; those are separate explicit operations.
 
+Compare existing packages directly with
+`tools/review_managed_root_capacity.py --compare-upg BASELINE CANDIDATE`.
+The command reports exact package hashes, installer/kernel/initrd equality and
+each changed root path. For changed ELF files it compares program headers,
+segment data and section contents, so a symbol-table-only rebuild can be
+distinguished from a change in executable code or embedded launch data.
+It does not extract files to disk or create another package.
+
 For a managed player layout, build the localized root once and pass it directly
 to layout assembly:
 

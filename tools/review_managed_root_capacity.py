@@ -1,4 +1,4 @@
-"""Compare a complete proposed root file inventory; never creates an image or UPG."""
+"""Compare proposed or packaged root inventories without building an image or UPG."""
 import argparse,copy,hashlib,io,json,posixpath,sys,tarfile,time
 from pathlib import Path
 from app_registry import ROOT
@@ -77,11 +77,82 @@ def compose_root_inventory(base, overlay):
                             gid=old['gid'] if old else row.get('gid', 0))
     return result
 
+def comparison_input(path):
+    path = Path(path)
+    if not path.is_absolute():
+        path = ROOT / path
+    resolved = path.resolve()
+    if (path.is_symlink() or not resolved.is_file() or
+            not any(resolved.is_relative_to(ROOT / name) for name in ('dist', 'firmware', 'work'))):
+        raise ValueError('Expected a local UPG under dist/, firmware/ or work/')
+    data = resolved.read_bytes()
+    _, parts = unpack(data, require_stock=False)
+    return dict(path=resolved.relative_to(ROOT).as_posix(), sha256=hashlib.sha256(data).hexdigest()), parts
+
+
+def compare_elf(before, after):
+    from elftools.elf.elffile import ELFFile
+
+    a, b = (ELFFile(io.BytesIO(data)) for data in (before, after))
+    old_segments, new_segments = list(a.iter_segments()), list(b.iter_segments())
+    old_sections = {item.name: item for item in a.iter_sections()}
+    new_sections = {item.name: item for item in b.iter_sections()}
+    changed = []
+    for name in sorted(old_sections.keys() | new_sections.keys()):
+        x, y = old_sections.get(name), new_sections.get(name)
+        if x is None or y is None or x.header != y.header or x.data() != y.data():
+            changed.append(name)
+    return dict(
+        program_headers_and_data_equal=len(old_segments) == len(new_segments) and all(
+            x.header == y.header and x.data() == y.data() for x, y in zip(old_segments, new_segments)),
+        elf_headers_equal=a.header == b.header,
+        changed_sections=changed,
+    )
+
+
+def compare_upgs(before, after):
+    baseline, old = comparison_input(before)
+    candidate, new = comparison_input(after)
+    a, b = inventory(old[3]), inventory(new[3])
+    changes = []
+    with (tarfile.open(fileobj=io.BytesIO(old[3]), mode='r:gz') as base_archive,
+          tarfile.open(fileobj=io.BytesIO(new[3]), mode='r:gz') as candidate_archive):
+        base_files, candidate_files = (
+            {m.name.removeprefix('./').rstrip('/'): m for m in archive if m.isfile()}
+            for archive in (base_archive, candidate_archive)
+        )
+        for path in sorted(a.keys() | b.keys()):
+            original, current = a.get(path), b.get(path)
+            if original == current:
+                continue
+            row = dict(path=path, baseline=original, candidate=current)
+            if path in base_files and path in candidate_files and original['sha256'] != current['sha256']:
+                with (base_archive.extractfile(base_files[path]) as first,
+                      candidate_archive.extractfile(candidate_files[path]) as second):
+                    if first.read(4) == second.read(4) == b'\x7fELF':
+                        first.seek(0)
+                        second.seek(0)
+                        row['elf'] = compare_elf(first.read(), second.read())
+            changes.append(row)
+    return dict(baseline=baseline, candidate=candidate,
+                install_components_equal=dict(zip(('installer', 'kernel', 'initrd'),
+                                                  (x == y for x, y in zip(old[:3], new[:3])))),
+                changed_paths=changes, device_accessed=False, firmware_created=False)
+
+
 def main():
  parser=argparse.ArgumentParser(description=__doc__)
- parser.add_argument('--layout-review',type=Path,required=True)
+ source=parser.add_mutually_exclusive_group(required=True)
+ source.add_argument('--layout-review',type=Path)
+ source.add_argument('--compare-upg',type=Path,nargs=2,metavar=('BASELINE','CANDIDATE'),
+                     help='Compare the actual component, root and ELF contents of two local UPGs')
  parser.add_argument('--localization-firmware',type=Path,help='Optional matching UPG for legacy layouts')
  args=parser.parse_args()
+ if args.compare_upg:
+  if args.localization_firmware:
+   parser.error('--localization-firmware requires --layout-review')
+  print(json.dumps(compare_upgs(*args.compare_upg),indent=2))
+  return
  layout_path,layout=receipt(args.layout_review)
  _,root,localization_sha=read_localization_root(layout,legacy_firmware=args.localization_firmware)
  if not layout['prepared'] or not layout['analysis_only'] or layout['player_copies_in_final_layout']!=1:raise ValueError('Expected single-player analysis layout')

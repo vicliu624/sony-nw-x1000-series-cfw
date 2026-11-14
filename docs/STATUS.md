@@ -26,6 +26,16 @@ The local dev.37 `frame-01` package has UPG SHA-256
 `7b4f35a46dde9cc4f3bbd9faa76101b17f70f82f9d25de0867daae5c5eca7f32`.
 The user reports that Wireless Remote cannot be enabled. This candidate is
 withdrawn from further testing; its direct startup failure has not been located.
+The actual dev.34 and dev.37 UPGs have identical installer, kernel, initrd,
+original player payload and menu resources. Six root files differ. The
+startup wrapper has identical ELF program headers and segment data; only its
+symbol string table differs. The player DSO, Remote service and owner have
+changed code. The supervisor has changed embedded owner/service identities,
+and the SD8686 image changes from the bulk profile to FRM1. The owner and
+service sizes and hashes embedded in each supervisor match the executable
+files in its own UPG. This was a combined host, service and radio update.
+The host and service receipts both record the changed `xnow_client.c`.
+Comparing the packages does not identify the failed startup stage.
 The same radio image and SDK archive now pass a shared-controller startup replay
 under Sony libc and the selected MCU instructions. It covers modeled manager
 states 2, 3 and 4 and a rejected FRM1 marker. Root/USB admission, physical wake,
