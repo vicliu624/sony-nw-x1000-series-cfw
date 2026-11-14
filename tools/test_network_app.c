@@ -9,7 +9,7 @@ int hb_store_termination_begin(void){begun++;return mode==7?-1:0;}
 int hb_store_termination_end(void){assert(closed==1);ended++;return 0;}
 volatile int *hb_store_termination_flag(void){return &stop;}
 void hb_remote_store_init(struct hb_remote_store *s){memset(s,0,sizeof *s);}
-int hb_repository_load(const char *path,volatile int *token,struct hb_repository *r){assert(!strcmp(path,"/repo")&&token==&stop);loaded++;r->valid=1;return mode==4?HB_REPO_HASH:mode==8?HB_REPO_MISSING:0;}
+int hb_repository_load(const char *path,volatile int *token,struct hb_repository *r){assert(!strcmp(path,"/repo")&&token==&stop);loaded++;r->valid=1;r->anchor_count=1;return mode==4?HB_REPO_HASH:mode==8?HB_REPO_MISSING:0;}
 int hb_remote_store_run(struct hb_remote_store *s,const struct hb_remote_store_config *c,const struct hb_store_painter *p,const struct hb_store_ui_io *io){(void)p;(void)io;ran++;assert(!strcmp(c->apps,"/apps")&&!strcmp(c->packages,"/packages")&&!strcmp(c->cache,"/cache")&&!strcmp(c->running_id,"store")&&c->anchor_count==1&&c->stop==&stop&&!c->options);if(mode==6){s->metadata.state=HB_METADATA_FETCHING;s->job.state=HB_JOB_FETCH;}s->error=HB_NET_IO;return mode==5||mode==6?-2:0;}
 int hb_metadata_fetch_cancel(struct hb_metadata_fetch *m){meta_cancelled++;m->state=HB_METADATA_FAILED;return HB_NET_CANCELLED;}
 int hb_package_job_cancel(struct hb_package_job *j){job_cancelled++;j->state=HB_JOB_FAILED;return HB_NET_CANCELLED;}

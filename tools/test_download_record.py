@@ -1,22 +1,23 @@
 """Intent record persistence, ownership and I/O ambiguity; temporary files only."""
 from pathlib import Path
-import runpy,subprocess,tempfile,json,hashlib,os,errno
+import test_download_plan as metadata
+from sdk_build import stock_runtime
+import subprocess,tempfile,json,hashlib,os,errno
 ROOT=Path(__file__).resolve().parents[1]
-metadata=runpy.run_path(str(ROOT/'tools/test_download_plan.py'))
 work=ROOT/'work/download-record-tests';work.mkdir(exist_ok=True)
 def array(name,data):return 'static const unsigned char '+name+'[]={'+','.join(str(b) for b in data)+'};\n'
-mf2,ix2,_,_=metadata['fixture']('0.1.1');header=array('MF',metadata['manifest'])+array('IX',metadata['index'])+array('MF2',mf2)+array('IX2',ix2);(work/'record_fixture.h').write_text(header)
-sources=[p for p in metadata['sources'] if p!='tools/test_download_plan.c']+['runtime/store/download_intent.c','runtime/store/download_record.c','tools/test_download_record.c','tools/atomic_record_faults.c']
+mf2,ix2,_,_=metadata.fixture('0.1.1');header=array('MF',metadata.manifest)+array('IX',metadata.index)+array('MF2',mf2)+array('IX2',ix2);(work/'record_fixture.h').write_text(header)
+sources=metadata.PLAN_SOURCES+['runtime/store/download_intent.c','runtime/store/download_record.c','tools/test_download_record.c','tools/atomic_record_faults.c']
 bridge=['runtime/store/stock_fs_bridge.c','runtime/store/stock_stat64.c','runtime/store/stock_tls_compat.c','tools/stock_test_start.c','tools/store_link_start.S']
 common=['-std=c99','-Wall','-Wextra','-Werror','-I'+str(work)];wrap='-Wl,--wrap=write,--wrap=fsync,--wrap=close,--wrap=rename'
 subprocess.run(['gcc',*common,*sources,wrap,'-o',str(work/'host')],cwd=ROOT,check=True)
-runtime=metadata['work']
-subprocess.run(['arm-linux-gnueabi-gcc',*common,'-Os','-march=armv5te','-marm','-mfloat-abi=soft','-ffreestanding','-fno-builtin','-fno-pie','-DHB_STORE_SONY_LIBC','-nostdlib','-no-pie','-Wl,--hash-style=sysv',*sources,*bridge,wrap,str(runtime/'libc-2.3.3.so'),str(runtime/'ld-2.3.3.so'),'-lgcc','-o',str(work/'arm')],cwd=ROOT,check=True)
+runtime=stock_runtime()
+subprocess.run(['arm-linux-gnueabi-gcc',*common,'-Os','-march=armv5te','-marm','-mfloat-abi=soft','-ffreestanding','-fno-builtin','-fno-pie','-DHB_STORE_SONY_LIBC','-nostdlib','-no-pie','-Wl,--hash-style=sysv',*sources,*bridge,wrap,str(runtime/'libc.so.6'),str(runtime/'ld-linux.so.3'),'-lgcc','-o',str(work/'arm')],cwd=ROOT,check=True)
 def tree(base):return {str(p.relative_to(base)):('link:'+os.readlink(p)) if p.is_symlink() else hashlib.sha256(p.read_bytes()).hexdigest() if p.is_file() else 'directory' if p.is_dir() else 'special' for p in base.rglob('*')}
 def call(command,mode,parent):
  run=subprocess.run(command,capture_output=True,text=True,timeout=15,env=dict(os.environ,HB_RECORD_MODE=mode,HB_RECORD_PARENT=str(parent)));assert run.returncode==0,(mode,run.returncode,run.stderr)
 rows=[];skipped=[]
-for platform,command in [('host',[str(work/'host')]),('ARM/QEMU',['qemu-arm','-cpu','arm926',str(runtime/'ld-2.3.3.so'),'--library-path',str(runtime),str(work/'arm')])]:
+for platform,command in [('host',[str(work/'host')]),('ARM/QEMU',['qemu-arm','-cpu','arm926',str(runtime/'ld-linux.so.3'),'--library-path',str(runtime),str(work/'arm')])]:
  for mode in ('save-discard','save-only','short-write','write-error','write-after-error','sync-file','sync-dir','close-file','close-dir','cancel','space','exists','link','parent-alias','replace','mutate','truncate','discard-sync','discard-replace','stage-exists','stage-link','rename-before','rename-after'):
   with tempfile.TemporaryDirectory(prefix='fixture-',dir=work) as temp:
    base=Path(temp);parent=base/'packages';parent.mkdir();(base/'unrelated').write_bytes(b'KEEP');record=parent/'.download-demo.intent';actual=parent

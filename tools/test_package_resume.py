@@ -1,24 +1,25 @@
 """Complete inactive bundle re-opened by a fresh process; no partial adoption."""
 from pathlib import Path
-import runpy,subprocess,tempfile,hashlib,json,os
+import test_download_plan as metadata
+from sdk_build import stock_runtime
+import subprocess,tempfile,hashlib,json,os
 ROOT=Path(__file__).resolve().parents[1]
-metadata=runpy.run_path(str(ROOT/'tools/test_download_plan.py'))
 work=ROOT/'work/package-resume-tests';work.mkdir(exist_ok=True)
 def array(name,data):return 'static const unsigned char '+name+'[]={'+','.join(str(b) for b in data)+'};\n'
-mf2,ix2,_,_=metadata['fixture']('0.1.1')
-header=array('MF',metadata['manifest'])+array('IX',metadata['index'])+array('MF2',mf2)+array('IX2',ix2);(work/'resume_fixture.h').write_text(header)
+mf2,ix2,_,_=metadata.fixture('0.1.1')
+header=array('MF',metadata.manifest)+array('IX',metadata.index)+array('MF2',mf2)+array('IX2',ix2);(work/'resume_fixture.h').write_text(header)
 sources=['runtime/store/'+p+'.c' for p in ('package_resume','package_assemble','download_plan','download_file','download_stream','https_url','bundle_posix','inventory','package','cleanup_plan','install_posix','transaction','stage_posix','cleanup_posix','pending_plan')]+['runtime/native/sha256.c','tools/test_package_resume.c']
 common=['-std=c99','-Wall','-Wextra','-Werror','-I'+str(work)]
 subprocess.run(['gcc',*common,*sources,'-o',str(work/'host')],cwd=ROOT,check=True)
-runtime=metadata['work'];bridge=['runtime/store/'+p+'.c' for p in ('stock_fs_bridge','stock_stat64','stock_tls_compat')]+['tools/stock_test_start.c','tools/store_link_start.S']
-subprocess.run(['arm-linux-gnueabi-gcc',*common,'-Os','-march=armv5te','-marm','-mfloat-abi=soft','-ffreestanding','-fno-builtin','-fno-pie','-DHB_STORE_SONY_LIBC','-nostdlib','-no-pie','-Wl,--hash-style=sysv',*sources,*bridge,str(runtime/'libc-2.3.3.so'),str(runtime/'ld-2.3.3.so'),'-lgcc','-o',str(work/'arm')],cwd=ROOT,check=True)
+runtime=stock_runtime();bridge=['runtime/store/'+p+'.c' for p in ('stock_fs_bridge','stock_stat64','stock_tls_compat')]+['tools/stock_test_start.c','tools/store_link_start.S']
+subprocess.run(['arm-linux-gnueabi-gcc',*common,'-Os','-march=armv5te','-marm','-mfloat-abi=soft','-ffreestanding','-fno-builtin','-fno-pie','-DHB_STORE_SONY_LIBC','-nostdlib','-no-pie','-Wl,--hash-style=sysv',*sources,*bridge,str(runtime/'libc.so.6'),str(runtime/'ld-linux.so.3'),'-lgcc','-o',str(work/'arm')],cwd=ROOT,check=True)
 def tree(root):return {str(p.relative_to(root)):('link:'+os.readlink(p)) if p.is_symlink() else hashlib.sha256(p.read_bytes()).hexdigest() if p.is_file() else 'directory' for p in root.rglob('*')}
 rows=[]
-for platform,command in [('host',[str(work/'host')]),('ARM/QEMU',['qemu-arm','-cpu','arm926',str(runtime/'ld-2.3.3.so'),'--library-path',str(runtime),str(work/'arm')])]:
+for platform,command in [('host',[str(work/'host')]),('ARM/QEMU',['qemu-arm','-cpu','arm926',str(runtime/'ld-linux.so.3'),'--library-path',str(runtime),str(work/'arm')])]:
  for mode in ('complete','discard','install','absent','cancel','identity','missing','hash','extra','link','hardlink','root-link','parent-alias','unknown-dir'):
   with tempfile.TemporaryDirectory(prefix='fixture-',dir=work) as temp:
    base=Path(temp);parent=base/'packages';parent.mkdir();apps=base/'apps';apps.mkdir();(apps/'keep').write_bytes(b'KEEP');bundle=parent/'.bundle-demo';actual=parent
-   files=dict(metadata['files'],**{'files.sha256':metadata['index']})
+   files=dict(metadata.files,**{'files.sha256':metadata.index})
    if mode!='absent':
     for name,data in files.items():p=bundle/name;p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(data)
    if mode=='missing':(bundle/'empty.dat').unlink()

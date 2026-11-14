@@ -1,11 +1,11 @@
 """Read-only repository configuration and pinned DER CA, host/stock-libc ARM."""
 from pathlib import Path
-import runpy,subprocess,tempfile,hashlib,json,os,ssl
+from sdk_build import stock_runtime
+import subprocess,tempfile,hashlib,json,os,ssl
 ROOT=Path(__file__).resolve().parents[1]
-metadata=runpy.run_path(str(ROOT/'tools/test_download_plan.py'))
 subprocess.run([os.sys.executable,str(ROOT/'tools/probe_external_tls.py')],cwd=ROOT,check=True)
 work=ROOT/'work/repository-tests';work.mkdir(exist_ok=True)
-crypto=ROOT/'work/external-tls-probe/bearssl-0.6';runtime=metadata['work']
+crypto=ROOT/'work/external-tls-probe/bearssl-0.6';runtime=stock_runtime()
 rsa=ssl.PEM_cert_to_DER_cert((crypto/'samples/cert-root-rsa.pem').read_text());ec=ssl.PEM_cert_to_DER_cert((crypto/'samples/cert-root-ec.pem').read_text());leaf=ssl.PEM_cert_to_DER_cert((crypto/'samples/cert-ee-rsa.pem').read_text())
 host_library=work/'bearssl-host/libbearssl.a'
 build=subprocess.run(['make','-C',str(crypto),'-j4','lib','CC=gcc','AR=ar','CFLAGS=-O2','BUILD='+str(host_library.parent)],capture_output=True,text=True);assert build.returncode==0,build.stderr
@@ -13,11 +13,11 @@ sources=['runtime/store/repository.c','runtime/store/https_url.c','runtime/nativ
 bridge=['runtime/store/stock_fs_bridge.c','runtime/store/stock_stat64.c','runtime/store/stock_tls_compat.c','tools/stock_test_start.c','tools/store_link_start.S']
 common=['-std=c99','-Wall','-Wextra','-Werror','-I'+str(crypto/'inc')]
 subprocess.run(['gcc',*common,*sources,str(host_library),'-o',str(work/'host')],cwd=ROOT,check=True)
-subprocess.run(['arm-linux-gnueabi-gcc',*common,'-Os','-march=armv5te','-marm','-mfloat-abi=soft','-ffreestanding','-fno-builtin','-fno-pie','-DHB_STORE_SONY_LIBC','-nostdlib','-no-pie','-Wl,--hash-style=sysv',*sources,*bridge,str(ROOT/'work/external-tls-probe/arm-build/libbearssl.a'),str(runtime/'libc-2.3.3.so'),str(runtime/'ld-2.3.3.so'),'-lgcc','-o',str(work/'arm')],cwd=ROOT,check=True)
+subprocess.run(['arm-linux-gnueabi-gcc',*common,'-Os','-march=armv5te','-marm','-mfloat-abi=soft','-ffreestanding','-fno-builtin','-fno-pie','-DHB_STORE_SONY_LIBC','-nostdlib','-no-pie','-Wl,--hash-style=sysv',*sources,*bridge,str(ROOT/'work/external-tls-probe/arm-build/libbearssl.a'),str(runtime/'libc.so.6'),str(runtime/'ld-linux.so.3'),'-lgcc','-o',str(work/'arm')],cwd=ROOT,check=True)
 def config(ca):return ('HBREPO1\ncatalog_url=https://example.test/catalog.txt\ncatalog_bytes=9\ncatalog_sha256='+hashlib.sha256(b'HBSTORE1\n').hexdigest()+'\nca_sha256='+hashlib.sha256(ca).hexdigest()+'\n').encode()
 def snapshot(base):return {str(p.relative_to(base)):('link:'+os.readlink(p)) if p.is_symlink() else hashlib.sha256(p.read_bytes()).hexdigest() for p in base.rglob('*') if p.is_file() or p.is_symlink()}
 rows=[]
-for platform,command in [('host',[str(work/'host')]),('ARM/QEMU',['qemu-arm','-cpu','arm926',str(runtime/'ld-2.3.3.so'),'--library-path',str(runtime),str(work/'arm')])]:
+for platform,command in [('host',[str(work/'host')]),('ARM/QEMU',['qemu-arm','-cpu','arm926',str(runtime/'ld-linux.so.3'),'--library-path',str(runtime),str(work/'arm')])]:
  for mode in ('rsa','ec','missing-config','missing-ca','missing-root','hash','garbage','leaf','ca-link','config-link','dangling-config-link','ca-hardlink','root-alias','oversize-config','truncated-der','extra-der','no-newline','duplicate','unknown','crlf','nul','http','zero','large','missing-field','uppercase','cancel'):
   with tempfile.TemporaryDirectory(prefix='fixture-',dir=work) as temp:
    base=Path(temp);folder=base/'repository';folder.mkdir();actual=folder;expected=0

@@ -14,6 +14,17 @@ LIBRARIES = {
     'libc.so.6': '5afbf3074dfa9ba0478d6670f220ef4d7ec065a255ee856d9093d39210f23812',
     'ld-linux.so.3': '2f007b0809684fde0ac446ad203135c10b4318eb8c10d4160a9f59b32c3c52de',
 }
+
+
+def stock_runtime():
+    lib = ROOT / 'work/arm-signal-tests/lib'
+    for name, digest in LIBRARIES.items():
+        path = lib / name
+        if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != digest:
+            raise ValueError('Missing/mismatched ' + name + '; run python tools/sdk.py setup')
+    return lib
+
+
 COMMON = ['runtime/platform/sdk/'+n for n in ('core.c','canvas.c','storage.c','entry.c')]
 NATIVE = ['runtime/platform/sdk/native.c','runtime/native/linux_devices.c',
           'runtime/native/linux_device_io_posix.c','runtime/native/frontend.c',
@@ -79,10 +90,7 @@ def compile_app(definition, output, host=False):
         flags+=['-DXW_HOST',*subprocess.check_output(['sdl2-config','--cflags'],text=True).split()]
         libraries=subprocess.check_output(['sdl2-config','--libs'],text=True).split()
     else:
-        lib=ROOT/'work/arm-signal-tests/lib'
-        for name,digest in LIBRARIES.items():
-            if not (lib/name).is_file() or hashlib.sha256((lib/name).read_bytes()).hexdigest()!=digest:
-                raise ValueError('Missing/mismatched '+name+'; run python tools/sdk.py setup')
+        lib=stock_runtime()
         flags+=['-march=armv5te','-marm','-mfloat-abi=soft','-ffreestanding',
                 '-fno-pie','-fno-stack-protector','-DHB_STORE_SONY_LIBC','-DHB_USE_POSIX_DEVICE_IO']
         libraries=['-nostdlib','-no-pie','-Wl,--hash-style=sysv','-Wl,--build-id=none',

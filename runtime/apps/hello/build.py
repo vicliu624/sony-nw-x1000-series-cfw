@@ -6,12 +6,9 @@ from sdk_services import compiler as sdk_compiler
 sdk_run = sdk_compiler(Path(__file__).resolve().parent)
 import hashlib,json,io
 from elftools.elf.elffile import ELFFile
-from sdk_build import LIBRARIES
+from sdk_build import LIBRARIES, stock_runtime
 ROOT=Path(__file__).resolve().parents[3]
-runtime=ROOT/'work/arm-signal-tests/lib'
-for name,digest in LIBRARIES.items():
- if not (runtime/name).is_file() or hashlib.sha256((runtime/name).read_bytes()).hexdigest()!=digest:
-  raise ValueError('Missing/mismatched '+name+'; run python tools/sdk.py setup')
+runtime=stock_runtime()
 work=ROOT/'work/hello-app';work.mkdir(exist_ok=True);folder=work/'package';folder.mkdir(exist_ok=True)
 version=(ROOT/'runtime/apps/hello/VERSION').read_text().strip()
 sources=['runtime/apps/hello/hello.c','runtime/store/start.c','runtime/store/start.S']

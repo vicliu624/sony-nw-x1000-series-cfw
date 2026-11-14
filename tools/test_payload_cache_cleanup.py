@@ -1,19 +1,21 @@
 """Intent-bound exact-key payload cache cleanup; unrelated cache entries stay."""
 from pathlib import Path
-import runpy,subprocess,tempfile,hashlib,json,os
+import test_download_plan as metadata
+from sdk_build import stock_runtime
+import subprocess,tempfile,hashlib,json,os
 ROOT=Path(__file__).resolve().parents[1]
-metadata=runpy.run_path(str(ROOT/'tools/test_download_plan.py'));work=ROOT/'work/payload-cache-cleanup-tests';work.mkdir(exist_ok=True)
+work=ROOT/'work/payload-cache-cleanup-tests';work.mkdir(exist_ok=True)
 def array(name,data):return 'static const unsigned char '+name+'[]={'+','.join(str(b) for b in data)+'};\n'
-mf2,ix2,_,_=metadata['fixture']('0.1.1');(work/'cache_cleanup_fixture.h').write_text(array('MF',metadata['manifest'])+array('IX',metadata['index'])+array('MF2',mf2)+array('IX2',ix2))
-sources=[p for p in metadata['sources'] if p!='tools/test_download_plan.c']+['runtime/store/download_intent.c','runtime/store/download_record.c','runtime/store/payload_cache_cleanup.c','tools/test_payload_cache_cleanup.c','tools/payload_cache_faults.c']
+mf2,ix2,_,_=metadata.fixture('0.1.1');(work/'cache_cleanup_fixture.h').write_text(array('MF',metadata.manifest)+array('IX',metadata.index)+array('MF2',mf2)+array('IX2',ix2))
+sources=metadata.PLAN_SOURCES+['runtime/store/download_intent.c','runtime/store/download_record.c','runtime/store/payload_cache_cleanup.c','tools/test_payload_cache_cleanup.c','tools/payload_cache_faults.c']
 bridge=['runtime/store/stock_fs_bridge.c','runtime/store/stock_stat64.c','runtime/store/stock_tls_compat.c','tools/stock_test_start.c','tools/store_link_start.S'];common=['-std=c99','-Wall','-Wextra','-Werror','-I'+str(work)];wrap='-Wl,--wrap=write,--wrap=fsync,--wrap=close,--wrap=unlink'
-subprocess.run(['gcc',*common,*sources,wrap,'-o',str(work/'host')],cwd=ROOT,check=True);runtime=metadata['work']
-subprocess.run(['arm-linux-gnueabi-gcc',*common,'-Os','-march=armv5te','-marm','-mfloat-abi=soft','-ffreestanding','-fno-builtin','-fno-pie','-DHB_STORE_SONY_LIBC','-nostdlib','-no-pie','-Wl,--hash-style=sysv',*sources,*bridge,wrap,str(runtime/'libc-2.3.3.so'),str(runtime/'ld-2.3.3.so'),'-lgcc','-o',str(work/'arm')],cwd=ROOT,check=True)
+subprocess.run(['gcc',*common,*sources,wrap,'-o',str(work/'host')],cwd=ROOT,check=True);runtime=stock_runtime()
+subprocess.run(['arm-linux-gnueabi-gcc',*common,'-Os','-march=armv5te','-marm','-mfloat-abi=soft','-ffreestanding','-fno-builtin','-fno-pie','-DHB_STORE_SONY_LIBC','-nostdlib','-no-pie','-Wl,--hash-style=sysv',*sources,*bridge,wrap,str(runtime/'libc.so.6'),str(runtime/'ld-linux.so.3'),'-lgcc','-o',str(work/'arm')],cwd=ROOT,check=True)
 def tree(base):return {str(p.relative_to(base)):('link:'+os.readlink(p)) if p.is_symlink() else hashlib.sha256(p.read_bytes()).hexdigest() if p.is_file() else 'directory' for p in base.rglob('*')}
 def call(command,mode,parent,cache,expected=0):
  run=subprocess.run(command,capture_output=True,text=True,timeout=15,env=dict(os.environ,HB_CACHE_MODE=mode,HB_RECORD_PARENT=str(parent),HB_CACHE_PARENT=str(cache)));assert run.returncode==expected,(mode,run.returncode,run.stderr)
-rows=[];paths=metadata['paths'];keys=metadata['keys'];files=metadata['files']
-for platform,command in [('host',[str(work/'host')]),('ARM/QEMU',['qemu-arm','-cpu','arm926',str(runtime/'ld-2.3.3.so'),'--library-path',str(runtime),str(work/'arm')])]:
+rows=[];paths=metadata.paths;keys=metadata.keys;files=metadata.files
+for platform,command in [('host',[str(work/'host')]),('ARM/QEMU',['qemu-arm','-cpu','arm926',str(runtime/'ld-linux.so.3'),'--library-path',str(runtime),str(work/'arm')])]:
  for mode in ('review','partial','complete','absent','corrupt-in-range','oversize','link','hardlink','directory','cache-alias','identity','bad-record','cancel','replace','resize','new-target','unlink-before','unlink-after','replace-after','sync','close-record','close-cache','cancel-mid','process-exit'):
   with tempfile.TemporaryDirectory(prefix='fixture-',dir=work) as temp:
    base=Path(temp);parent=base/'packages';parent.mkdir();cache=base/'cache';cache.mkdir();actual=cache

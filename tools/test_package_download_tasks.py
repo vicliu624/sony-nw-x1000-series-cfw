@@ -1,13 +1,14 @@
 """Per-plan binary/empty downloads through owned tasks, local fixtures only."""
 from pathlib import Path
+import test_download_plan as plan
 import runpy,subprocess,hashlib,json,tempfile,os,re
 ROOT=Path(__file__).resolve().parents[1]
-metadata=runpy.run_path(str(ROOT/'tools/test_download_plan.py'))
 task=runpy.run_path(str(ROOT/'tools/test_download_task.py'))
 work=ROOT/'work/package-download-task-tests';work.mkdir(exist_ok=True)
-files=metadata['files'];paths=[p for p in sorted(files) if p!='app.ini']
+metadata = {'index': plan.index, 'keys': plan.keys}
+files=plan.files;paths=[p for p in sorted(files) if p!='app.ini']
 def array(name,data):return 'static const unsigned char '+name+'[]={'+','.join(str(b) for b in (data or b'\0'))+'};\n'
-header=array('PLAN_MF',metadata['manifest'])+array('PLAN_IX',metadata['index'])
+header=array('PLAN_MF',plan.manifest)+array('PLAN_IX',plan.index)
 for i,path in enumerate(paths):header+=array('PLAN_BODY_'+str(i),files[path])
 header+='static const unsigned char *PLAN_BODIES[]={'+','.join('PLAN_BODY_'+str(i) for i in range(len(paths)))+'};\n'
 header+='static const unsigned PLAN_SIZES[]={'+','.join(str(len(files[p])) for p in paths)+'};\n'

@@ -18,7 +18,7 @@ for platform,command in [('host',[str(work/'host')]),('ARM/QEMU',['qemu-arm','-c
    base=Path(temp);cache=base/'cache';packages=base/'packages';apps=base/'apps'
    for p in (cache,packages,apps):p.mkdir()
    (apps/'keep').write_bytes(b'KEEP')
-   resume_files=dict(assembly['files'],**{'files.sha256':assembly['metadata']['index']})
+   resume_files=dict(assembly['files'],**{'files.sha256':assembly['metadata'].index})
    if mode.startswith('resume-'):
     for name,data in resume_files.items():
      target=packages/'.bundle-demo'/name;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(data)
@@ -29,12 +29,12 @@ for platform,command in [('host',[str(work/'host')]),('ARM/QEMU',['qemu-arm','-c
     seeded=subprocess.run(command,capture_output=True,text=True,timeout=15,env=dict(env,HB_JOB_CASE='seed-record'));assert seeded.returncode==0,seeded.stderr
     for name,data in resume_files.items():
      target=packages/'.bundle-demo'/name;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(data[:5])
-    (cache/('.fetch-'+assembly['metadata']['keys'][0])).write_bytes(b'X'*10)
+    (cache/('.fetch-'+assembly['metadata'].keys[0])).write_bytes(b'X'*10)
     if mode=='recover-unknown':(packages/'.bundle-demo/unknown').write_bytes(b'KEEP')
    if mode in ('marker-restart','ui-marker-restart','ui-marker-back','ui-marker-bad'):
     seeded=subprocess.run(command,capture_output=True,text=True,timeout=15,env=dict(env,HB_JOB_CASE='seed-record'));assert seeded.returncode==0,seeded.stderr
     final=packages/'.download-demo.intent';data=final.read_bytes();temporary=packages/('.save-demo-'+hashlib.sha256(data).hexdigest());final.unlink();temporary.write_bytes(b'X' if mode=='ui-marker-bad' else data[:1])
-   if mode=='unclaimed-cache':(cache/('.fetch-'+assembly['metadata']['keys'][0])).write_bytes(b'KEEP')
+   if mode=='unclaimed-cache':(cache/('.fetch-'+assembly['metadata'].keys[0])).write_bytes(b'KEEP')
    if mode in ('unrecognized','ui-unrecognized'):(packages/'.download-demo.intent').write_bytes(b'KEEP')
    def snapshot(folder):return {str(p.relative_to(folder)):p.read_bytes() for p in folder.rglob('*') if p.is_file()}
    cache_before=snapshot(cache);packages_before=snapshot(packages)
@@ -47,7 +47,7 @@ for platform,command in [('host',[str(work/'host')]),('ARM/QEMU',['qemu-arm','-c
    if mode=='resume-bad':assert (packages/'.bundle-demo/app').read_bytes()==b'X'*len(resume_files['app'])
    elif not preserved:assert not list(packages.iterdir())
    if mode in ('install','ui-install','resume-install','ui-recovery-restart','ui-marker-restart'):
-    expected=dict(assembly['files'],**{'files.sha256':assembly['metadata']['index']})
+    expected=dict(assembly['files'],**{'files.sha256':assembly['metadata'].index})
     actual={str(p.relative_to(apps/'demo')):p.read_bytes() for p in (apps/'demo').rglob('*') if p.is_file()}
     assert actual==expected
    else:assert {p.name for p in apps.iterdir()}=={'keep'}

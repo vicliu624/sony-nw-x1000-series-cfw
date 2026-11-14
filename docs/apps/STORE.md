@@ -26,6 +26,11 @@ Builders include build_libc_frontend.py, build_store_app.py and
 build_network_store_app.py. Prefer original-libc device/process and librt monotonic
 clock profiles where supported; retain explicit legacy profiles for research.
 
+The offline store tests use the original libc and loader prepared by
+`tools/sdk.py setup`. Download-plan fixtures can be imported by the intent,
+recovery and package checks without running the standalone plan regression.
+Run `tools/test_download_plan.py` directly to check the plan implementation.
+
 Installation uses verified user storage, staged writes, hashes and rollback/error
 states. Packages do not each receive a Sony Home entry. Do not bypass TLS checks,
 trust synthetic CAs, infer USB exclusivity from a masked zero state, or use a new
