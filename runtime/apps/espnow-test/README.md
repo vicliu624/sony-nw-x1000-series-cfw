@@ -5,8 +5,20 @@ graphical launcher's `HOMEBREW/apps` scan. They have no graphical app.ini entry;
 placing this directory under apps causes the launcher to report unavailable apps.
 The radio candidate, keys and counters remain under HOMEBREW/data/espnow-test.
 
-Local ARM review candidate for Japanese X1060/JP1.11. Build with
-`python runtime/apps/espnow-test/build.py`. No player action is part of building.
+Build the local JP1.11 ARM experiment against a reviewed scalar radio image
+and native SDK:
+
+```sh
+.venv/bin/python runtime/apps/espnow-test/build.py \
+  --radio-review work/example/regressions/scalar \
+  --sdk-review work/example/native-sdk/sdk/build.json \
+  --output work/example/espnow-test
+```
+
+The private review packer accepts that `build.json` via `--build-review` and
+reads its radio selection. It validates the existing engine, detach and loader
+test reports in `--test-review-dir` (default `work/autonomous-espnow-test`).
+No player action is part of building.
 This is an explicit CLI execution engine, not an installed graphical application.
 
 This entry and the separate Wireless Remote RF owner use the private
