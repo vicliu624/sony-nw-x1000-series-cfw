@@ -30,9 +30,9 @@ same builder, then execute the refusal cases and ARM replay. Packaging consumes
 reviewed outputs through their receipts. Build the localized root once and use
 its archive directly for managed layout, capacity and QEMU checks. Use the same
 reviewed wireless image for radio replay, the owner build and the system overlay.
-See the
-[build guide](BUILD.md) for the
-supported commands and [architecture](ARCHITECTURE.md) for module ownership.
+For a managed Remote build, run the [shared Wi-Fi build sequence](BUILD.md#shared-wi-fi-candidate)
+through the artifact checks. Use that host receipt for both replay and layout
+assembly. See [architecture](ARCHITECTURE.md) for module ownership.
 
 ## Select verification
 
