@@ -31,7 +31,7 @@ supported commands and [architecture](ARCHITECTURE.md) for module ownership.
 | Documentation or workflow | Layout/links and focused tooling tests; no C compilation | Review the resulting text and plan |
 | Local implementation fix | Reproducer plus the affected caller/consumer | Relevant component group |
 | Radio packet implementation | `tools/test_radio_profiles.py` | Shared owner/retirement checks when those contracts change |
-| SDK API or dependency graph | Affected public consumer and ABI checks | SDK group; clean-source/relocation checks when inputs or paths change |
+| SDK API or dependency graph | Affected public consumer and ABI checks. Use `tools/test_sdk_services.py --module <name>` for an independent link | SDK group; clean-source/relocation checks when inputs or paths change |
 | Application/sleep/USB ownership | Exact transition reproducer and affected integration | Lifecycle plus affected integration groups |
 | Reviewed release or broad integration | Inspect the full plan, then execute it once | Additional artifact/hardware checks only in their authorized stage |
 
@@ -79,3 +79,9 @@ iteration; they do not predict every machine or establish hardware performance.
 Current iteration targets are no compilation for documentation/workflow edits
 and roughly one minute for the prepared radio group. Treat a slower run as a
 profiling prompt, not a reason to remove relevant coverage or source validation.
+
+The system startup wrapper takes about 0.23 seconds to compile on the prepared
+WSL host. Preprocessing and hashing its compiler inputs takes about 0.12 seconds
+on the same host. Layout assembly compiles it directly. The SDK service matrix
+took about 175 seconds in the retained firmware regression. For localized SDK
+changes, select the affected module and direct consumers before full validation.

@@ -334,9 +334,11 @@ observer descriptor/interest throughout activation, transfer and retirement.
 
 ## SDK checks
 
-`test_sdk_services.py` links every native service module independently, then
-builds an external custom-main service consumer. Aggregate linking alone can hide
-a module's missing dependencies. `audit_sdk_adoption.py` verifies maintained
+`test_sdk_services.py` builds an external custom-main service consumer and links
+each native service module independently. For a local module change, run
+`test_sdk_services.py --module <name>` with each affected module or consumer.
+Add `--plan` to inspect their resolved dependencies before building. The full
+SDK group and source bundle check run the complete matrix. `audit_sdk_adoption.py` verifies maintained
 consumers use public service imports and dependency contracts. Its optional
 `--check-logic` mode is for an unchanged SDK migration against pinned baselines;
 later app features cannot be declared byte-equivalent to those old baselines.

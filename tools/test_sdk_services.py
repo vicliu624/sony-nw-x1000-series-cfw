@@ -1,7 +1,7 @@
-"""Compile and execute an external custom-main client against public SDK services."""
+"""Check public SDK native-service clients and independent module links."""
+import argparse
 import json
 import os
-from pathlib import Path
 import struct
 import subprocess
 import sys
@@ -9,15 +9,15 @@ import time
 import zlib
 from app_registry import ROOT
 from sdk import create
+from sdk_services import compile_native, manifest, resolve
 
 def fixture():
     def chunk(kind,data):return struct.pack('>I',len(data))+kind+data+struct.pack('>I',zlib.crc32(kind+data)&0xffffffff)
     png=b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',struct.pack('>IIBBBBB',1,1,8,2,0,0,0))+chunk(b'IDAT',zlib.compress(b'\0\xff\0\0'))+chunk(b'IEND',b'')
     return 'static const unsigned char rgb_fixture[]={'+','.join(map(str,png))+'};\n'
 
-def main():
-    ident='service-check-'+str(time.time_ns())[-10:]
-    out=ROOT/'work/sdk-service-tests'/ident
+def check_public_consumer(out):
+    ident=out.name
     app_root=out/'client-source'
     definition=create(ident,'minimal','SDK Service Check',app_root)
     (definition/'main.c').write_text((ROOT/'sdk/tests/services.c').read_text())
@@ -27,8 +27,6 @@ def main():
                  'modules':['startup','display','signals-libc','files','hash','process','network','pcm','fm','unicode-font','images','system-info','volume','packages']}
     (definition/'app.json').write_text(json.dumps(info,indent=2)+'\n')
     (definition/'build.json').write_text(json.dumps({'profile':'native-services','sources':['main.c'],'checks':[['--help'],['--version'],['--selftest']]},indent=2)+'\n')
-    # Generated service recipes still use the common SDK compiler entry, with a custom main.
-    (definition/'build.py').write_text('from pathlib import Path\nimport sys\nsys.path.insert(0,str(Path(__file__).resolve().parents[3]/"tools"))\nfrom sdk_build import build\nif __name__=="__main__":build(Path(__file__).resolve().parent)\n')
     env=dict(os.environ,QEMU_UNSET_ENV='LD_LIBRARY_PATH,LD_PRELOAD')
     build=out/'compiled'
     command=[sys.executable,'tools/sdk.py','--apps-root',str(app_root),'build',ident,'--output',str(build)]
@@ -39,11 +37,11 @@ def main():
         'source_definition':definition.relative_to(ROOT).as_posix(),'formal_app_tree_written':False})
     (out/'service-test.json').write_text(json.dumps(report,indent=2)+'\n')
     print(json.dumps(report,indent=2))
-    # A full aggregate link can hide missing module edges. Check every service
-    # independently, including header-only presentation's actual file dependency.
-    from sdk_services import manifest,compile_native
+
+
+def check_modules(out, names):
     matrix=out/'module-matrix';matrix.mkdir()
-    for name in manifest():
+    for name in names:
         app=matrix/('check-'+name);app.mkdir()
         modules=['startup'] if name=='startup' else ['startup',name]
         metadata={'id':app.name,'target':'sony-nw-x1000-jp','sdk':{'version':(ROOT/'sdk/VERSION').read_text().strip(),'profile':'native-services','modules':modules}}
@@ -54,5 +52,31 @@ def main():
             source='#include <x1000/services/presentation.h>\nint main(void){struct hb_presentation p;return hb_presentation_load(&p,"/sdk-fixture-missing")?1:0;}\n'
         (app/'main.c').write_text(source)
         compile_native(app,app/'build')
-    print(json.dumps({'individual_service_modules_built':len(manifest()),'hardware_accessed':False}))
+
+
+def main():
+    available = manifest()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--module', choices=available, action='append',
+                        help='Link only the named module and its dependencies. Repeat for multiple modules.')
+    parser.add_argument('--plan', action='store_true', help='List selected checks without building anything.')
+    args = parser.parse_args()
+    names = list(dict.fromkeys(args.module)) if args.module else list(available)
+    public_consumer = args.module is None
+    if args.plan:
+        modules = {name: resolve(['startup', name] if name != 'startup' else [name], available)
+                   for name in names}
+        print(json.dumps(dict(public_consumer=public_consumer, module_builds=modules), indent=2))
+        return
+    out = ROOT / 'work/sdk-service-tests' / ('service-check-' + str(time.time_ns()))
+    out.mkdir(parents=True)
+    if public_consumer:
+        check_public_consumer(out)
+    check_modules(out, names)
+    report = dict(passed=True, public_consumer_checked=public_consumer,
+                  individual_service_modules_built=len(names), modules=names, hardware_accessed=False)
+    (out / 'report.json').write_text(json.dumps(report, indent=2) + '\n', encoding='utf-8')
+    print(json.dumps(dict(report, output=out.relative_to(ROOT).as_posix())))
+
+
 if __name__=='__main__':main()
