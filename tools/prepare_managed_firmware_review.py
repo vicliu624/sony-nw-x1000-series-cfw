@@ -1,9 +1,11 @@
 """Build a private diagnostic UPG from a reviewed layout; never installs or publishes."""
 import argparse,copy,gzip,hashlib,io,json,sys,tarfile,time
+from pathlib import Path
 from app_registry import ROOT
 from review_managed_remote_profile import private,receipt,digest
 from review_managed_root_capacity import inventory,compose_root_inventory,read_localization_root
 from release_firmware import pack
+from sdk_build import fresh_work
 sys.path.insert(0,str(ROOT/'scripts'))
 from upg import unpack
 
@@ -29,6 +31,7 @@ def main():
  parser.add_argument('--settings-count-review',help='Exact native Settings constructor/count regression')
  parser.add_argument('--prepare-exit-review',required=True,help='Fresh native exit idle/live wireless regression')
  parser.add_argument('--remote-page-replay',help='Exact composed Remote page menu and wireless-entry replay')
+ parser.add_argument('--output',type=Path,help='New firmware review directory below work/')
  args=parser.parse_args();lp,layout=receipt(args.layout_review)
  remote_replay=None
  if layout.get('native_remote_page_review'):
@@ -105,7 +108,7 @@ def main():
   if name in expected:
    if final.get(name)!=expected[name]:raise ValueError('Final reviewed path differs: '+name)
   elif stock.get(name)!=final.get(name):raise ValueError('Undeclared root change: '+name)
- out=ROOT/'work/managed-firmware-review'/str(time.time_ns());out.mkdir(parents=True)
+ out=fresh_work(args.output or ROOT/'work/managed-firmware-review'/str(time.time_ns()))
  target=out/'DIAGNOSTIC-REVIEW-ONLY.UPG';target.write_bytes(result)
  report=dict(prepared=True,analysis_only=True,ready_to_flash=False,installed=False,device_accessed=False,
   artifact=target.relative_to(ROOT).as_posix(),bytes=len(result),sha256=digest(target),
@@ -122,6 +125,5 @@ def main():
    'File inventory does not establish physical partition margin, sleep/USB/RF or recovery.',
    'External first-use files and controller provisioning are separate; no automatic installation.'])
  (out/'review.json').write_text(json.dumps(report,indent=2)+'\n')
- (ROOT/'work/managed-firmware-review-latest.json').write_text(json.dumps(report,indent=2)+'\n')
  print(json.dumps(dict(prepared=True,review=(out/'review.json').relative_to(ROOT).as_posix(),bytes=len(result),ready_to_flash=False,device_accessed=False),indent=2))
 if __name__=='__main__':main()

@@ -183,8 +183,11 @@ def radio_dependencies(owner):
   compiled_header=dict(local=header.relative_to(ROOT).as_posix(),sha256=digest(header)),
   installation_complete=False)
 def main():
+ from sdk_build import fresh_work
+
  parser=argparse.ArgumentParser(description=__doc__)
  parser.add_argument('--host-review',type=Path,required=True)
+ parser.add_argument('--output',type=Path,help='New component review directory below work/')
  args=parser.parse_args()
  host_path,host=receipt(args.host_review)
  if host_path.name!='build.json' or not host.get('passed') or not host.get('analysis_only') or not host.get('native_sleep_analysis') or not host.get('remote_factory_automatic'):raise ValueError('Expected composed automatic sleep-analysis host receipt')
@@ -229,8 +232,7 @@ def main():
    'Owner driver/context/session-key/packet-number dependencies remain outside this inventory; never replace persistent PN journals with seeds.',
    'Configuration is not hardware-paired or qualified; a synthetic fixture must not be presented as a device package.',
    'Sustained RF, audio/latency, standby, sleep/wake and USB ownership still require physical acceptance.'])
- out=WORK/'managed-remote-profile-review'/str(time.time_ns());out.mkdir(parents=True)
+ out=fresh_work(args.output or WORK/'managed-remote-profile-review'/str(time.time_ns()))
  (out/'review.json').write_text(json.dumps(report,indent=2)+'\n')
- (WORK/'managed-remote-profile-review-latest.json').write_text(json.dumps(report,indent=2)+'\n')
  print(json.dumps(dict(passed=True,review=(out/'review.json').relative_to(ROOT).as_posix(),configuration_kind=report['configuration_kind'],core_system_file_payload_delta_bytes=system_delta,ready_to_flash=False),indent=2))
 if __name__=='__main__':main()

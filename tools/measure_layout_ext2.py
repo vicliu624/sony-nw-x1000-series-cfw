@@ -20,6 +20,7 @@ from elftools.elf.elffile import ELFFile
 
 from review_managed_remote_profile import ROOT, WORK, digest, private, receipt
 from review_managed_root_capacity import compose_root_inventory, inventory, read_localization_root
+from sdk_build import fresh_work
 
 STOCK_ROOT_SHA256 = 'c6307dba718f1faae821e0330b64532f13fe6ef98ff330a5919d7fb10525adf5'
 NAND_MODULE_SHA256 = '3263ab460d48160549dba1c67d96a9a76ee47ff93281d061a6c663b1c191cdd9'
@@ -253,6 +254,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--capacity-review', type=Path, required=True)
     parser.add_argument('--sysroot', type=Path, required=True)
+    parser.add_argument('--output', type=Path, help='New allocation review directory below work/')
     args = parser.parse_args()
     if os.name != 'posix':
         raise ValueError('Run in the prepared Linux/WSL environment')
@@ -292,7 +294,8 @@ def main():
     definition = partition_definition(stock_data)
     sysroot = args.sysroot.resolve()
     formatter = verify_formatter(sysroot, stock_data)
-    area = Path(tempfile.mkdtemp(prefix='layout-ext2-', dir=WORK))
+    area = (fresh_work(args.output) if args.output is not None else
+            Path(tempfile.mkdtemp(prefix='layout-ext2-', dir=WORK)))
     source_paths = ('tools/measure_layout_ext2.py', 'tools/review_managed_root_capacity.py',
                     'tools/review_managed_remote_profile.py', 'scripts/upg.py', 'scripts/upg_crypto.py')
     sources = {name: digest(ROOT / name) for name in source_paths}

@@ -3,6 +3,7 @@ import argparse,copy,hashlib,io,json,posixpath,sys,tarfile,time
 from pathlib import Path
 from app_registry import ROOT
 from review_managed_remote_profile import private,receipt,digest
+from sdk_build import fresh_work
 sys.path.insert(0,str(ROOT/'scripts'))
 from upg import unpack
 
@@ -147,10 +148,11 @@ def main():
  source.add_argument('--compare-upg',type=Path,nargs=2,metavar=('BASELINE','CANDIDATE'),
                      help='Compare the actual component, root and ELF contents of two local UPGs')
  parser.add_argument('--localization-firmware',type=Path,help='Optional matching UPG for legacy layouts')
+ parser.add_argument('--output',type=Path,help='New capacity review directory below work/')
  args=parser.parse_args()
  if args.compare_upg:
-  if args.localization_firmware:
-   parser.error('--localization-firmware requires --layout-review')
+  if args.localization_firmware or args.output:
+   parser.error('--localization-firmware and --output require --layout-review')
   print(json.dumps(compare_upgs(*args.compare_upg),indent=2))
   return
  layout_path,layout=receipt(args.layout_review)
@@ -180,8 +182,7 @@ def main():
    'Block models omit inode/directory/indirect blocks, reserved space and flash translation/bad blocks.',
    'No current physical free-space measurement or partition-write qualification.',
    'No updater, kernel or initrd is generated or changed.'])
- out=ROOT/'work/managed-root-capacity'/str(time.time_ns());out.mkdir(parents=True)
+ out=fresh_work(args.output or ROOT/'work/managed-root-capacity'/str(time.time_ns()))
  (out/'review.json').write_text(json.dumps(report,indent=2)+'\n')
- (ROOT/'work/managed-root-capacity-latest.json').write_text(json.dumps(report,indent=2)+'\n')
  print(json.dumps(dict(passed=True,review=(out/'review.json').relative_to(ROOT).as_posix(),regular_file_delta_bytes=report['regular_file_delta_bytes'],changed_paths=len(changes),capacity_margin_verified=False),indent=2))
 if __name__=='__main__':main()

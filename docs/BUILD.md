@@ -138,9 +138,11 @@ to layout assembly:
 .venv/bin/python tools/release_firmware.py --root-only --output work/localized-root
 .venv/bin/python tools/prepare_player_system_layout.py \
   --localization-root work/localized-root/localized-root.tar.gz \
-  --host-review work/example/host/build.json
+  --host-review work/example/host/build.json \
+  --output work/example/layout
 .venv/bin/python tools/review_managed_root_capacity.py \
-  --layout-review work/example/layout/report.json
+  --layout-review work/example/layout/report.json \
+  --output work/example/capacity
 ```
 
 The layout records the archive and its SHA-256. Capacity checks, the QEMU layout
@@ -153,8 +155,9 @@ capacity/layout receipts and a prepared original Sony sysroot:
 
 ```sh
 .venv/bin/python tools/measure_layout_ext2.py \
-  --capacity-review work/example/review.json \
-  --sysroot work/example/sony-root
+  --capacity-review work/example/capacity/review.json \
+  --sysroot work/example/sony-root \
+  --output work/example/allocation
 ```
 
 The tool creates only new ordinary image files under `work/`, runs the verified
@@ -179,6 +182,11 @@ and its matching allocation/regression evidence with:
   --radio-inputs work/radio-inputs/candidate \
   --output dist/diagnostics/example
 ```
+
+Use `prepare_managed_firmware_review.py --output work/example/firmware` when
+preparing the UPG and its review. Each stage accepts an explicit new directory
+below `work/`. Follow the named review files when connecting stages. An
+existing output directory is refused to preserve earlier evidence.
 
 The firmware review must already have an independent Rockbox extraction under
 its `rockbox-check/` directory. The tool checks all original installation

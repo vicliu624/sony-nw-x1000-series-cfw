@@ -16,6 +16,7 @@ from review_managed_root_capacity import read_root_input
 from review_managed_remote_profile import receipt, artifact, select_player_remote_inputs
 from remote_choice_resource import SOURCE as REMOTE_TEMPLATE, TARGET as REMOTE_RESOURCE
 from remote_choice_resource import BOUND_TARGET,CONFIRM_TARGET,CONFIRM_SOURCE,PAIR_TARGET
+from sdk_build import fresh_work
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
@@ -25,6 +26,7 @@ def main():
     parser.add_argument('--host-review',type=Path,help='Reuse a fresh composed managed host receipt instead of building the base profile')
     parser.add_argument('--supervisor-review', type=Path, help='Select a supervisor with the compiled host contract')
     parser.add_argument('--radio-review', type=Path, help='Select the shared Wi-Fi overlay matched to that supervisor')
+    parser.add_argument('--output', type=Path, help='New layout directory below work/')
     args=parser.parse_args()
     if (args.supervisor_review or args.radio_review) and not args.host_review:
         parser.error('Replacing Remote inputs requires --host-review')
@@ -51,7 +53,7 @@ def main():
     # Keep that registration exact; replace the entry executable with the wrapper
     # and relocate the single actual player payload instead of duplicating it.
     replacement=app_list
-    out=ROOT/'work/player-system-layout'/str(time.time_ns());out.mkdir(parents=True)
+    out=fresh_work(args.output or ROOT/'work/player-system-layout'/str(time.time_ns()))
     supervisor=None
     binding = image_review = None
     runtime_source_hashes={}
@@ -81,7 +83,11 @@ def main():
             runtime_source_hashes[image_review.relative_to(ROOT).as_posix()] = hashlib.sha256(image_review.read_bytes()).hexdigest()
     else:
         with contextlib.redirect_stdout(io.StringIO()):
-            library,payload,host=build(managed_host=True,engine_provider=True,native_prepare=True,builtin_localization=True)
+            library,payload,host=build(managed_host=True,engine_provider=True,native_prepare=True,
+                                       builtin_localization=True,review_output=out/'host')
+        host_path=out/'host/build.json'
+        runtime_source_hashes.update(host['source_hashes'])
+        runtime_source_hashes[host_path.relative_to(ROOT).as_posix()]=hashlib.sha256(host_path.read_bytes()).hexdigest()
     libs=stock_libraries()
     wrapper=out/'x1000-player-start.arm'
     sources=['runtime/platform/player/bootstrap.c','runtime/store/start.c','runtime/store/start.S']
