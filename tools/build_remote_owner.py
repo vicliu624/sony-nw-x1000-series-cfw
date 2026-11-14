@@ -12,7 +12,7 @@ import threading
 import time
 
 from app_registry import ROOT
-from generate_espnow_full_profile import render as render_radio_profile
+from generate_espnow_full_profile import profile_header, reviewed_radio, verify_image
 from owner_native_profile import file_initializer, render as render_native_profile, stock_header
 from player_arm_guest import stock_libraries
 from review_managed_remote_profile import digest, native_sdk_build, private, receipt
@@ -54,23 +54,28 @@ def build(*, sdk_review=None, rx_diagnostic_radio=None, external_radio_inputs=No
     if digest(crypto) != sdk['bearssl_archive_sha256']:
         raise ValueError('Native SDK BearSSL input changed')
 
-    directory = ROOT / ('work/espnow-full-radio-review-3' if legacy_radio else rx_diagnostic_radio)
-    manifest_path = private(directory / 'manifest.json')
-    review = manifest_path.parent
-    manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
-    radio = private(review / 'candidate/sd8686.bin')
-    payload = private(review / 'radio.elf')
-    if digest(radio) != manifest['candidate_sha256'] or digest(payload) != manifest['payload_elf_sha256']:
-        raise ValueError('Radio image or ELF differs from its review')
-    radio_inputs = [path.relative_to(ROOT).as_posix() for path in (manifest_path, radio, payload)]
-    radio_inputs += ['tools/generate_espnow_full_profile.py', 'tools/build_espnow_full_radio.py']
     if legacy_radio:
+        manifest_path = private('work/espnow-full-radio-review-3/manifest.json')
+        review = manifest_path.parent
+        payload = private(review / 'radio.elf')
+        private(review / 'stock/sd8686.bin')
+        private(review / 'candidate/sd8686.bin')
+        manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
         if (manifest['candidate_sha256'] != 'd4b92b65fa502e2c8c94d241e4a293e28db7e98a3afdba0958d8b4f8aa1a5ed8' or
                 manifest['payload_elf_sha256'] != '6918e3996088ebd99924e8c7039ad6ed26555aa3b0c411f2b9f765334c2218df'):
             raise ValueError('Legacy radio review differs')
+        verify_image(review, manifest)
     else:
-        _, manifest = receipt(manifest_path)
-    profile = render_radio_profile(review)
+        payload, manifest = reviewed_radio(rx_diagnostic_radio)
+        review = payload.parent
+    manifest_path = review / 'manifest.json'
+    radio = review / 'candidate/sd8686.bin'
+    radio_inputs = [path.relative_to(ROOT).as_posix() for path in
+                    (manifest_path, radio, payload, review / 'stock/sd8686.bin')]
+    if not legacy_radio:
+        radio_inputs.append((review / 'candidate/helper_sd.bin').relative_to(ROOT).as_posix())
+    radio_inputs += ['tools/generate_espnow_full_profile.py', 'tools/build_espnow_full_radio.py']
+    profile = profile_header(manifest)
     if not legacy_radio and (not manifest.get('rx_diagnostics') or 'XNOW_RADIO_RX_SEEN' not in profile):
         raise ValueError('Expected an exact-image RX diagnostic profile')
     radio_source_hashes = {} if legacy_radio else manifest['source_hashes']

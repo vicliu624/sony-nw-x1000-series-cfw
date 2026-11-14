@@ -7,7 +7,7 @@ import subprocess
 import time
 
 from app_registry import ROOT
-from generate_espnow_full_profile import render
+from generate_espnow_full_profile import profile_header, reviewed_radio
 from player_arm_guest import stock_libraries
 
 VERSION = '0.1.0-alpha.1'
@@ -17,11 +17,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--radio-review', type=Path, required=True)
     args = parser.parse_args()
-    directory = args.radio_review.resolve()
-    if not directory.is_relative_to((ROOT / 'work').resolve()):
-        raise ValueError('Use a reviewed radio build below work/')
-    manifest = json.loads((directory / 'manifest.json').read_text())
-    profile = render(directory)
+    payload, manifest = reviewed_radio(args.radio_review)
+    directory = payload.parent
+    profile = profile_header(manifest)
     if not manifest.get('rx_diagnostics') or 'XNOW_RADIO_RX_SEEN' not in profile:
         raise ValueError('The exact diagnostic counter profile is required')
     out = ROOT / 'work/radio-receive-probe' / str(time.time_ns())
@@ -50,13 +48,15 @@ def main():
             raise RuntimeError(result.stdout + result.stderr)
         checks.append(dict(argument=argument, exit_code=result.returncode))
     sha = lambda path: hashlib.sha256(path.read_bytes()).hexdigest()
-    inputs = [ROOT / source for source in sources] + [Path(__file__).resolve(), header,
-              directory / 'manifest.json', directory / 'candidate/sd8686.bin', directory / 'radio.elf']
+    inputs = [ROOT / source for source in sources] + [Path(__file__).resolve(), header, payload,
+              directory / 'manifest.json', directory / 'candidate/sd8686.bin',
+              directory / 'stock/sd8686.bin', directory / 'candidate/helper_sd.bin',
+              ROOT / 'tools/generate_espnow_full_profile.py']
     report = dict(built=True, version=VERSION, artifact=binary.relative_to(ROOT).as_posix(),
         bytes=binary.stat().st_size, sha256=sha(binary), radio_build=directory.relative_to(ROOT).as_posix(),
         radio_sha256=manifest['candidate_sha256'], original_libc_safe_cli_checks=checks,
         inspect_executed_on_device=False, device_accessed=False, installed=False,
-        source_hashes={path.relative_to(ROOT).as_posix(): sha(path) for path in inputs},
+        source_hashes={**manifest['source_hashes'], **{path.relative_to(ROOT).as_posix(): sha(path) for path in inputs}},
         limits=['Fixed GET-only profile; no keys or payloads are read.',
                 'No physical command timing or counter persistence is established.',
                 'Sequential samples are not atomic; reload can reset the counters.'])

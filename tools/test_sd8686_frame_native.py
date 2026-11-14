@@ -21,7 +21,7 @@ from unicorn.arm_const import (
 )
 from app_registry import ROOT
 from build_espnow_full_radio import build
-from generate_espnow_full_profile import render
+from generate_espnow_full_profile import profile_header, render
 from marvell_firmware import parse
 from radio_test_profile import frame_fixture, selected_radio
 
@@ -221,7 +221,7 @@ def serve(connection, errors):
         connection.close()
 
 
-(out / "full_profile.h").write_text(render(directory))
+(out / "full_profile.h").write_text(profile_header(manifest) if selected else render(directory))
 sources = ["tools/fixtures/sd8686_frame_native.c"] + [
     "runtime/platform/espnow/" + name + ".c"
     for name in (

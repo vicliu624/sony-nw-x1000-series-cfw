@@ -15,13 +15,19 @@ def reviewed_radio(directory):
         raise ValueError('Radio helper identity differs')
     for relative in ('stock/sd8686.bin', 'candidate/sd8686.bin'):
         private(directory / relative)
-    render(directory)
+    verify_image(directory, manifest)
     return payload, manifest
 
 
 def render(directory):
+    """Render a profile for an image whose identity the caller pins separately."""
     directory = Path(directory)
     manifest = json.loads((directory / "manifest.json").read_text())
+    verify_image(directory, manifest)
+    return profile_header(manifest)
+
+
+def verify_image(directory, manifest):
     stock = (directory / "stock/sd8686.bin").read_bytes()
     image, derived = construct(stock, directory / "radio.elf")
     if image != (directory / "candidate/sd8686.bin").read_bytes():
@@ -41,7 +47,11 @@ def render(directory):
     for item in manifest["immutable_segments"]:
         if item["address"] & 3 or item["bytes"] & 3 or item["address"] == 0x17328:
             raise ValueError("invalid runtime range")
-    l = manifest["controls"]
+
+
+def profile_header(manifest):
+    """Render the target header from an already verified manifest."""
+    controls = manifest["controls"]
     text = "/* Generated internal exact-image profile. Reclaimed scatter data excluded. */\n"
     text += '#include "xnow_full_guard.h"\nstatic const struct xnow_full_fingerprint xnow_full_ranges[]={\n'
     for r in manifest["immutable_segments"]:
@@ -53,15 +63,15 @@ def render(directory):
     text += (
         "};\nstatic const struct xnow_full_profile xnow_full_compiled_profile={{0x%xu,0x%xu,0x%xu},sizeof(xnow_full_ranges)/sizeof(xnow_full_ranges[0]),xnow_full_ranges};\n"
         % (
-            l["xnow_full_tx"]["address"],
-            l["xnow_full_rx"]["address"],
-            l["xnow_tx_completion"]["address"],
+            controls["xnow_full_tx"]["address"],
+            controls["xnow_full_rx"]["address"],
+            controls["xnow_tx_completion"]["address"],
         )
     )
-    if "xnow_rx_seen" in l:
+    if "xnow_rx_seen" in controls:
         text += (
             "#define XNOW_RADIO_RX_SEEN 0x%xu\n#define XNOW_RADIO_RX_ELIGIBLE 0x%xu\n"
-            % (l["xnow_rx_seen"]["address"], l["xnow_rx_eligible"]["address"])
+            % (controls["xnow_rx_seen"]["address"], controls["xnow_rx_eligible"]["address"])
         )
     if manifest.get("bulk_word_commands"):
         text += (

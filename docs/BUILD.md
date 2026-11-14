@@ -237,8 +237,11 @@ review and verified legacy RF files used by the diagnostic kit:
   --data-leaf wireless-remote --link-keys --output work/example/owner
 ```
 
-The builder derives the stock reload table from the verified Japanese 1.11 root
-and checks the selected radio image against its ELF and source receipt. Root
+The builder derives the stock reload table from the verified Japanese 1.11 root.
+The Owner, overlay, replay and receive probe use the same radio review validator
+for source receipts, Sony helper identity and reconstruction from the ELF. The
+Owner and receive probe derive their compiled headers from that validated
+manifest. Root
 builds run the owner entry and admission checks. The separate finite test
 executable is built only with `--legacy-radio`.
 
