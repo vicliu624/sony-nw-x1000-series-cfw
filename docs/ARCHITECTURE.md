@@ -47,7 +47,7 @@ implementation has the following confirmed coupling points:
 | SDK compatibility | App definitions select callback or native module API versions. Module dependencies check their own required APIs. Builds record the exact SDK release and source hashes | Change the API version when its interface breaks. An SDK release bump alone requires no changes to app definitions that use compatible interfaces |
 | Player composition | Built-in and external language profiles use maintained builder functions. Tests call the same functions, then verify the mapped edits independently | Keep production validation with the builder and test execution with the selected verification entry point |
 | Compiled component identity cascade | The owner checks the selected radio image. The supervisor verifies owner and service sizes and hashes. The player library checks the supervisor's compiled size. The startup wrapper uses fixed paths | Reuse independently verified build inputs where their compile inputs match. Preserve runtime file checks until their replacement is verified at the same launch boundary |
-| Incomplete startup error contract | `rf_owner.c:owner_prepare` reduces backend setup errors to `-1`; service startup reports a numeric result and a post-cleanup flag | Retain component, operation, result domain and original error. Readiness, failure and resource retirement are separate observations |
+| Incomplete startup error contract | The owner records the FRM1 or bulk enable operation and original XNOW result at retirement. Service startup reports a numeric result and a post-cleanup flag. Both use the bounded process log | Correlate diagnostic results with the launch. Keep readiness, failure and resource retirement independent |
 | Diagnostic records lack attempt identity | `parent_trace_store.c` fills a preallocated slot only once; `read_remote_pairing_trace.py` has no firmware/build or boot identity to validate | Use bounded, versioned records correlated to a build, boot and start request. Reading diagnostics must not depend on manually copying an empty file before each attempt |
 | Historical local paths in supported tooling | The script audit found fixed review/candidate paths in maintained scripts and separate local orchestration files | Maintained entry points accept current input descriptors. Historical negative controls are explicit test inputs; ignored scripts and prior candidate directories are outside the normal build graph |
 
@@ -92,8 +92,10 @@ The Settings backend already owns a request serial and the process generation.
 Its `last_start` reports parent admission, capability offer, readiness or child
 exit. The owner runtime stores the first application result and its origin,
 while the supervisor verifies the independent retirement receipt before reporting
-recovery. `rf_owner.c` currently collapses the FRM1 and bulk enable results before
-they reach that owner error field. Wireless Remote's `retirement_log.c` decodes
+recovery. The existing prepare failure classification stays in place.
+The owner separately publishes the original FRM1 or bulk error and operation
+after verified retirement, and the player can write it to trace slot 27.
+Wireless Remote's `retirement_log.c` decodes
 the bounded 512-byte process log tail into observations. The player adapter
 maps those observations to the existing trace slots. A missing line in the tail
 cannot establish which operation failed.

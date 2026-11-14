@@ -34,6 +34,7 @@ STAGES = {
     24: 'remote-application-failure-origin',
     25: 'remote-service-start-refusal',
     26: 'remote-receive-and-link-retirement-summary',
+    27: 'remote-packet-backend-start-failure',
 }
 OWNER_STARTUP_FAILURES = {
     101: 'mode-view-open',
@@ -110,6 +111,9 @@ def main():
         if row['stage']==26:
             row['radio_summary']=dict(zip(('decoded','authentication_rejected','replay_rejected',
                 'negotiation_frames','negotiated_key_installs','shared_wake_unrestored'),state))
+        if row['stage']==27:
+            row['operation']={1:'enable-frm1',2:'enable-bulk'}.get(state[0],'unknown')
+            row['failure_domain']='xnow-transport'
         if row['stage'] == 7 and status in OWNER_STARTUP_FAILURES:
             row['owner_startup_failure'] = OWNER_STARTUP_FAILURES[status]
         if row['stage'] == 7 and raw & 0xf0000000 == 0x50000000:

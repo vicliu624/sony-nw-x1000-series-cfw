@@ -156,6 +156,10 @@ void xw_player_pairing_trace_exit(const struct wr_supervisor_process *process) {
                              log.service_refusal.hello_ms, 0, 0, 0};
         xw_player_pairing_trace_radio(25, log.service_refusal.result, start);
     }
+    if (log.packet_start_operation) {
+        uint32_t start[6] = {log.packet_start_operation, 0, 0, 0, 0, 0};
+        xw_player_pairing_trace_radio(27, log.packet_start_result, start);
+    }
 }
 #else
 #define trace_pairing(stage, result) ((void)0)

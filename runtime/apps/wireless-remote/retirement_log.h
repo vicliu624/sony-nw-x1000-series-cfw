@@ -2,6 +2,7 @@
 #define WR_RETIREMENT_LOG_H
 
 #include <stdint.h>
+#include "startup_result.h"
 
 /* Observations from the private supervisor log tail. These fields are
  * diagnostic only and do not attest readiness or resource retirement. */
@@ -13,6 +14,8 @@ struct wr_retirement_log {
     int service_startup_failure, worker_reason, worker_error, player_close_error;
     unsigned radio_summary_present, service_refusal_present;
     uint32_t radio_summary[6];
+    enum wr_owner_packet_start packet_start_operation;
+    int packet_start_result;
     struct {
         int stage, result, player_closed;
         uint32_t hello_ms;

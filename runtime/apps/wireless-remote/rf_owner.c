@@ -82,6 +82,8 @@ static int owner_mode_recheck(void) {
 extern int owner_fcntl(int, int, ...) __asm__("fcntl");
 static struct xnow_full_control owner_control;
 static struct xnow_owner_runtime owner_runtime;
+static enum wr_owner_packet_start packet_start_operation;
+static int packet_start_result;
 static struct xnow_owner_gate owner_gate;
 static struct xnow_owner_commands owner_commands;
 static struct xnow_owner_stream owner_stream;
@@ -722,19 +724,25 @@ static int link_send_allowed(const uint8_t destination[6], const uint8_t *data, 
     return !memcmp(destination, peer_address, 6);
 }
 #endif
+static int owner_enable_packet_backend(struct xnow_endpoint *endpoint) {
+    (void)endpoint;
+#ifdef XNOW_RADIO_FRAME_TRANSACTIONS
+    packet_start_operation = WR_PACKET_START_FRM1;
+    packet_start_result = xnow_sd8686_full_enable_frames(&owner_control.radio, endpoint->transport,
+                                        &xnow_full_compiled_profile, XNOW_RADIO_FRAME_MARKER);
+#elif defined(XNOW_RADIO_BULK_WORD_COMMANDS)
+    packet_start_operation = WR_PACKET_START_BULK;
+    packet_start_result = xnow_sd8686_full_enable_bulk(&owner_control.radio, &xnow_full_compiled_profile,
+                                      XNOW_RADIO_BULK_MARKER);
+#endif
+    return packet_start_result;
+}
 static int owner_prepare(void *context, struct xnow_endpoint *endpoint, const uint8_t local[6]) {
     (void)context;
     if (endpoint != &owner_control.endpoint || memcmp(local, owner_control.local_mac, 6))
         return -1;
-#ifdef XNOW_RADIO_FRAME_TRANSACTIONS
-    if (xnow_sd8686_full_enable_frames(&owner_control.radio, endpoint->transport,
-                                       &xnow_full_compiled_profile, XNOW_RADIO_FRAME_MARKER))
-        return -1;
-#elif defined(XNOW_RADIO_BULK_WORD_COMMANDS)
-    if (xnow_sd8686_full_enable_bulk(&owner_control.radio, &xnow_full_compiled_profile,
-                                     XNOW_RADIO_BULK_MARKER))
-        return -1;
-#endif
+    if (owner_enable_packet_backend(endpoint))
+        return -1; /* Keep the runtime's existing prepare-failure classification. */
 #ifdef XNOW_REMOTE_MANAGED
     /* A shared chip needs the same scoped receive membership for discovery and
      * encrypted traffic. It belongs to this owner until endpoint drain, before
@@ -916,6 +924,9 @@ static void owner_report_retirement(void) {
            owner_runtime.receive_stats.decoded, owner_runtime.receive_stats.auth,
            owner_runtime.receive_stats.replay, owner_runtime.receive_stats.sideband, link_installs,
            wake_unrestored);
+    if (packet_start_result)
+        printf("REMOTE_RF_PACKET_START operation=%u result=%d\n",
+               (unsigned)packet_start_operation, packet_start_result);
 }
 static int owner_fd(const char *s) {
     unsigned n = 0;

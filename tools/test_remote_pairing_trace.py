@@ -97,6 +97,12 @@ with tempfile.TemporaryDirectory(prefix='pairing-trace-', dir=ROOT / 'work') as 
     assert not decoded['hardware_success_proven']
     assert row['radio_summary']==dict(decoded=19,authentication_rejected=2,replay_rejected=3,
         negotiation_frames=5,negotiated_key_installs=1,shared_wake_unrestored=0)
+    payload=[(-5)&0xffffffff,0,0,1,1,0,1,0,0,0,0,0]
+    raw=struct.pack('<15I',0x31504248,27,11,*payload)
+    raw+=struct.pack('<I',zlib.crc32(raw));trace[32+26*64:32+27*64]=raw;path.write_bytes(trace)
+    run=subprocess.run([sys.executable,str(ROOT/'tools/read_remote_pairing_trace.py'),str(path)],capture_output=True,text=True,check=True)
+    row=json.loads(run.stdout)['records'][-1]
+    assert row['result']==-5 and row['operation']=='enable-frm1' and row['failure_domain']=='xnow-transport'
     before = Path(folder) / 'before.bin'
     baseline = bytearray(SEED)
     baseline[32+22*64:32+23*64] = trace[32+22*64:32+23*64]

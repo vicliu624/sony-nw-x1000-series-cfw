@@ -45,4 +45,16 @@ void wr_retirement_log_read(const char *tail, struct wr_retirement_log *out) {
             wr_log_scan(line, "REMOTE_SERVICE_START_REFUSED stage=%d result=%d clean=%d hello_ms=%u",
                         &out->service_refusal.stage, &out->service_refusal.result,
                         &out->service_refusal.player_closed, &out->service_refusal.hello_ms) >= 3;
+
+    line = strstr(tail, "REMOTE_RF_PACKET_START ");
+    if (line && (line == tail || line[-1] == '\n')) {
+        unsigned operation;
+        int result, end = 0;
+        if (wr_log_scan(line, "REMOTE_RF_PACKET_START operation=%u result=%d%n",
+                        &operation, &result, &end) == 2 && end && line[end] == '\n' && result &&
+            (operation == WR_PACKET_START_FRM1 || operation == WR_PACKET_START_BULK)) {
+            out->packet_start_operation = operation;
+            out->packet_start_result = result;
+        }
+    }
 }

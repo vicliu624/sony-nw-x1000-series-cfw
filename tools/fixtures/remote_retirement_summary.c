@@ -15,15 +15,48 @@ static unsigned retired_link_installs;
 static int shared_wake_attempted;
 static unsigned stages;
 static uint32_t captured[6];
+static unsigned packet_failure_count, captured_operation;
+static int captured_result;
+static enum wr_owner_packet_start packet_start_operation;
+static int packet_start_result;
+static struct xnow_full_control owner_control;
+static const struct xnow_full_profile xnow_full_compiled_profile;
+
+#define XNOW_RADIO_FRAME_MARKER 0xc000a820u
+#define XNOW_RADIO_BULK_MARKER 0xc000a824u
+static int adapter_result;
+int xnow_sd8686_full_enable_frames(struct xnow_sd8686_full *radio, struct xnow_full *backend,
+                                  const struct xnow_full_profile *profile, uint32_t marker) {
+    assert(radio == &owner_control.radio && backend == &owner_control.backend &&
+           profile == &xnow_full_compiled_profile && marker == XNOW_RADIO_FRAME_MARKER);
+    return adapter_result;
+}
+int xnow_sd8686_full_enable_bulk(struct xnow_sd8686_full *radio,
+                                 const struct xnow_full_profile *profile, uint32_t marker) {
+    assert(radio == &owner_control.radio && profile == &xnow_full_compiled_profile &&
+           marker == XNOW_RADIO_BULK_MARKER);
+    return adapter_result;
+}
+
 void xw_player_pairing_trace_radio(unsigned stage, int result, const uint32_t state[6]) {
-    (void)result;
-    assert(stage >= 23 && stage <= 26);
+    assert(stage >= 23 && stage <= 27);
     if (stage == 26) {
         stages++;
         memcpy(captured, state, sizeof captured);
     }
+    if (stage == 27) {
+        packet_failure_count++;
+        captured_operation = state[0];
+        captured_result = result;
+    }
 }
 
+#define XNOW_RADIO_FRAME_TRANSACTIONS
+/* ACTUAL_FRM1_START */
+#undef XNOW_RADIO_FRAME_TRANSACTIONS
+#define XNOW_RADIO_BULK_WORD_COMMANDS
+/* ACTUAL_BULK_START */
+#undef XNOW_RADIO_BULK_WORD_COMMANDS
 /* ACTUAL_OWNER_REPORT */
 /* ACTUAL_PARENT_READER */
 
@@ -84,6 +117,28 @@ int main(void) {
     wr_retirement_log_read("REMOTE_SERVICE_PLAYER_CLOSE_UNCERTAIN reason=3 error=-6 player=-7\n", &log);
     assert(log.service_startup_failure == WR_LOG_UNOBSERVED && !log.service_refusal_present &&
            log.worker_reason == 3 && log.worker_error == -6 && log.player_close_error == -7);
+    struct xnow_endpoint endpoint = {.transport = &owner_control.backend};
+    assert(!owner_enable_frames(&endpoint));
+    capture_owner(&process);
+    xw_player_pairing_trace_exit(&process);
+    assert(!packet_failure_count);
+    adapter_result = XNOW_IDENTITY;
+    assert(owner_enable_frames(&endpoint) == adapter_result);
+    capture_owner(&process);
+    xw_player_pairing_trace_exit(&process);
+    assert(packet_failure_count == 1 && captured_operation == WR_PACKET_START_FRM1 &&
+           captured_result == XNOW_IDENTITY);
+    adapter_result = XNOW_IO;
+    assert(owner_enable_bulk(&endpoint) == adapter_result);
+    capture_owner(&process);
+    xw_player_pairing_trace_exit(&process);
+    assert(packet_failure_count == 2 && captured_operation == WR_PACKET_START_BULK &&
+           captured_result == XNOW_IO);
+    strcpy(process.log_tail, "REMOTE_RF_PACKET_START operation=1 result=-");
+    xw_player_pairing_trace_exit(&process);
+    strcpy(process.log_tail, "REMOTE_RF_PACKET_START operation=2 result=-1");
+    xw_player_pairing_trace_exit(&process);
+    assert(packet_failure_count == 2);
     puts("REMOTE_RETIREMENT_SUMMARY_PASS");
     return 0;
 }
