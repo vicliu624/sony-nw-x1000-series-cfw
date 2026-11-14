@@ -412,9 +412,12 @@ must send exactly one matching operation/value. Snapshot, watch, all four media
 views, eleven argument refusals and confirmed session close are separate checks.
 This is a modeled service contract, not an installed-player or RF acceptance.
 
-`test_sdk_app_equivalence.py` is a separate clean-CI check. It temporarily
-substitutes baseline source and refuses a dirty local checkout. Do not bypass
-that guard to run it in an active development tree.
+CI runs `test_sdk_app_equivalence.py --current` to build current packages. Hello
+builds first and supplies the launcher check used by the remaining app builders.
+The Dictionary and EBook native UI checks take their packages from that run via
+`--package`. Their temporary QEMU roots contain assets from the selected package.
+Historical equivalence mode temporarily substitutes baseline source and requires
+a clean CI checkout.
 
 For source archive qualification, build a fresh local SDK archive with
 `tools/package_sdk.py` and pass it to `tools/test_sdk_bundle.py`. This extracts a

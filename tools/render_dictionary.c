@@ -17,9 +17,11 @@ static void frame(const char *name) {
   assert(fwrite(ep_canvas, 2, 240 * 432, f) == 240 * 432);
   assert(!fclose(f));
 }
-int main(void) {
-  assert(dx_ui_open(&ui, "work/dictionary-data/lexicon.dic",
-                    "work/dictionary-data/font.bin"));
+int main(int argc, char **argv) {
+  assert(argc == 1 || argc == 3);
+  const char *lexicon = argc == 3 ? argv[1] : "work/dictionary-data/lexicon.dic";
+  const char *font = argc == 3 ? argv[2] : "work/dictionary-data/font.bin";
+  assert(dx_ui_open(&ui, lexicon, font));
   frame("01-home");
   strcpy(ui.input.query, "hello");
   dx_ui_refresh(&ui);

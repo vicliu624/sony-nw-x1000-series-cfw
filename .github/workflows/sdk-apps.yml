@@ -19,6 +19,7 @@ jobs:
     timeout-minutes: 45
     env:
       QEMU_UNSET_ENV: LD_LIBRARY_PATH,LD_PRELOAD
+      APP_CHECK_ROOT: work/sdk-migration/ci-current
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -38,17 +39,15 @@ jobs:
           sudo mount -t tmpfs -o size=3G,nodev,nosuid,mode=0755 tmpfs "$GITHUB_WORKSPACE/work"
           sudo chown "$(id -u):$(id -g)" "$GITHUB_WORKSPACE/work"
           python tools/ci_bootstrap.py
-          python tools/build_hello_app.py
-          python tools/build_libc_frontend.py
       - name: Check current SDK contracts
         run: python tools/audit_sdk_adoption.py
       - name: Build and verify all maintained current app packages
-        run: python tools/test_sdk_app_equivalence.py --current
+        run: python tools/test_sdk_app_equivalence.py --current --output "$APP_CHECK_ROOT"
       - name: Check text module separation and affected app behavior
         run: |
           python tools/test_sdk_text.py
-          python tools/test_dictionary_app.py
-          python tools/test_ebook_app.py
+          python tools/test_dictionary_app.py --package "$APP_CHECK_ROOT/current/packages/dictionary"
+          python tools/test_ebook_app.py --package "$APP_CHECK_ROOT/current/packages/ebook"
           python tools/test_ebook_epub.py
       - name: Check optional QQ playback components without a personal delivery profile
         run: |

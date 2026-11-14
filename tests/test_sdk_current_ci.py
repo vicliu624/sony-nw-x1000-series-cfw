@@ -36,6 +36,9 @@ class CurrentSDKCITests(unittest.TestCase):
         workflow = (ROOT / '.github/workflows/sdk-apps.yml').read_text(encoding='utf-8')
         self.assertIn('tools/test_sdk_app_equivalence.py --current', workflow)
         self.assertNotIn('tools/audit_sdk_adoption.py --check-logic', workflow)
+        self.assertNotIn('tools/build_hello_app.py', workflow)
+        for ident in ('dictionary', 'ebook'):
+            self.assertIn(f'tools/test_{ident}_app.py --package "$APP_CHECK_ROOT/current/packages/{ident}"', workflow)
         for test in ('test_sdk_text.py', 'test_dictionary_app.py',
                      'test_ebook_app.py', 'test_ebook_epub.py'):
             self.assertIn('python tools/' + test, workflow)

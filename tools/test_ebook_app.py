@@ -1,7 +1,13 @@
 """Host/ARM reader tests, bounded writer fault fixtures and native virtual UI. No player access."""
+import argparse
 from pathlib import Path
 import subprocess,json,hashlib,tempfile,os,shutil
 ROOT=Path(__file__).resolve().parents[1];w=ROOT/'work/ebook-tests';w.mkdir(exist_ok=True);lib=ROOT/'work/arm-signal-tests/lib';rows=[]
+parser=argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--package',type=Path,default=ROOT/'work/ebook-app/package')
+package=parser.parse_args().package.resolve()
+if not package.is_relative_to((ROOT/'work').resolve()) or not (package/'app').is_file():
+ parser.error('Select a built EBook package under work/')
 subprocess.run([__import__('sys').executable,'tools/prepare_ebook_fixtures.py'],cwd=ROOT,check=True)
 flags=['-std=c99','-O2','-DMINIZ_NO_STDIO','-DMINIZ_NO_TIME','-DMINIZ_NO_ARCHIVE_APIS','-DMINIZ_NO_DEFLATE_APIS','-D_DEFAULT_SOURCE','-U_FORTIFY_SOURCE','-D_FORTIFY_SOURCE=0','-fno-stack-protector','-ffunction-sections','-fdata-sections']
 common=['tools/test_ebook.c','runtime/apps/ebook/reader.c','runtime/apps/ebook/storage.c','runtime/apps/ebook/ui.c','runtime/platform/text/bitmap_font.c','runtime/native/sha256.c','runtime/apps/emulators/platform.c']
@@ -20,11 +26,14 @@ with tempfile.TemporaryDirectory(dir=w)as temp:
 # Production ARM binary: real assets, unverified user volume refused, virtual touch APPS exits.
 src=(ROOT/'tools/fixtures/device_preload.c').read_text().replace('../../runtime/native/font.inc',str(ROOT/'runtime/native/font.inc')).replace('unsigned x=30,y=400','unsigned x=210,y=12');(w/'devices.c').write_text(src)
 run=subprocess.run(['arm-linux-gnueabi-gcc','-D_GNU_SOURCE','-D_DEFAULT_SOURCE','-std=c99','-Os','-march=armv5te','-marm','-mfloat-abi=soft','-fPIC','-fno-builtin','-shared','-nostdlib','-Wl,--hash-style=sysv',str(w/'devices.c'),'runtime/native/syscalls.S',str(lib/'libc.so.6'),'-lgcc','-o',str(w/'devices.so')],cwd=ROOT,capture_output=True,text=True);assert run.returncode==0,run.stderr
-prefix=w/'sysroot';(prefix/'lib').mkdir(parents=True,exist_ok=True)
-for n in ['libc.so.6','ld-linux.so.3']:shutil.copyfile(lib/n,prefix/'lib'/n)
-assets=prefix/'contents/HOMEBREW/apps/ebook/assets';assets.mkdir(parents=True,exist_ok=True)
-for n in ['font.bin','gb18030.bin']:
- dest=assets/n
- if not dest.exists():os.link(ROOT/'work/ebook-app/package/assets'/n,dest)
-app=ROOT/'work/ebook-app/package/app';frame=w/'native-shelf.rgb565';run=subprocess.run(['qemu-arm','-cpu','arm926','-L',str(prefix),'-E','LD_PRELOAD='+str(w/'devices.so'),'-E','HB_TEST_FRAME='+str(frame),str(app)],cwd=ROOT,capture_output=True,text=True,timeout=30);assert run.returncode==0,(run.returncode,run.stdout,run.stderr);assert 'VDEV RELEASE COMPLETE'in run.stderr;rows.append({'case':'production-real-assets-unverified-volume-reject-and-touch-return','exit':run.returncode,'events':run.stderr.splitlines(),'sha256':hashlib.sha256(app.read_bytes()).hexdigest()})
+app=package/'app';frame=w/'native-shelf.rgb565'
+with tempfile.TemporaryDirectory(prefix='sysroot-',dir=w) as temp:
+ prefix=Path(temp);(prefix/'lib').mkdir()
+ for n in ['libc.so.6','ld-linux.so.3']:shutil.copyfile(lib/n,prefix/'lib'/n)
+ assets=prefix/'contents/HOMEBREW/apps/ebook/assets';assets.mkdir(parents=True)
+ for n in ['font.bin','gb18030.bin']:shutil.copyfile(package/'assets'/n,assets/n)
+ run=subprocess.run(['qemu-arm','-cpu','arm926','-L',str(prefix),'-E','LD_PRELOAD='+str(w/'devices.so'),'-E','HB_TEST_FRAME='+str(frame),str(app)],cwd=ROOT,capture_output=True,text=True,timeout=30)
+assert run.returncode==0,(run.returncode,run.stdout,run.stderr)
+assert 'VDEV RELEASE COMPLETE'in run.stderr
+rows.append({'case':'production-real-assets-unverified-volume-reject-and-touch-return','exit':run.returncode,'events':run.stderr.splitlines(),'sha256':hashlib.sha256(app.read_bytes()).hexdigest()})
 report={'passed':True,'cases':rows,'hardware_tested':False,'device_written':False,'scope':'Host and ARM/QEMU real reader/encoding/UI tests. Persistence fault tests use normal PC files with wrapped logical paths and simulated VFAT metadata. No real VFAT/power-loss, real touch or USB qualification.'};(w/'report.json').write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n');print(json.dumps(report,ensure_ascii=False,indent=2))

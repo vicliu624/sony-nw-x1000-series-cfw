@@ -60,6 +60,11 @@ def main():
               else json.loads((baseline/'baseline.json').read_text()))
     selected=a.apps or original['apps']
     if not set(selected)<=set(original['apps']):raise ValueError('Application is outside the selected check scope')
+    prepare_launcher=a.phase=='current' and not a.apps
+    if prepare_launcher:
+        # Hello's raw build is also the launcher fixture used by other builders.
+        if 'hello' not in selected:raise ValueError('Full current checks require Hello for launcher validation')
+        selected=sorted(selected,key=lambda ident:ident!='hello')
     info=applications();out=baseline/({'baseline':'rebuilt','verify':'migrated','current':'current'}[a.phase])
     if a.phase=='current' and out.exists():raise ValueError('Current-source reports require a fresh output')
     out.mkdir(parents=True,exist_ok=True)
@@ -113,6 +118,10 @@ def main():
             print(log.read_text(errors='replace')[-6000:],flush=True);raise RuntimeError(ident+' baseline/build check failed')
         from verify_app_package import verify
         verify(package)
+        if prepare_launcher and ident=='hello':
+            with (out/'launcher.log').open('wb') as stream:
+                subprocess.run([sys.executable,'tools/build_libc_frontend.py'],cwd=ROOT,env=env,
+                               stdout=stream,stderr=subprocess.STDOUT,check=True)
         payload=hashes(package);equivalent,noise=canonical_payload(package)
         row={'passed':True,'version':(ROOT/'runtime/apps'/ident/'VERSION').read_text().strip(),
              'payload_hashes':payload,'comparison_hashes':equivalent,'gcc_file_markers':noise,'log':str(log.relative_to(ROOT))}

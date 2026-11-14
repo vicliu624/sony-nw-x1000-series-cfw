@@ -21,7 +21,9 @@ def git(*args):return subprocess.check_output(['git',*args],cwd=ROOT)
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--current',action='store_true',help='Build/verify current apps without substituting old source or claiming byte equivalence')
+    parser.add_argument('--output',type=Path,help='Fresh output directory below work/ for current-app checks')
     args=parser.parse_args()
+    if args.output and not args.current:parser.error('--output requires --current')
     if not os.environ.get('GITHUB_ACTIONS'):raise RuntimeError('Run in clean Linux CI; do not substitute source in an active user checkout')
     if sys.flags.optimize:raise RuntimeError('Assertions must remain enabled')
     if subprocess.check_output(['git','status','--porcelain'],cwd=ROOT):raise RuntimeError('CI source must start clean')
@@ -36,7 +38,8 @@ def main():
     from ci_bootstrap import fetch
     font_manifest=json.loads((ROOT/'sources/qqmusic-font-source.json').read_text())
     for name,row in font_manifest['files'].items():fetch(row['url'],'work/qqmusic-font/'+name,row['sha256'])
-    root=ROOT/'work/sdk-migration'/('ci-'+str(time.time_ns()));root.mkdir(parents=True)
+    from sdk_build import fresh_work
+    root=fresh_work(args.output or ROOT/'work/sdk-migration'/('ci-'+str(time.time_ns())))
     apps=POLICY['apps']
     if args.current:
         info={'commit':git('rev-parse','HEAD').decode().strip(),'apps':apps,
