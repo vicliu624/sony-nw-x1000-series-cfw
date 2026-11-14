@@ -66,21 +66,43 @@ def complete_wordings(wordings):
   full=complete_missing(wordings[code],wordings['jp'],missing);other={i:s for i,s in changes.items() if i not in missing}
   wordings[code]=replace_verified_texts(full,{i:old[i] for i in other},other)
 
-def build(work,player,*,builtin_localization=False):
- work=Path(work);work.mkdir(parents=True,exist_ok=False)
- original=[(ROOT/f'work/upg-jp/verified-{i}.bin').read_bytes() for i in range(4)]
- stock=pack(original);assert hashlib.sha256(stock).hexdigest()=='002b6720b59f093a84440f554ffabe29f5879646839a5a28d43487b5cb41914b'
+def verify_homebrew_icon_root(root):
+    from PIL import Image
+
+    with tarfile.open(fileobj=io.BytesIO(root),mode='r:gz') as tar:
+        image=tar.extractfile('./usr/local/bin/SpiderApp').read()
+        data=tar.extractfile('./usr/local/share/GUI/skinRom/TEXGRP00.DAT').read()
+    elf=ELFFile(io.BytesIO(image));loads=[s for s in elf.iter_segments() if s['p_type']=='PT_LOAD']
+    def word(address):
+        for s in loads:
+            if s['p_vaddr']<=address and address+4<=s['p_vaddr']+s['p_filesz']:
+                return struct.unpack_from('<I',image,s['p_offset']+address-s['p_vaddr'])[0]
+        raise AssertionError('unmapped icon word')
+    assert word(0x4f7930)==140,'icon catalog count regressed'
+    a,b=word(0xb5984),word(0xb5988)
+    assert [word(a+i*4) for i in range(11)]==[54,55,56,57,58,59,60,61,62,63,139],'Homebrew reused Settings in mode1'
+    assert [word(b+i*4) for i in range(10)]==[62,54,56,57,58,59,63,61,60,139],'Homebrew reused Settings in mode2'
+    records=parse_tgp(data);assert len(records)==140
+    with tarfile.open(ROOT/'work/upg-jp/verified-3.bin',mode='r:gz') as original:
+        stock=original.extractfile('./usr/local/share/GUI/skinRom/TEXGRP00.DAT').read()
+    assert data[32:len(stock)]==stock[32:],'original texture altered'
+    icon=records[139];assert (icon['width'],icon['height'],icon['format'])==(64,64,16)
+    pixels=data[icon['offset']+32:icon['offset']+32+icon['bytes']]
+    assert pixels==Image.open(ROOT/'assets/icons/homebrew-shadow-v2-64.png').convert('RGBA').tobytes('raw','BGRA')
+    assert hashlib.sha256(data).hexdigest()=='4aefed358aa6aba176b38d7767ab71b87ed5ed7b3ba803552a1e799d13e49bf0','accepted shadow artwork changed'
+
+def compose_localized_root(work, stock_root, *, builtin_localization):
+ if hashlib.sha256(stock_root).hexdigest()!='c6307dba718f1faae821e0330b64532f13fe6ef98ff330a5919d7fb10525adf5':
+  raise ValueError('Original Sony root identity mismatch')
  from build_home_feedback import build as home_build
- spider,symbols,home_report=home_build(work/'home')
- descriptor=symbols['hb_error_descriptor'];parsed=ELFFile(io.BytesIO(spider))
- descriptor_offset=next(s['p_offset']+descriptor-s['p_vaddr'] for s in parsed.iter_segments() if s['p_type']=='PT_LOAD' and s['p_vaddr']<=descriptor and descriptor+48<=s['p_vaddr']+s['p_filesz'])
- editable=bytearray(spider);struct.pack_into('<I',editable,descriptor_offset+4,99999);struct.pack_into('<I',editable,descriptor_offset+20,0);spider=bytes(editable)
+ from builtin_language import enable_settings,normalize_home_feedback
+ home,symbols,_=home_build(work/'home')
+ spider=normalize_home_feedback(home,symbols)
  if builtin_localization:
-  from builtin_language import enable_settings
   spider=enable_settings(spider)
  else:spider=add_language_cache(spider,work)
  overlays={'usr/local/bin/SpiderApp':spider};wordings={}
- with tarfile.open(fileobj=io.BytesIO(original[3]),mode='r:gz') as t:
+ with tarfile.open(fileobj=io.BytesIO(stock_root),mode='r:gz') as t:
   for m in t:
    if m.isfile() and m.name.startswith('./usr/local/share/gemini/res/stx/') and m.name.endswith('.stx'):
     data,tid=append_stx(t.extractfile(m).read(),'Homebrew');data,error_tid=append_stx(data,'Homebrew unavailable.\nCheck HOMEBREW.');assert tid==7308 and error_tid==7309;overlays[m.name[2:]]=data
@@ -118,22 +140,42 @@ def build(work,player,*,builtin_localization=False):
    assert './'+name not in t.getnames()
    data=b'; Homebrew launch error\ntype:\t"dialog" ""\nsid:\t"sid-999-99"\n\nitem:\t"Homebrew" ""\nperson:\t""\n\ntid.0:\t"tid-7309"\n'
    entry=copy.copy(t.getmember('./usr/local/share/gemini/res/swd/ucs2-dev-sid-347-00.swd'));entry.name='./'+name;entry.size=len(data);dest.addfile(entry,io.BytesIO(data));overlays[name]=data
- root=gzip.compress(unpacked.getvalue(),compresslevel=9,mtime=0)
+ return gzip.compress(unpacked.getvalue(),compresslevel=9,mtime=0),wordings,sorted(overlays)
+
+def build(work,player,*,builtin_localization=False):
+ work=Path(work);work.mkdir(parents=True,exist_ok=False)
+ original=[(ROOT/f'work/upg-jp/verified-{i}.bin').read_bytes() for i in range(4)]
+ stock=pack(original);assert hashlib.sha256(stock).hexdigest()=='002b6720b59f093a84440f554ffabe29f5879646839a5a28d43487b5cb41914b'
+ root,wordings,changes=compose_localized_root(work,original[3],builtin_localization=builtin_localization)
  result=pack([*original[:3],root]);_,decoded=unpack(result,require_stock=False);assert decoded[:3]==original[:3] and decoded[3]==root
+ verify_homebrew_icon_root(decoded[3])
  (work/'NW_WM_FW.UPG').write_bytes(result)
- from test_homebrew_firmware_icon import verify as verify_homebrew_icon
- verify_homebrew_icon(work/'NW_WM_FW.UPG')
  # English and Chinese translation files are derived from the same stock table.
  for ident,code,name in ([] if builtin_localization else [('jp','jp','Japanese'),('en','en','English'),('zh-CN','cs','Simplified Chinese'),('zh-TW','ct','Traditional Chinese')]):
   folder=Path(player)/'HOMEBREW/languages'/ident;folder.mkdir(parents=True,exist_ok=True)
   data=None if ident=='jp' else wordings[code]
   (folder/'language.ini').write_bytes(manifest(ident,name,code,data))
   if data:(folder/'wording.stx').write_bytes(data)
- report={'firmware_sha256':hashlib.sha256(result).hexdigest(),'original_roundtrip_verified':True,'original_installer_kernel_initrd_preserved':True,'language_cache':'stock-system-resources' if builtin_localization else 'process-owned','native_language_settings':builtin_localization,'external_language_files_generated':not builtin_localization,'system_changes':sorted(overlays),'hardware_qualified':False,'flashed':False,'historical_candidate_dependency':False}
+ report={'firmware_sha256':hashlib.sha256(result).hexdigest(),'original_roundtrip_verified':True,'original_installer_kernel_initrd_preserved':True,'language_cache':'stock-system-resources' if builtin_localization else 'process-owned','native_language_settings':builtin_localization,'external_language_files_generated':not builtin_localization,'system_changes':changes,'hardware_qualified':False,'flashed':False,'historical_candidate_dependency':False}
  (work/'verification.json').write_text(json.dumps(report,indent=2)+'\n')
  return work/'NW_WM_FW.UPG',report
 
 if __name__=='__main__':
  import argparse
- parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--output',type=Path,required=True);parser.add_argument('--player',type=Path,required=True);parser.add_argument('--builtin-localization',action='store_true');args=parser.parse_args()
- print(json.dumps(build(args.output,args.player,builtin_localization=args.builtin_localization)[1],indent=2))
+ parser=argparse.ArgumentParser(description=__doc__)
+ parser.add_argument('--output',type=Path,required=True)
+ parser.add_argument('--player',type=Path)
+ parser.add_argument('--builtin-localization',action='store_true')
+ parser.add_argument('--root-only',action='store_true',help='Build only a built-in localization root tarball under work/')
+ args=parser.parse_args()
+ if args.root_only:
+  if args.player is not None:parser.error('--root-only has no --player output')
+  from sdk_build import fresh_work
+  work=fresh_work(args.output)
+  root,_,changes=compose_localized_root(work,(ROOT/'work/upg-jp/verified-3.bin').read_bytes(),builtin_localization=True)
+  verify_homebrew_icon_root(root)
+  path=work/'localized-root.tar.gz';path.write_bytes(root)
+  print(json.dumps(dict(root=path.relative_to(ROOT).as_posix(),sha256=hashlib.sha256(root).hexdigest(),system_changes=changes,firmware_created=False),indent=2))
+ else:
+  if args.player is None:parser.error('--player is required for a firmware build')
+  print(json.dumps(build(args.output,args.player,builtin_localization=args.builtin_localization)[1],indent=2))

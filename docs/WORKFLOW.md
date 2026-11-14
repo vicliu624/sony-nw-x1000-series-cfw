@@ -21,7 +21,9 @@ The player host builds its selected language composition once per invocation.
 The builder validates the stock image and patch spans, and records the resulting
 ELF and Settings overlay with their input identities. Independent tests use the
 same builder, then execute the refusal cases and ARM replay. Packaging consumes
-reviewed outputs through their receipts. See the [build guide](BUILD.md) for the
+reviewed outputs through their receipts. Build the localized root once and use
+its archive directly for managed layout, capacity and QEMU checks. See the
+[build guide](BUILD.md) for the
 supported commands and [architecture](ARCHITECTURE.md) for module ownership.
 
 ## Select verification

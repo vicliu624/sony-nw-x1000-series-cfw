@@ -107,8 +107,9 @@ after an unrelated documentation change.
 
 ## Firmware research
 
-The release firmware builder verifies the final UPG with
-tools/test_homebrew_firmware_icon.py. Homebrew must use its appended texture139
+The release firmware builder verifies the root contents decoded from the final
+UPG. `tools/test_homebrew_firmware_icon.py` can repeat the check on an existing
+package. Homebrew must use its appended texture 139
 in both Home layouts and the compiled catalog count must be140. The texture is
 generated from the maintained shadow PNG; stock Settings63 and every original
 texture remain unchanged. See releases/0.1.0-dev.22.md for the regression.
@@ -121,6 +122,23 @@ The original installer formats mtdblock/1 with ext2 before unpacking. A valid
 container/hash, small increment or 148MiB model does not establish safe flashing.
 Firmware candidates stay local and experimental. Routine checks do not generate
 an update package or install firmware; those are separate explicit operations.
+
+For a managed player layout, build the localized root once and pass it directly
+to layout assembly:
+
+```sh
+.venv/bin/python tools/release_firmware.py --root-only --output work/localized-root
+.venv/bin/python tools/prepare_player_system_layout.py \
+  --localization-root work/localized-root/localized-root.tar.gz \
+  --host-review work/example/host/build.json
+.venv/bin/python tools/review_managed_root_capacity.py \
+  --layout-review work/example/layout/report.json
+```
+
+The layout records the archive and its SHA-256. Capacity checks, the QEMU layout
+loader and final packaging use that same input. Existing layouts that reference
+a localized UPG can still be read when their input and source receipts validate.
+The final packer uses the verified original installer, kernel and initrd.
 
 For a complete root allocation model without producing firmware, use matching
 capacity/layout receipts and a prepared original Sony sysroot:

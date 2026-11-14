@@ -2,7 +2,7 @@
 import argparse,copy,gzip,hashlib,io,json,sys,tarfile,time
 from app_registry import ROOT
 from review_managed_remote_profile import private,receipt,digest
-from review_managed_root_capacity import inventory,compose_root_inventory
+from review_managed_root_capacity import inventory,compose_root_inventory,read_localization_root
 from release_firmware import pack
 sys.path.insert(0,str(ROOT/'scripts'))
 from upg import unpack
@@ -24,7 +24,7 @@ def main():
  parser=argparse.ArgumentParser(description=__doc__)
  parser.add_argument('--layout-review',required=True)
  parser.add_argument('--capacity-review',required=True)
- parser.add_argument('--localization-firmware',required=True)
+ parser.add_argument('--localization-firmware',help='Optional matching UPG for legacy layouts')
  parser.add_argument('--cold-dso-review',required=True,help='Fresh exact-library cold prepare/activation regression')
  parser.add_argument('--settings-count-review',help='Exact native Settings constructor/count regression')
  parser.add_argument('--prepare-exit-review',required=True,help='Fresh native exit idle/live wireless regression')
@@ -57,22 +57,20 @@ def main():
   if count['composition']['candidate_sha256']!=layout['files'][layout['player_payload_path']]['sha256']:
    raise ValueError('Settings count regression uses another player')
  cp=private(args.capacity_review);capacity=json.loads(cp.read_text())
- source=private(args.localization_firmware)
- if not capacity['passed'] or capacity['layout_review_sha256']!=digest(lp) or digest(source)!=layout['localization_input_sha256']:raise ValueError('Review/input identity mismatch')
- _,parts=unpack(source.read_bytes(),require_stock=False)
+ source,base_root,localization_sha=read_localization_root(layout,legacy_firmware=args.localization_firmware)
+ if not capacity['passed'] or capacity['layout_review_sha256']!=digest(lp) or capacity['localization_sha256']!=localization_sha:raise ValueError('Review/input identity mismatch')
  originals=[private('work/upg-jp/verified-'+str(i)+'.bin').read_bytes() for i in range(4)]
  if hashlib.sha256(pack(originals)).hexdigest()!='002b6720b59f093a84440f554ffabe29f5879646839a5a28d43487b5cb41914b':raise ValueError('Original roundtrip mismatch')
- if parts[:3]!=originals[:3]:raise ValueError('Installer/kernel/initrd differs')
  overlay={}
  for name,row in layout['files'].items():
   path=private(lp.parent/'root-overlay'/name);data=path.read_bytes()
   if len(data)!=row['bytes'] or hashlib.sha256(data).hexdigest()!=row['sha256']:raise ValueError('Overlay changed')
   overlay[name]=(data,int(row['mode'],8))
- base_inventory=inventory(parts[3])
+ base_inventory=inventory(base_root)
  declared_inventory=compose_root_inventory(base_inventory,layout['files'])
  missing_dirs={name for name,row in declared_inventory.items() if name not in base_inventory and row['kind']=='directory'}
  raw=io.BytesIO()
- with tarfile.open(fileobj=io.BytesIO(parts[3]),mode='r:gz') as old,tarfile.open(fileobj=raw,mode='w',format=tarfile.GNU_FORMAT) as new:
+ with tarfile.open(fileobj=io.BytesIO(base_root),mode='r:gz') as old,tarfile.open(fileobj=raw,mode='w',format=tarfile.GNU_FORMAT) as new:
   members=old.getmembers();written=set()
   for member in members:
    entry=copy.copy(member);name=entry.name.removeprefix('./').rstrip('/')

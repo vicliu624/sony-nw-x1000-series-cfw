@@ -13,17 +13,13 @@ import re
 import stat
 import struct
 import subprocess
-import sys
 import tarfile
 import tempfile
 
 from elftools.elf.elffile import ELFFile
 
 from review_managed_remote_profile import ROOT, WORK, digest, private, receipt
-from review_managed_root_capacity import compose_root_inventory, inventory
-
-sys.path.insert(0, str(ROOT / 'scripts'))
-from upg import unpack
+from review_managed_root_capacity import compose_root_inventory, inventory, read_localization_root
 
 STOCK_ROOT_SHA256 = 'c6307dba718f1faae821e0330b64532f13fe6ef98ff330a5919d7fb10525adf5'
 NAND_MODULE_SHA256 = '3263ab460d48160549dba1c67d96a9a76ee47ff93281d061a6c663b1c191cdd9'
@@ -264,15 +260,14 @@ def main():
     if hashlib.sha256(stock_raw).hexdigest() != STOCK_ROOT_SHA256:
         raise ValueError('Original Sony root differs')
     stock, stock_data, stock_times, stock_root = archive_inputs(stock_raw)
-    firmware = private(layout['localization_input'])
-    if digest(firmware) != layout['localization_input_sha256'] or digest(firmware) != capacity['localization_sha256']:
+    localization, localized_root, localization_sha = read_localization_root(layout)
+    if localization_sha != capacity['localization_sha256']:
         raise ValueError('Localization input differs')
-    _, parts = unpack(firmware.read_bytes(), require_stock=False)
-    base, data, times, root_metadata = archive_inputs(parts[3])
+    base, data, times, root_metadata = archive_inputs(localized_root)
     candidate = compose_root_inventory(base, layout['files'])
     validate_tree(candidate)
     inputs = {path.relative_to(ROOT).as_posix(): digest(path)
-              for path in (capacity_path, layout_path, stock_path, firmware)}
+              for path in (capacity_path, layout_path, stock_path, localization)}
     for name, row in layout['files'].items():
         path = private(layout_path.parent / 'root-overlay' / name)
         raw = path.read_bytes()

@@ -12,7 +12,7 @@ import zipfile
 from app_registry import ROOT
 from market_metadata import parse_version, compare_versions
 from review_managed_remote_profile import digest, private, receipt, radio_dependencies
-from review_managed_root_capacity import inventory, compose_root_inventory
+from review_managed_root_capacity import inventory, compose_root_inventory, read_localization_root
 from test_firmware_regressions import source_inventory
 
 sys.path.insert(0, str(ROOT / 'scripts'))
@@ -107,11 +107,10 @@ def reviewed_inputs(firmware_review, allocation_review, regressions):
                      for i in range(3)]:
         raise ValueError('Original installation components changed')
     actual = inventory(parts[3])
-    base_path = private(layout['localization_input'])
-    if digest(base_path) != layout['localization_input_sha256']:
-        raise ValueError('Localization input changed')
-    base_parts = unpack(base_path.read_bytes(), require_stock=False)[1]
-    if actual != compose_root_inventory(inventory(base_parts[3]), layout['files']):
+    _, base_root, localization_sha = read_localization_root(layout)
+    if localization_sha != capacity['localization_sha256']:
+        raise ValueError('Localization input differs from capacity review')
+    if actual != compose_root_inventory(inventory(base_root), layout['files']):
         raise ValueError('Complete packaged root differs from reviewed layout')
     for name, row in layout['files'].items():
         if actual[name]['sha256'] != row['sha256'] or actual[name]['bytes'] != row['bytes']:

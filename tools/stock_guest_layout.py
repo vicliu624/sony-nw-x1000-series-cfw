@@ -3,10 +3,10 @@ import hashlib
 import io
 from pathlib import PurePosixPath
 import stat
-import sys
 import tarfile
 from app_registry import ROOT
-from review_managed_remote_profile import receipt, private, digest
+from review_managed_remote_profile import receipt, digest
+from review_managed_root_capacity import read_localization_root
 
 
 def read_overlay(directory, rows):
@@ -44,26 +44,21 @@ def load_layout(path):
     for name, sha in host['source_hashes'].items():
         if digest(ROOT / name) != sha:
             raise ValueError('Stale guest host source: ' + name)
-    source = private(layout['localization_input'])
-    if digest(source) != layout['localization_input_sha256']:
-        raise ValueError('Guest source firmware identity differs')
-    sys.path.insert(0, str(ROOT / 'scripts'))
-    from upg import unpack
-    _, parts = unpack(source.read_bytes(), require_stock=False)
-    if len(parts) != 4 or any(parts[i] != (ROOT / f'work/upg-jp/verified-{i}.bin').read_bytes() for i in range(3)):
-        raise ValueError('Guest source changed Sony installation components')
+    source, localized_root, source_sha = read_localization_root(layout)
     overlay_root = layout_path.parent / 'root-overlay'
     overlay = read_overlay(overlay_root, layout['files'])
     if hashlib.sha256(overlay['usr/local/lib/libx1000-player.so'][0]).hexdigest() != host['library_sha256']:
         raise ValueError('Guest library differs from the host composition')
     if hashlib.sha256(overlay[layout['player_payload_path']][0]).hexdigest() != host['candidate_sha256']:
         raise ValueError('Guest player differs from the host composition')
-    with tarfile.open(fileobj=io.BytesIO(parts[3]), mode='r:gz') as archive:
+    with tarfile.open(fileobj=io.BytesIO(localized_root), mode='r:gz') as archive:
         app_list = overlay['etc/AppList.conf'][0] if 'etc/AppList.conf' in overlay else archive.extractfile('./etc/AppList.conf').read()
     metadata = {'layout_review': layout_path.relative_to(ROOT).as_posix(),
-                'layout_sha256': digest(layout_path), 'source_firmware_sha256': digest(source),
+                'layout_sha256': digest(layout_path), 'localization_input_sha256': source_sha,
                 'player_sha256': host['candidate_sha256'], 'library_sha256': host['library_sha256'],
                 'firmware_created': False, 'device_accessed': False,
                 'source_hashes': {**layout['source_hashes'], **host['source_hashes']}}
     inputs = [layout_path, source, *[overlay_root / name for name in overlay]]
-    return parts[3], app_list, overlay, metadata, inputs
+    if 'localization_input' in layout:
+        metadata['source_firmware_sha256'] = source_sha
+    return localized_root, app_list, overlay, metadata, inputs

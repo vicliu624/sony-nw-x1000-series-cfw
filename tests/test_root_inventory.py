@@ -1,12 +1,15 @@
 """A reviewed root must include the parent directories the packer creates."""
 from pathlib import Path
 import copy
+import hashlib
 import sys
+import tempfile
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'tools'))
-from review_managed_root_capacity import compose_root_inventory
+from review_managed_root_capacity import compose_root_inventory, read_localization_root
 
 
 def directory(mode=0o755, uid=0, gid=0):
@@ -63,6 +66,21 @@ class RootInventoryTests(unittest.TestCase):
         expected = copy.deepcopy((base, overlay))
         compose_root_inventory(base, overlay)
         self.assertEqual((base, overlay), expected)
+
+    def test_localized_root_identity_is_verified_without_upg_decoder(self):
+        with tempfile.TemporaryDirectory(dir=ROOT / 'work') as folder:
+            path = Path(folder) / 'localized-root.tar.gz'
+            data = b'localized root fixture'
+            path.write_bytes(data)
+            sha = hashlib.sha256(data).hexdigest()
+            layout = dict(localization_root=path, localization_root_sha256=sha)
+            with patch('review_managed_root_capacity.unpack', side_effect=AssertionError('Unexpected UPG decoder')):
+                self.assertEqual(read_localization_root(layout), (path.resolve(), data, sha))
+                path.write_bytes(b'different root')
+                with self.assertRaisesRegex(ValueError, 'Localization input mismatch'):
+                    read_localization_root(layout)
+                with self.assertRaisesRegex(ValueError, 'already specifies a localized root'):
+                    read_localization_root(layout, legacy_firmware=path)
 
 
 if __name__ == '__main__':

@@ -6,6 +6,34 @@ from review_managed_remote_profile import private,receipt,digest
 sys.path.insert(0,str(ROOT/'scripts'))
 from upg import unpack
 
+def read_root_input(path, *, root_only, expected=None):
+    path = private(path)
+    data = path.read_bytes()
+    actual = hashlib.sha256(data).hexdigest()
+    if expected is not None and actual != expected:
+        raise ValueError('Localization input mismatch')
+    if root_only:
+        return path, data, actual
+    _, parts = unpack(data, require_stock=False)
+    originals = [private(f'work/upg-jp/verified-{i}.bin').read_bytes() for i in range(3)]
+    if len(parts) != 4 or parts[:3] != originals:
+        raise ValueError('Localization UPG changed Sony installation components')
+    return path, parts[3], actual
+
+
+def read_localization_root(layout, *, legacy_firmware=None):
+    """Read the exact base recorded by a layout, including legacy UPG inputs."""
+    root_only = 'localization_root' in layout
+    if root_only and (legacy_firmware is not None or 'localization_input' in layout):
+        raise ValueError('Layout already specifies a localized root archive')
+    kind = 'localization_root' if root_only else 'localization_input'
+    expected = layout[kind + '_sha256']
+    if not isinstance(expected, str) or len(expected) != 64:
+        raise ValueError('Missing localization input identity')
+    path = legacy_firmware if legacy_firmware is not None else layout[kind]
+    return read_root_input(path, root_only=root_only, expected=expected)
+
+
 def inventory(raw):
  result={}
  with tarfile.open(fileobj=io.BytesIO(raw),mode='r:gz') as archive:
@@ -52,16 +80,14 @@ def compose_root_inventory(base, overlay):
 def main():
  parser=argparse.ArgumentParser(description=__doc__)
  parser.add_argument('--layout-review',type=Path,required=True)
- parser.add_argument('--localization-firmware',type=Path,required=True)
+ parser.add_argument('--localization-firmware',type=Path,help='Optional matching UPG for legacy layouts')
  args=parser.parse_args()
  layout_path,layout=receipt(args.layout_review)
- source=private(args.localization_firmware)
- if digest(source)!=layout['localization_input_sha256']:raise ValueError('Localization input mismatch')
+ _,root,localization_sha=read_localization_root(layout,legacy_firmware=args.localization_firmware)
  if not layout['prepared'] or not layout['analysis_only'] or layout['player_copies_in_final_layout']!=1:raise ValueError('Expected single-player analysis layout')
  original=private('work/upg-jp/verified-3.bin')
  if digest(original)!='c6307dba718f1faae821e0330b64532f13fe6ef98ff330a5919d7fb10525adf5':raise ValueError('Original root mismatch')
- _,parts=unpack(source.read_bytes(),require_stock=False)
- stock=inventory(original.read_bytes());base=inventory(parts[3])
+ stock=inventory(original.read_bytes());base=inventory(root)
  for name,row in layout['files'].items():
   path=private(layout_path.parent/'root-overlay'/name)
   if digest(path)!=row['sha256'] or path.stat().st_size!=row['bytes']:raise ValueError('Overlay input mismatch: '+name)
@@ -77,7 +103,7 @@ def main():
   regular_file_allocation_models=[dict(block_bytes=block,delta_bytes=rounded(candidate,block)-rounded(stock,block)) for block in (1024,4096)],
   changed_paths=changes,layout_review=layout_path.relative_to(ROOT).as_posix(),layout_review_sha256=digest(layout_path),
   new_directories=sorted(name for name,row in candidate.items() if name not in base and row['kind']=='directory'),
-  localization_sha256=digest(source),original_root_sha256=digest(original),
+  localization_sha256=localization_sha,original_root_sha256=digest(original),
   source_hashes={name:digest(ROOT/name) for name in ('tools/review_managed_root_capacity.py','tools/review_managed_remote_profile.py','scripts/upg.py','scripts/upg_crypto.py')},
   capacity_margin_verified=False,limitations=['Complete proposed file inventory, not an allocated filesystem image.',
    'Block models omit inode/directory/indirect blocks, reserved space and flash translation/bad blocks.',

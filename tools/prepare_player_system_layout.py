@@ -6,28 +6,28 @@ import io
 import json
 from pathlib import Path
 import subprocess
-import sys
 import tarfile
 import time
 from app_registry import ROOT
 from build_player_host import build
 from builtin_language import SETTINGS_SHA
 from player_arm_guest import stock_libraries
+from review_managed_root_capacity import read_root_input
 from remote_choice_resource import SOURCE as REMOTE_TEMPLATE, TARGET as REMOTE_RESOURCE
 from remote_choice_resource import BOUND_TARGET,CONFIRM_TARGET,CONFIRM_SOURCE,PAIR_TARGET
-sys.path.insert(0, str(ROOT/'scripts'))
-from upg import unpack
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--localization-firmware', type=Path, required=True)
+    base_input = parser.add_mutually_exclusive_group(required=True)
+    base_input.add_argument('--localization-root', type=Path, help='Built-in localization root tarball under work/')
+    base_input.add_argument('--localization-firmware', type=Path, help='Legacy built-in localization UPG under work/')
     parser.add_argument('--host-review',type=Path,help='Reuse a fresh composed managed host receipt instead of building the base profile')
     args=parser.parse_args()
-    source=args.localization_firmware.resolve()
-    if not source.is_relative_to(ROOT/'work'):
-        raise ValueError('Use a local review input under work')
-    _,parts=unpack(source.read_bytes(),require_stock=False)
-    with tarfile.open(fileobj=io.BytesIO(parts[3]),mode='r:gz') as archive:
+    source, localized_root, source_sha = read_root_input(args.localization_root or args.localization_firmware,
+                                                         root_only=args.localization_root is not None)
+    kind = 'localization_root' if args.localization_root else 'localization_input'
+    source_fields = {kind: source.relative_to(ROOT).as_posix(), kind + '_sha256': source_sha}
+    with tarfile.open(fileobj=io.BytesIO(localized_root),mode='r:gz') as archive:
         base=archive.extractfile('./usr/local/bin/SpiderApp').read()
         app_list=archive.extractfile('./etc/AppList.conf').read()
         resource_modes={m.name.removeprefix('./'):m.mode for m in archive.getmembers()
@@ -139,7 +139,7 @@ def main():
         row=image['overlay'][radio_path]
         candidate=ROOT/row['artifact']
         artifact(candidate,row['sha256'],row['bytes'])
-        with tarfile.open(fileobj=io.BytesIO(parts[3]),mode='r:gz') as archive:
+        with tarfile.open(fileobj=io.BytesIO(localized_root),mode='r:gz') as archive:
             original=archive.getmember('./'+radio_path)
             if (not original.isfile() or hashlib.sha256(archive.extractfile(original).read()).hexdigest()!=row['original_sha256'] or
                 (original.mode,original.uid,original.gid)!=(row['mode'],row['uid'],row['gid'])):
@@ -154,7 +154,7 @@ def main():
         manifest[name]=dict(bytes=len(data),mode=oct(mode),sha256=hashlib.sha256(data).hexdigest())
         if name in new_ownership:
             manifest[name]['uid'],manifest[name]['gid']=new_ownership[name]
-    with tarfile.open(fileobj=io.BytesIO(parts[3]),mode='r:gz') as archive:
+    with tarfile.open(fileobj=io.BytesIO(localized_root),mode='r:gz') as archive:
         localization_entries={m.name.removeprefix('./'):m for m in archive.getmembers()}
     growth=sum(len(data)-(localization_entries[name].size if name in localization_entries else 0) for name,(data,mode) in entries.items())
     stock_root=ROOT/'work/upg-jp/verified-3.bin'
@@ -167,7 +167,7 @@ def main():
             if old and not old.isfile():raise ValueError('Overlay would replace non-file: '+name)
             accounting.append(dict(path=name,original_bytes=old.size if old else 0,candidate_bytes=len(data),delta_bytes=len(data)-(old.size if old else 0)))
     report=dict(prepared=True,analysis_only=True,ready_to_flash=False,firmware_created=False,
-                device_accessed=False,localization_input=source.relative_to(ROOT).as_posix(),localization_input_sha256=hashlib.sha256(source.read_bytes()).hexdigest(),
+                device_accessed=False,**source_fields,
                 host_build=host,files=manifest,player_copies_in_final_layout=1,
                 native_remote_page_review=page_review.relative_to(ROOT).as_posix() if page_review else None,
                 regular_file_growth_over_localization_bytes=growth,
@@ -182,13 +182,14 @@ def main():
                 controller_session_created=False,radio_enabled=False,
                 source_hashes={s:hashlib.sha256((ROOT/s).read_bytes()).hexdigest()
                                for s in [*sources,'tools/prepare_player_system_layout.py','tools/builtin_language.py',
-                                         'tools/remote_choice_resource.py',
+                                         'tools/remote_choice_resource.py','tools/review_managed_root_capacity.py',
                                          *([page_review.relative_to(ROOT).as_posix()] if page_review else [])]},
                 limits=['Root overlay only: no installer or UPG output.',
                         'Original sysmgr registration and full SpiderApp startup require hardware qualification.',
                         'Overlay accounting excludes other localization/menu resource changes and filesystem allocation.',
                         'Native Settings, RF power-off, persistent sessions and sleep require physical acceptance.'])
     report['source_hashes'].update(runtime_source_hashes)
+    report['source_hashes'][source.relative_to(ROOT).as_posix()] = source_sha
     if args.host_review:
         report['source_hashes']['tools/review_managed_remote_profile.py']=hashlib.sha256((ROOT/'tools/review_managed_remote_profile.py').read_bytes()).hexdigest()
     for name,expected in report['source_hashes'].items():
