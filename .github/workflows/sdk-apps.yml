@@ -3,7 +3,6 @@ name: Current SDK application checks
 on:
   push:
     branches: [main]
-    paths: ['sdk/**', 'runtime/apps/**', 'runtime/native/**', 'runtime/store/**', 'runtime/platform/**', 'tools/*sdk*.py', 'tools/native_app_build.py', 'tools/build_qqmusic_codec.py', 'tools/build_qqmusic_wifi_helper.py', 'tools/build_app.py', 'config/sdk-migration.json', '.github/workflows/sdk-apps.yml']
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -25,37 +24,60 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
+      - name: Check for application build inputs in the diff
+        id: scope
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" != workflow_dispatch ]] &&
+             git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null &&
+             git diff --quiet --no-renames "$BASE_SHA" HEAD -- \
+               runtime sdk tools scripts config sources third_party assets examples translations \
+               docs/apps VERSION 'requirements*.txt' .gitattributes .gitignore .github/workflows/sdk-apps.yml; then
+            echo 'needed=false' >> "$GITHUB_OUTPUT"
+            echo 'Application build inputs are unchanged.'
+          else
+            echo 'needed=true' >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        if: steps.scope.outputs.needed == 'true'
         with:
           python-version: '3.12.3'
       - name: Install the original application build tools
+        if: steps.scope.outputs.needed == 'true'
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y gcc gcc-12 gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi libc6-dev-armel-cross qemu-user p7zip-full make libssl-dev openssl pkg-config libsdl2-dev
           python -m pip install -r requirements-ci.txt
       - name: Prepare isolated offline application work volume
+        if: steps.scope.outputs.needed == 'true'
         run: |
           mkdir -p work
           sudo mount -t tmpfs -o size=3G,nodev,nosuid,mode=0755 tmpfs "$GITHUB_WORKSPACE/work"
           sudo chown "$(id -u):$(id -g)" "$GITHUB_WORKSPACE/work"
           python tools/ci_bootstrap.py
       - name: Check current SDK contracts
+        if: steps.scope.outputs.needed == 'true'
         run: python tools/audit_sdk_adoption.py
       - name: Build and verify all maintained current app packages
+        if: steps.scope.outputs.needed == 'true'
         run: python tools/test_sdk_app_equivalence.py --current --output "$APP_CHECK_ROOT"
       - name: Check text module separation and affected app behavior
+        if: steps.scope.outputs.needed == 'true'
         run: |
           python tools/test_sdk_text.py
           python tools/test_dictionary_app.py --package "$APP_CHECK_ROOT/current/packages/dictionary"
           python tools/test_ebook_app.py --package "$APP_CHECK_ROOT/current/packages/ebook"
           python tools/test_ebook_epub.py
       - name: Check optional QQ playback components without a personal delivery profile
+        if: steps.scope.outputs.needed == 'true'
         run: |
           python tools/test_qqmusic_preview_pcm.py
           python tools/test_qqmusic_preview_handoff.py
           python tools/test_qqmusic_preview_device.py
           python tools/test_qqmusic_preview_device_posix.py
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: steps.scope.outputs.needed == 'true'
         with:
           name: sdk-current-app-checks
           path: work/sdk-migration/ci-*/current/report.json

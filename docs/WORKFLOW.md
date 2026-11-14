@@ -56,6 +56,12 @@ one invocation; an old PASS is never a current result. Existing build reuse must
 validate sources, headers, flags, compiler and linked inputs. Introduce additional
 cache machinery only after measuring a remaining compilation bottleneck.
 
+The SDK application workflow compares pushes and pull requests against their
+recorded base before installing tools. It runs the full app matrix for changes
+to build inputs, including app guides that enter packages. The job completes
+after the diff check for changes such as general documentation. Manual runs
+and runs with an unavailable base use the full matrix.
+
 ## Stop and expansion rules
 
 - After the selected checks pass, review the diff and finish the iteration.
