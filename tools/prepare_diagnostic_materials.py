@@ -55,6 +55,8 @@ def delivery_inputs(template, radio_directory, owner):
     radio = {}
     prefix = '/contents/HOMEBREW/data/wireless-remote/candidate/'
     for row in radio_dependencies(owner)['immutable_inputs']:
+        if radio_directory is None:
+            raise ValueError('This owner requires --radio-inputs for its external radio files')
         device_path = row['device_path']
         if device_path not in (prefix + 'sd8686.bin', prefix + 'helper_sd.bin'):
             raise ValueError('Unexpected external dependency path')
@@ -299,6 +301,8 @@ def instructions(version, reviewed, controller):
     model = reviewed['model']
     growth = model['used_growth_bytes'] / 1024
     margin = model['model_nonreserved_margin_bytes'] / 1048576
+    external_radio = reviewed.get('owner', {}).get('external_radio_inputs_required') is not False
+    player_files = 'two immutable RF inputs and a fresh 2 KiB diagnostic record' if external_radio else 'a fresh 2 KiB diagnostic record'
     controller_files = (f'- 04_CORE2: matching Core2 {controller["version"]} application and build receipt.\n'
                         '  It contains no bootloader, partition table, NVS or saved pairing data.\n') if controller else ''
     controller_requirement = (f'Use the matching Core2 {controller["version"]} application. If that exact\n'
@@ -325,7 +329,7 @@ guarantee. No updater, drive operation or controller flash runs during preparati
 
 - 01_PC_UPDATE: unchanged Sony updater, DLLs, INI and licenses with this diagnostic UPG.
 - 02_ORIGINAL_SONY: the original Sony 1.11 updater/package, preserved separately.
-- 03_PLAYER_FILES: two immutable RF inputs and a fresh 2 KiB diagnostic record.
+- 03_PLAYER_FILES: {player_files}.
   It contains no pairing keys, configuration, PN journals, apps or saved games.
   Existing Homebrew launcher/apps stay in place. Remote programs and SDK library
   are embedded in the firmware; do not copy old owner.arm/service.arm files.
@@ -487,7 +491,7 @@ def main():
     parser.add_argument('--regression-review', required=True)
     parser.add_argument('--controller-review', help='Required matching Core2 build for negotiated-link firmware')
     parser.add_argument('--updater-template', type=Path, required=True, help='Stock UPG, updater files and licenses under work/')
-    parser.add_argument('--radio-inputs', type=Path, required=True, help='Directory under work/ containing reviewed external radio files')
+    parser.add_argument('--radio-inputs', type=Path, help='Reviewed external RF files for a legacy owner')
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
     output = args.output.resolve()
@@ -500,7 +504,7 @@ def main():
     controller = matching_controller(reviewed['owner'], args.controller_review,
                                      play_mode_control=bool(supervisor.get('play_mode_control')),
                                      service_review=reviewed['service_review'])
-    updater, radio = delivery_inputs(ROOT / args.updater_template, ROOT / args.radio_inputs, reviewed['owner'])
+    updater, radio = delivery_inputs(ROOT / args.updater_template, args.radio_inputs, reviewed['owner'])
     archive, archive_sha256 = assemble_materials(output, reviewed, controller, updater, radio)
     print(json.dumps(dict(prepared=True, directory=output.relative_to(ROOT).as_posix(),
                           archive=archive.relative_to(ROOT).as_posix(), archive_sha256=archive_sha256,

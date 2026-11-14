@@ -32,8 +32,6 @@ def build(*, sdk_review=None, rx_diagnostic_radio=None, external_radio_inputs=No
         raise ValueError('Select --rx-diagnostic-radio or --legacy-radio')
     if legacy_radio and root_cold:
         raise ValueError('Root owner requires an explicit RX diagnostic radio review')
-    if not legacy_radio and external_radio_inputs is None:
-        raise ValueError('Root owner requires --external-radio-inputs')
     if link_keys and (not managed_session or not root_cold or data_leaf != 'wireless-remote'):
         raise ValueError('--link-keys requires the managed root profile and wireless-remote binding')
     if not re.fullmatch(r'[a-z][a-z0-9-]{0,47}', data_leaf):
@@ -84,22 +82,22 @@ def build(*, sdk_review=None, rx_diagnostic_radio=None, external_radio_inputs=No
     stock_root = private('work/upg-jp/verified-3.bin')
     stock_manifest = stock_header(stock_root)
     data_directory = '/contents/HOMEBREW/data/' + data_leaf
-    # The retained user-volume RF pair belongs to the legacy loader. Root
-    # profiles use the selected system image, but keep the same input table
-    # for the separately checked external files in existing diagnostic kits.
-    external_radio = ROOT / (external_radio_inputs if external_radio_inputs is not None else review / 'candidate')
     exchange = ['static const struct stock_input exchange_inputs[]={']
     external_hashes = {}
-    for name, expected in (
-        ('sd8686.bin', 'd4b92b65fa502e2c8c94d241e4a293e28db7e98a3afdba0958d8b4f8aa1a5ed8'),
-        ('helper_sd.bin', 'b0157d1f4518e806c0bc5128ab302a7f97d78ee34b84cb41cb4f2bbbb2a00e6d'),
-    ):
-        path = private(external_radio / name)
-        data = path.read_bytes()
-        if hashlib.sha256(data).hexdigest() != expected:
-            raise ValueError('Legacy radio input differs: ' + name)
-        exchange.append(file_initializer(data_directory + '/candidate/' + name, data))
-        external_hashes[path.relative_to(ROOT).as_posix()] = expected
+    # The managed Root entry selects root_radio for both shared and cold views.
+    # The user-volume table is only needed by a legacy entry or delivery.
+    if legacy_radio or external_radio_inputs is not None:
+        external_radio = ROOT / (external_radio_inputs if external_radio_inputs is not None else review / 'candidate')
+        for name, expected in (
+            ('sd8686.bin', 'd4b92b65fa502e2c8c94d241e4a293e28db7e98a3afdba0958d8b4f8aa1a5ed8'),
+            ('helper_sd.bin', 'b0157d1f4518e806c0bc5128ab302a7f97d78ee34b84cb41cb4f2bbbb2a00e6d'),
+        ):
+            path = private(external_radio / name)
+            data = path.read_bytes()
+            if hashlib.sha256(data).hexdigest() != expected:
+                raise ValueError('Legacy radio input differs: ' + name)
+            exchange.append(file_initializer(data_directory + '/candidate/' + name, data))
+            external_hashes[path.relative_to(ROOT).as_posix()] = expected
     exchange_header = '\n'.join([*exchange, '};']) + '\n'
 
     out = fresh_work(output or ROOT / 'work/remote-owner-build' / str(time.time_ns()))
@@ -216,6 +214,7 @@ def build(*, sdk_review=None, rx_diagnostic_radio=None, external_radio_inputs=No
                 owner_mode_view_supported=mode_view_required,owner_mode_view_required=mode_view_required,mode_admission_cases=mode_admission_cases,
                 shared_wifi_supported=managed_session,
                 root_cold_supported=root_cold,
+                external_radio_inputs_required=bool(external_hashes),
                 negotiated_link_keys=link_keys,
                 continuous_mode_refresh_compiled=mode_view_required,mode_refresh_ms=200 if mode_view_required else 0,mode_stale_ms=1000 if mode_view_required else 0,
                 power_off_exit_profile=power_off_exit,
@@ -243,7 +242,7 @@ def main():
     parser.add_argument('--root-cold', action='store_true')
     parser.add_argument('--data-leaf', default='espnow-test')
     parser.add_argument('--sdk-review', type=Path, required=True, help='Native ESP-NOW SDK build.json under work/')
-    parser.add_argument('--external-radio-inputs', type=Path, help='Pinned legacy RF files for the diagnostic kit under work/')
+    parser.add_argument('--external-radio-inputs', type=Path, help='Optional legacy user-volume RF files under work/')
     parser.add_argument('--output', type=Path)
     radio = parser.add_mutually_exclusive_group(required=True)
     radio.add_argument('--rx-diagnostic-radio', type=Path, help='Reviewed exact-image build directory under work/')

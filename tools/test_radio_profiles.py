@@ -39,7 +39,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--radio-reviews", type=Path, help="Directory containing verified scalar, bulk, vector and frame builds")
-    parser.add_argument("--sdk-review", type=Path, help="Verified native SDK build.json to use for ARM replay")
+    sdk_input = parser.add_mutually_exclusive_group()
+    sdk_input.add_argument("--sdk-review", type=Path, help="Verified native SDK build.json to use for ARM replay")
+    sdk_input.add_argument("--mailbox-review", type=Path, help="Verified mailbox review.json to use for a fresh SDK build")
     parser.add_argument("--source-snapshot", type=Path, help="Reuse an exact source ZIP below work/")
     args = parser.parse_args()
     if sys.flags.optimize:
@@ -89,7 +91,7 @@ def main():
             else:
                 directory = output / name
                 manifest = build(ROOT / "work/targets-jp/sd8686.bin",
-                                 ROOT / "work/espnow-full-radio-review-3/stock/helper_sd.bin",
+                                 ROOT / "work/targets-jp/helper_sd.bin",
                                  directory, rx_diagnostics=True, **options)
             directories[name] = directory
             for leaf in ("manifest.json", "radio.elf", "stock/sd8686.bin", "candidate/sd8686.bin", "candidate/helper_sd.bin"):
@@ -107,7 +109,10 @@ def main():
             save()
         if sdk is None:
             native = output / "native-sdk"
-            run("native-library", "runtime/platform/espnow/build_library.py", "--output", native)
+            options = ["--output", native]
+            if args.mailbox_review is not None:
+                options.extend(("--mailbox-review", args.mailbox_review))
+            run("native-library", "runtime/platform/espnow/build_library.py", *options)
             sdk = native_sdk_build(native / "sdk/build.json")
         sdk_path, archive, sdk_report = sdk
         report["native_sdk"] = dict(review=sdk_path.relative_to(ROOT).as_posix(),

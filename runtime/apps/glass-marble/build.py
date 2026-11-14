@@ -11,7 +11,7 @@ OUT=ROOT/'work/glass-marble';OUT.mkdir(parents=True,exist_ok=True)
 APP=ROOT/'runtime/apps/glass-marble'
 def run(args,**kw):return subprocess.run([str(a) for a in args],cwd=ROOT,check=True,**kw)
 radio=OUT/('radio-'+str(time.time_ns()))
-original=ROOT/'work/espnow-full-radio-review-3/stock'
+original=ROOT/'work/targets-jp'
 run([sys.executable,ROOT/'tools/build_espnow_full_radio.py','--original',original/'sd8686.bin','--helper',original/'helper_sd.bin','--output',radio],stdout=subprocess.DEVNULL)
 manifest=json.loads((radio/'manifest.json').read_text())
 (OUT/'full_profile.h').write_text(render(radio))

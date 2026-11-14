@@ -77,6 +77,11 @@ capabilities independently. Its Settings policy and remote protocol remain with
 that consumer. Private Sony composition connects these pieces at one integration
 boundary; it does not become another public service API.
 
+Managed Root uses the reviewed system radio and stock helper for both shared
+and cold startup. Only the legacy loader uses the external radio table. The
+diagnostic packer follows the selected owner's table, so the Root delivery
+does not require an unrelated legacy radio build or duplicate its files.
+
 The Remote consumer legitimately requires both capabilities. A failed dependency
 must produce a specific startup failure and verified cleanup. A transport
 experiment remains outside the ordinary delivery profile until its actual

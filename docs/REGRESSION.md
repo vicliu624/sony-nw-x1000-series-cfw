@@ -49,7 +49,8 @@ their own source hashes and validation limits. The aggregate source inventory
 is additional provenance, not a replacement for those receipts.
 
 For radio-only changes, run `tools/test_radio_profiles.py` in the prepared WSL
-environment. It builds all four exact-image profiles, checks release preemption
+environment. It builds all four exact-image profiles from the original radio
+and helper in `work/targets-jp/`, checks release preemption
 and native word transactions for each legacy profile, and connects host/ARM
 native code to the FRM1 MCU image. The legacy FFI checks its context size and
 offsets against compiled C before use. Its SDK/native build and generated radio
@@ -61,6 +62,10 @@ directory containing the four builds and `--sdk-review` with the native SDK
 identity are checked before reuse. The replay still runs the protocol and MCU
 checks, records a fresh snapshot and logs, and binds the selected input files
 by hash. Omit the options to verify a fresh radio and SDK build.
+For a fresh SDK built from an explicitly selected mailbox review, use
+`--mailbox-review work/example/mailbox/review.json` in place of `--sdk-review`.
+See [the native library guide](../runtime/platform/espnow/LIBRARY.md#local-build)
+for preparing that input.
 
 `test_sd8686_frame_native.py` also runs the actual ARM shared-radio controller
 and adapter against the selected FRM1 image. It checks Wi-Fi-on manager states 3
@@ -75,9 +80,9 @@ Within the firmware regression runner, the radio check validates and references
 the parent run's source ZIP. Its report records that shared path and hash, so
 keep the parent ZIP with the reports. A standalone radio run creates its own ZIP
 unless given a matching archive via `--source-snapshot`.
-The firmware runner also accepts `--radio-reviews` and `--sdk-review` when
-selecting `integration`. Both inputs appear in `--plan` and are verified by the
-radio runner before it replays them. The firmware runner builds the Remote
+The firmware runner accepts these same radio and SDK build options when
+selecting `integration`. Selected inputs appear in `--plan` and are verified by
+the radio runner. The firmware runner builds the Remote
 service once for its service and supervisor checks. `--service-review` supplies
 an existing verified build and skips that build step. Use the receipt from
 `tools/build_remote_service.py --output work/<review>/service`. The individual

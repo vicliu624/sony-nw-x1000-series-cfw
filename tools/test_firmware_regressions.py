@@ -198,7 +198,9 @@ def main():
     parser.add_argument("--host-review", type=Path,
                         help="Explicit immutable analysis-library receipt for the artifact suite")
     parser.add_argument("--radio-reviews", type=Path, help="Use these four existing radio builds in the integration replay")
-    parser.add_argument("--sdk-review", type=Path, help="Use this existing native SDK build in the integration replay")
+    sdk_input = parser.add_mutually_exclusive_group()
+    sdk_input.add_argument("--sdk-review", type=Path, help="Use this existing native SDK build in the integration replay")
+    sdk_input.add_argument("--mailbox-review", type=Path, help="Use this mailbox review to build the SDK for the integration replay")
     parser.add_argument("--service-review", type=Path, help="Use this existing Remote service build in integration tests")
     args = parser.parse_args()
     suites = args.suite or [name for name in SUITES if name not in ("artifact", "host")]
@@ -208,11 +210,12 @@ def main():
         parser.error("--host-review requires --suite artifact")
     planned, duplicates = plan_checks(suites, args.host_review)
     radio_inputs = [(flag, value) for flag, value in
-                    (("--radio-reviews", args.radio_reviews), ("--sdk-review", args.sdk_review)) if value is not None]
+                    (("--radio-reviews", args.radio_reviews), ("--sdk-review", args.sdk_review),
+                     ("--mailbox-review", args.mailbox_review)) if value is not None]
     if radio_inputs:
         commands = [command for _, command in planned if command[0] == "test_radio_profiles.py"]
         if not commands:
-            parser.error("--radio-reviews and --sdk-review require the integration replay")
+            parser.error("--radio-reviews, --sdk-review and --mailbox-review require the integration replay")
         for command in commands:
             for flag, value in radio_inputs:
                 command.extend((flag, str(value)))

@@ -35,7 +35,7 @@ else:
     directory = out / "radio-build"
     manifest = build(
         ROOT / "work/targets-jp/sd8686.bin",
-        ROOT / "work/espnow-full-radio-review-3/stock/helper_sd.bin",
+        ROOT / "work/targets-jp/helper_sd.bin",
         directory,
         rx_diagnostics=True,
         frame_transactions=True,

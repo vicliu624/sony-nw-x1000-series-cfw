@@ -16,7 +16,7 @@ if selected:
  payload,manifest=selected
 else:
  directory=OUT/'radio-build'
- manifest=build(ROOT/'work/targets-jp/sd8686.bin',ROOT/'work/espnow-full-radio-review-3/stock/helper_sd.bin',directory,True,True)
+ manifest=build(ROOT/'work/targets-jp/sd8686.bin',ROOT/'work/targets-jp/helper_sd.bin',directory,True,True)
  payload=directory/'radio.elf'
 assert manifest.get('bulk_word_commands') and manifest['occupied_span_bytes']<=1900
 with payload.open('rb') as f:

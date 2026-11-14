@@ -169,13 +169,17 @@ def radio_dependencies(owner):
  if not re.fullmatch(r'/contents/HOMEBREW/data/[a-z][a-z0-9-]{0,47}',directory):raise ValueError('Invalid owner data directory')
  header=private(owner['exchange_header'])
  if digest(header)!=owner['exchange_header_sha256']:raise ValueError('Owner dependency header changed')
+ text=header.read_text()
  rows=[]
- for path,size,raw in re.findall(r'\{"([^"\n]+)",(\d+),\{([0-9,]+)\}\}',header.read_text()):
+ for path,size,raw in re.findall(r'\{"([^"\n]+)",(\d+),\{([0-9,]+)\}\}',text):
   values=bytes(int(value) for value in raw.split(','))
   if len(values)!=32 or path.rsplit('/',1)[0]!=directory+'/candidate':
    raise ValueError('Unexpected compiled radio dependency')
   rows.append(dict(device_path=path,bytes=int(size),sha256=values.hex(),storage='user-volume',device_presence_verified=False))
- if {row['device_path'].rsplit('/',1)[-1] for row in rows}!={'sd8686.bin','helper_sd.bin'}:
+ if owner.get('external_radio_inputs_required') is False:
+  if owner.get('root_cold_supported') is not True or text != 'static const struct stock_input exchange_inputs[]={\n};\n':
+   raise ValueError('Expected an empty user-volume radio table for the Root owner')
+ elif len(rows)!=2 or {row['device_path'].rsplit('/',1)[-1] for row in rows}!={'sd8686.bin','helper_sd.bin'}:
   raise ValueError('Incomplete compiled radio dependency inventory')
  return dict(immutable_inputs=rows,immutable_payload_bytes=sum(row['bytes'] for row in rows),
   pairing=dict(device_path=directory+'/session.keys',bytes=32,contents_read=False,paired_controller_verified=False),

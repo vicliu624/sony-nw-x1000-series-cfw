@@ -179,7 +179,6 @@ and its matching allocation/regression evidence with:
   --regression-review work/example/regressions/report.json \
   --controller-review work/example/core2/build.json \
   --updater-template work/sony-jp-1.11/updater \
-  --radio-inputs work/radio-inputs/candidate \
   --output dist/diagnostics/example
 ```
 
@@ -201,12 +200,13 @@ match the passing regression snapshot. The diagnostic leaves existing external
 app packages in place. Later source edits under an already registered external
 app are allowed only when that app supplies no input to the reviewed system
 layout. The manifest records those edits separately from PC tooling changes.
-Use reusable local inputs for the updater and external radio files. The updater
+Use reusable local inputs for the updater. The updater
 executables, INI and stock UPG must match the original Japanese 1.11 hashes.
-The radio files must match the sizes and hashes recorded by the selected owner.
-It preserves an original Sony package, adds only reviewed immutable external
-RF inputs and a fresh bounded diagnostic record. The directory, ZIP and checksum
-are staged beside the destination. The ZIP's inventory and file hashes are
+The managed Root owner uses the radio and helper already in the system image.
+For an older owner whose receipt lists external radio files, supply
+`--radio-inputs` with the exact matching files. The diagnostic preserves an
+original Sony package and supplies a fresh bounded diagnostic record. The
+directory, ZIP and checksum are staged beside the destination. The ZIP's inventory and file hashes are
 checked before publishing. A failed attempt clears its staging files and leaves
 previous deliveries available.
 No pairing keys, configuration or PN journals are supplied. Copying external
@@ -239,9 +239,8 @@ The overlay report records the source radio build and its hash. The command can
 also build a new radio image by accepting the radio profile flags directly.
 Use the original build directory for both the Owner and radio replay.
 
-Build the Root Radio Owner with the native ESP-NOW SDK receipt, exact radio
-review and verified legacy RF files used by the diagnostic kit. Prepare the
-SDK's mailbox review with the commands in the
+Build the Root Radio Owner with the native ESP-NOW SDK receipt and exact radio
+review. Prepare the SDK's mailbox review with the commands in the
 [native library guide](../runtime/platform/espnow/LIBRARY.md#local-build):
 
 ```sh
@@ -251,7 +250,6 @@ SDK's mailbox review with the commands in the
 .venv/bin/python tools/build_remote_owner.py \
   --sdk-review work/example/native-sdk/sdk/build.json \
   --rx-diagnostic-radio work/example/regressions/frame \
-  --external-radio-inputs work/radio-inputs/candidate \
   --power-off-exit --mode-view-required --managed-session --root-cold \
   --data-leaf wireless-remote --link-keys --output work/example/owner
 ```
