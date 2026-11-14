@@ -107,7 +107,8 @@ def build(engine_provider=False,managed_host=False,native_prepare=False,builtin_
         factory_header.write_text(player_remote_header(factory_contract), encoding='utf-8')
         native_flags += ['-I', str(work), '-include', str(factory_header)]
         if factory_contract['root_cold_supported']:
-            sources += ['runtime/platform/player/parent_trace_store.c']
+            sources += ['runtime/platform/player/parent_trace_store.c',
+                        'runtime/apps/wireless-remote/retirement_log.c']
         if factory_contract['device_pairing']:
             from pairing_crypto import inputs as pairing_crypto_inputs
             crypto_sources,crypto_flags=pairing_crypto_inputs()

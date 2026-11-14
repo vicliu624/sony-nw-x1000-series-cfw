@@ -93,8 +93,9 @@ full controller. It checks delayed drain, both native connection states,
 channel-change stop, receive/sleep/release order and retained ownership after
 cleanup failure. `--expect-skipped-cleanup` records the old premature RELEASE
 defect and must not pass against corrected source. `test_remote_retirement_summary.py`
-executes the actual summary writer and parent reader, including legacy and
-truncated input. Neither test establishes physical USB recovery.
+executes the actual summary writer and links the same retirement-log reader as
+the player. It checks legacy and truncated input, service refusal and uncertain
+player closure. Neither test establishes physical USB recovery.
 
 For a retained pairing trace, run `tools/read_remote_pairing_trace.py` with the
 local copy under `work/`. Pass `--before work/<capture>/before.bin` when both

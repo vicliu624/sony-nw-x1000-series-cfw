@@ -2,6 +2,7 @@
 #define XNOW_REMOTE_MANAGED
 #define XNOW_REMOTE_LINK_KEYS
 #include "runtime/platform/espnow/xnow_owner_runtime.h"
+#include "runtime/apps/wireless-remote/retirement_log.h"
 #include "runtime/apps/wireless-remote/supervisor_process.h"
 #include <assert.h>
 #include <stdio.h>
@@ -14,7 +15,6 @@ static unsigned retired_link_installs;
 static int shared_wake_attempted;
 static unsigned stages;
 static uint32_t captured[6];
-extern int runtime_trace_scan(const char *, const char *, ...) __asm__("sscanf");
 void xw_player_pairing_trace_radio(unsigned stage, int result, const uint32_t state[6]) {
     (void)result;
     assert(stage >= 23 && stage <= 26);
@@ -70,6 +70,20 @@ int main(void) {
                              "replay=3 sideband=5 link_keys=1");
     xw_player_pairing_trace_exit(&process);
     assert(stages == 2); // A truncated line must not publish a summary.
+    struct wr_retirement_log log;
+    wr_retirement_log_read("REMOTE_SUPERVISOR_CHILDREN service=75 owner=0\n"
+                           "REMOTE_SERVICE_START_REFUSED stage=3 result=-6 clean=1 hello_ms=4999\n",
+                           &log);
+    assert(log.service_exit == 75 && log.owner_exit == 0);
+    assert(log.service_refusal_present && log.service_refusal.stage == 3 &&
+           log.service_refusal.result == -6 && log.service_refusal.player_closed == 1 &&
+           log.service_refusal.hello_ms == 4999);
+    assert(log.owner_failure == WR_LOG_UNOBSERVED && !log.radio_summary_present);
+    wr_retirement_log_read("REMOTE_SERVICE_START_REFUSED stage=3 result=-6 clean=1\n", &log);
+    assert(log.service_refusal_present && log.service_refusal.hello_ms == UINT32_MAX);
+    wr_retirement_log_read("REMOTE_SERVICE_PLAYER_CLOSE_UNCERTAIN reason=3 error=-6 player=-7\n", &log);
+    assert(log.service_startup_failure == WR_LOG_UNOBSERVED && !log.service_refusal_present &&
+           log.worker_reason == 3 && log.worker_error == -6 && log.player_close_error == -7);
     puts("REMOTE_RETIREMENT_SUMMARY_PASS");
     return 0;
 }

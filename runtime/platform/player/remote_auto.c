@@ -70,8 +70,7 @@ __attribute__((weak)) int xw_player_host_remote_idle(int active) {
 }
 #ifdef WR_PAIRING_TRACE
 #include "parent_trace_store.h"
-#include <stdio.h>
-extern int runtime_trace_scan(const char *, const char *, ...) __asm__("sscanf");
+#include "../../apps/wireless-remote/retirement_log.h"
 static struct xw_parent_trace_store pairing_trace;
 static uint32_t trace_pending, trace_committed, trace_order, trace_armed;
 static uint32_t trace_payload[XW_PARENT_TRACE_SLOTS][12], trace_sequence[XW_PARENT_TRACE_SLOTS];
@@ -138,47 +137,24 @@ static void runtime_trace_flush(void) {
     trace_pending = 0;
 }
 void xw_player_pairing_trace_exit(const struct wr_supervisor_process *process) {
-    const char *tail = process->log_tail, *p;
-    int service = -999, owner = -999, application = -999, reason = -999, error = -999,
-        player = -999, startup = -999, origin = 0;
-    if ((p = strstr(tail, "REMOTE_SUPERVISOR_CHILDREN ")))
-        (void)runtime_trace_scan(p, "REMOTE_SUPERVISOR_CHILDREN service=%d owner=%d", &service,
-                                 &owner);
-    if ((p = strstr(tail, "REMOTE_RF_OWNER_RETIRED "))) {
-        (void)runtime_trace_scan(p, "REMOTE_RF_OWNER_RETIRED application_failure=%d origin=%d",
-                                 &application, &origin);
-        uint32_t radio[6];
-        if (runtime_trace_scan(p,
-                               "REMOTE_RF_OWNER_RETIRED application_failure=%d origin=%d rx=%u "
-                               "auth=%u replay=%u sideband=%u link_keys=%u wake=%u",
-                               &application, &origin, radio, radio + 1, radio + 2, radio + 3,
-                               radio + 4, radio + 5) == 8)
-            xw_player_pairing_trace_radio(26, application, radio);
+    struct wr_retirement_log log;
+    wr_retirement_log_read(process->log_tail, &log);
+    if (log.radio_summary_present)
+        xw_player_pairing_trace_radio(26, log.owner_failure, log.radio_summary);
+
+    uint32_t state[6] = {(uint32_t)log.service_exit, (uint32_t)log.owner_exit,
+                        (uint32_t)log.owner_failure, (uint32_t)log.worker_reason,
+                        (uint32_t)log.worker_error, (uint32_t)log.player_close_error};
+    xw_player_pairing_trace_radio(23, log.service_startup_failure, state);
+    if (log.owner_origin > 0) {
+        uint32_t location[6] = {(uint32_t)log.owner_origin, 0, 0, 0, 0, 0};
+        xw_player_pairing_trace_radio(24, log.owner_failure, location);
     }
-    if ((p = strstr(tail, "REMOTE_SERVICE_RETIRED ")))
-        (void)runtime_trace_scan(
-            p, "REMOTE_SERVICE_RETIRED startup_failure=%d reason=%d error=%d player=%d", &startup,
-            &reason, &error, &player);
-    else if ((p = strstr(tail, "REMOTE_SERVICE_PLAYER_CLOSE_UNCERTAIN ")))
-        (void)runtime_trace_scan(
-            p, "REMOTE_SERVICE_PLAYER_CLOSE_UNCERTAIN reason=%d error=%d player=%d", &reason,
-            &error, &player);
-    uint32_t state[6] = {(uint32_t)service, (uint32_t)owner, (uint32_t)application,
-                         (uint32_t)reason,  (uint32_t)error, (uint32_t)player};
-    xw_player_pairing_trace_radio(23, startup, state);
-    if (origin > 0) {
-        uint32_t location[6] = {(uint32_t)origin, 0, 0, 0, 0, 0};
-        xw_player_pairing_trace_radio(24, application, location);
-    }
-    if ((p = strstr(tail, "REMOTE_SERVICE_START_REFUSED "))) {
-        int stage = 0, result = 0, clean = 0;
-        unsigned elapsed = UINT32_MAX;
-        if (runtime_trace_scan(
-                p, "REMOTE_SERVICE_START_REFUSED stage=%d result=%d clean=%d hello_ms=%u", &stage,
-                &result, &clean, &elapsed) >= 3) {
-            uint32_t start[6] = {(uint32_t)stage, (uint32_t)clean, elapsed, 0, 0, 0};
-            xw_player_pairing_trace_radio(25, result, start);
-        }
+    if (log.service_refusal_present) {
+        uint32_t start[6] = {(uint32_t)log.service_refusal.stage,
+                             (uint32_t)log.service_refusal.player_closed,
+                             log.service_refusal.hello_ms, 0, 0, 0};
+        xw_player_pairing_trace_radio(25, log.service_refusal.result, start);
     }
 }
 #else

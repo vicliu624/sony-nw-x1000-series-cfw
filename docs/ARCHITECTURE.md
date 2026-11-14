@@ -93,9 +93,10 @@ Its `last_start` reports parent admission, capability offer, readiness or child
 exit. The owner runtime stores the first application result and its origin,
 while the supervisor verifies the independent retirement receipt before reporting
 recovery. `rf_owner.c` currently collapses the FRM1 and bulk enable results before
-they reach that owner error field. `remote_auto.c` also reconstructs child
-diagnostics from the process's bounded 512-byte log tail. A missing line in that
-tail cannot establish which operation failed.
+they reach that owner error field. Wireless Remote's `retirement_log.c` decodes
+the bounded 512-byte process log tail into observations. The player adapter
+maps those observations to the existing trace slots. A missing line in the tail
+cannot establish which operation failed.
 
 Keep Settings' existing request serial and readiness checks. A future diagnostic
 result should carry the failing operation and its original result domain and
