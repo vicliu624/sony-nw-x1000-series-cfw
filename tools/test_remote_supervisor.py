@@ -1,6 +1,7 @@
 """Full native supervisor/service chain in an isolated ARM guest; RF/media modeled."""
 import contextlib,hashlib,io,json,runpy,struct,subprocess,sys,time
 from app_registry import ROOT
+from build_remote_supervisor import build as build_supervisor
 from player_arm_guest import stock_libraries,run_guest
 out=ROOT/'work/remote-supervisor-integration'/str(time.time_ns());out.mkdir(parents=True)
 reusable='--reusable-sessions' in sys.argv
@@ -134,14 +135,12 @@ review=dict(generation=template_generation,device_directory='/contents/HOMEBREW/
 if owner_view_forward:review['owner_mode_view_supported']=True
 for name,path in [('service',service['artifact']),('owner',owner),('config',config)]:review['files'][name]=dict(local=path.relative_to(ROOT).as_posix(),bytes=path.stat().st_size,sha256=hashlib.sha256(path.read_bytes()).hexdigest())
 review_path=out/'review.private.json';review_path.write_text(json.dumps(review,indent=2)+'\n',encoding='utf-8')
-saved=sys.argv
-try:
- sys.argv=['build_remote_supervisor.py','--review',str(review_path)]+(['--reusable-sessions'] if reusable else [])+(['--forward-owner-mode-view'] if owner_view_forward else [])+(['--device-pairing'] if device_pairing else [])+(['--embedded-runtime'] if embedded_runtime else [])+(['--play-mode-control'] if play_mode_control else [])
- with contextlib.redirect_stdout(io.StringIO()):supervisor=runpy.run_path(str(ROOT/'tools/build_remote_supervisor.py'))
-finally:sys.argv=saved
-if play_mode_control:assert supervisor['report']['play_mode_control'] is True
+supervisor,supervisor_report=build_supervisor(review=review_path,output=out/'supervisor-build',
+ reusable_sessions=reusable,forward_owner_mode_view=owner_view_forward,device_pairing=device_pairing,
+ embedded_runtime=embedded_runtime,play_mode_control=play_mode_control)
+if play_mode_control:assert supervisor_report['play_mode_control'] is True
 if device_pairing:
- assert set(supervisor['rows'])=={'service','owner'}
+ assert set(supervisor_report['inputs'])=={'service','owner'}
  data=bytearray(config.read_bytes())
  data[:8]=b'XWRUN002'
  struct.pack_into('<Q',data,8,template_generation+4)
@@ -170,7 +169,7 @@ if settings_factory:
  server_flags+=['-DXW_PLAYER_NATIVE_RF']
 if automatic_factory:
  server_sources+=['tools/fixtures/remote_idle_probe.c']
- (out/'remote_factory_profile.h').write_text('#define WR_REMOTE_SUPERVISOR_BYTES '+str(supervisor['artifact'].stat().st_size)+'u\n'+('#define WR_REMOTE_OWNER_VIEW\n' if owner_view_forward else ''))
+ (out/'remote_factory_profile.h').write_text('#define WR_REMOTE_SUPERVISOR_BYTES '+str(supervisor.stat().st_size)+'u\n'+('#define WR_REMOTE_OWNER_VIEW\n' if owner_view_forward else ''))
  server_flags+=['-DWR_SETTINGS_AUTO_TEST','-I'+str(out)]
 if shared_wifi:server_flags+=['-DWR_SETTINGS_SHARED_WIFI','-DXW_PLAYER_SHARED_WIFI_ANALYSIS']
 if exit_idle_progress:server_flags+=['-DWR_SETTINGS_EXIT_IDLE_PROGRESS']
@@ -240,7 +239,7 @@ if device_pairing:markers.append('REMOTE_PAIRING_OWNER_EXECUTED')
 if artwork_transfer:markers.append('REMOTE_CHAIN_ARTWORK_PASS')
 if service_start_refusal:
  markers=['REMOTE_HANDOFF_REFUSAL_FIXTURE' if service_handoff_refusal else 'REMOTE_BIND_REFUSAL_FIXTURE','REMOTE_SUPERVISOR_CHILDREN service=75 owner=0','FACTORY_START_REFUSAL_DRAIN_PASS','PUBLIC_MANAGED_HOST_SERVER_PASS','REMOTE_CHAIN_CHILD_STATUS=0','REMOTE_CONFIG_UNCHANGED']
-report=run_guest(out,init,{'test':server,'supervisor':supervisor['artifact'],'stage/service.arm':service['artifact'],'stage/owner.arm':owner,'stage/config.bin':config},libs,
+report=run_guest(out,init,{'test':server,'supervisor':supervisor,'stage/service.arm':service['artifact'],'stage/owner.arm':owner,'stage/config.bin':config},libs,
                  markers,timeout=75 if artwork_transfer else 25)
 if native_page_chain:assert 'NATIVE_PAGE_BACKEND_CHAIN_PASS' in (out/'serial.log').read_text(errors='replace')
 elif settings_backend and not real_owner_refusal:assert 'SETTINGS_BACKEND_CHAIN_PASS' in (out/'serial.log').read_text(errors='replace')
@@ -285,9 +284,9 @@ if settings_factory:inputs+=['runtime/apps/wireless-remote/settings_factory.h','
 if settings_backend:inputs+=['runtime/apps/wireless-remote/settings_backend.h','runtime/platform/wireless/mode.h','runtime/platform/wireless/mode_policy.h','runtime/platform/player/host_managed_service.h','tools/fixtures/player_host_managed_service.c','tools/fixtures/player_broker.c']
 if settings_backend:inputs+=['runtime/platform/sony-settings/native_page.h','runtime/platform/sony-settings/bindings.h','runtime/apps/wireless-remote/native_page_bridge.h']
 if native_page_chain:inputs=[p for p in inputs if p!='tools/fixtures/settings_backend_chain.c']
-report.update(built=True,service_start_refusal=service_start_refusal,client_bind_failure_injected=service_start_refusal,native_page_chain=native_page_chain,shared_wifi_factory_chain=shared_wifi,artifact=supervisor['artifact'].relative_to(ROOT).as_posix(),bytes=supervisor['artifact'].stat().st_size,
+report.update(built=True,service_start_refusal=service_start_refusal,client_bind_failure_injected=service_start_refusal,native_page_chain=native_page_chain,shared_wifi_factory_chain=shared_wifi,artifact=supervisor.relative_to(ROOT).as_posix(),bytes=supervisor.stat().st_size,
               native_page_generation_refusal_checked=native_page_chain and reusable,
-              sha256=hashlib.sha256(supervisor['artifact'].read_bytes()).hexdigest(),original_libc_arm_entry_checks=True,
+              sha256=supervisor_report['sha256'],original_libc_arm_entry_checks=True,
               actual_supervisor=True,actual_service=not (bad_generation or bad_grants),actual_player_host=True,radio_owner_modeled=not real_owner_refusal,player_backend_modeled=True,
               actual_real_owner=real_owner_refusal,real_owner_startup_refusal_checked=real_owner_refusal,
               real_owner_managed=real_owner_managed,
@@ -303,7 +302,7 @@ report.update(built=True,service_start_refusal=service_start_refusal,client_bind
               system_mode_change=mode_switch,
               actual_mode_policy=settings_backend,mode_policy_evidence_modeled=settings_backend,
               rejects_bad_generation=bad_generation,rejects_bad_grants=bad_grants,
-              device_accessed=False,source_hashes={**(real_owner_report['source_hashes'] if real_owner_report else {}),**service['report']['source_hashes'],**supervisor['report']['source_hashes'],**{p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in inputs}})
+              device_accessed=False,source_hashes={**(real_owner_report['source_hashes'] if real_owner_report else {}),**service['report']['source_hashes'],**supervisor_report['source_hashes'],**{p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in inputs}})
 report['artwork_transfer']=artwork_transfer
 report['native_exit_bridge_chain']=native_exit_bridge
 report['native_worker_retirement']=native_worker_retirement

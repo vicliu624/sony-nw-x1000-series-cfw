@@ -8,7 +8,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'tools'))
-from review_managed_remote_profile import input_artifact
+from review_managed_remote_profile import component_build, input_artifact
 
 
 def digest(path):
@@ -79,6 +79,20 @@ class ManagedComponentProvenanceTests(unittest.TestCase):
         path, _, _, supervisor = self.component('config')
         actual, _ = input_artifact(supervisor, 'config', path.name)
         self.assertEqual(actual, path.resolve())
+
+    def test_direct_component_review_refuses_changed_linked_input(self):
+        path, _, metadata, _ = self.component('owner')
+        linked = self.directory / 'runtime.a'
+        linked.write_bytes(b'original linked input')
+        metadata['linked_input_hashes'] = {linked.relative_to(ROOT).as_posix(): digest(linked)}
+        self.write_receipt(metadata)
+        receipt = self.directory / 'build.json'
+        _, _, identity = component_build(receipt, path.name)
+        self.assertEqual(identity['sha256'], digest(path))
+
+        linked.write_bytes(b'changed linked input')
+        with self.assertRaisesRegex(ValueError, 'Component linked input differs'):
+            component_build(receipt, path.name)
 
 
 if __name__ == '__main__':

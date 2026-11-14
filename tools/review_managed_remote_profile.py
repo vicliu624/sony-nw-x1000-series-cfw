@@ -21,6 +21,20 @@ def artifact(path,expected,size):
  path=private(path)
  if path.stat().st_size!=size or digest(path)!=expected:raise ValueError('Artifact identity mismatch: '+path.name)
  return dict(local=path.relative_to(ROOT).as_posix(),bytes=size,sha256=expected)
+def component_build(path,leaf):
+ path,built=receipt(path)
+ if (path.name!='build.json' or built.get('built') is not True or
+     not isinstance(built.get('artifact'),str)):
+  raise ValueError('Expected an executable build receipt: '+leaf)
+ executable=private(built['artifact'])
+ if executable!=path.parent/leaf:
+  raise ValueError('Component build receipt differs: '+leaf)
+ for key in ('linked_input_hashes','linked_library_hashes'):
+  for name,expected in built.get(key,{}).items():
+   linked=(ROOT/name.replace('\\','/')).resolve()
+   if digest(private(linked))!=expected:
+    raise ValueError('Component linked input differs: '+name)
+ return path,built,artifact(executable,built['sha256'],built['bytes'])
 def input_artifact(supervisor,name,leaf):
  item=supervisor['inputs'][name]
  local=supervisor['local_inputs'][name]

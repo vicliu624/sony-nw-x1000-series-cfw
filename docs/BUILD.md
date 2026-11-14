@@ -204,6 +204,22 @@ bundle original Sony files, private identities, session codes, ROMs or music.
 
 ## Shared Wi-Fi candidate
 
+Build the embedded Remote supervisor directly from the owner and service
+build receipts:
+
+```sh
+.venv/bin/python tools/build_remote_supervisor.py \
+  --shared-wifi-owner-review work/example/owner/build.json \
+  --service-review work/example/service/build.json \
+  --reusable-sessions --forward-owner-mode-view --device-pairing \
+  --embedded-runtime --play-mode-control --output work/example/supervisor
+```
+
+The builder checks both executables, their source receipts and linked inputs.
+Use the resulting `build.private.json` for `build_player_host.py --remote-profile`.
+Embedded builds use on-device pairing state. Finite or staged sessions can
+still supply their explicit launch proposal with `--review`.
+
 The two-choice Wireless Mode menu is composed only when
 `build_player_host.py --shared-wifi-review` is supplied with a matching
 native Remote page and shared-owner supervisor profile. The ordinary release
