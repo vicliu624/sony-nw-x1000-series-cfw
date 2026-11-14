@@ -22,7 +22,11 @@ fields={
  'pc':('wr_native_page_bridge','view_context'),'pbegin':('wr_native_page_bridge','view_begin'),'pend':('wr_native_page_bridge','view_end'),
  'vh':('wr_native_choice_view','held'),'vc':('wr_native_choice_view','closing'),'vo':('wr_native_choice_view','owner'),'vs':('wr_native_choice_view','borrowed_sid')}
 with tempfile.TemporaryDirectory(dir=ROOT/'work',prefix='binding-layout-') as d:
- c=ROOT/d/'layout.c';o=c.with_suffix('.o');c.write_text('#define WR_PAIRING_PROCESS\n#include <stddef.h>\n#include "runtime/apps/wireless-remote/settings_factory.h"\n#include "runtime/apps/wireless-remote/native_page_bridge.h"\n#include "runtime/platform/sony-settings/native_choice_view.h"\n'+''.join(f'char {n}[offsetof(struct {s},{f})+1];\n' for n,(s,f) in fields.items()))
+ c=ROOT/d/'layout.c';o=c.with_suffix('.o');c.write_text(
+     ('#define WR_PAIRING_TRACE\n' if 'wr_start_failure_capture' in syms else '') +
+     '#define WR_PAIRING_PROCESS\n#include <stddef.h>\n#include "runtime/apps/wireless-remote/settings_factory.h"\n'
+     '#include "runtime/apps/wireless-remote/native_page_bridge.h"\n#include "runtime/platform/sony-settings/native_choice_view.h"\n'
+     +''.join(f'char {n}[offsetof(struct {s},{f})+1];\n' for n,(s,f) in fields.items()))
  subprocess.run(['arm-linux-gnueabi-gcc','-c','-I',str(ROOT),str(c),'-o',str(o)],check=True)
  off={s.name:s['st_size']-1 for s in ELFFile(io.BytesIO(o.read_bytes())).get_section_by_name('.symtab').iter_symbols() if s.name in fields}
 rows=[]

@@ -5,9 +5,16 @@
 #include "runtime/apps/wireless-remote/retirement_log.h"
 #include "runtime/apps/wireless-remote/supervisor_process.h"
 #include <assert.h>
+#include <fcntl.h>
+#include <sys/stat.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#if defined(__arm__)
+#define HB_STORE_SONY_LIBC
+#include "runtime/store/target_abi.h"
+#endif
+extern int fixture_fcntl(int, int, ...) __asm__("fcntl");
 
 static struct xnow_owner_runtime owner_runtime;
 static unsigned completed_packets, failed_packets, storage_calls, storage_ms, storage_max;
@@ -18,7 +25,7 @@ static uint32_t captured[6];
 static unsigned packet_failure_count, captured_operation;
 static int captured_result;
 static uint64_t trace_child_generation;
-static struct wr_retirement_log trace_child_log;
+static struct wr_start_failures trace_child_log;
 static enum wr_owner_packet_start packet_start_operation;
 static int packet_start_result;
 static struct xnow_full_control owner_control;
@@ -82,6 +89,44 @@ static void capture_owner(struct wr_supervisor_process *process) {
     process->log_bytes = used;
     assert(!close(output[0]));
 }
+static void capture_stream(void) {
+    int pipefd[2];
+    struct stat identity;
+    assert(!pipe(pipefd) && !fstat(pipefd[0], &identity));
+    assert(!fixture_fcntl(pipefd[0], F_SETFL, O_NONBLOCK));
+    struct wr_supervisor_process process = {
+        .owner = getpid(), .state = WR_PROCESS_EXITED, .reaped = 1, .generation = 77,
+        .log_reader = pipefd[0], .log_device = identity.st_dev, .log_inode = identity.st_ino
+    };
+    const char first[] = "REMOTE_SERVICE_START_REFUSED stage=3 result=-";
+    assert(write(pipefd[1], first, sizeof first - 1) == sizeof first - 1);
+    assert(!wr_supervisor_process_poll(&process) && !process.start_failures.service_stage);
+    const char second[] = "6 clean=1 hello_ms=1000\n"
+                          "REMOTE_RF_PACKET_START operation=2 result=-7 extra\n"
+                          "REMOTE_RF_PACKET_START operation=1 result=-5\n";
+    assert(write(pipefd[1], second, sizeof second - 1) == sizeof second - 1);
+    assert(!wr_supervisor_process_poll(&process));
+    assert(process.start_failures.service_stage == WR_START_PLAYER_HELLO &&
+           process.start_failures.service_result == -6 && process.start_failures.hello_ms == 1000 &&
+           process.start_failures.packet_operation == WR_PACKET_START_FRM1 &&
+           process.start_failures.packet_result == -5);
+    const char later[] = "REMOTE_RF_PACKET_START operation=2 result=-2\n";
+    assert(write(pipefd[1], later, sizeof later - 1) == sizeof later - 1);
+    char noise[256];
+    memset(noise, 'x', sizeof noise);
+    noise[sizeof noise - 1] = '\n';
+    for (unsigned i = 0; i < 3; i++) {
+        assert(write(pipefd[1], noise, sizeof noise) == sizeof noise);
+        assert(!wr_supervisor_process_poll(&process));
+    }
+    assert(!strstr(process.log_tail, "REMOTE_") && !process.service_ready && !process.radio_ready);
+    xw_player_pairing_trace_exit(&process);
+    assert(trace_child_generation == 77 &&
+           trace_child_log.service_stage == WR_START_PLAYER_HELLO &&
+           trace_child_log.service_result == -6 &&
+           trace_child_log.packet_operation == WR_PACKET_START_FRM1 && trace_child_log.packet_result == -5);
+    assert(!close(pipefd[0]) && !close(pipefd[1]));
+}
 int main(void) {
     struct wr_supervisor_process process = {0};
     owner_runtime.receive_stats.decoded = 19;
@@ -110,14 +155,13 @@ int main(void) {
                            "REMOTE_SERVICE_START_REFUSED stage=3 result=-6 clean=1 hello_ms=4999\n",
                            &log);
     assert(log.service_exit == 75 && log.owner_exit == 0);
-    assert(log.service_refusal_present && log.service_refusal.stage == 3 &&
-           log.service_refusal.result == -6 && log.service_refusal.player_closed == 1 &&
-           log.service_refusal.hello_ms == 4999);
+    assert(log.start.service_stage == 3 && log.start.service_result == -6 &&
+           log.start.player_closed == 1 && log.start.hello_ms == 4999);
     assert(log.owner_failure == WR_LOG_UNOBSERVED && !log.radio_summary_present);
     wr_retirement_log_read("REMOTE_SERVICE_START_REFUSED stage=3 result=-6 clean=1\n", &log);
-    assert(log.service_refusal_present && log.service_refusal.hello_ms == UINT32_MAX);
+    assert(log.start.service_stage && log.start.hello_ms == UINT32_MAX);
     wr_retirement_log_read("REMOTE_SERVICE_PLAYER_CLOSE_UNCERTAIN reason=3 error=-6 player=-7\n", &log);
-    assert(log.service_startup_failure == WR_LOG_UNOBSERVED && !log.service_refusal_present &&
+    assert(log.service_startup_failure == WR_LOG_UNOBSERVED && !log.start.service_stage &&
            log.worker_reason == 3 && log.worker_error == -6 && log.player_close_error == -7);
     struct xnow_endpoint endpoint = {.transport = &owner_control.backend};
     assert(!owner_enable_frames(&endpoint));
@@ -141,6 +185,7 @@ int main(void) {
     strcpy(process.log_tail, "REMOTE_RF_PACKET_START operation=2 result=-1");
     xw_player_pairing_trace_exit(&process);
     assert(packet_failure_count == 2);
+    capture_stream();
     puts("REMOTE_RETIREMENT_SUMMARY_PASS");
     return 0;
 }

@@ -47,7 +47,7 @@ implementation has the following confirmed coupling points:
 | SDK compatibility | App definitions select callback or native module API versions. Module dependencies check their own required APIs. Builds record the exact SDK release and source hashes | Change the API version when its interface breaks. An SDK release bump alone requires no changes to app definitions that use compatible interfaces |
 | Player composition | Built-in and external language profiles use maintained builder functions. Tests call the same functions, then verify the mapped edits independently | Keep production validation with the builder and test execution with the selected verification entry point |
 | Compiled component identity cascade | The owner checks the selected radio image. The supervisor verifies owner and service sizes and hashes. The player library checks the supervisor's compiled size. The startup wrapper uses fixed paths | Reuse independently verified build inputs where their compile inputs match. Preserve runtime file checks until their replacement is verified at the same launch boundary |
-| Incomplete startup error contract | The owner records the FRM1 or bulk enable operation and original XNOW result at retirement. Service startup reports a numeric result and a post-cleanup flag. Both use the bounded process log | Correlate diagnostic results with the launch. Keep readiness, failure and resource retirement independent |
+| Startup error contract | The parent retains typed packet-backend and service-refusal results from complete lines on the private process pipe. It associates them with the launch independently of the log tail | Keep readiness, failure and resource retirement independent. Missing or incomplete child output remains unknown |
 | Diagnostic attempt identity | The latest Settings and child slots carry matching player-build, process, request and generation identities. Older event slots are first-write observations | Preserve that association across the child process interface, including when log details are unavailable |
 | Historical local paths in supported tooling | The script audit found fixed review/candidate paths in maintained scripts and separate local orchestration files | Maintained entry points accept current input descriptors. Historical negative controls are explicit test inputs; ignored scripts and prior candidate directories are outside the normal build graph |
 
@@ -117,11 +117,12 @@ once per player process after retirement. It is not a kernel boot identifier.
 The parent waits for its existing ownership and quiescence checks, and retains
 one bounded snapshot write per observed request. Legacy slots remain untouched
 once populated and their timestamps cannot be inferred from the latest slot.
-The child slot records the original packet-backend error or service refusal
-when that information is in the reaped supervisor's log tail. The writer binds
-the child's generation to the parent's result, and the reader also requires the
-full attempt identity before associating the two records. A previous child slot
-can remain on disk when a start fails before spawning a supervisor.
+The parent captures the first complete packet-backend error and service refusal
+while draining the supervisor's existing private pipe. Later log traffic does
+not evict those results. The child slot uses this capture after reap, and the
+reader requires the full attempt identity before associating it with Settings.
+A previous child slot can remain on disk when a start fails before spawning a
+supervisor. The legacy event slots still use the bounded log tail.
 
 Migration is incremental:
 

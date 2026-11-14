@@ -96,8 +96,10 @@ defect and must not pass against corrected source. `test_remote_retirement_summa
 executes the actual summary writer and links the same retirement-log reader as
 the player. It checks legacy and truncated input, service refusal, uncertain
 player closure and both packet-backend enable errors through slot 27. The
-error injection substitutes the adapter return value. Neither test establishes
-physical USB recovery.
+error injection substitutes the adapter return value. The same test uses the
+actual supervisor process reader with a private pipe to split an error line
+across reads and then evict it from the log tail. The launch still retains its
+first complete error. Neither test establishes physical USB recovery.
 
 For a retained pairing trace, run `tools/read_remote_pairing_trace.py` with the
 local copy under `work/`. Pass `--before work/<capture>/before.bin` when both

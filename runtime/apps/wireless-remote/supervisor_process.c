@@ -106,8 +106,27 @@ static int logs(struct wr_supervisor_process *p){
   char buffer[256];ssize_t n=read(p->log_reader,buffer,sizeof buffer);
   if(n<0&&(errno==EAGAIN||errno==EWOULDBLOCK||errno==EINTR))return 0;
   if(n<0)return -1;if(!n)return 0;
-  if(p->log_bytes+(unsigned)n>512){unsigned drop=p->log_bytes+(unsigned)n-512;memmove(p->log_tail,p->log_tail+drop,p->log_bytes-drop);p->log_bytes-=drop;}
+  unsigned total=p->log_bytes+(unsigned)n,drop=total>512?total-512:0;
+#ifdef WR_PAIRING_TRACE
+  if(drop)p->log_partial_head=p->log_tail[drop-1]!='\n';
+#endif
+  if(drop){memmove(p->log_tail,p->log_tail+drop,p->log_bytes-drop);p->log_bytes-=drop;}
+#ifdef WR_PAIRING_TRACE
+  /* The tail retains at least 256 bytes of earlier reads, which covers
+   * either diagnostic line split across reads. */
+  unsigned previous=p->log_bytes;
+#endif
   memcpy(p->log_tail+p->log_bytes,buffer,(size_t)n);p->log_bytes+=(unsigned)n;p->log_tail[p->log_bytes]=0;
+#ifdef WR_PAIRING_TRACE
+  const char *line=p->log_tail+previous;
+  while(line>p->log_tail&&line[-1]!='\n')line--;
+  const char *end;
+  while((end=strchr(line,'\n'))){
+   if(!p->log_partial_head||line!=p->log_tail)
+    wr_start_failure_capture(&p->start_failures,line,(size_t)(end-line));
+   line=end+1;
+  }
+#endif
   /* Both messages come from the pinned children on the private pipe. A
    * complete line is required, including when reads split the marker. */
   if(strstr(p->log_tail,"\nREMOTE_SERVICE_READY\n"))p->service_ready=1;

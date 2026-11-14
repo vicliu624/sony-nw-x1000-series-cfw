@@ -27,12 +27,13 @@ if child_detail:
  fields.update(start_reaped='backend.last_start.child_reaped')
 with tempfile.TemporaryDirectory(dir=ROOT/'work',prefix='runtime-trace-layout-') as folder:
  c=Path(folder)/'layout.c';obj=Path(folder)/'layout.o'
- c.write_text('#define WR_PAIRING_PROCESS\n#include <stddef.h>\n#include "runtime/apps/wireless-remote/settings_factory.h"\n'
+ c.write_text(('#define WR_PAIRING_TRACE\n' if 'wr_start_failure_capture' in syms else '')+
+              '#define WR_PAIRING_PROCESS\n#include <stddef.h>\n#include "runtime/apps/wireless-remote/settings_factory.h"\n'
               '#include "runtime/platform/player/parent_trace_store.h"\n'
               '#include "runtime/apps/wireless-remote/retirement_log.h"\n'
               'char store_initialized[offsetof(struct xw_parent_trace_store,initialized)+1];\n'
-              'char packet_operation[offsetof(struct wr_retirement_log,packet_start_operation)+1];\n'
-              'char packet_result[offsetof(struct wr_retirement_log,packet_start_result)+1];\n'
+              'char packet_operation[offsetof(struct wr_start_failures,packet_operation)+1];\n'
+              'char packet_result[offsetof(struct wr_start_failures,packet_result)+1];\n'
               +''.join(f'char {name}[offsetof(struct wr_settings_factory,{field})+1];\n' for name,field in fields.items()))
  subprocess.run(['arm-linux-gnueabi-gcc','-c','-I',str(ROOT),str(c),'-o',str(obj)],check=True)
  e=ELFFile(io.BytesIO(obj.read_bytes()));offsets={s.name:s['st_size']-1 for s in e.get_section_by_name('.symtab').iter_symbols()

@@ -92,7 +92,7 @@ static const uint32_t latest_slots = (1u << (TRACE_SETTINGS_RESULT - 1)) |
                                      (1u << (TRACE_CHILD_RESULT - 1));
 static uint64_t trace_process_id, trace_last_serial;
 static uint64_t trace_child_generation;
-static struct wr_retirement_log trace_child_log;
+static struct wr_start_failures trace_child_log;
 static int trace_owned(void *context) {
     (void)context;
     return xw_player_host_wireless_player_active() && !xw_player_host_original_exiting() &&
@@ -186,15 +186,14 @@ static void runtime_trace_settings_result(void) {
     trace_sequence[TRACE_SETTINGS_RESULT - 1] = 1; /* This slot is its own observation. */
     trace_pending |= 1u << (TRACE_SETTINGS_RESULT - 1);
     if (start->child_reaped && start->generation && start->generation == trace_child_generation) {
-        const struct wr_retirement_log *log = &trace_child_log;
+        const struct wr_start_failures *log = &trace_child_log;
         uint32_t child[12] = {
             (uint32_t)start->serial, (uint32_t)(start->serial >> 32),
             (uint32_t)start->generation, (uint32_t)(start->generation >> 32),
             (uint32_t)trace_process_id, (uint32_t)(trace_process_id >> 32),
             (uint32_t)build, (uint32_t)(build >> 32),
-            log->packet_start_operation, (uint32_t)log->packet_start_result,
-            log->service_refusal_present ? (uint32_t)log->service_refusal.stage : 0,
-            (uint32_t)log->service_refusal.result
+            log->packet_operation, (uint32_t)log->packet_result, (uint32_t)log->service_stage,
+            (uint32_t)log->service_result
         };
         memcpy(trace_payload[TRACE_CHILD_RESULT - 1], child, sizeof child);
         trace_sequence[TRACE_CHILD_RESULT - 1] = 1;
@@ -209,7 +208,7 @@ void xw_player_pairing_trace_exit(const struct wr_supervisor_process *process) {
     struct wr_retirement_log log;
     wr_retirement_log_read(process->log_tail, &log);
     if (process->reaped && process->generation) {
-        trace_child_log = log;
+        trace_child_log = process->start_failures;
         trace_child_generation = process->generation;
     }
     if (log.radio_summary_present)
@@ -223,15 +222,14 @@ void xw_player_pairing_trace_exit(const struct wr_supervisor_process *process) {
         uint32_t location[6] = {(uint32_t)log.owner_origin, 0, 0, 0, 0, 0};
         xw_player_pairing_trace_radio(24, log.owner_failure, location);
     }
-    if (log.service_refusal_present) {
-        uint32_t start[6] = {(uint32_t)log.service_refusal.stage,
-                             (uint32_t)log.service_refusal.player_closed,
-                             log.service_refusal.hello_ms, 0, 0, 0};
-        xw_player_pairing_trace_radio(25, log.service_refusal.result, start);
+    if (log.start.service_stage) {
+        uint32_t start[6] = {(uint32_t)log.start.service_stage, (uint32_t)log.start.player_closed,
+                             log.start.hello_ms, 0, 0, 0};
+        xw_player_pairing_trace_radio(25, log.start.service_result, start);
     }
-    if (log.packet_start_operation) {
-        uint32_t start[6] = {log.packet_start_operation, 0, 0, 0, 0, 0};
-        xw_player_pairing_trace_radio(27, log.packet_start_result, start);
+    if (log.start.packet_operation) {
+        uint32_t start[6] = {log.start.packet_operation, 0, 0, 0, 0, 0};
+        xw_player_pairing_trace_radio(27, log.start.packet_result, start);
     }
 }
 #else

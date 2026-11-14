@@ -2,6 +2,9 @@
 #define WR_SUPERVISOR_PROCESS_H
 #include <stdint.h>
 #include "../../platform/wireless/mode_policy.h"
+#ifdef WR_PAIRING_TRACE
+#include "retirement_log.h"
+#endif
 #ifndef WR_SUPERVISOR_PATH
 #define WR_SUPERVISOR_PATH "/usr/local/libexec/x1000-remote-supervisor"
 #endif
@@ -22,6 +25,10 @@ struct wr_supervisor_process {
  /* Borrowed from the factory until reap; process_close must not close it. */
  int mode_view;unsigned mode_view_configured;uint64_t mode_device,mode_inode;
  struct xw_wireless_lease mode_lease;
+#ifdef WR_PAIRING_TRACE
+ struct wr_start_failures start_failures;
+ unsigned log_partial_head;
+#endif
 };
 int wr_supervisor_process_start(struct wr_supervisor_process *,uint64_t,void *,int (*admit)(void *));
 int wr_supervisor_process_mode_view(struct wr_supervisor_process *,int,const struct xw_wireless_lease *);

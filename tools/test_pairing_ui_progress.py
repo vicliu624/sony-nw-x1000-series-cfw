@@ -41,7 +41,8 @@ native_review = json.loads((path.parent/'remote-page/report.json').read_text())
 root = Path(__file__).resolve().parents[1]
 with tempfile.TemporaryDirectory(prefix='pairing-ui-layout-',dir=root/'work') as folder:
     c=Path(folder)/'layout.c';obj=Path(folder)/'layout.o'
-    c.write_text('#define WR_PAIRING_PROCESS\n#include <stddef.h>\n'
+    c.write_text(('#define WR_PAIRING_TRACE\n' if 'wr_start_failure_capture' in syms else '') +
+                 '#define WR_PAIRING_PROCESS\n#include <stddef.h>\n'
                  '#include "runtime/apps/wireless-remote/settings_factory.h"\n'
                  'char backend_generation_offset[offsetof(struct wr_settings_backend,generation)+1];\n'
                  'char factory_initialized_offset[offsetof(struct wr_settings_factory,initialized)+1];\n'
