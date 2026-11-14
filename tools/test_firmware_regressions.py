@@ -92,6 +92,7 @@ SUITES = {
         ["test_player_metadata_async.py", "--artwork"],
         ["test_status_sender.py"],
         ["test_status_sender.py", "--fairness"],
+        ["test_artwork_timing.py"],
         ["test_remote_worker.py"],
         ["test_service_stop_observation.py"],
         ["test_remote_link.py"],

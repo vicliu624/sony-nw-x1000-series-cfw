@@ -3,8 +3,13 @@
 #include "artwork_wire.h"
 
 #define WR_ARTWORK_JOB_MS 120000u
+#define WR_ARTWORK_SETUP_MS 30000u
+#define WR_ARTWORK_CHUNK_BUDGET_MS 1000u
+#define WR_ARTWORK_JOB_LIMIT_MS 600000u
 #define WR_ARTWORK_REPLY_MS 2000u
-#define WR_ARTWORK_PACE_MS 150u
+/* The single outstanding authenticated read is the flow-control window.
+ * The frontend yields to input each loop; successful replies need no timer. */
+#define WR_ARTWORK_PACE_MS 0u
 #define WR_ARTWORK_BUSY_MS 300u
 #define WR_ARTWORK_RETRY_MS 100u
 #define WR_ARTWORK_UNAVAILABLE_MS 1000u

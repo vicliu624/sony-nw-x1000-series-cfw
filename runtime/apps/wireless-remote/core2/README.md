@@ -101,7 +101,7 @@ Cached metadata is last received data. It cannot establish present radio
 reachability; the UI must not label it LIVE. A failed interaction requests an
 explicit connection check rather than inventing a successful control result.
 
-Alpha.29 negotiates a fresh native encryption key for each link while retaining
+Alpha.29 and later negotiate a fresh native encryption key for each link while retaining
 the existing NVS binding. It requires the matching Root `--link-keys` build;
 the earlier installed Root image is incompatible. App traffic waits for key
 installation, and peer replacement waits for native TX callbacks. Pairing and
@@ -124,10 +124,16 @@ chunks. It is decoded once to a 96-pixel sprite; compressed bytes and pixels use
 PSRAM. A track/session change replaces the job. Missing, malformed, oversized
 and failed artwork keeps the placeholder. No disk cache is used.
 
-Successful reads are spaced by 150 ms; active controls defer new image requests.
+Alpha.30 removes the fixed 150 ms wait after successful reads. One outstanding
+authenticated request provides flow control; input is processed before new
+image work. Active controls defer new image requests.
 Retries retain the request ID and may accept a valid late reply during the gap.
 Old-session/track/offset and invalid authentication are rejected. Transfer
 progress is retained for diagnostics when the session becomes unavailable.
+The admitted byte count determines a fixed total budget, with a ten-minute
+absolute cap; BUSY replies never extend it. The player card shows download
+progress, and tapping a failed cover explicitly retries it. There is no idle
+refetch after failure or completion.
 
 Temporary missing track identity pauses a same-session job. Its bytes and
 deadline survive, but replies cannot append and the cover is hidden until

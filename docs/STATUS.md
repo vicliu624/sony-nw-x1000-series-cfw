@@ -32,9 +32,12 @@ shared-retirement ordering fix, with Core2 alpha.29 required. The user reports
 installing it, and the Core2 application update was hash-verified with existing
 pairing and channel retained. The matched trial established a fresh-key link,
 accepted authenticated player snapshots and began artwork transfer. The user
-confirmed visible playback information and working basic controls. Two reported
-functional failures remain: Core2 cannot change Play Mode, and album covers are
-not visible. Sleep/wake and USB retirement still require separate acceptance.
+confirmed visible playback information and working basic controls. Core2 alpha.30
+subsequently completed and decoded an 82,969-byte cover, and the user confirmed
+visible artwork. Play Mode changes remain unsupported by the current control
+path. Cover throughput remains about 1.3 KiB/s; the radio adapter still copies
+packet data through scalar word commands. Sleep/wake and USB retirement still
+require separate acceptance.
 Its UPG SHA-256 is `fdff75678168e18461216c458034125f2ff0fb5683fde1f9aad4e178c57fbf97`.
 Independent Rockbox extraction, complete inventory/allocation checks and
 current-source compatibility checks pass. This is prepared test material,
@@ -51,7 +54,7 @@ with partial physical acceptance, not a public release.
 | Ordinary Wi-Fi handoff | On `native-ipc-01`, the user reports no Wi-Fi drop through Homebrew entry/exit; the diagnostic uses retained mode0/command6. The Remote trial explicitly used Wi-Fi on without a router | Confirm association/data continuity and sleep/wake separately; enabled radio alone is not an IP connection |
 | Remote pairing | Selection-based Core2 pairing and persisted bindings have worked on the test unit | Retain binding across service restart, USB and sleep in the final composition |
 | Remote controls | The matched `link-retirement-03` / Core2 alpha.29 trial established a fresh-key link and accepted authenticated player state; the user confirmed visible playback information and working basic controls. Core2 update retained its binding and channel. Offline tests cover both endpoint restarts and bidirectional CCMP through actual owner pipes | Core2 Play Mode changes do not work; complete five-mode and restart acceptance; old journals remain unchanged |
-| Remote artwork | Authenticated image chunks reach Core2 on hardware. Native parser/EOF replay, candidate isolation, cache epochs and assembly have offline coverage; the shared renderer exercises JPEG/PNG fit and RGB565 sprite copying on the PC | The user still sees no album cover on Core2; complete transfer, decode, visible display and timing need diagnosis |
+| Remote artwork | Core2 alpha.30 completed and decoded an 82,969-byte cover; the user confirmed visible display. The fixed 150 ms read pacing is removed, and size-based bounded job admission replaces the unconditional 120-second cutoff. Authentication, retry and control-priority regressions pass | Throughput remains about 1.3 KiB/s; qualify faster transfer, other image formats and source-read failures |
 | Quiet remote sessions | Current sender emits no heartbeat; Core2 has no periodic reconnect or quiet-session expiry | Confirm interaction-driven recovery with the final hardware composition |
 | Sleep and recovery | Native observer tests retain qualified wake entry/completion during a pending transition, defer rearm until stable, and reject recovery after exit | Physical screen-off, suspend and wake timing remain unqualified |
 | USB after remote use | `shared-rx-02` hung after confirmed Remote Off. Actual Root stop functions plus the full controller reproduce a source bug: endpoint drain can execute manager RELEASE before the outer receive/sleep cleanup runs. Dev.19 yields at this transition; host/ARM tests pass connected/unassociated, channel-change and cleanup-failure paths | Physical USB recovery remains unverified. New retirement summaries need a fresh diagnostic seed; the old occupied-slot trace does not describe the failed trial |

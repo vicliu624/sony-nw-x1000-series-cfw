@@ -63,8 +63,11 @@ starved this update. There are no idle heartbeat packets in the current version.
 
 Read retries retain their session/request/track/offset identity, allowing a valid
 late reply in the retry gap. A different identity cannot enter assembly. Controls
-are not retransmitted. Successful chunks wait150ms before the next request;
-completed/failed images do not create indefinite background traffic. Offline
+are not retransmitted. Successful chunks admit the next read without a fixed
+timer; one outstanding request provides flow control and frontend input has
+priority. The first valid total size admits a fixed size-based job budget,
+bounded by ten minutes from job start; BUSY and retry traffic do not renew it.
+Completed/failed images do not create indefinite background traffic. Offline
 revocation retains byte counters for diagnosis without allowing late assembly.
 
 A live same-session snapshot without a valid track ID pauses the image job.
@@ -164,7 +167,8 @@ Core2 allocates compressed storage in PSRAM and decodes an image once into a
 the existing M5GFX JPEG/PNG decoder still decides actual format acceptance.
 Subsequent UI redraws copy cached pixels. Missing, malformed, oversized or
 timed-out artwork uses the placeholder. Nothing is periodically retransmitted
-after a completed or failed fetch for the same track/session.
+after a completed or failed fetch for the same track/session. The Core2 card
+displays progress; tapping a failed image explicitly starts a new bounded read.
 
 `id3_cover.c` is a separate bounded portable extraction component, tested under
 host sanitizers and the original Sony libc/ARM926. It is not currently linked

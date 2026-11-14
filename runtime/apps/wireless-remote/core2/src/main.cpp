@@ -186,6 +186,14 @@ static uint8_t pairing_private[32], pairing_public[32];
 static TickType_t pairing_started, pairing_announced;
 static const uint8_t pairing_broadcast[6] = {255, 255, 255, 255, 255, 255};
 static uint64_t library_now() { return uint64_t(xTaskGetTickCount()) * portTICK_PERIOD_MS; }
+static bool retry_cover() {
+    if (!receiver.have_status || stale || !artwork ||
+        wr_artwork_client_retry(artwork, library_now()))
+        return false;
+    cover_attempted = cover_decoded = false;
+    draw_status();
+    return true;
+}
 static void library_request(xw_media_view view, uint32_t offset, uint64_t revision,
                             const char *container = nullptr) {
     if (!receiver.paired || !receiver.have_status || stale || library.pending)
@@ -781,6 +789,11 @@ static void keyboard_step() {
             if (touch.y >= 215) {
                 if (!confirm_unpair && !channel_edit && touch.x >= 0 && touch.x < 320)
                     select_page(unsigned(touch.x) / 80u);
+            } else if (page == REMOTE_PAGE_PLAYER && touch.x >= 16 && touch.x < 118 &&
+                       touch.y >= 43 && touch.y < 145) {
+                const wr_artwork_progress *cover = wr_artwork_client_progress(artwork);
+                if (cover && (cover->failed || (cover->complete && !cover_decoded)))
+                    (void)retry_cover();
             } else if (page == REMOTE_PAGE_PAIRING && channel_edit && touch.y >= 100 &&
                        touch.y < 140) {
                 navigate(touch.x < 160 ? -1 : 1);
@@ -962,6 +975,14 @@ static void artwork_step() {
     observe_artwork(now);
     wr_artwork_client_tick(artwork, now);
     const wr_artwork_progress *progress = wr_artwork_client_progress(artwork);
+    static unsigned shown_progress = UINT32_MAX;
+    unsigned presentation = progress->total ? progress->received * 100u / progress->total : 0;
+    presentation |= progress->failed ? 256u : progress->complete ? 512u : 0;
+    if (presentation != shown_progress) {
+        shown_progress = presentation;
+        if (page == REMOTE_PAGE_PLAYER)
+            draw_status();
+    }
     if (wr_artwork_client_image_ready(artwork) && !cover_attempted) {
         cover_attempted = true;
         cover_decoded = walkman_remote::draw_cover(cover_canvas, artwork->data, progress->total);
@@ -1152,6 +1173,22 @@ static void render_status() {
         g.fillCircle(67, 94, 3, 0x0863);
         if (online && cover_decoded && wr_artwork_client_image_ready(artwork))
             cover_canvas.pushSprite(&canvas, 19, 46);
+        else if (online) {
+            const wr_artwork_progress *cover = wr_artwork_client_progress(artwork);
+            if (cover && cover->session) {
+                char caption[24];
+                if (cover->failed || (cover->complete && !cover_decoded))
+                    std::snprintf(caption, sizeof caption, "Tap to retry");
+                else if (cover->total)
+                    std::snprintf(caption, sizeof caption, "Cover %u%%",
+                                  unsigned(cover->received * 100u / cover->total));
+                else
+                    std::snprintf(caption, sizeof caption, "Reading cover");
+                g.fillRoundRect(22, 116, 90, 22, 4, bg);
+                g.setTextColor(muted);
+                g.drawString(caption, 25, 122);
+            }
+        }
         const wr_status &v = receiver.status;
         g.setTextColor(mint);
         g.drawString(receiver.have_status ? "LAST RECEIVED" : "NO PLAYER INFO", 134, 43);
@@ -1301,8 +1338,7 @@ void setup() {
                 else if (!std::strcmp(command, "connect"))
                     request_connection();
                 else if (!std::strcmp(command, "cover-retry")) {
-                    if (!wr_artwork_client_retry(artwork, library_now())) {
-                        cover_attempted = cover_decoded = false;
+                    if (retry_cover()) {
                         std::puts("REMOTE_COVER_RETRY");
                     } else
                         std::puts("REMOTE_COVER_NO_CONFIRMED_TRACK");

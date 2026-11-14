@@ -4,6 +4,17 @@
 static uint64_t after(uint64_t now, unsigned delay) {
     return now > UINT64_MAX - delay ? UINT64_MAX : now + delay;
 }
+static void admit_image_budget(struct wr_artwork_progress *job, uint32_t total) {
+    unsigned chunks = (total + XW_ARTWORK_CHUNK - 1u) / XW_ARTWORK_CHUNK;
+    unsigned budget = WR_ARTWORK_SETUP_MS + chunks * WR_ARTWORK_CHUNK_BUDGET_MS;
+    if (budget < WR_ARTWORK_JOB_MS)
+        budget = WR_ARTWORK_JOB_MS;
+    if (budget > WR_ARTWORK_JOB_LIMIT_MS)
+        budget = WR_ARTWORK_JOB_LIMIT_MS;
+    uint64_t deadline = after(job->started, budget);
+    if (deadline > job->deadline)
+        job->deadline = deadline;
+}
 static void clear_transfer(struct wr_artwork_progress *job) {
     job->pending = job->received = job->total = job->attempts = job->complete = job->failed = 0;
 }
@@ -123,6 +134,8 @@ int wr_artwork_client_accept(struct wr_artwork_client *c, uint64_t now, const vo
         job->failed = 1;
         return -1;
     }
+    if (!job->total)
+        admit_image_budget(job, reply.chunk.total);
     job->total = reply.chunk.total;
     memcpy(c->data + job->received, reply.chunk.data, reply.chunk.bytes);
     job->received += reply.chunk.bytes;
