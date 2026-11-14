@@ -101,7 +101,7 @@ def reviewed_inputs(firmware_review, allocation_review, regressions):
         raise ValueError('Expected an uninstalled diagnostic firmware review')
     if not model.get('passed') or model.get('physical_margin_verified'):
         raise ValueError('Expected an explicit PC allocation model')
-    if not bulk.get('passed') or bulk.get('source_changed_during_run'):
+    if not bulk.get('passed') or bulk.get('source_changed_during_run') or bulk.get('inputs_changed_during_run'):
         raise ValueError('Passing immutable regression snapshot required')
     snapshot = bulk.get('source_snapshot', (bp.parent / 'checked-source.zip').relative_to(ROOT).as_posix())
     if digest(private(snapshot)) != bulk['source_snapshot_sha256']:
@@ -109,6 +109,9 @@ def reviewed_inputs(firmware_review, allocation_review, regressions):
     for check in bulk['checks']:
         if check['exit_code'] or digest(private(check['log'])) != check['log_sha256']:
             raise ValueError('Regression log changed or did not pass')
+    for name, expected in bulk.get('input_hashes', {}).items():
+        if digest(private(name)) != expected:
+            raise ValueError('Regression input changed: ' + name)
     layouts = [name for name, sha in firmware['inputs'].items()
                if sha == firmware['layout_review_sha256']]
     if len(layouts) != 1:

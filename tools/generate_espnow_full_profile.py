@@ -12,13 +12,10 @@ def render(directory):
     image, derived = construct(stock, directory / "radio.elf")
     if image != (directory / "candidate/sd8686.bin").read_bytes():
         raise ValueError("candidate/ELF mismatch")
-    for name in (
-        "profile",
-        "candidate_sha256",
-        "controls",
-        "immutable_segments",
-        "startup_only_segments",
-    ):
+    for name in ("profile", "original_sha256", "candidate_sha256", "payload_elf_sha256",
+                 "candidate_bytes", "reserved_bytes", "occupied_span_bytes", "tail_free_bytes",
+                 "pool_blocks_after", "entries", "controls", "patches", "immutable_segments",
+                 "startup_only_segments", "rx_initially_disabled"):
         if derived[name] != manifest[name]:
             raise ValueError("manifest mismatch: " + name)
     if derived.get("bulk_word_commands") != manifest.get("bulk_word_commands"):

@@ -1,11 +1,25 @@
 """Reviewed radio profiles and isolated MCU fixtures for instruction replay."""
 import hashlib
-import json
 import sys
 import struct
 from pathlib import Path
 from app_registry import ROOT
+from build_espnow_full_radio import HELPER_SHA
 from generate_espnow_full_profile import render
+from review_managed_remote_profile import private, receipt
+
+
+def reviewed_radio(directory):
+    manifest_path, manifest = receipt(Path(directory) / 'manifest.json')
+    directory = manifest_path.parent
+    payload = private(directory / 'radio.elf')
+    helper = private(directory / 'candidate/helper_sd.bin')
+    if manifest['helper_sha256'] != HELPER_SHA or hashlib.sha256(helper.read_bytes()).hexdigest() != HELPER_SHA:
+        raise ValueError('Radio helper identity differs')
+    for relative in ('stock/sd8686.bin', 'candidate/sd8686.bin'):
+        private(directory / relative)
+    render(directory)  # Reconstruct the image and check the manifest from the ELF.
+    return payload, manifest
 
 def selected_radio():
     if '--radio-review' not in sys.argv:
@@ -13,18 +27,7 @@ def selected_radio():
     index = sys.argv.index('--radio-review')
     if index + 1 >= len(sys.argv):
         raise ValueError('--radio-review requires a local build directory')
-    directory = Path(sys.argv[index + 1]).resolve()
-    if not directory.is_relative_to((ROOT / 'work').resolve()):
-        raise ValueError('Radio input must remain in work/')
-    manifest = json.loads((directory / 'manifest.json').read_text())
-    for name, expected in manifest['source_hashes'].items():
-        if hashlib.sha256((ROOT / name).read_bytes()).hexdigest() != expected:
-            raise ValueError('Stale radio source: ' + name)
-    payload = directory / 'radio.elf'
-    if hashlib.sha256(payload.read_bytes()).hexdigest() != manifest['payload_elf_sha256']:
-        raise ValueError('Radio ELF identity differs')
-    render(directory)  # Independently reconstruct and cross-check the image/profile.
-    return payload, manifest
+    return reviewed_radio(sys.argv[index + 1])
 
 
 def packet_fixture(blocks=3):

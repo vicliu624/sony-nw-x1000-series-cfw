@@ -55,6 +55,13 @@ native code to the FRM1 MCU image. The legacy FFI checks its context size and
 offsets against compiled C before use. Its SDK/native build and generated radio
 images remain under `work/`; no updater or device operation is performed.
 
+For another replay of unchanged binaries, pass `--radio-reviews` with the
+directory containing the four builds and `--sdk-review` with the native SDK
+`build.json`. Source hashes, radio image reconstruction and the SDK archive
+identity are checked before reuse. The replay still runs the protocol and MCU
+checks, records a fresh snapshot and logs, and binds the selected input files
+by hash. Omit the options to verify a fresh radio and SDK build.
+
 `test_shared_owner_retirement.py` combines the actual Root stop wrapper and
 full controller. It checks delayed drain, both native connection states,
 channel-change stop, receive/sleep/release order and retained ownership after
