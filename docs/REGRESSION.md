@@ -102,8 +102,10 @@ Radio-image checks are separate from the default groups. Build a fresh
 `prepare_shared_wifi_image.py --rx-diagnostics --bulk-commands` review, then run
 `test_espnow_full_radio.py <radio-build>`, `test_radio_bulk_command.py
 --radio-review <radio-build>`, `test_radio_full_rx.py --radio-review
-<radio-build>` and `test_radio_completion_hook.py --radio-review <radio-build>`
-sequentially. The last two share a fixture build directory. Also run
+<radio-build>` and `test_radio_completion_hook.py --radio-review <radio-build>`.
+The RX, completion and preemption checks set up their own MCU fixtures from the
+selected image. The radio profile suite runs frame transactions and legacy
+completion explicitly. Also run
 `test_radio_command_capacity.py`: it executes original ingress instructions to
 demonstrate why requests over 1,500 bytes overwrite a live event object. The
 bulk guard checks count actual adapter calls but model the device; they are

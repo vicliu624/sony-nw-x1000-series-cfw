@@ -1,11 +1,11 @@
 """Replay original hardware-ring admission; no RF completion is simulated."""
 from pathlib import Path
-import contextlib,hashlib,io,json,runpy,struct
+import hashlib,json,struct
 from unicorn import UC_HOOK_CODE
 from unicorn.arm_const import UC_ARM_REG_R0,UC_ARM_REG_LR,UC_ARM_REG_PC
 from app_registry import ROOT
-with contextlib.redirect_stdout(io.StringIO()):
-    env=runpy.run_path(str(ROOT/'tools/test_radio_packet_ownership.py'))
+from radio_test_profile import packet_fixture
+env=packet_fixture()
 cpu=env['cpu'];call=env['call'];put=env['put'];word=env['word']
 cpu.mem_map(0x8000a000,0x1000)
 # Only the frame-view accessor and an unrelated packet flag helper are modeled.

@@ -3,7 +3,7 @@
 All PC-only; modeled DMA/ROM/completion producer, no physical ESP-NOW claim.
 """
 from pathlib import Path
-import contextlib,hashlib,io,json,runpy,select,struct,subprocess,sys
+import hashlib,json,select,struct,subprocess,sys
 from Crypto.Cipher import AES
 from unicorn import UC_HOOK_CODE
 from unicorn.arm_const import UC_ARM_REG_SP,UC_ARM_REG_LR,UC_ARM_REG_PC,UC_ARM_REG_R6,UC_ARM_REG_R4
@@ -14,9 +14,11 @@ if DRIVER and '--arm' not in sys.argv:raise ValueError('iwreq ABI driver test re
 GUARD='--guard' in sys.argv or DRIVER
 if GUARD and '--candidate' not in sys.argv:raise ValueError('guard test requires actual candidate profile')
 OUT=ROOT/('work/espnow-secure-chain-arm' if ARM else 'work/espnow-secure-chain');OUT.mkdir(exist_ok=True)
-with contextlib.redirect_stdout(io.StringIO()):radio=runpy.run_path(str(ROOT/'tools/test_radio_completion_hook.py'))
-cpu,put,word,call,free_count,command=[radio[n] for n in ('cpu','put','word','call','free_count','command')]
-symbols=radio['symbols'];tx=symbols['xnow_full_tx'];rx=symbols['xnow_full_rx'];completion=symbols['xnow_tx_completion'];request=radio['env']['request'];radio['env']['env']['queue_result'][0]=0
+from radio_test_profile import WORD_REQUEST, legacy_completion_fixture, selected_radio
+radio=legacy_completion_fixture(OUT/'radio-build',selected_radio())
+cpu,put,word,call,free_count=(radio['env'][name] for name in ('cpu','put','word','call','free_count'))
+command=radio['command']
+symbols=radio['symbols'];tx=symbols['xnow_full_tx'];rx=symbols['xnow_full_rx'];completion=symbols['xnow_tx_completion'];request=WORD_REQUEST;radio['env']['queue_result'][0]=0
 candidate_identity=None
 if '--candidate' in sys.argv:
  from marvell_firmware import parse
@@ -111,5 +113,5 @@ finally:
 assert pns==[1,1025] and rejected_pns==[1026] and free_count()==3 and word(rx+56)==0
 assert call(0x1360,frame)==0
 headers=['runtime/platform/espnow/'+n for n in ('xnow_endpoint.h','xnow_endpoint_security.h','xnow_peer.h','xnow_full.h','xnow_security.h','xnow_ccmp.h','xnow_pn.h','xnow_pn_file.h','xnow_wire.h','xnow_keyring.h','xnow_keywrap.h','xnow_full_guard.h','xnow_sd8686_full.h')]
-report={'passed':True,'candidate_identity':candidate_identity,'native_endpoint_crypto_and_real_host_journal':True,'host_asan_ubsan':not ARM,'arm926_original_libc':ARM,'original_command_dispatch_and_compiled_radio':True,'independent_tx_aesccm_authentication':True,'transmitted_pns_across_endpoint_restart':pns,'pre_mac_rejected_pns':rejected_pns,'original_task5_rejection_drains_stop':True,'maximum_payload':1470,'pmk_rotation_preserves_lmk_and_pn_namespace':True,'bounded_guard_and_lease_invalidation':GUARD,'linux_iwreq_ioctl_transport_mocked':DRIVER,'probe_does_not_enable_rx_channel_set_readback_before_open':DRIVER,'reclaimed_scatter_excluded_from_runtime_identity':GUARD,'rx_capacity_retry_and_persistent_replay_rejection':True,'mic_failure_then_valid_same_pn_accepted':True,'stop_workspace_erased_and_pool_restored':True,'transactions':counts,'native_side_is_host_not_arm':not ARM,'hardware_dma_rom_queue_completion_and_scheduling_modeled':True,'physical_interoperability':False,'device_accessed':False,'radio_reserved_bytes':radio['report']['combined_reserved_bytes'],'source_hashes':{p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in [*sources,*headers,'tools/test_xnow_secure_chain.py']},'radio_source_hashes':radio['report']['source_hashes'],'bearssl_archive_sha256':hashlib.sha256(archive.read_bytes()).hexdigest()}
+report={'passed':True,'candidate_identity':candidate_identity,'native_endpoint_crypto_and_real_host_journal':True,'host_asan_ubsan':not ARM,'arm926_original_libc':ARM,'original_command_dispatch_and_compiled_radio':True,'independent_tx_aesccm_authentication':True,'transmitted_pns_across_endpoint_restart':pns,'pre_mac_rejected_pns':rejected_pns,'original_task5_rejection_drains_stop':True,'maximum_payload':1470,'pmk_rotation_preserves_lmk_and_pn_namespace':True,'bounded_guard_and_lease_invalidation':GUARD,'linux_iwreq_ioctl_transport_mocked':DRIVER,'probe_does_not_enable_rx_channel_set_readback_before_open':DRIVER,'reclaimed_scatter_excluded_from_runtime_identity':GUARD,'rx_capacity_retry_and_persistent_replay_rejection':True,'mic_failure_then_valid_same_pn_accepted':True,'stop_workspace_erased_and_pool_restored':True,'transactions':counts,'native_side_is_host_not_arm':not ARM,'hardware_dma_rom_queue_completion_and_scheduling_modeled':True,'physical_interoperability':False,'device_accessed':False,'radio_reserved_bytes':sum(len(data) for _,data in radio['sections']),'source_hashes':{p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in [*sources,*headers,'tools/test_xnow_secure_chain.py']},'radio_source_hashes':radio['provenance']['source_hashes'],'bearssl_archive_sha256':hashlib.sha256(archive.read_bytes()).hexdigest()}
 (OUT/'report.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))

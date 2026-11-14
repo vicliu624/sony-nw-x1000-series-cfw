@@ -3,15 +3,14 @@
 ROM/IRQ and synthetic ring producer are fixture boundaries, not physical RX.
 Uses the exact original singleton work factory, never invented RX frame bounds.
 """
-import ctypes,hashlib,json,runpy,struct,subprocess
-from pathlib import Path
+import ctypes,hashlib,json,struct,subprocess
 from elftools.elf.elffile import ELFFile
 from unicorn import UC_HOOK_CODE,UC_HOOK_MEM_INVALID
 from unicorn.arm_const import UC_ARM_REG_R0,UC_ARM_REG_R1,UC_ARM_REG_R2,UC_ARM_REG_SP,UC_ARM_REG_LR,UC_ARM_REG_PC
 from app_registry import ROOT
 from Crypto.Cipher import AES
 from espnow_known_key_frame import PROFILES,analyze
-from radio_test_profile import selected_radio
+from radio_test_profile import WORD_REQUEST, build_wire_codec, packet_fixture, selected_radio, word_command
 OUT=ROOT/'work/espnow-full-rx';OUT.mkdir(parents=True,exist_ok=True)
 sources=['runtime/platform/espnow/'+n for n in ('radio_packet.c','radio_full_rx.c','radio_full_tx.c','radio_word_command.c','radio_command_hook.S')]
 link=OUT/'rx.ld';link.write_text('ENTRY(xnow_radio_full_receive)\nSECTIONS { . = 0xc000a190; .text : { *(.text*) *(.rodata*) } .state : { *(.state) } /DISCARD/ : { *(.ARM.exidx*) *(.ARM.extab*) *(.comment*) *(.note*) } ASSERT(.<=0xc000a8fc,"reserved block exceeded") }')
@@ -23,8 +22,9 @@ with elf.open('rb') as f:
     image=ELFFile(f);sections=[(s['sh_addr'],s.data()) for s in image.iter_sections() if s['sh_flags']&2 and s['sh_size']]
     immutable_sections=[(s['sh_addr'],s.data()) for s in image.iter_sections() if s['sh_flags']&2 and s['sh_size'] and s.name!='.state']
     symbols={s.name:s['st_value'] for s in image.get_section_by_name('.symtab').iter_symbols() if s.name}
-env=runpy.run_path(str(ROOT/'tools/test_radio_full_tx.py'))
-cpu,put,word,call,free_count,command=[env[n] for n in ('cpu','put','word','call','free_count','command')]
+env=packet_fixture()
+cpu,put,word,call,free_count=[env[n] for n in ('cpu','put','word','call','free_count')]
+command=word_command(cpu)
 cpu.mem_write(0xc000a190,bytes(1900))
 for address,data in sections:cpu.mem_write(address,data)
 cpu.ctl_remove_cache(0xc000a190,0xc000a8fc)
@@ -52,7 +52,7 @@ assert word(0xc0014710+20)==0xc000d5ec
 put(ctx+16,frame) # Original task's c34 pointer store, before its ring read.
 ring=0x201000;config=0xc000dc8c+4*32
 put(config,ring);put(config+8,4096);put(config+16,0x200700);put(config+20,0x200704);put(config+24,0x7b4)
-codec=env['codec'];nonce=env['nonce'];patterns=[]
+codec=build_wire_codec(OUT);nonce=ctypes.create_string_buffer(b'\x11\x22\x33\x44');patterns=[]
 def encode_payload(version,data):
     out=ctypes.create_string_buffer(1520);payload=ctypes.create_string_buffer(data);n=ctypes.c_size_t()
     length=len(data)
@@ -134,7 +134,7 @@ cpu.hook_add(UC_HOOK_CODE,preempt)
 ticket=(word(rx+8)+1)&0xffffffff
 # Use the actual host STORE/dispatch entry. LTO may inline the private RX
 # doorbell; a private symbol address is not an executable protocol contract.
-cpu.mem_write(env['request'],struct.pack('<4H',0x86,20,0x55aa,0)+struct.pack('<HHII',1,0,rx+12,ticket))
+cpu.mem_write(WORD_REQUEST,struct.pack('<4H',0x86,20,0x55aa,0)+struct.pack('<HHII',1,0,rx+12,ticket))
 cpu.mem_write(0xc000edf4,b'\0')
 cpu.reg_write(UC_ARM_REG_SP,0x208000);cpu.reg_write(UC_ARM_REG_LR,0x1f001)
 cpu.emu_start(0x8079,0x9b40,count=30000)
@@ -222,7 +222,7 @@ for profile,prefix,mask in PROFILES:
 assert call(0x1360,frame)==0 # original singleton RX work object is independently released
 for address,data in immutable_sections:
     assert bytes(cpu.mem_read(address,len(data)))==data
-tracked=[*sources,'runtime/platform/espnow/radio_packet.h','runtime/platform/espnow/radio_full_rx.h','runtime/platform/espnow/radio_full_tx.h','tools/test_radio_full_rx.py','tools/test_radio_full_tx.py','tools/test_radio_packet_ownership.py']
+tracked=[*sources,'runtime/platform/espnow/radio_packet.h','runtime/platform/espnow/radio_full_rx.h','runtime/platform/espnow/radio_full_tx.h','tools/test_radio_full_rx.py','tools/radio_test_profile.py','tools/marvell_firmware.py','runtime/platform/espnow/xnow_wire.c','runtime/platform/espnow/xnow_wire.h']
 report={'passed':True,'original_rx_work_factory_and_4b9c_ring_copy_executed':True,'queue_depth':2,'v1_250_and_v2_1470_bodies_preserved':True,'borrowed_work_pointer_not_retained':True,'queue_full_and_pool_exhaustion_drop_without_overwrite':True,'stale_duplicate_and_empty_pop_handled':True,'protected_rx_flag_and_a3_fragment_unicast_filter':True,'tickets_wrap':True,'disabled_admission_and_queued_drain':True,'stop_during_private_allocation_releases_before_inactive':True,'unsupported_traffic_falls_back':True,'own_unicast_and_broadcast_only':True,'producer_preemption_between_tail_publish_and_free_safe':True,'task_preemption_manually_scheduled':True,'all_packet_buffers_released':free_count()==3,'combined_reserved_region_bytes':sum(len(data) for _,data in sections),'rom_irq_copy_and_dma_producer_modeled':True,'physical_rx_tested':False,'download_image_created':False,'source_hashes':{p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in tracked}}
 report.update(synthetic_encrypted_capture_cases=capture_cases,upstream_unknown_key_admission_proven=False)
 if selected:

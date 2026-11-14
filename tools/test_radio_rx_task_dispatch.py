@@ -4,12 +4,14 @@ Starts after work-node acquisition. DMA producer/MMIO and IRQ are synthetic.
 No physical MAC admission or unknown-key decryption claim; no device access.
 """
 from pathlib import Path
-import contextlib,hashlib,io,json,runpy,struct
+import hashlib,json,struct
 from unicorn import UC_HOOK_CODE
 from unicorn.arm_const import UC_ARM_REG_R0,UC_ARM_REG_R4,UC_ARM_REG_R6,UC_ARM_REG_SP,UC_ARM_REG_LR,UC_ARM_REG_PC
 ROOT=Path(__file__).resolve().parents[1];OUT=ROOT/'work/espnow-rx-task-dispatch';OUT.mkdir(parents=True,exist_ok=True)
-with contextlib.redirect_stdout(io.StringIO()):env=runpy.run_path(str(ROOT/'tools/test_radio_completion_hook.py'))
-cpu,put,word,call,free_count,command=[env[n] for n in ('cpu','put','word','call','free_count','command')]
+from radio_test_profile import legacy_completion_fixture, selected_radio
+env=legacy_completion_fixture(OUT/'radio-build',selected_radio())
+cpu,put,word,call,free_count=(env['env'][name] for name in ('cpu','put','word','call','free_count'))
+command=env['command']
 entry=env['symbols']['xnow_radio_full_receive'];rx=env['symbols']['xnow_full_rx'];put(0xc00026b0,entry)
 cpu.ctl_remove_cache(0xc00026a8,0xc00026b4)
 if not any(a<=0x8000a000<=b for a,b,_ in cpu.mem_regions()):cpu.mem_map(0x8000a000,0x1000)
@@ -51,5 +53,5 @@ for protected,length,kind,enabled in [(0,0,0xd0,1),(0,250,0xd0,1),(0,1470,0xd0,1
     assert free_count()==3 and call(0xc000465c,word(0xc000ee4c))==node
     call(0xc00046c0,node) # Original release has no specified scalar result.
     rows.append({'protected':bool(protected),'payload_or_protected_body_bytes':length,'frame_type_byte':hex(kind),'bridge_enabled':bool(enabled),'original_task_dispatched':dispatched,'full_rx_queued':bool(accepted),'original_ring_copy_executed':True,'body_preserved':bool(accepted),'rx_work_released':True,'peer_lookup_5710_executed':False})
-report={'passed':True,'cases':rows,'stock_sha256':hashlib.sha256(env['env']['env']['blob']).hexdigest(),'original_task_clause':'0xc000323a..0xc0003288','original_ring_poll':'0xe164','original_copy':'0x4b9c','original_veneer':'0xc00026a8 -> [0xc00026b0]','synthetic_dma_mmio_irq':True,'hardware_unknown_key_admission_verified':False,'device_accessed':False,'radio_loaded':False,'source_hashes':{p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in ['tools/test_radio_rx_task_dispatch.py','tools/test_radio_completion_hook.py','runtime/platform/espnow/radio_full_rx.c','runtime/platform/espnow/radio_full_rx.h']}}
+report={'passed':True,'cases':rows,'stock_sha256':hashlib.sha256(env['env']['blob']).hexdigest(),'original_task_clause':'0xc000323a..0xc0003288','original_ring_poll':'0xe164','original_copy':'0x4b9c','original_veneer':'0xc00026a8 -> [0xc00026b0]','synthetic_dma_mmio_irq':True,'hardware_unknown_key_admission_verified':False,'device_accessed':False,'radio_loaded':False,'source_hashes':{p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in ['tools/test_radio_rx_task_dispatch.py','tools/radio_test_profile.py','tools/marvell_firmware.py','runtime/platform/espnow/radio_full_rx.c','runtime/platform/espnow/radio_full_rx.h']}}
 (OUT/'report.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))

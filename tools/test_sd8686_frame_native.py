@@ -1,12 +1,8 @@
 """Native C adapter + exact MCU instructions over a private PC-only test socket."""
 
-import contextlib
 import hashlib
-import io
 import json
 import os
-from pathlib import Path
-import runpy
 import socket
 import struct
 import subprocess
@@ -14,7 +10,6 @@ import sys
 import threading
 import time
 import traceback
-from elftools.elf.elffile import ELFFile
 from unicorn import UC_HOOK_CODE
 from unicorn.arm_const import (
     UC_ARM_REG_R0,
@@ -28,34 +23,34 @@ from app_registry import ROOT
 from build_espnow_full_radio import build
 from generate_espnow_full_profile import render
 from marvell_firmware import parse
+from radio_test_profile import frame_fixture, selected_radio
 
 out = ROOT / "work/sd8686-frame-native" / str(time.time_ns())
 out.mkdir(parents=True)
-if "--radio-review" in sys.argv:
-    directory = Path(sys.argv[sys.argv.index("--radio-review") + 1]).resolve()
+selected = selected_radio()
+if selected:
+    payload, manifest = selected
+    directory = payload.parent
 else:
     directory = out / "radio-build"
-    build(
+    manifest = build(
         ROOT / "work/targets-jp/sd8686.bin",
         ROOT / "work/espnow-full-radio-review-3/stock/helper_sd.bin",
         directory,
         rx_diagnostics=True,
         frame_transactions=True,
     )
-    sys.argv += ["--radio-review", str(directory)]
-with contextlib.redirect_stdout(io.StringIO()):
-    radio = runpy.run_path(str(ROOT / "tools/test_radio_frame_transactions.py"))
+    payload = directory / "radio.elf"
+radio = frame_fixture(payload, manifest)
+original_env = radio["env"]
 cpu, put, word, call, free_count = [
-    radio[name] for name in ("cpu", "put", "word", "call", "free_count")
+    original_env[name] for name in ("cpu", "put", "word", "call", "free_count")
 ]
-symbols, sections, manifest = [
-    radio[name] for name in ("symbols", "sections", "manifest")
-]
+symbols, sections = radio["symbols"], radio["sections"]
 records = parse((directory / "candidate/sd8686.bin").read_bytes())
 completion, tx, rx = [
     symbols[name] for name in ("xnow_tx_completion", "xnow_full_tx", "xnow_full_rx")
 ]
-original_env = radio["env"]
 copy_hook = radio["copies"]
 deferred = None
 pending_release = None
@@ -362,9 +357,8 @@ inputs = [
     "runtime/platform/espnow/sd8686_private.h",
     "runtime/platform/espnow/xnow_frame_protocol.h",
     "tools/test_sd8686_frame_native.py",
-    "tools/test_radio_frame_transactions.py",
-    "tools/test_radio_packet_ownership.py",
     "tools/radio_test_profile.py",
+    "tools/marvell_firmware.py",
     *manifest["source_hashes"],
 ]
 if arm_stdout is not None:

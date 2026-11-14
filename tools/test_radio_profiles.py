@@ -70,11 +70,17 @@ def main():
             save()
         run("native-library", "runtime/platform/espnow/build_library.py")
         run("original-hostcmd-response", "tools/test_sd8686_hostcmd_response.py")
+        run("original-packet-ownership", "tools/test_radio_packet_ownership.py")
+        run("word-tx", "tools/test_radio_full_tx.py")
         for name in ("scalar", "bulk", "vector"):
+            run(name + "-completion", "tools/test_radio_completion_hook.py",
+                "--radio-review", output / name)
             run(name + "-release-preemption", "tools/test_radio_completion_preemption.py",
                 "--legacy", "--radio-review", output / name)
             run(name + "-native-word-chain", "tools/test_xnow_full_integration.py",
                 "--radio-review", output / name)
+        run("frame-transactions", "tools/test_radio_frame_transactions.py",
+            "--radio-review", output / "frame")
         run("frame-release-preemption", "tools/test_radio_completion_preemption.py",
             "--radio-review", output / "frame")
         run("frame-original-rx", "tools/test_radio_full_rx.py", "--radio-review", output / "frame")
@@ -84,7 +90,7 @@ def main():
             "--radio-review", output / "vector")
     finally:
         report["source_changed_during_run"] = source_inventory() != before
-        report["passed"] = (len(report["checks"]) == 12 and
+        report["passed"] = (len(report["checks"]) == 18 and
                             all(item["exit_code"] == 0 for item in report["checks"]) and
                             not report["source_changed_during_run"])
         save()

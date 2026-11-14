@@ -4,11 +4,12 @@ Unassociated feature-off fixture, modeled MMIO consumer/time/peer lookup/IRQ.
 This does not prove MAC hardware encryption is disabled on a physical radio.
 """
 from pathlib import Path
-import contextlib,hashlib,io,json,runpy,struct
+import hashlib,json,struct
 from unicorn import UC_HOOK_CODE
 from unicorn.arm_const import UC_ARM_REG_R0,UC_ARM_REG_R4,UC_ARM_REG_R7,UC_ARM_REG_SP,UC_ARM_REG_LR,UC_ARM_REG_PC
 from app_registry import ROOT
-with contextlib.redirect_stdout(io.StringIO()):env=runpy.run_path(str(ROOT/'tools/test_radio_packet_ownership.py'))
+from radio_test_profile import packet_fixture
+env=packet_fixture()
 cpu,call,word,put=[env[n] for n in ('cpu','call','word','put')]
 cpu.mem_map(0x8000a000,0x1000);put(0xc000dc14,0x200a00);cpu.mem_write(0x200a00,bytes(1024))
 put(0xc0006d08,0x8000a300);put(0xc0006cd0,0x8000a304);put(0x8000a000,0x200000)
@@ -43,5 +44,5 @@ for threshold in (512,4096):
    assert call(0x1360,pointer)==0 and env['free_count']()==3
   assert desc[0]==desc[1],'Protected bit changed descriptor controls in this fixture'
   cases.append({'classification_threshold':threshold,'body_bytes':length,'descriptor_controls_identical':True,'frame_changes_only_mutable_duration':True,'body_unchanged':True})
-report={'passed':True,'cases':cases,'original_task5_preparation_and_e840_executed':True,'original_hardware_ring_admission_executed':True,'peer_lookup_irq_time_and_hardware_consumer_modeled':True,'unassociated_feature_off_fixture_only':True,'physical_reencryption_excluded':False,'device_accessed':False,'source_hashes':{p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in ['tools/test_radio_protected_descriptor.py','tools/test_radio_packet_ownership.py']},'stock_image_sha256':hashlib.sha256(env['blob']).hexdigest()}
+report={'passed':True,'cases':cases,'original_task5_preparation_and_e840_executed':True,'original_hardware_ring_admission_executed':True,'peer_lookup_irq_time_and_hardware_consumer_modeled':True,'unassociated_feature_off_fixture_only':True,'physical_reencryption_excluded':False,'device_accessed':False,'source_hashes':{p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in ['tools/test_radio_protected_descriptor.py','tools/radio_test_profile.py','tools/marvell_firmware.py']},'stock_image_sha256':hashlib.sha256(env['blob']).hexdigest()}
 out=ROOT/'work/espnow-protected-descriptor';out.mkdir(exist_ok=True);(out/'report.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))

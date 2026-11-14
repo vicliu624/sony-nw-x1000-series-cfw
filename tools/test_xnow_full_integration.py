@@ -4,14 +4,16 @@ Synthetic ROM queues/RX DMA/completion producer; no device or RF acceptance.
 """
 from Crypto.Cipher import AES
 from pathlib import Path
-import contextlib,ctypes,hashlib,io,json,runpy,struct,subprocess
+import ctypes,hashlib,json,struct,subprocess
 from unicorn.arm_const import UC_ARM_REG_SP,UC_ARM_REG_LR,UC_ARM_REG_PC,UC_ARM_REG_R6
 from app_registry import ROOT
 OUT=ROOT/'work/espnow-full-integration';OUT.mkdir(exist_ok=True)
-with contextlib.redirect_stdout(io.StringIO()):radio=runpy.run_path(str(ROOT/'tools/test_radio_completion_hook.py'))
-cpu,put,word,call,free_count,command=[radio[n] for n in ('cpu','put','word','call','free_count','command')]
+from radio_test_profile import WORD_REQUEST, legacy_completion_fixture, selected_radio
+radio=legacy_completion_fixture(OUT/'radio-build',selected_radio())
+cpu,put,word,call,free_count=(radio['env'][name] for name in ('cpu','put','word','call','free_count'))
+command=radio['command']
 symbols=radio['symbols'];tx=symbols['xnow_full_tx'];rx=symbols['xnow_full_rx'];completion=symbols['xnow_tx_completion']
-request=radio['env']['request'];radio['env']['env']['queue_result'][0]=0
+request=WORD_REQUEST;radio['env']['queue_result'][0]=0
 shared=OUT/'backend.so';sources=['runtime/platform/espnow/xnow_full.c','runtime/platform/espnow/xnow_wire.c','tools/fixtures/xnow_full_layout.c']
 subprocess.run(['gcc','-std=c99','-Wall','-Wextra','-Werror','-shared','-fPIC',*sources,'-o',str(shared)],cwd=ROOT,check=True)
 lib=ctypes.CDLL(str(shared));U=ctypes.c_uint32;P=ctypes.c_void_p
@@ -92,14 +94,14 @@ for version,length in ((1,250),(2,1470)):
  aad=header[:2]+header[4:22]+b'\0\0';aes.update(aad);ciphertext,tag=aes.encrypt_and_digest(clear)
  raw_pn=pn.to_bytes(6,'little');iv=raw_pn[:2]+b'\0\x20'+raw_pn[2:];encrypted=header+iv+ciphertext+tag
  local=ctypes.create_string_buffer(header[10:16]);wire=ctypes.create_string_buffer(encrypted)
- before_count=len(radio['env']['env']['queued'])
+ before_count=len(radio['env']['queued'])
  wrong_local=ctypes.create_string_buffer(bytes.fromhex('021111111111'))
  assert lib.xnow_full_send_protected(ctypes.byref(native),wrong_local,wire,len(encrypted))==-3
  invalid=bytearray(encrypted);invalid[4]=255
  assert lib.xnow_full_send_protected(ctypes.byref(native),local,ctypes.create_string_buffer(bytes(invalid)),len(invalid))==-3
  invalid=bytearray(encrypted);invalid[26]=1
  assert lib.xnow_full_send_protected(ctypes.byref(native),local,ctypes.create_string_buffer(bytes(invalid)),len(invalid))==-3
- assert len(radio['env']['env']['queued'])==before_count and free_count()==3
+ assert len(radio['env']['queued'])==before_count and free_count()==3
  assert lib.xnow_full_send_protected(ctypes.byref(native),local,wire,len(encrypted))==0
  pointer=word(completion);assert pointer and cpu.mem_read(pointer+3,1)[0]&64
  assert bytes(cpu.mem_read(pointer+32,len(encrypted)-24))==encrypted[24:]
@@ -129,9 +131,9 @@ fail_upload[0]=True
 assert lib.xnow_full_send(ctypes.byref(native),destination,1,nonce,b'x',1)==-1
 assert not native.fault and free_count()==3 and word(completion)==0
 # Actual queue rejection is handled by original d800, no double release.
-radio['env']['env']['queue_result'][0]=1
+radio['env']['queue_result'][0]=1
 assert lib.xnow_full_send(ctypes.byref(native),destination,1,nonce,b'x',1)==-5 and free_count()==3
-radio['env']['env']['queue_result'][0]=0
+radio['env']['queue_result'][0]=0
 # Drain actual RX queue and wait for an actual submitted packet on stop.
 assert lib.xnow_full_send(ctypes.byref(native),destination,1,nonce,b'x',1)==0
 pending=word(completion);body=bytes(cpu.mem_read(pending+32,16));inject(body)
@@ -143,13 +145,13 @@ assert lib.xnow_full_open(ctypes.byref(native),ctypes.byref(io_api),ctypes.byref
 ambiguous[0]=True
 assert lib.xnow_full_send(ctypes.byref(native),destination,1,nonce,b'x',1)==-4 and native.fault
 pending=word(completion);assert pending and free_count()==2
-before=len(radio['env']['env']['queued'])
+before=len(radio['env']['queued'])
 assert lib.xnow_full_send(ctypes.byref(native),destination,1,nonce,b'x',1)==-4
-assert lib.xnow_full_stop_step(ctypes.byref(native))==-4 and len(radio['env']['env']['queued'])==before
+assert lib.xnow_full_stop_step(ctypes.byref(native))==-4 and len(radio['env']['queued'])==before
 radio['finish'](pending,1,0) # fixture cleanup, not a native unsafe retry/reset
 assert free_count()==3 and not errors
 assert call(0x1360,frame)==0
-report={'passed':True,'cases':cases,'protected_cases':protected_cases,'all_word_transactions_execute_original_dispatcher':True,'original_rx_ring_and_compiled_rx_executed':True,'actual_original_packet_pool_and_release':True,'upload_abort_and_queue_rejection_release':True,'stop_drain_and_pending_completion':True,'ambiguous_commit_no_retry_or_force_free':True,'callback_errors':errors,'read_commands':counts[0],'write_commands':counts[1],'hardware_dma_queue_completion_and_scheduling_modeled':True,'physical_interoperability':False,'device_accessed':False,'source_hashes':{p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in [*sources,'runtime/platform/espnow/xnow_full.h','tools/test_xnow_full_integration.py']},'radio_source_hashes':radio['report']['source_hashes']}
+report={'passed':True,'cases':cases,'protected_cases':protected_cases,'all_word_transactions_execute_original_dispatcher':True,'original_rx_ring_and_compiled_rx_executed':True,'actual_original_packet_pool_and_release':True,'upload_abort_and_queue_rejection_release':True,'stop_drain_and_pending_completion':True,'ambiguous_commit_no_retry_or_force_free':True,'callback_errors':errors,'read_commands':counts[0],'write_commands':counts[1],'hardware_dma_queue_completion_and_scheduling_modeled':True,'physical_interoperability':False,'device_accessed':False,'source_hashes':{p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in [*sources,'runtime/platform/espnow/xnow_full.h','tools/test_xnow_full_integration.py']},'radio_source_hashes':radio['provenance']['source_hashes']}
 report['compiled_context_layout_checked']=True
 report['context_bytes']=ctypes.sizeof(Full)
 (OUT/'report.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))

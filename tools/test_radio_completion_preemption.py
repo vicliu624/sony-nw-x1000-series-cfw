@@ -1,10 +1,6 @@
 """Replay packet reuse at original-free boundaries; task scheduling is modeled."""
-import contextlib
 import hashlib
-import io
 import json
-from pathlib import Path
-import runpy
 import struct
 import sys
 import time
@@ -14,14 +10,29 @@ from unicorn.arm_const import (
     UC_ARM_REG_SP, UC_ARM_REG_LR, UC_ARM_REG_PC,
 )
 from app_registry import ROOT
+from build_espnow_full_radio import build
+from radio_test_profile import frame_fixture, legacy_completion_fixture, selected_radio
 
 legacy = "--legacy" in sys.argv
-with contextlib.redirect_stdout(io.StringIO()):
-    fixture = runpy.run_path(str(ROOT / "tools" / (
-        "test_radio_completion_hook.py" if legacy else "test_radio_frame_transactions.py")))
-cpu, word, put, call, free_count, symbols = [fixture[name] for name in (
-    "cpu", "word", "put", "call", "free_count", "symbols")]
-original = fixture["env"]["env"] if legacy else fixture["env"]
+output = ROOT / "work/radio-completion-preemption" / str(time.time_ns())
+selected = selected_radio()
+if legacy:
+    fixture = legacy_completion_fixture(output / "legacy-build", selected)
+    provenance = fixture["provenance"]["source_hashes"]
+else:
+    if selected:
+        payload, manifest = selected
+    else:
+        directory = output / "radio-build"
+        manifest = build(ROOT / "work/targets-jp/sd8686.bin",
+                         ROOT / "work/espnow-full-radio-review-3/stock/helper_sd.bin",
+                         directory, rx_diagnostics=True, frame_transactions=True)
+        payload = directory / "radio.elf"
+    fixture = frame_fixture(payload, manifest)
+    provenance = manifest["source_hashes"]
+original = fixture["env"]
+cpu, word, put, call, free_count = (original[name] for name in ("cpu", "word", "put", "call", "free_count"))
+symbols = fixture["symbols"]
 state = symbols["xnow_tx_completion"]
 schedule = {"pause": None, "free_return": None}
 
@@ -145,15 +156,15 @@ report = dict(
     task_interleaving_manually_scheduled=True, irq_dma_and_rom_queue_modeled=True,
     device_accessed=False, hardware_qualified=False,
     legacy_word_profile=legacy,
-    source_hashes={**fixture["report"]["source_hashes"],
-                   "tools/test_radio_completion_preemption.py": hashlib.sha256(Path(__file__).read_bytes()).hexdigest()},
+    source_hashes={**provenance, **{name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest()
+                                   for name in ("tools/radio_test_profile.py", "tools/marvell_firmware.py",
+                                                "tools/test_radio_completion_preemption.py")}},
 )
 if legacy:
-    report["radio_identity"] = fixture["report"].get("exact_selected_radio")
+    report["radio_identity"] = fixture["provenance"].get("exact_selected_radio")
 else:
-    report["candidate_sha256"] = fixture["manifest"]["candidate_sha256"]
-    report["payload_sha256"] = fixture["manifest"]["payload_elf_sha256"]
-output = ROOT / "work/radio-completion-preemption" / str(time.time_ns())
-output.mkdir(parents=True)
+    report["candidate_sha256"] = manifest["candidate_sha256"]
+    report["payload_sha256"] = manifest["payload_elf_sha256"]
+output.mkdir(parents=True, exist_ok=True)
 (output / "report.json").write_text(json.dumps(report, indent=2) + "\n")
 print(json.dumps(dict(output=str(output), **report), indent=2))
