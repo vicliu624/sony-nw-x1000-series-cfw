@@ -17,7 +17,13 @@ from test_firmware_regressions import source_inventory
 sys.path.insert(0, str(ROOT / 'scripts'))
 from upg import STOCK_SHA256, unpack
 
-UPDATER_FILES = ('FWUpdater.exe', 'FWUpdaterCom.dll', 'FWUpdaterRes.dll', 'NW-X10X0.ini')
+# Independently extracted from the pinned Japanese 1.11 Sony installer.
+UPDATER_HASHES = {
+    'FWUpdater.exe': '3cf7eb2e354d2e6d3f0cddd06ab67755696579a0d2cc85b68672ecc44ccb3c1c',
+    'FWUpdaterCom.dll': '2b7550cd945a8d71d139063fce0ce006bfa6b59ee940f17e5151bdb6e35ebe2f',
+    'FWUpdaterRes.dll': '0536de4cc4373f2f1391fbb52f11edf47af28fa52551959d569b6488c639b243',
+    'NW-X10X0.ini': 'ff3d772ab446b3749272bf57b1c31b17765d4a807ff896de8b46f9bbb6dc11fa',
+}
 
 
 def checked_copy(source, target):
@@ -27,6 +33,33 @@ def checked_copy(source, target):
     shutil.copy2(source, target)
     if target.stat().st_size != source.stat().st_size or digest(target) != digest(source):
         raise ValueError('Copy differs: ' + str(target))
+
+
+def delivery_inputs(template, radio_directory, owner):
+    """Resolve only the updater and RF files needed by the selected review."""
+    stock = private(template / 'NW_WM_FW.UPG')
+    if digest(stock) != STOCK_SHA256:
+        raise ValueError('Original updater template differs')
+    updater = {stock.name: stock}
+    for name, expected in UPDATER_HASHES.items():
+        source = private(template / name)
+        if digest(source) != expected:
+            raise ValueError('Sony updater identity differs: ' + name)
+        updater[name] = source
+    for source in sorted(template.glob('license_*.txt')):
+        updater[source.name] = private(source)
+
+    radio = {}
+    prefix = '/contents/HOMEBREW/data/wireless-remote/candidate/'
+    for row in radio_dependencies(owner)['immutable_inputs']:
+        device_path = row['device_path']
+        if device_path not in (prefix + 'sd8686.bin', prefix + 'helper_sd.bin'):
+            raise ValueError('Unexpected external dependency path')
+        source = private(radio_directory / Path(device_path).name)
+        if source.stat().st_size != row['bytes'] or digest(source) != row['sha256']:
+            raise ValueError('External RF input differs: ' + source.name)
+        radio[device_path.removeprefix('/contents/')] = source
+    return updater, radio
 
 
 def reviewed_inputs(firmware_review, allocation_review, regressions):
@@ -246,6 +279,8 @@ def main():
     parser.add_argument('--allocation-review', required=True)
     parser.add_argument('--regression-review', required=True)
     parser.add_argument('--controller-review', help='Required matching Core2 build for negotiated-link firmware')
+    parser.add_argument('--updater-template', type=Path, required=True, help='Stock UPG, updater files and licenses under work/')
+    parser.add_argument('--radio-inputs', type=Path, required=True, help='Directory under work/ containing reviewed external radio files')
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
     output = args.output.resolve()
@@ -261,29 +296,15 @@ def main():
     controller = matching_controller(reviewed['owner'], args.controller_review,
                                      play_mode_control=bool(supervisor.get('play_mode_control')),
                                      service_review=service_path)
-    template = ROOT / 'work/candidate6-first-device-inputs/sony-updater'
-    independent = ROOT / 'work/updater-static-review-1/extracted'
-    if digest(template / 'NW_WM_FW.UPG') != STOCK_SHA256:
-        raise ValueError('Original updater template differs')
-    for name in UPDATER_FILES:
-        if digest(template / name) != digest(independent / name):
-            raise ValueError('Sony updater identity differs: ' + name)
+    updater, radio = delivery_inputs(ROOT / args.updater_template, ROOT / args.radio_inputs, reviewed['owner'])
     staging = Path(tempfile.mkdtemp(prefix='diagnostic-materials-', dir=ROOT / 'work')).resolve()
     for folder in ('01_PC_UPDATE', '02_ORIGINAL_SONY'):
-        for name in (*UPDATER_FILES, 'NW_WM_FW.UPG'):
-            checked_copy(template / name, staging / folder / name)
-        for license_file in template.glob('license_*.txt'):
-            checked_copy(license_file, staging / folder / license_file.name)
-    checked_copy(reviewed['upg'], staging / '01_PC_UPDATE/NW_WM_FW.UPG')
+        for name, source in updater.items():
+            if folder == '01_PC_UPDATE' and name == 'NW_WM_FW.UPG':
+                source = reviewed['upg']
+            checked_copy(source, staging / folder / name)
     external = staging / '03_PLAYER_FILES'
-    for row in radio_dependencies(reviewed['owner'])['immutable_inputs']:
-        name = row['device_path'].removeprefix('/contents/')
-        if name not in ('HOMEBREW/data/wireless-remote/candidate/sd8686.bin',
-                        'HOMEBREW/data/wireless-remote/candidate/helper_sd.bin'):
-            raise ValueError('Unexpected external dependency path')
-        source = private(ROOT / 'work/espnow-full-radio-review-3/candidate' / Path(name).name)
-        if source.stat().st_size != row['bytes'] or digest(source) != row['sha256']:
-            raise ValueError('External RF input differs')
+    for name, source in radio.items():
         checked_copy(source, external / name)
     trace = external / 'HOMEBREW/data/diagnostics/remote-pairing.bin'
     trace.parent.mkdir(parents=True, exist_ok=True)

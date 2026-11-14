@@ -147,6 +147,8 @@ and its matching allocation/regression evidence with:
   --allocation-review work/example/allocation/report.json \
   --regression-review work/example/regressions/report.json \
   --controller-review work/example/core2/build.json \
+  --updater-template work/sony-jp-1.11/updater \
+  --radio-inputs work/radio-inputs/candidate \
   --output dist/diagnostics/example
 ```
 
@@ -154,7 +156,10 @@ The firmware review must already have an independent Rockbox extraction under
 its `rockbox-check/` directory. The tool checks all original installation
 components, the complete root inventory, allocation inputs and original updater
 identities. Product runtime/SDK/config sources must still match the passing
-regression snapshot; subsequent PC-only changes are listed explicitly.
+regression snapshot. Subsequent PC-only changes are listed explicitly.
+Use reusable local inputs for the updater and external radio files. The updater
+executables, INI and stock UPG must match the original Japanese 1.11 hashes.
+The radio files must match the sizes and hashes recorded by the selected owner.
 It preserves an original Sony package, adds only reviewed immutable external
 RF inputs and a fresh bounded diagnostic record, and verifies the resulting ZIP.
 No pairing keys, configuration or PN journals are supplied. Copying external

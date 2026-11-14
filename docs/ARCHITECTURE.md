@@ -46,24 +46,22 @@ implementation has the following confirmed coupling points:
 | --- | --- | --- |
 | SDK compatibility | App definitions select callback or native module API versions. Module dependencies check their own required APIs. Builds record the exact SDK release and source hashes | Change the API version when its interface breaks. An SDK release bump alone requires no changes to app definitions that use compatible interfaces |
 | Player composition | Built-in and external language profiles use maintained builder functions. Tests call the same functions, then verify the mapped edits independently | Keep production validation with the builder and test execution with the selected verification entry point |
-| Compiled component identity cascade | The owner/service hashes enter the supervisor, then its identity enters the player library and startup wrapper | Package composition owns component identities. A compatible child implementation change should regenerate package metadata without changing unrelated parent logic |
+| Compiled component identity cascade | The owner checks the selected radio image. The supervisor verifies owner and service sizes and hashes. The player library checks the supervisor's compiled size. The startup wrapper uses fixed paths | Reuse independently verified build inputs where their compile inputs match. Preserve runtime file checks until their replacement is verified at the same launch boundary |
 | Incomplete startup error contract | `rf_owner.c:owner_prepare` reduces backend setup errors to `-1`; service startup reports a numeric result and a post-cleanup flag | Retain component, operation, result domain and original error. Readiness, failure and resource retirement are separate observations |
 | Diagnostic records lack attempt identity | `parent_trace_store.c` fills a preallocated slot only once; `read_remote_pairing_trace.py` has no firmware/build or boot identity to validate | Use bounded, versioned records correlated to a build, boot and start request. Reading diagnostics must not depend on manually copying an empty file before each attempt |
 | Historical local paths in supported tooling | The script audit found fixed review/candidate paths in maintained scripts and separate local orchestration files | Maintained entry points accept current input descriptors. Historical negative controls are explicit test inputs; ignored scripts and prior candidate directories are outside the normal build graph |
 
-The current artifact dependencies explain why one radio change can replace
-several installed files even when much of their functional source is unchanged:
+The build and runtime dependencies differ. The startup wrapper is rebuilt by
+layout assembly. It carries the player library's path and can use the same
+bytes whenever its own build inputs match. It carries no child hash or size.
 
 ```mermaid
 flowchart LR
     Radio[Radio image and profile] --> Owner[Radio owner]
-    Owner --> Supervisor[Remote supervisor]
-    Service[Player service] --> Supervisor
-    Supervisor --> Host[Player integration library]
-    Host --> Wrapper[Stock startup wrapper]
-    Radio --> Package[Firmware package]
-    Wrapper --> Package
-    Host --> Package
+    Owner -->|Size and SHA-256| Supervisor[Remote supervisor]
+    Service[Player service] -->|Size and SHA-256| Supervisor
+    Supervisor -->|Size and profile| Host[Player integration library]
+    Wrapper[Stock startup wrapper] -->|Fixed path| Host
 ```
 
 The target dependency direction is platform adapters, capability services, SDK
