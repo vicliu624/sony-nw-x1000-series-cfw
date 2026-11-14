@@ -191,7 +191,8 @@ class DiagnosticOutputTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'Archived file differs: example/materials.json'):
                 self.assemble()
         self.assertEqual(list(self.output.parent.iterdir()), [])
-        self.assemble()
+        with patch.object(Path, 'replace', side_effect=AssertionError('Replaced a final output placeholder')):
+            self.assemble()
 
     def test_output_collision_preserves_existing_checksum_and_removes_partial_zip(self):
         existing = self.output.with_name('example.zip.sha256')

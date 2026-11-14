@@ -3,6 +3,7 @@ import argparse
 from contextlib import ExitStack
 import hashlib
 import json
+import os
 from pathlib import Path
 import shutil
 import sys
@@ -386,13 +387,16 @@ def assemble_materials(output, reviewed, controller, updater, radio):
         archive_sha256 = write_verified_archive(staging, staged_archive, output.name, files)
         staged_checksum.write_text(archive_sha256 + '  ' + archive.name + '\n', encoding='utf-8')
 
-        # Claim both file names exclusively before publishing. Another packer
-        # targeting the same name cannot replace this run's files.
+        # Publish complete files without overwriting an existing delivery.
+        # Windows rename already refuses an existing destination. On POSIX,
+        # link provides that same guarantee for files staged on this filesystem.
         with ExitStack() as rollback:
             for target, prepared in ((archive, staged_archive), (checksum, staged_checksum)):
-                target.touch(exist_ok=False)
+                if os.name == 'nt':
+                    prepared.rename(target)
+                else:
+                    os.link(prepared, target)
                 rollback.callback(target.unlink)
-                prepared.replace(target)
             if output.exists() or output.is_symlink():
                 raise FileExistsError(output)
             staging.rename(output)
