@@ -30,6 +30,10 @@ The offline store tests use the original libc and loader prepared by
 `tools/sdk.py setup`. Download-plan fixtures can be imported by the intent,
 recovery and package checks without running the standalone plan regression.
 Run `tools/test_download_plan.py` directly to check the plan implementation.
+For loopback transport and install tests, prepare the pinned TLS and resolver
+inputs once with `tools/sdk.py setup --services`. Each test generates its own
+small fixture headers. Download-task, package-download and compatibility
+probes remain separate commands.
 
 Installation uses verified user storage, staged writes, hashes and rollback/error
 states. Packages do not each receive a Sony Home entry. Do not bypass TLS checks,

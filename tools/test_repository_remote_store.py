@@ -1,12 +1,13 @@
 """Local DNS/TLS downloads to complete package and existing installer; no device."""
 from pathlib import Path
-import runpy,subprocess,tempfile,os,json,hashlib,re,ssl,socket,struct
+from test_package_download_tasks import prepare_package_fixture
+import subprocess,tempfile,os,json,hashlib,re,ssl,socket,struct
 ROOT=Path(__file__).resolve().parents[1]
-previous=runpy.run_path(str(ROOT/'tools/test_package_download_tasks.py'))
 work=ROOT/'work/repository-remote-store-tests';work.mkdir(exist_ok=True)
+previous=prepare_package_fixture(work);lib=previous['lib']
 runtime=previous['runtime'];crypto=previous['crypto'];tls=previous['tls']
 sources=[p for p in previous['sources'] if p not in ('tools/test_download_task.c','tools/download_file_faults.c')]+['tools/repository_record_faults.c']+['tools/test_repository_remote_store.c','runtime/store/repository.c','runtime/store/remote_store.c','runtime/store/metadata_cache.c','runtime/store/metadata_fetch.c','runtime/store/remote_catalog.c','runtime/store/remote_list.c','runtime/store/package_resume.c','runtime/store/download_intent.c','runtime/store/download_record.c','runtime/store/payload_cache_cleanup.c','runtime/store/partial_cleanup.c','runtime/store/download_recovery.c','runtime/store/package_job.c','runtime/store/job_ui.c','runtime/store/canvas.c','runtime/native/frontend.c']+['runtime/store/'+p+'.c' for p in ('package_assemble','bundle_posix','install_posix','transaction','stage_posix','cleanup_posix','pending_plan')]
-subprocess.run(['arm-linux-gnueabi-gcc','-std=c99','-Os','-Wall','-Wextra','-Werror','-march=armv5te','-marm','-mfloat-abi=soft','-ffreestanding','-fno-builtin','-fno-pie','-DHB_STORE_SONY_LIBC','-DHB_PLAN_TASKS','-DHB_PACKAGE_ASSEMBLE','-nostdlib','-no-pie','-Wl,--hash-style=sysv','-Wl,--wrap=write,--wrap=fsync,--wrap=close','-Wl,-rpath-link,'+str(runtime),'-I'+str(crypto/'inc'),'-I'+str(crypto/'samples'),'-I'+str(runtime),'-I'+str(previous['work']),'-I'+str(previous['old_work']),*sources,str(tls/'arm-build/libbearssl.a'),str(runtime/'libcares.so.2'),str(runtime/'libc.so.6'),str(runtime/'ld-linux.so.3'),'-lgcc','-o',str(work/'test.arm')],cwd=ROOT,check=True)
+subprocess.run(['arm-linux-gnueabi-gcc','-std=c99','-Os','-Wall','-Wextra','-Werror','-march=armv5te','-marm','-mfloat-abi=soft','-ffreestanding','-fno-builtin','-fno-pie','-DHB_STORE_SONY_LIBC','-DHB_PLAN_TASKS','-DHB_PACKAGE_ASSEMBLE','-nostdlib','-no-pie','-Wl,--hash-style=sysv','-Wl,--wrap=write,--wrap=fsync,--wrap=close','-Wl,-rpath-link,'+str(runtime),'-I'+str(crypto/'inc'),'-I'+str(crypto/'samples'),'-I'+str(runtime),'-I'+str(previous['work']),*sources,str(tls/'arm-build/libbearssl.a'),str(runtime/'libcares.so.2'),str(lib/'libc.so.6'),str(lib/'ld-linux.so.3'),'-lgcc','-o',str(work/'test.arm')],cwd=ROOT,check=True)
 traces=[];rows=[]
 positive_cases={'complete','resume-complete','recover-restart','actual-crash-restart','actual-record-crash-restart','meta-complete','meta-retry','meta-corrupt','actual-meta-crash-restart','info-complete','info-retry','index-complete','index-retry'}
 scenarios=('complete','corrupt-resource','cancel-second','present-fail','metadata-hash','list-back','metadata-cancel','resume-complete','recover-restart','recover-back','actual-crash-restart','actual-crash-back','actual-record-crash-restart','actual-record-crash-back','meta-complete','meta-retry','meta-back','meta-corrupt','meta-link','meta-retry-present-fail','actual-meta-crash-restart','actual-meta-crash-back','info-complete','info-retry','index-complete','index-retry')
@@ -17,7 +18,7 @@ for scenario in scenarios:
   for folder in (cache,packages,apps):folder.mkdir()
   repository_dir=base/'repository';repository_dir.mkdir();ca_der=ssl.PEM_cert_to_DER_cert((crypto/'samples/cert-root-rsa.pem').read_text());(repository_dir/'ca.der').write_bytes(ca_der);(apps/'unrelated').write_bytes(b'KEEP')
   env=dict(os.environ,HB_TEST_REPOSITORY=str(repository_dir),HB_TEST_CA_HASH=hashlib.sha256(ca_der).hexdigest(),HB_TASK_CACHE=str(cache),HB_TASK_PACKAGES=str(packages),HB_TASK_APPS=str(apps))
-  command=['qemu-arm','-cpu','arm926','-strace',str(runtime/'ld-linux.so.3'),'--library-path',str(runtime),str(work/'test.arm')]
+  command=['qemu-arm','-cpu','arm926','-strace',str(lib/'ld-linux.so.3'),'--library-path',f'{lib}:{runtime}',str(work/'test.arm')]
   if scenario.startswith('actual-meta-'):
    with socket.socket() as listener:listener.bind(('127.0.0.1',0));env['HB_META_TEST_PORT']=str(listener.getsockname()[1])
   expected=dict(previous['files'],**{'files.sha256':previous['metadata']['index']})

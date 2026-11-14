@@ -1,8 +1,10 @@
 """Real SIGTERM token cancels real local TLS metadata task without discard."""
 from pathlib import Path
+from test_package_download_tasks import prepare_package_fixture
 import runpy,ast,subprocess,tempfile,os,json,hashlib,ssl,socket
-ROOT=Path(__file__).resolve().parents[1];previous=runpy.run_path(str(ROOT/'tools/test_package_download_tasks.py'))
-work=ROOT/'work/remote-store-signal-tests';work.mkdir(exist_ok=True);runtime=previous['runtime'];crypto=previous['crypto'];tls=previous['tls']
+ROOT=Path(__file__).resolve().parents[1];work=ROOT/'work/remote-store-signal-tests';work.mkdir(exist_ok=True)
+previous=prepare_package_fixture(work);lib=previous['lib']
+runtime=previous['runtime'];crypto=previous['crypto'];tls=previous['tls']
 tree=ast.parse((ROOT/'tools/test_repository_remote_store.py').read_text());assignment=next(n for n in tree.body if isinstance(n,ast.Assign) and any(isinstance(t,ast.Name) and t.id=='sources' for t in n.targets));sources=eval(compile(ast.Expression(assignment.value),'<existing source list>','eval'),{'previous':previous})
 text=(ROOT/'tools/test_repository_remote_store.c').read_text().replace('../runtime/',str(ROOT/'runtime')+'/')
 text='#define _GNU_SOURCE\n#include <signal.h>\n#include "'+str(ROOT/'runtime/store/termination.h')+'"\n'+text.replace('#define _GNU_SOURCE\n','')
@@ -27,18 +29,18 @@ header+='static const unsigned char *PLAN_BODIES[]={PLAN_BODY_0,PLAN_BODY_1,PLAN
 (work/'signal_package_fixture.h').write_text(header)
 text=text.replace('"package_task_fixture.h"','"'+str(work/'signal_package_fixture.h')+'"').replace('demo','hello').replace('0.1.0',version).replace('unsigned char response[4096]','unsigned char response[8192]').replace('requests==6','requests==4')
 generated=work/'test.c';generated.write_text(text);sources=[str(generated) if p=='tools/test_repository_remote_store.c' else p for p in sources]+['runtime/store/termination.c']
-subprocess.run(['arm-linux-gnueabi-gcc','-std=c99','-Os','-Wall','-Wextra','-Werror','-march=armv5te','-marm','-mfloat-abi=soft','-ffreestanding','-fno-builtin','-fno-pie','-DHB_STORE_SONY_LIBC','-DHB_PLAN_TASKS','-DHB_PACKAGE_ASSEMBLE','-nostdlib','-no-pie','-Wl,--hash-style=sysv','-Wl,--wrap=write,--wrap=fsync,--wrap=close','-Wl,-rpath-link,'+str(runtime),'-I'+str(crypto/'inc'),'-I'+str(crypto/'samples'),'-I'+str(runtime),'-I'+str(previous['work']),'-I'+str(previous['old_work']),*sources,str(tls/'arm-build/libbearssl.a'),str(runtime/'libcares.so.2'),str(runtime/'libc.so.6'),str(runtime/'ld-linux.so.3'),'-lgcc','-o',str(work/'test.arm')],cwd=ROOT,check=True)
+subprocess.run(['arm-linux-gnueabi-gcc','-std=c99','-Os','-Wall','-Wextra','-Werror','-march=armv5te','-marm','-mfloat-abi=soft','-ffreestanding','-fno-builtin','-fno-pie','-DHB_STORE_SONY_LIBC','-DHB_PLAN_TASKS','-DHB_PACKAGE_ASSEMBLE','-nostdlib','-no-pie','-Wl,--hash-style=sysv','-Wl,--wrap=write,--wrap=fsync,--wrap=close','-Wl,-rpath-link,'+str(runtime),'-I'+str(crypto/'inc'),'-I'+str(crypto/'samples'),'-I'+str(runtime),'-I'+str(previous['work']),*sources,str(tls/'arm-build/libbearssl.a'),str(runtime/'libcares.so.2'),str(lib/'libc.so.6'),str(lib/'ld-linux.so.3'),'-lgcc','-o',str(work/'test.arm')],cwd=ROOT,check=True)
 with tempfile.TemporaryDirectory(prefix='fixture-',dir=work) as temp:
  base=Path(temp)
  for name in ('cache','packages','apps','repository'):(base/name).mkdir()
  (base/'apps/unrelated').write_bytes(b'KEEP');ca=ssl.PEM_cert_to_DER_cert((crypto/'samples/cert-root-rsa.pem').read_text());(base/'repository/ca.der').write_bytes(ca)
  with socket.socket() as reservation:reservation.bind(('127.0.0.1',0));fixed_port=reservation.getsockname()[1]
  env=dict(os.environ,HB_META_TEST_PORT=str(fixed_port),HB_TASK_SCENARIO='signal-metadata',HB_TEST_REPOSITORY=str(base/'repository'),HB_TEST_CA_HASH=hashlib.sha256(ca).hexdigest(),HB_TASK_CACHE=str(base/'cache'),HB_TASK_PACKAGES=str(base/'packages'),HB_TASK_APPS=str(base/'apps'))
- run=subprocess.run(['qemu-arm','-cpu','arm926','-strace',str(runtime/'ld-linux.so.3'),'--library-path',str(runtime),str(work/'test.arm')],env=env,capture_output=True,text=True,timeout=30);assert run.returncode==0,(run.returncode,run.stderr[-12000:])
+ run=subprocess.run(['qemu-arm','-cpu','arm926','-strace',str(lib/'ld-linux.so.3'),'--library-path',f'{lib}:{runtime}',str(work/'test.arm')],env=env,capture_output=True,text=True,timeout=30);assert run.returncode==0,(run.returncode,run.stderr[-12000:])
  assert (base/'apps/unrelated').read_bytes()==b'KEEP' and len(list((base/'apps').iterdir()))==1 and not list((base/'packages').iterdir())
  retained=[{'name':p.name,'bytes':p.stat().st_size} for p in (base/'cache').iterdir()];assert len(retained)==1 and retained[0]['bytes']==1
  before={p.name:p.read_bytes() for p in (base/'cache').iterdir()}
- command=['qemu-arm','-cpu','arm926','-strace',str(runtime/'ld-linux.so.3'),'--library-path',str(runtime),str(work/'test.arm')]
+ command=['qemu-arm','-cpu','arm926','-strace',str(lib/'ld-linux.so.3'),'--library-path',f'{lib}:{runtime}',str(work/'test.arm')]
  (base/'repository/repository.conf').unlink()
  back=subprocess.run(command,env=dict(env,HB_TASK_SCENARIO='meta-back',HB_SIGNAL_EXISTING='1'),capture_output=True,text=True,timeout=30)
  assert back.returncode==0,(back.returncode,back.stderr[-12000:])
@@ -47,7 +49,7 @@ with tempfile.TemporaryDirectory(prefix='fixture-',dir=work) as temp:
  retry=subprocess.run(command,env=dict(env,HB_TASK_SCENARIO='meta-retry',HB_SIGNAL_EXISTING='1'),capture_output=True,text=True,timeout=30)
  assert retry.returncode==0,(retry.returncode,retry.stderr[-12000:])
  assert {str(p.relative_to(base/'apps/hello')):p.read_bytes() for p in (base/'apps/hello').rglob('*') if p.is_file()}==expected
- executed=subprocess.run(['qemu-arm','-cpu','arm926','-strace',str(runtime/'ld-linux.so.3'),'--library-path',str(runtime),str(base/'apps/hello/app'),'--help'],capture_output=True,text=True,timeout=15)
+ executed=subprocess.run(['qemu-arm','-cpu','arm926','-strace',str(lib/'ld-linux.so.3'),'--library-path',f'{lib}:{runtime}',str(base/'apps/hello/app'),'--help'],capture_output=True,text=True,timeout=15)
  assert executed.returncode==0 and 'Hello Walkman' in executed.stdout,(executed.returncode,executed.stderr)
  assert not any(c in executed.stderr.lower() for c in ('socket(','connect(','/dev/fb','/dev/icx_touch_screen'))
  assert not list((base/'cache').iterdir()) and not list((base/'packages').iterdir()) and (base/'apps/unrelated').read_bytes()==b'KEEP'

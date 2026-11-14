@@ -1,18 +1,19 @@
 """Package job state machine with deterministic transport, actual file operations."""
 from pathlib import Path
+from sdk_build import stock_runtime
+from test_download_task import CRYPTO, RESOLVER
 import runpy,subprocess,tempfile,os,json,hashlib
 ROOT=Path(__file__).resolve().parents[1]
-transport=runpy.run_path(str(ROOT/'tools/test_package_download_tasks.py'))
 assembly=runpy.run_path(str(ROOT/'tools/test_package_assemble.py'))
 work=ROOT/'work/package-job-tests';work.mkdir(exist_ok=True)
 sources=[p for p in assembly['sources'] if p!='tools/test_package_assemble.c']+['runtime/store/package_resume.c','runtime/store/download_intent.c','runtime/store/download_record.c','runtime/store/payload_cache_cleanup.c','runtime/store/partial_cleanup.c','runtime/store/download_recovery.c','runtime/store/package_job.c','runtime/store/job_ui.c','runtime/store/canvas.c','runtime/native/frontend.c','tools/test_package_job.c']
-crypto=transport['crypto'];runtime=transport['runtime']
+crypto=CRYPTO;runtime=RESOLVER;lib=stock_runtime()
 includes=['-I'+str(crypto/'inc'),'-I'+str(runtime),'-I'+str(assembly['work'])]
 common=['-DHB_JOB_UI','-std=c99','-Wall','-Wextra','-Werror',*includes]
 subprocess.run(['gcc',*common,*sources,'-o',str(work/'host')],cwd=ROOT,check=True)
-subprocess.run(['arm-linux-gnueabi-gcc',*common,'-Os','-march=armv5te','-marm','-mfloat-abi=soft','-ffreestanding','-fno-builtin','-fno-pie','-DHB_STORE_SONY_LIBC','-nostdlib','-no-pie','-Wl,--hash-style=sysv',*sources,*assembly['bridge'],str(runtime/'libc.so.6'),str(runtime/'ld-linux.so.3'),'-lgcc','-o',str(work/'arm')],cwd=ROOT,check=True)
+subprocess.run(['arm-linux-gnueabi-gcc',*common,'-Os','-march=armv5te','-marm','-mfloat-abi=soft','-ffreestanding','-fno-builtin','-fno-pie','-DHB_STORE_SONY_LIBC','-nostdlib','-no-pie','-Wl,--hash-style=sysv',*sources,*assembly['bridge'],str(lib/'libc.so.6'),str(lib/'ld-linux.so.3'),'-lgcc','-o',str(work/'arm')],cwd=ROOT,check=True)
 rows=[]
-for platform,command in [('host',[str(work/'host')]),('ARM/QEMU',['qemu-arm','-cpu','arm926',str(runtime/'ld-linux.so.3'),'--library-path',str(runtime),str(work/'arm')])]:
+for platform,command in [('host',[str(work/'host')]),('ARM/QEMU',['qemu-arm','-cpu','arm926',str(lib/'ld-linux.so.3'),'--library-path',f'{lib}:{runtime}',str(work/'arm')])]:
  for mode in ('ready','install','cancel','hash','ui-install','ui-cancel','ui-present-fail','ui-platform','resume-ready','resume-install','resume-bad','recover-restart','ui-recovery-restart','ui-recovery-back','recover-unknown','unclaimed-cache','unrecognized','ui-unrecognized','space','marker-restart','ui-marker-restart','ui-marker-back','ui-marker-bad'):
   with tempfile.TemporaryDirectory(prefix='fixture-',dir=work) as temp:
    base=Path(temp);cache=base/'cache';packages=base/'packages';apps=base/'apps'
