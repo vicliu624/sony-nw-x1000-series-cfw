@@ -283,11 +283,7 @@ still supply their explicit launch proposal with `--review`.
 Build the shared Wi-Fi player host and replay the checks against that same host:
 
 ```sh
-.venv/bin/python tools/build_player_host.py \
-  --engine-provider --native-prepare --builtin-localization \
-  --native-remote-settings --native-wireless-settings --native-rf-gate \
-  --native-remote-page-analysis --native-sleep-analysis \
-  --warm-homebrew-analysis --stock-artwork-fix \
+.venv/bin/python tools/build_player_host.py --managed-remote \
   --remote-profile work/example/supervisor/build.private.json \
   --shared-wifi-review work/example/wifi-image/report.json \
   --review-output work/example/host
@@ -297,6 +293,9 @@ Build the shared Wi-Fi player host and replay the checks against that same host:
 
 Pass that host receipt to [layout assembly](#firmware-research) after review.
 These commands build a player library and reviewed ELF for offline inspection.
+The managed profile selects the paired native Settings, wireless and sleep
+adapters, the warm Homebrew handoff and stock artwork parser fix. Individual
+composition flags remain available for focused research.
 
 The two-choice Wireless Mode menu is composed only when
 `build_player_host.py --shared-wifi-review` is supplied with a matching

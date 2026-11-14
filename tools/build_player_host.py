@@ -64,7 +64,13 @@ def patch_owner_anchor(stock):
     if check.header!=elf.header or [dict(s.header) for s in check.iter_segments()]!=[dict(s.header) for s in segments]:raise ValueError('ELF headers changed')
     return bytes(candidate),dict(address=hex(address),before=hex(before),after=hex(after),original_target='0xa6968',new_target='0xda84',return_site='0xff40')
 
-def build(engine_provider=False,managed_host=False,native_prepare=False,builtin_localization=False,native_remote_settings=False,native_wireless_settings=False,native_rf_gate=False,remote_profile=None,native_sleep_analysis=False,review_output=None,native_remote_page_analysis=False,shared_wifi_review=None,stock_artwork_fix=False,warm_homebrew_analysis=False):
+def build(engine_provider=False,managed_host=False,native_prepare=False,builtin_localization=False,native_remote_settings=False,native_wireless_settings=False,native_rf_gate=False,remote_profile=None,native_sleep_analysis=False,review_output=None,native_remote_page_analysis=False,shared_wifi_review=None,stock_artwork_fix=False,warm_homebrew_analysis=False,*,managed_remote=False):
+    if managed_remote:
+        if not (remote_profile and shared_wifi_review and review_output):
+            raise ValueError('Managed Remote requires --remote-profile, --shared-wifi-review and --review-output')
+        engine_provider = native_prepare = builtin_localization = True
+        native_remote_settings = native_wireless_settings = native_rf_gate = True
+        native_remote_page_analysis = native_sleep_analysis = warm_homebrew_analysis = stock_artwork_fix = True
     if shared_wifi_review and not native_remote_page_analysis:
         raise ValueError('Shared Wi-Fi requires the native remote page profile')
     if native_remote_page_analysis and not (remote_profile and review_output):
@@ -97,6 +103,15 @@ def build(engine_provider=False,managed_host=False,native_prepare=False,builtin_
     if native_rf_gate:name+='-rf-gate'
     if remote_profile is not None:name+='-remote-factory'
     if native_sleep_analysis:name+='-sleep-analysis'
+    factory_profile = factory_contract = shared_wifi = None
+    if remote_profile is not None:
+        from review_managed_remote_profile import player_remote_inputs, player_remote_header
+        factory_contract, factory_profile, _, image_review = player_remote_inputs(remote_profile, shared_wifi_review)
+        if managed_remote and not (factory_contract['root_cold_supported'] and
+                                   factory_contract['device_pairing']):
+            raise ValueError('Managed Remote requires an embedded Root supervisor with device pairing')
+        if image_review is not None:
+            shared_wifi = image_review.relative_to(ROOT).as_posix()
     if review_output is not None:
         work=(ROOT/review_output).resolve()
         if not work.is_relative_to(ROOT/'work') or work==ROOT/'work' or work.exists():raise ValueError('Review output must be a new private directory under work')
@@ -105,12 +120,7 @@ def build(engine_provider=False,managed_host=False,native_prepare=False,builtin_
         work=ROOT/'work'/name;work.mkdir(exist_ok=True)
     library=work/'libx1000-player-analysis.so'
     native_flags=['-DXW_PLAYER_NATIVE_REMOTE_SETTINGS'] if native_remote_settings else []
-    factory_profile = factory_contract = shared_wifi = None
     if remote_profile is not None:
-        from review_managed_remote_profile import player_remote_inputs, player_remote_header
-        factory_contract, factory_profile, _, image_review = player_remote_inputs(remote_profile, shared_wifi_review)
-        if image_review is not None:
-            shared_wifi = image_review.relative_to(ROOT).as_posix()
         factory_header = work / 'remote_factory_profile.h'
         factory_header.write_text(player_remote_header(factory_contract), encoding='utf-8')
         native_flags += ['-I', str(work), '-include', str(factory_header)]
@@ -299,6 +309,8 @@ def build(engine_provider=False,managed_host=False,native_prepare=False,builtin_
 if __name__=='__main__':
     import argparse
     parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--engine-provider',action='store_true')
+    parser.add_argument('--managed-remote', action='store_true',
+                        help='Build the shared Wi-Fi Remote host for offline review')
     parser.add_argument('--native-sleep-analysis',action='store_true',help='Offline native sleep/recovery composition; no hardware qualification or installation')
     parser.add_argument('--managed-host',action='store_true');parser.add_argument('--native-prepare',action='store_true');parser.add_argument('--builtin-localization',action='store_true');parser.add_argument('--native-remote-settings',action='store_true');parser.add_argument('--native-wireless-settings',action='store_true');parser.add_argument('--native-rf-gate',action='store_true');parser.add_argument('--remote-profile',type=Path)
     parser.add_argument('--review-output',type=Path,help='New private output directory; preserve earlier artifacts')
@@ -306,6 +318,8 @@ if __name__=='__main__':
     parser.add_argument('--shared-wifi-review',type=Path,help='Pair a private shared Wi-Fi radio overlay with the native Remote page')
     parser.add_argument('--stock-artwork-fix',action='store_true',help='Fix JP PIC/APIC UTF-16 description terminator alignment')
     parser.add_argument('--warm-homebrew-analysis',action='store_true',help='Offline mode0 Homebrew application handoff; physical release/return remains unqualified')
-    # Parse after all options are registered.
-    options=parser.parse_args()
-    _,_,report=build(engine_provider=options.engine_provider,managed_host=options.managed_host,native_prepare=options.native_prepare,builtin_localization=options.builtin_localization,native_remote_settings=options.native_remote_settings,native_wireless_settings=options.native_wireless_settings,native_rf_gate=options.native_rf_gate,remote_profile=options.remote_profile,native_sleep_analysis=options.native_sleep_analysis,review_output=options.review_output,native_remote_page_analysis=options.native_remote_page_analysis,shared_wifi_review=options.shared_wifi_review,stock_artwork_fix=options.stock_artwork_fix,warm_homebrew_analysis=options.warm_homebrew_analysis);print(json.dumps(report,indent=2))
+    try:
+        _, _, report = build(**vars(parser.parse_args()))
+    except ValueError as error:
+        parser.error(str(error))
+    print(json.dumps(report, indent=2))
