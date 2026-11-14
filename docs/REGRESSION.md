@@ -107,7 +107,9 @@ preserved. The latest Settings result may replace slot 28. Its player build
 matches `library_compile.remote_trace_build` in the host receipt. Its process
 token and Settings serial identify the observation within that build, and the
 generation identifies a launched supervisor when assigned. It is independent
-of the legacy slots. An empty or unchanged trace remains inconclusive.
+of the legacy slots. Slot 29 provides child detail only when its identity
+matches slot 28 and the supervisor was reaped. An empty or unchanged trace
+remains inconclusive.
 
 Each new aggregate retains `checked-source.zip` and its SHA-256 alongside the
 report. It contains exactly the inventory's checked source/configuration bytes,

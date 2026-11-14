@@ -24,10 +24,10 @@ int xw_parent_trace_store_init(struct xw_parent_trace_store *,const unsigned cha
 int xw_parent_trace_store_record(struct xw_parent_trace_store *,unsigned stage,const uint32_t payload[12]);
 /* Quiescent-owner flush of RAM-staged events: at most one preallocated2KiB
  * write/fsync. Occupied slots are preserved except for the caller's explicitly
- * replaceable stage (zero means all slots are preserved). Never call while a
+ * replacement mask (zero means all slots are preserved). Never call while a
  * timing-sensitive observer/remote child is live. */
 int xw_parent_trace_store_snapshot(struct xw_parent_trace_store *,uint32_t mask,
  const uint32_t payload[XW_PARENT_TRACE_SLOTS][12],const uint32_t sequence[XW_PARENT_TRACE_SLOTS],
- unsigned replace_stage);
+ uint32_t replace);
 int xw_parent_trace_store_destroy(struct xw_parent_trace_store *);
 #endif

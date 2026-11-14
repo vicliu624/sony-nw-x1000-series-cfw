@@ -87,8 +87,12 @@ static int remote_random(void *random, size_t bytes) {
 static struct xw_parent_trace_store pairing_trace;
 static uint32_t trace_pending, trace_committed, trace_order, trace_armed;
 static uint32_t trace_payload[XW_PARENT_TRACE_SLOTS][12], trace_sequence[XW_PARENT_TRACE_SLOTS];
-enum { TRACE_SETTINGS_RESULT = 28 };
+enum { TRACE_SETTINGS_RESULT = 28, TRACE_CHILD_RESULT = 29 };
+static const uint32_t latest_slots = (1u << (TRACE_SETTINGS_RESULT - 1)) |
+                                     (1u << (TRACE_CHILD_RESULT - 1));
 static uint64_t trace_process_id, trace_last_serial;
+static uint64_t trace_child_generation;
+static struct wr_retirement_log trace_child_log;
 static int trace_owned(void *context) {
     (void)context;
     return xw_player_host_wireless_player_active() && !xw_player_host_original_exiting() &&
@@ -147,8 +151,8 @@ static void runtime_trace_flush(void) {
         xw_parent_trace_store_init(&pairing_trace, header, 0, trace_owned))
         return;
     (void)xw_parent_trace_store_snapshot(&pairing_trace, trace_pending, trace_payload,
-                                         trace_sequence, TRACE_SETTINGS_RESULT);
-    trace_committed |= trace_pending & ~(1u << (TRACE_SETTINGS_RESULT - 1));
+                                         trace_sequence, latest_slots);
+    trace_committed |= trace_pending & ~latest_slots;
     trace_pending = 0;
 }
 
@@ -181,10 +185,33 @@ static void runtime_trace_settings_result(void) {
     memcpy(trace_payload[TRACE_SETTINGS_RESULT - 1], payload, sizeof payload);
     trace_sequence[TRACE_SETTINGS_RESULT - 1] = 1; /* This slot is its own observation. */
     trace_pending |= 1u << (TRACE_SETTINGS_RESULT - 1);
+    if (start->child_reaped && start->generation && start->generation == trace_child_generation) {
+        const struct wr_retirement_log *log = &trace_child_log;
+        uint32_t child[12] = {
+            (uint32_t)start->serial, (uint32_t)(start->serial >> 32),
+            (uint32_t)start->generation, (uint32_t)(start->generation >> 32),
+            (uint32_t)trace_process_id, (uint32_t)(trace_process_id >> 32),
+            (uint32_t)build, (uint32_t)(build >> 32),
+            log->packet_start_operation, (uint32_t)log->packet_start_result,
+            log->service_refusal_present ? (uint32_t)log->service_refusal.stage : 0,
+            (uint32_t)log->service_refusal.result
+        };
+        memcpy(trace_payload[TRACE_CHILD_RESULT - 1], child, sizeof child);
+        trace_sequence[TRACE_CHILD_RESULT - 1] = 1;
+        trace_pending |= 1u << (TRACE_CHILD_RESULT - 1);
+    } else {
+        /* Never publish the RAM snapshot for a previous launch. The decoder
+         * checks identities too, in case the old on-disk child slot survives. */
+        trace_pending &= ~(1u << (TRACE_CHILD_RESULT - 1));
+    }
 }
 void xw_player_pairing_trace_exit(const struct wr_supervisor_process *process) {
     struct wr_retirement_log log;
     wr_retirement_log_read(process->log_tail, &log);
+    if (process->reaped && process->generation) {
+        trace_child_log = log;
+        trace_child_generation = process->generation;
+    }
     if (log.radio_summary_present)
         xw_player_pairing_trace_radio(26, log.owner_failure, log.radio_summary);
 

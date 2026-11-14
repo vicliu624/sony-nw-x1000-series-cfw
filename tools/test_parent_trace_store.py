@@ -47,7 +47,7 @@ snapshot_match=re.search(r'PARENT_TRACE_SNAPSHOT_HEX ([0-9a-f]{4096})',text);ass
 snapshot=decode(seed.read_bytes(),bytes.fromhex(snapshot_match[1]),slots=31)
 assert snapshot['integrity_valid'] and [r['stage'] for r in snapshot['records']]==[1,17,18]
 assert [r['sequence'] for r in snapshot['records']]==[1,2,3]
-assert 'PARENT_TRACE_REPLACE_ONE_STAGE_PASS' in text
+assert 'PARENT_TRACE_REPLACE_LATEST_STAGES_PASS' in text
 report.update(quiescent_batch_single_write=True,snapshot_crc_and_order=True,snapshot_preserves_occupied_slots=True,
               explicit_slot_replacement_preserves_other_records=True)
 (out/'report.json').write_text(json.dumps(report,indent=2)+'\n')

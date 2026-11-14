@@ -127,6 +127,18 @@ with tempfile.TemporaryDirectory(prefix='pairing-trace-', dir=ROOT / 'work') as 
         operation='spawn-supervisor',result=-6,request_serial=72,generation=3,
         player_process='1234567889abcdef',player_build='fedcba9876543210',
         child_reaped=False,child_wait_status=None)
+    child_offset = latest_start + 64
+    payload[2] = 1
+    raw = struct.pack('<15I',0x31504248,28,1,*payload)
+    trace[latest_start:child_offset] = raw + struct.pack('<I',zlib.crc32(raw))
+    for serial in (71,72):
+        raw = struct.pack('<15I',0x31504248,29,1,serial,*payload[5:],1,0xfffffffb,3,0xfffffffa)
+        trace[child_offset:child_offset+64] = raw + struct.pack('<I',zlib.crc32(raw))
+        path.write_bytes(trace)
+        decoded = json.loads(subprocess.run(command,capture_output=True,text=True,check=True).stdout)
+        assert decoded['latest_child_detail'] == (None if serial==71 else dict(
+            packet_backend=dict(operation='enable-frm1',result=-5),
+            service_refusal=dict(operation='player-hello',result=-6)))
     baseline[latest_start:latest_start+64] = bytes(64)
     before.write_bytes(baseline)
     path.write_bytes(SEED)

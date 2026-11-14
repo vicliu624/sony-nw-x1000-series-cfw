@@ -108,10 +108,9 @@ int xw_parent_trace_store_destroy(struct xw_parent_trace_store *s){
 }
 int xw_parent_trace_store_snapshot(struct xw_parent_trace_store *s,uint32_t mask,
  const uint32_t payload[XW_PARENT_TRACE_SLOTS][12],const uint32_t sequence[XW_PARENT_TRACE_SLOTS],
- unsigned replace_stage){
+ uint32_t replace){
  int saved=errno,rc=XW_TRACE_INVALID,fd=-1;
- if(!s||!s->initialized||!payload||!sequence||!mask||(mask&0x80000000u)||replace_stage>XW_PARENT_TRACE_SLOTS)goto done;
- uint32_t replace=replace_stage?1u<<(replace_stage-1):0;
+ if(!s||!s->initialized||!payload||!sequence||!mask||((mask|replace)&0x80000000u))goto done;
  for(unsigned i=0;i<XW_PARENT_TRACE_SLOTS;i++)if(mask&(1u<<i))if(!sequence[i]||sequence[i]>XW_PARENT_TRACE_SLOTS)goto done;
  if(trace_mutex_trylock(s->lock.bytes)){rc=XW_TRACE_SKIPPED;goto done;}
  if(mask&1u)s->armed=1;
@@ -124,7 +123,7 @@ int xw_parent_trace_store_snapshot(struct xw_parent_trace_store *s,uint32_t mask
  unsigned changed=0;
  for(unsigned i=0;i<XW_PARENT_TRACE_SLOTS;i++)if(mask&(1u<<i)){
   unsigned char *record=file+32+i*64;unsigned occupied=0;for(unsigned j=0;j<64;j++)occupied|=record[j];
-  if(occupied&&i+1!=replace_stage)continue;
+  if(occupied&&!(replace&(1u<<i)))continue;
   memcpy(record,"HBP1",4);put32(record+4,i+1);put32(record+8,sequence[i]);
   for(unsigned j=0;j<12;j++)put32(record+12+4*j,payload[i][j]);put32(record+60,crc32(record,60));changed++;
  }

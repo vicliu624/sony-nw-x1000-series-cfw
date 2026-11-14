@@ -110,18 +110,21 @@ int main(void){
  seed();start(&s);short_write=1;assert(xw_parent_trace_store_snapshot(&s,mask,events,sequence,0)==XW_TRACE_STORAGE&&opens==closes&&trace_fd==-1);finish(&s);
  seed();start(&s);flush_fail=1;assert(xw_parent_trace_store_snapshot(&s,mask,events,sequence,0)==XW_TRACE_STORAGE&&opens==closes&&trace_fd==-1);finish(&s);
  seed();start(&s);
- sequence[27]=1;events[27][0]=55;
- assert(!xw_parent_trace_store_snapshot(&s,1u<<27,events,sequence,28)); /* No slot 1 required. */
+ sequence[27]=sequence[28]=1;events[27][0]=55;
+ assert(!xw_parent_trace_store_snapshot(&s,1u<<27,events,sequence,1u<<27)); /* No slot 1 required. */
  assert(!xw_parent_trace_store_snapshot(&s,mask,events,sequence,0));
  f=fopen(path,"rb");assert(f&&fread(result,1,sizeof result,f)==sizeof result&&!fclose(f));
  events[27][0]=56;
- assert(!xw_parent_trace_store_snapshot(&s,1u<<27,events,sequence,28));finish(&s);
+ unsigned latest=(1u<<27)|(1u<<28);
+ events[28][0]=81;
+ assert(!xw_parent_trace_store_snapshot(&s,latest,events,sequence,latest));finish(&s);
  unsigned char replaced[2048];f=fopen(path,"rb");
  assert(f&&fread(replaced,1,sizeof replaced,f)==sizeof replaced&&!fclose(f));
  unsigned offset=32+27*64;
  assert(result[offset+12]==55&&replaced[offset+12]==56);
- assert(!memcmp(result,replaced,offset)&&!memcmp(result+offset+64,replaced+offset+64,sizeof result-offset-64));
- puts("PARENT_TRACE_REPLACE_ONE_STAGE_PASS");
+ assert(replaced[offset+64+12]==81);
+ assert(!memcmp(result,replaced,offset)&&!memcmp(result+offset+128,replaced+offset+128,sizeof result-offset-128));
+ puts("PARENT_TRACE_REPLACE_LATEST_STAGES_PASS");
  puts("PARENT_TRACE_SNAPSHOT_PASS");
  assert(!unlink(path)&&!umount("/contents"));start(&s);before=opens;assert(emit(&s,1)==XW_TRACE_STORAGE&&opens==before);finish(&s);
  puts("PARENT_TRACE_STORE_PASS");fflush(stdout);return 0;

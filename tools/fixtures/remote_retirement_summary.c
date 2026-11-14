@@ -17,6 +17,8 @@ static unsigned stages;
 static uint32_t captured[6];
 static unsigned packet_failure_count, captured_operation;
 static int captured_result;
+static uint64_t trace_child_generation;
+static struct wr_retirement_log trace_child_log;
 static enum wr_owner_packet_start packet_start_operation;
 static int packet_start_result;
 static struct xnow_full_control owner_control;

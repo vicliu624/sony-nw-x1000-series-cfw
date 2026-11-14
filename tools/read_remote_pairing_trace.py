@@ -8,6 +8,7 @@ HEADER = b'X1000-REMOTE-PAIRING-TRACE-1'.ljust(32, b'\0')
 SEED = HEADER.ljust(2048, b'\0')
 SLOTS = 31
 SETTINGS_RESULT = 28
+CHILD_RESULT = 29
 STAGES = {
     1: 'pairing-confirmed',
     2: 'binding-lookup-completed',
@@ -37,10 +38,26 @@ STAGES = {
     26: 'remote-receive-and-link-retirement-summary',
     27: 'remote-packet-backend-start-failure',
     SETTINGS_RESULT: 'latest-settings-start-result',
+    CHILD_RESULT: 'latest-start-child-detail',
 }
 SETTINGS_STAGES = ('none', 'host-admission', 'wireless-mode', 'prepare-generation',
                    'spawn-supervisor', 'offer-player', 'attach-dependencies',
                    'offer-accepted', 'child-exit', 'ready')
+PACKET_OPERATIONS = {1: 'enable-frm1', 2: 'enable-bulk'}
+SERVICE_OPERATIONS = {1: 'retirement-channel', 2: 'radio-client', 3: 'player-hello',
+                      4: 'sender', 5: 'worker', 6: 'player-command-negotiation'}
+
+
+def signed(word):
+    return word if word < 2**31 else word - 2**32
+
+
+def attempt_identity(words):
+    serial, generation, process, build = (
+        low | high << 32 for low, high in zip(words[::2], words[1::2])
+    )
+    return dict(request_serial=serial, generation=generation or None,
+                player_process=f'{process:016x}', player_build=f'{build:016x}')
 OWNER_STARTUP_FAILURES = {
     101: 'mode-view-open',
     102: 'root-storage-or-radio-preflight',
@@ -68,31 +85,48 @@ def main():
     data = private(args.trace).read_bytes()
     result = decode(SEED, data, prefix=HEADER, names=STAGES, slots=SLOTS)
     result['limits'] = [
-        'Only the latest Settings result records a build, player process and start request identity.',
-        'Other slots are legacy observations and cannot be attributed to that request.',
+        'The latest Settings result and child detail carry a build, player process, request and generation identity.',
+        'Legacy slots cannot be attributed to the latest request.',
         'An empty or unchanged slot can also mean refused storage, an occupied slot or an interrupted write.',
         'New records describe writes between the two copies. They do not independently identify a start request.',
     ]
     latest = next((row for row in result['records'] if row['stage'] == SETTINGS_RESULT), None)
     result['latest_settings_start'] = None
+    result['latest_child_detail'] = None
     result['attempt_identity_present'] = False
     if latest:
         result['records'].remove(latest)
         code, stage, reaped, status, *identity = latest['payload']
-        serial, generation, process, build = (
-            low | high << 32 for low, high in zip(identity[::2], identity[1::2])
-        )
+        identity = attempt_identity(identity)
         if (latest['sequence'] != 1 or not 1 <= stage < len(SETTINGS_STAGES) or
-                reaped not in (0, 1) or not serial or not process or not build):
+                reaped not in (0, 1) or not identity['request_serial'] or
+                not int(identity['player_process'], 16) or not int(identity['player_build'], 16)):
             result['integrity_valid'] = False
             result['invalid_slots'].append(dict(slot=SETTINGS_RESULT, reason='settings-result-fields'))
         else:
             result['attempt_identity_present'] = True
             result['latest_settings_start'] = dict(
-                operation=SETTINGS_STAGES[stage], result=code if code < 2**31 else code - 2**32,
-                request_serial=serial, generation=generation or None, player_process=f'{process:016x}',
-                player_build=f'{build:016x}', child_reaped=bool(reaped),
+                operation=SETTINGS_STAGES[stage], result=signed(code), **identity, child_reaped=bool(reaped),
                 child_wait_status=status if reaped else None)
+    child = next((row for row in result['records'] if row['stage'] == CHILD_RESULT), None)
+    if child:
+        result['records'].remove(child)
+        identity = attempt_identity(child['payload'][:8])
+        packet, packet_code, service, service_code = child['payload'][8:]
+        if (child['sequence'] != 1 or not identity['request_serial'] or not identity['generation'] or
+                not int(identity['player_process'], 16) or not int(identity['player_build'], 16) or
+                packet not in (0, *PACKET_OPERATIONS) or bool(packet) != bool(packet_code) or
+                service not in (0, *SERVICE_OPERATIONS)):
+            result['integrity_valid'] = False
+            result['invalid_slots'].append(dict(slot=CHILD_RESULT, reason='child-result-fields'))
+        else:
+            current = result['latest_settings_start']
+            if current and current['child_reaped'] and all(current[key] == value for key, value in identity.items()):
+                result['latest_child_detail'] = dict(
+                    packet_backend=dict(operation=PACKET_OPERATIONS[packet], result=signed(packet_code))
+                    if packet else None,
+                    service_refusal=dict(operation=SERVICE_OPERATIONS[service], result=signed(service_code))
+                    if service else None)
     if args.before is not None:
         before = private(args.before).read_bytes()
         baseline = decode(SEED, before, prefix=HEADER, names=STAGES, slots=SLOTS)
@@ -105,6 +139,9 @@ def main():
                 if slot == SETTINGS_RESULT and result['attempt_identity_present']:
                     changes[slot] = 'settings-result-updated'
                     continue
+                if slot == CHILD_RESULT and result['latest_child_detail'] is not None:
+                    changes[slot] = 'child-detail-updated'
+                    continue
                 changes[slot] = 'changed-occupied' if any(previous) else 'new'
         changed_occupied_slots = [slot for slot, change in changes.items() if change == 'changed-occupied']
         append_only = baseline['integrity_valid'] and result['integrity_valid'] and not changed_occupied_slots
@@ -114,11 +151,12 @@ def main():
                                     baseline_invalid_slots=baseline['invalid_slots'],
                                     changed_occupied_slots=changed_occupied_slots,
                                     latest_settings_start_changed=SETTINGS_RESULT in changes,
+                                    latest_child_detail_changed=CHILD_RESULT in changes,
                                     new_committed_slots=[slot for slot, change in changes.items()
                                                          if append_only and change == 'new'])
     for row in result['records']:
         raw, binding, phase, channel, mode, fault, *state = row.pop('payload')
-        status = raw if raw < 2**31 else raw - 2**32
+        status = signed(raw)
         row.update(result=status, binding_result=binding, pairing_phase=phase,
                    channel=channel, radio_mode=mode, fault_latched=bool(fault))
         if row['stage'] in (17,18,20,21):
@@ -128,20 +166,19 @@ def main():
         if row['stage']==22:
             row['original_gui_idle_us'],row['remote_gui_idle_us']=state[:2]
         if row['stage']==23:
-            signed=lambda v:v if v<2**31 else v-2**32
             row['exit_detail']=dict(zip(('service_exit','owner_exit','application_error','worker_reason','worker_error','player_close_error'),map(signed,state)))
         if row['stage']==24:
             row['failure_origin']={1:'storage-guard-or-endpoint',2:'endpoint-prepare',3:'owner-stream',4:'transmit-poll',5:'receive-security'}.get(state[0],'unknown')
             if state[0] in (2,5) and status==-21:row['failure_domain']='encrypted-counter-storage'
         if row['stage']==25:
-            row['startup_stage']={1:'retirement-channel',2:'radio-client',3:'player-hello',4:'sender',5:'worker',6:'player-command-negotiation'}.get(state[0],'unknown')
+            row['startup_stage']=SERVICE_OPERATIONS.get(state[0],'unknown')
             row['player_capability_closed']=state[1]==1
             row['initial_hello_ms']=None if state[2]==0xffffffff else state[2]
         if row['stage']==26:
             row['radio_summary']=dict(zip(('decoded','authentication_rejected','replay_rejected',
                 'negotiation_frames','negotiated_key_installs','shared_wake_unrestored'),state))
         if row['stage']==27:
-            row['operation']={1:'enable-frm1',2:'enable-bulk'}.get(state[0],'unknown')
+            row['operation']=PACKET_OPERATIONS.get(state[0],'unknown')
             row['failure_domain']='xnow-transport'
         if row['stage'] == 7 and status in OWNER_STARTUP_FAILURES:
             row['owner_startup_failure'] = OWNER_STARTUP_FAILURES[status]
