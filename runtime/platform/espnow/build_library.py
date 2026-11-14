@@ -98,11 +98,14 @@ def compile_sdk(scratch, version):
     for path in headers:
         shutil.copy2(path,SDK/'include'/path.name);dependencies.add(path.relative_to(ROOT).as_posix())
     consumer=ROOT/'tools/fixtures/xnow_library_consumer.c'
-    shutil.copy2(consumer,SDK/'examples/no_device_smoke.c');shutil.copy2(SOURCE/'LIBRARY.md',SDK/'README.md')
-    shutil.copy2(SOURCE/'VALIDATION.md',SDK/'VALIDATION.md')
+    shutil.copy2(consumer,SDK/'examples/no_device_smoke.c')
+    documentation = {}
+    for source, name in (('LIBRARY.md', 'README.md'), ('VALIDATION.md', 'VALIDATION.md')):
+        document = SDK / name
+        shutil.copy2(SOURCE / source, document)
+        documentation[name] = hashlib.sha256(document.read_bytes()).hexdigest()
     dependencies.add(consumer.relative_to(ROOT).as_posix())
-    dependencies.update(('runtime/platform/espnow/VERSION','runtime/platform/espnow/LIBRARY.md','runtime/platform/espnow/VALIDATION.md',
-                         'runtime/platform/espnow/build_library.py'))
+    dependencies.update(('runtime/platform/espnow/VERSION', 'runtime/platform/espnow/build_library.py'))
     startup=[]
     for index,name in enumerate(('runtime/store/start.c','runtime/store/start.S')):
         obj=scratch/f'start-{index}.o';subprocess.run(['arm-linux-gnueabi-gcc',*flags,'-c',name,'-o',str(obj)],cwd=ROOT,check=True);startup.append(str(obj));dependencies.add(name)
@@ -133,6 +136,7 @@ def compile_sdk(scratch, version):
             'abi_library_hashes':{p.relative_to(ROOT).as_posix():digest for p,digest in libs.items()},
             'compiler':subprocess.check_output(['arm-linux-gnueabi-gcc','--version'],text=True).splitlines()[0],
             'source_hashes':{s:hashlib.sha256((ROOT/s).read_bytes()).hexdigest() for s in sorted(dependencies)},
+            'documentation_sha256':documentation,
             'arm_qemu_consumer_checks':checks,'host_cpp_link_check':cpp_run.stdout,'arm_cpp_tested':False,
             'bearssl_archive_sha256':hashlib.sha256(crypto_archive.read_bytes()).hexdigest(),'sony_libraries_distributed':False,'hardware_qualified':False,'device_written':False}
     (SDK/'build.json').write_text(json.dumps(report,indent=2))
@@ -142,7 +146,13 @@ def compile_sdk(scratch, version):
 def package_sdk(OUT, SDK, version):
     archive = SDK / 'lib/libxnow.a'
     package=OUT/('XNOW-'+version+'-experimental-sdk.zip')
-    files=[*(SDK/'include').glob('*.h'),archive,SDK/'examples/no_device_smoke.c',SDK/'README.md',SDK/'VALIDATION.md',SDK/'build.json']
+    build_receipt = SDK / 'build.json'
+    documentation = json.loads(build_receipt.read_text())['documentation_sha256']
+    documents = [SDK / name for name in ('README.md', 'VALIDATION.md')]
+    for document in documents:
+        if hashlib.sha256(document.read_bytes()).hexdigest() != documentation[document.name]:
+            raise ValueError('SDK documentation differs from the staged build: ' + document.name)
+    files=[*(SDK/'include').glob('*.h'), archive, SDK/'examples/no_device_smoke.c', *documents, build_receipt]
     with zipfile.ZipFile(package,'x',compression=zipfile.ZIP_DEFLATED) as zipout:
         for path in sorted(files):zipout.write(path,path.relative_to(SDK).as_posix())
     (OUT/'package.json').write_text(json.dumps({'file':package.name,'sha256':hashlib.sha256(package.read_bytes()).hexdigest(),

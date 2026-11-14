@@ -241,8 +241,10 @@ The builder derives the stock reload table from the verified Japanese 1.11 root.
 The Owner, overlay, replay and receive probe use the same radio review validator
 for source receipts, Sony helper identity and reconstruction from the ELF. The
 Owner and receive probe derive their compiled headers from that validated
-manifest. Root
-builds run the owner entry and admission checks. The separate finite test
+manifest. Native SDK receipts record compiler and smoke-test inputs separately
+from the copies of `README.md` and `VALIDATION.md` shipped with the SDK. Editing
+those documents does not invalidate a current archive for linking. Root builds
+run the owner entry and admission checks. The separate finite test
 executable is built only with `--legacy-radio`.
 
 Build the embedded Remote supervisor directly from the owner and service
