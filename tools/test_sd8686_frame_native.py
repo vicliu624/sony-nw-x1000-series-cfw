@@ -80,9 +80,9 @@ def reset():
     cpu.ctl_remove_cache(0xC0000000, 0xC0020000)
     call(0xC0004B6C)
     put(0x04001BC8, 0x200400)
-    put(0x04001BC4, 0x200420)
+    put(0x04001BC4, 0xC000785C)
     cpu.mem_write(0x200400, bytes(32))
-    cpu.mem_write(0x200420, bytes.fromhex("021122334455"))
+    cpu.mem_write(0xC000785C, bytes.fromhex("021122334455"))
     put(0x040015E0 + 3 * 4, 0x12340003)
     original_env["queue_result"][0] = 0
     original_env["queued"].clear()
@@ -254,7 +254,8 @@ def exercise(arguments, label):
         [str(argument) for argument in arguments],
         cwd=ROOT,
         pass_fds=[client.fileno()],
-        env=dict(os.environ, XNOW_TEST_BRIDGE_FD=str(client.fileno())),
+        env=dict(os.environ, XNOW_TEST_BRIDGE_FD=str(client.fileno()),
+                 XNOW_TEST_DRIVER_INFO=str(out / "driver-info.txt")),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
@@ -298,6 +299,9 @@ if "--host-only" not in sys.argv:
 
     libraries = stock_libraries()
     target = out / "native.arm"
+    driver_info = out / "driver-info.txt"
+    driver_info.write_text("sd8686-9.70.3.p32-26409.p51-(FP4)\n")
+    controller_source = "runtime/platform/espnow/xnow_full_control.c"
     if "--sdk-review" in sys.argv:
         selected_sdk = sys.argv[sys.argv.index("--sdk-review") + 1]
     else:
@@ -327,7 +331,10 @@ if "--host-only" not in sys.argv:
             "arm-linux-gnueabi-gcc",
             *flags,
             *arm_flags,
+            "-DXNOW_FRAME_STARTUP_REPLAY",
+            "-Wl,--wrap=fopen,--wrap=fopen64,--wrap=socket,--wrap=close",
             sources[0],
+            controller_source,
             "runtime/store/start.c",
             "runtime/store/start.S",
             str(archive),
@@ -352,6 +359,7 @@ if "--host-only" not in sys.argv:
         ],
         "arm",
     )
+    assert "SD8686_FRAME_SHARED_STARTUP_PASS" in arm_stdout
 inputs = [
     *sources,
     "runtime/platform/espnow/xnow_full.h",
@@ -365,6 +373,7 @@ inputs = [
 ]
 if arm_stdout is not None:
     inputs += ["runtime/store/start.c", "runtime/store/start.S", "tools/review_managed_remote_profile.py",
+               controller_source, "runtime/platform/espnow/xnow_full_control.h",
                native_path.relative_to(ROOT).as_posix(), archive.relative_to(ROOT).as_posix()]
 report = dict(
     passed=True,
@@ -378,6 +387,8 @@ report = dict(
         "ROM queues",
         "work origin",
         "ciphertext contents",
+        "manager state and borrowed lease",
+        "stock channel response",
     ],
     hardware_tested=False,
     device_accessed=False,
@@ -394,6 +405,8 @@ report["host_compiler"] = subprocess.check_output(
     ["gcc-12", "--version"], text=True
 ).splitlines()[0]
 if arm_stdout is not None:
+    report["shared_controller_startup"] = ["state-2-refused", "state-3-ready", "state-4-ready",
+                                           "bad-frame-marker-drained"]
     report["native_arm_sha256"] = hashlib.sha256(target.read_bytes()).hexdigest()
     report["native_archive_sha256"] = native_receipt["archive_sha256"]
     report["arm_compiler"] = subprocess.check_output(

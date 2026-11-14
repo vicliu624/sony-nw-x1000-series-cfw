@@ -26,6 +26,11 @@ The local dev.37 `frame-01` package has UPG SHA-256
 `7b4f35a46dde9cc4f3bbd9faa76101b17f70f82f9d25de0867daae5c5eca7f32`.
 The user reports that Wireless Remote cannot be enabled. This candidate is
 withdrawn from further testing; its direct startup failure has not been located.
+The same radio image and SDK archive now pass a shared-controller startup replay
+under Sony libc and the selected MCU instructions. It covers modeled manager
+states 2, 3 and 4 and a rejected FRM1 marker. Root/USB admission, physical wake,
+receive membership and the actual failing Settings attempt remain outside this
+replay. See [offline checks](REGRESSION.md#groups).
 Runtime changes and new candidates are on hold pending cause/architecture review.
 The 1 Mbps application target remains unmeasured; see
 [performance](reference/ESPNOW_PERFORMANCE.md).

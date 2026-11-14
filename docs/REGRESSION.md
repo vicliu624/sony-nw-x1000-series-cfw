@@ -62,6 +62,15 @@ identity are checked before reuse. The replay still runs the protocol and MCU
 checks, records a fresh snapshot and logs, and binds the selected input files
 by hash. Omit the options to verify a fresh radio and SDK build.
 
+`test_sd8686_frame_native.py` also runs the actual ARM shared-radio controller
+and adapter against the selected FRM1 image. It checks Wi-Fi-on manager states 3
+and 4, rejects state 2 before opening the driver, and checks that a rejected
+FRM1 marker after initial image verification leaves no packet operations bound.
+The endpoint drains before the manager lease is released, without a channel SET
+or module reload. The manager, driver entry/socket, channel response, and lease
+are fixtures. This excludes the Remote supervisor, pairing data, wake/tuner and
+receive-socket setup, and makes no hardware startup claim.
+
 Within the firmware regression runner, the radio check validates and references
 the parent run's source ZIP. Its report records that shared path and hash, so
 keep the parent ZIP with the reports. A standalone radio run creates its own ZIP

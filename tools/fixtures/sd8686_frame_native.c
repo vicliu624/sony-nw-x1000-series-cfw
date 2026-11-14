@@ -14,6 +14,10 @@
 #include <string.h>
 #include <unistd.h>
 #include <linux/wireless.h>
+#ifdef XNOW_FRAME_STARTUP_REPLAY
+#include "../../runtime/platform/espnow/xnow_full_control.h"
+#include <sys/socket.h>
+#endif
 
 enum {
     RESET = 1,
@@ -44,6 +48,81 @@ static unsigned calls, submits;
 static struct xnow_sd8686_full radio;
 static struct xnow_full backend;
 static const uint8_t local[6] = {2, 0x11, 0x22, 0x33, 0x44, 0x55}, peer[6] = {2, 1, 2, 3, 4, 5};
+#ifdef XNOW_FRAME_STARTUP_REPLAY
+static unsigned manager_state, releases, channel_reads, socket_open;
+static int bad_frame_marker;
+
+extern FILE *__real_fopen(const char *, const char *);
+extern int __real_close(int);
+
+FILE *__wrap_fopen(const char *path, const char *mode) {
+    const char *info = getenv("XNOW_TEST_DRIVER_INFO");
+    assert(info && !strcmp(path, "/proc/net/wlan/info") && !strcmp(mode, "r"));
+    return __real_fopen(info, mode);
+}
+FILE *__wrap_fopen64(const char *path, const char *mode) {
+    return __wrap_fopen(path, mode);
+}
+int __wrap_socket(int domain, int type, int protocol) {
+    assert(domain == AF_INET && type == SOCK_DGRAM && !protocol && !socket_open);
+    socket_open = 1;
+    return 123;
+}
+int __wrap_close(int fd) {
+    if (fd != 123)
+        return __real_close(fd);
+    assert(socket_open);
+    socket_open = 0;
+    return 0;
+}
+void xnow_manager_init(struct xnow_manager *manager) {
+    memset(manager, 0, sizeof *manager);
+    manager->owner = getpid();
+}
+int xnow_manager_execute(struct xnow_manager *manager, const struct xnow_session *session,
+                         void *context, int (*guard)(void *, enum xnow_session_action)) {
+    assert(!guard(context, session->pending));
+    switch (session->pending) {
+    case XNOW_SESSION_ACQUIRE:
+        assert(!manager->held);
+        manager->held = 1;
+        return 0;
+    case XNOW_SESSION_INSPECT:
+        assert(manager->held && session->lease);
+        return (int)manager_state;
+    case XNOW_SESSION_RELEASE:
+        assert(manager->held && session->lease && !socket_open);
+        manager->held = 0;
+        releases++;
+        return 0;
+    default:
+        assert(!"Shared startup must use the existing driver and channel");
+        return -1;
+    }
+}
+void xnow_loader_job_init(struct xnow_loader_job *job) {
+    memset(job, 0, sizeof *job);
+}
+int xnow_loader_job_start(struct xnow_loader_job *job, const struct xnow_session *session,
+                         void *context, int (*guard)(void *, enum xnow_session_action)) {
+    (void)job;
+    (void)session;
+    (void)context;
+    (void)guard;
+    assert(!"Shared startup must not launch a loader");
+    return -1;
+}
+int xnow_loader_job_poll(struct xnow_loader_job *job, int *result) {
+    (void)job;
+    (void)result;
+    assert(!"Shared startup must not poll a loader");
+    return -1;
+}
+int xnow_sd8686_stock_verify(void) {
+    assert(!"Shared startup must not reload stock firmware");
+    return -1;
+}
+#endif
 static unsigned get16(const uint8_t *p) { return p[0] | (unsigned)p[1] << 8; }
 static uint32_t get32(const uint8_t *p) {
     return p[0] | (uint32_t)p[1] << 8 | (uint32_t)p[2] << 16 | (uint32_t)p[3] << 24;
@@ -97,6 +176,15 @@ int ioctl(int fd, unsigned long op, ...) {
     uint8_t *p = request->u.data.pointer;
     unsigned n = request->u.data.length, action = get16(p + 8);
     uint32_t address = get32(p + 12);
+#ifdef XNOW_FRAME_STARTUP_REPLAY
+    if (get16(p) == 0x1d) {
+        assert(socket_open && n == 48 && !action && !p[10] && !strcmp(request->ifr_name, "eth0"));
+        channel_reads++;
+        put16(p, 0x801d);
+        p[10] = 8;
+        return 0;
+    }
+#endif
     assert(n <= 1500 && get16(p) == 0x86 && get16(p + 2) == n);
     calls++;
     if (action == XNOW_FRAME_SUBMIT && get32(p + 16))
@@ -136,6 +224,10 @@ int ioctl(int fd, unsigned long op, ...) {
     }
     request->u.data.length = (unsigned short)used;
     memcpy(p, response, selected == FAIL_PARTIAL ? 10 : used);
+#ifdef XNOW_FRAME_STARTUP_REPLAY
+    if (bad_frame_marker && !action && address == XNOW_RADIO_FRAME_MARKER)
+        put32(p + 16, 0);
+#endif
     if (selected == FAIL_ECHO)
         put32(p + 28, get32(p + 28) ^ 1u);
     if (selected == FAIL_REVOKE)
@@ -239,11 +331,71 @@ static void stop_clean(void) {
     information(state);
     assert(state[0] == 3 && !state[5]);
 }
+#ifdef XNOW_FRAME_STARTUP_REPLAY
+static int guard(void *context, enum xnow_session_action action) {
+    (void)context;
+    (void)action;
+    return 0;
+}
+static int random_byte_array(void *context, uint8_t out[4]) {
+    (void)context;
+    memset(out, 1, 4);
+    return 0;
+}
+static void shared_startup(unsigned state, int reject_marker) {
+    struct xnow_full_control controller;
+    const struct xnow_full_control_options options = {
+        .profile = &xnow_full_compiled_profile, .radio_guard = guard, .ipc_guard = guard,
+        .lease_valid = lease, .random = random_byte_array, .channel = 1,
+    };
+    control(RESET, 0, 0, 0, 0, 0);
+    manager_state = state;
+    releases = channel_reads = 0;
+    unsigned sent = submits;
+    assert(!xnow_full_control_init(&controller, &options));
+    controller.shared_channel = xnow_sd8686_full_channel_get;
+    controller.require_cold_start = 1; /* Same controller option as the managed Root owner. */
+    for (unsigned step = 0; controller.session.phase == XNOW_SESSION_STARTING; step++) {
+        assert(step < 6 && xnow_full_control_step(&controller) >= 0);
+    }
+    struct xnow_endpoint *endpoint = xnow_full_control_endpoint(&controller);
+    if (state == 2) {
+        assert(!endpoint && !socket_open && !channel_reads && controller.session.failure);
+    } else {
+        assert(endpoint && endpoint->channel == 8 && channel_reads == 1);
+        assert(!memcmp(controller.local_mac, local, sizeof local));
+        bad_frame_marker = reject_marker;
+        int rc = xnow_sd8686_full_enable_frames(&controller.radio, endpoint->transport,
+                                              &xnow_full_compiled_profile, XNOW_RADIO_FRAME_MARKER);
+        bad_frame_marker = 0;
+        assert(rc == (reject_marker ? XNOW_IDENTITY : XNOW_OK));
+        assert(!!endpoint->transport->packets.submit == !reject_marker);
+        assert(!!controller.radio.frames.enabled == !reject_marker);
+        assert(submits == sent);
+        xnow_full_control_stop(&controller);
+        assert(!xnow_full_control_endpoint(&controller));
+        assert(xnow_full_control_step(&controller) == XNOW_SESSION_STOPPING);
+        assert(!socket_open && controller.session.lease && !releases);
+    }
+    assert(xnow_full_control_step(&controller) == XNOW_SESSION_DONE && releases == 1);
+    assert(xnow_full_control_finished(&controller));
+    uint32_t pool[6];
+    information(pool);
+    assert(pool[0] == 3 && !pool[5] && submits == sent);
+}
+#endif
 int main(void) {
     const char *fd = getenv("XNOW_TEST_BRIDGE_FD");
     assert(fd);
     bridge = atoi(fd);
     assert(bridge >= 3);
+#ifdef XNOW_FRAME_STARTUP_REPLAY
+    shared_startup(2, 0);
+    shared_startup(3, 0);
+    shared_startup(4, 0);
+    shared_startup(3, 1);
+    puts("SD8686_FRAME_SHARED_STARTUP_PASS");
+#endif
     uint8_t frame[1560], received[1560];
     uint32_t state[6];
     struct xnow_full_result result;
