@@ -1,5 +1,6 @@
 """Warm Main cycles with original manager replies, retaining the initial-state limitation."""
 from pathlib import Path
+import check_main_activation_ack as primitives
 import contextlib,hashlib,io,json,runpy,struct,sys
 from unicorn import UC_HOOK_CODE
 from unicorn.arm_const import UC_ARM_REG_R0,UC_ARM_REG_R1,UC_ARM_REG_R2,UC_ARM_REG_R3,UC_ARM_REG_LR,UC_ARM_REG_PC
@@ -10,8 +11,7 @@ try:
  sys.argv=[str(client_source),'--reply-report','sources/native-home-ipc-client-registration.json','--acknowledge-activation']
  with contextlib.redirect_stdout(io.StringIO()):seed=runpy.run_path(str(client_source))
 finally:sys.argv=previous
-with contextlib.redirect_stdout(io.StringIO()):primitives=runpy.run_path(str(ROOT/'tools/check_main_activation_ack.py'))
-u=primitives['machine']();call=primitives['call'];ret=primitives['returned'];manager_session=seed['lookup_session'];manager=manager_session['emulator']
+u=primitives.machine();call=primitives.call;ret=primitives.returned;manager_session=seed['lookup_session'];manager=manager_session['emulator']
 ctx=0x820f68;main=seed['main_address'];u.mem_write(ctx,bytes(seed['u'].mem_read(ctx,0x1b4)));u.mem_write(main,bytes(seed['u'].mem_read(main,32)))
 assert list(u.mem_read(main,2))==[3,4]
 word=lambda uc,address:struct.unpack('<I',uc.mem_read(address,4))[0]

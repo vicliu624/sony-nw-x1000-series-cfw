@@ -47,4 +47,6 @@ assert word(pending)==node
 failure_events=events.copy()
 events=normal_events
 r={'passed':True,'kernel_sha256':hashlib.sha256(b).hexdigest(),'load_base':hex(base),'native_prepare_remount':'0xc0062ff0','native_resume_remount':'0xc00631cc','native_suspend_calls':{'0xc00632d4':'0xc0062ff0','0xc00633b0':'0xc00631cc'},'events':events,'freeze_failure':{'injected':True,'return':'-EAGAIN','events':failure_events,'resume_remount_called':False},'scope':'Actual shipped JP kernel instructions, supplied superblock/list/stack and virtual allocation, lock, sync, filesystem callbacks; not actual driver suspend or physical filesystem. Confirms remount_fs flags1 then0, not unmount. Does not prove every failure branch or application callback.','physical_device_access':False,'source_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}
-(ROOT/'work/external-language-bridge-8-ram-snapshot/kernel-remount-replay.json').write_text(json.dumps(r,indent=2)+'\n');print(json.dumps(r,indent=2))
+out=ROOT/'work/stock-sleep'
+out.mkdir(parents=True,exist_ok=True)
+(out/'kernel-remount-replay.json').write_text(json.dumps(r,indent=2)+'\n');print(json.dumps(r,indent=2))

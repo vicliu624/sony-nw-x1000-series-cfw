@@ -191,3 +191,9 @@ Original-code checks under `tools/` include `check_app_sleep_callbacks.py`,
 `check_kernel_sleep_wrapper.py`. Initial state, IPC/device or suspend are explicit
 models. [Regression checks](../REGRESSION.md) cover the CFW adapters separately.
 These results do not establish physical wake, RF power, timing or USB recovery.
+
+The storage, acknowledgement, application-callback and kernel-remount checks
+write reports under `work/stock-sleep/`. The manager IPC, two-client sleep and
+power-event checks initialize their own stock sysmgrd emulator. The client
+checks share the SpiderApp activation fixture without running its separate
+activation replay.

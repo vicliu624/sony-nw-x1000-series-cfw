@@ -64,4 +64,6 @@ u.emu_start(0x26551c,0x50000000,count=100000)
 assert state['next_receive'] and g['queued']==[[0x410006,0,0,0]] and not commands
 r={'passed':True,'SpiderApp_sha256':m['digest'],'cases':rows,'active_main_direct_prepare':{'main_fixture':'3/4','notification':3,'queued':g['queued'].copy(),'root_coordinator_calls':commands.copy()},'scope':'Original registration, APF receive dispatch, slot3/slot2 callbacks and Root actions execute; receive loop stops at the next IPC receive boundary (which may be a nested request/reply), command coordinator boundary intercepted, input wire/Root state/mode helpers/locks virtual. Does not execute hardware sleep, full GUI recovery or prove the user hang cause.','physical_device_access':False,'source_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}
 r['slot0_limit']='Original slot0 and Root action execute with supplied Main3/6, Root2/3, zero flags and tracker/helper responses; no real wake producer or recovery qualification.'
-(ROOT/'work/external-language-bridge-8-ram-snapshot/app-sleep-callbacks.json').write_text(json.dumps(r,indent=2)+'\n');print(json.dumps(r,indent=2))
+out=ROOT/'work/stock-sleep'
+out.mkdir(parents=True,exist_ok=True)
+(out/'app-sleep-callbacks.json').write_text(json.dumps(r,indent=2)+'\n');print(json.dumps(r,indent=2))
