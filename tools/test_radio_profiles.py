@@ -9,9 +9,9 @@ import time
 
 from app_registry import ROOT
 from build_espnow_full_radio import build
+from evidence_checks import source_inventory, verify_source_snapshot, write_source_snapshot
 from generate_espnow_full_profile import reviewed_radio
 from review_managed_remote_profile import digest, native_sdk_build, private
-from test_firmware_regressions import source_inventory, write_source_snapshot
 
 
 PROFILES = {
@@ -40,21 +40,26 @@ def main():
     parser.add_argument("--output", type=Path)
     parser.add_argument("--radio-reviews", type=Path, help="Directory containing verified scalar, bulk, vector and frame builds")
     parser.add_argument("--sdk-review", type=Path, help="Verified native SDK build.json to use for ARM replay")
+    parser.add_argument("--source-snapshot", type=Path, help="Reuse an exact source ZIP below work/")
     args = parser.parse_args()
     if sys.flags.optimize:
         raise RuntimeError("Radio regression assertions must remain enabled")
     output = (args.output or ROOT / "work/radio-profile-tests" / str(time.time_ns())).resolve()
     if not output.is_relative_to((ROOT / "work").resolve()):
         raise ValueError("Output must remain under work/")
-    before = source_inventory()
+    before = source_inventory(ROOT)
     reused = review_profiles(args.radio_reviews) if args.radio_reviews is not None else {}
     sdk = native_sdk_build(args.sdk_review) if args.sdk_review is not None else None
+    snapshot = private(args.source_snapshot) if args.source_snapshot is not None else output / "checked-source.zip"
+    snapshot_hash = verify_source_snapshot(before, snapshot) if args.source_snapshot is not None else None
     output.mkdir(parents=True, exist_ok=False)
+    if snapshot_hash is None:
+        snapshot_hash = write_source_snapshot(ROOT, before, snapshot)
     report = dict(version=(ROOT / "VERSION").read_text().strip(), checks=[], profiles={},
                   device_accessed=False, update_package_created=False,
-                  hardware_qualified=False, source_hashes=before)
-    report["source_snapshot_sha256"] = write_source_snapshot(ROOT, before, output / "checked-source.zip")
-    checked_inputs = {}
+                  hardware_qualified=False, source_hashes=before,
+                  source_snapshot=snapshot.relative_to(ROOT).as_posix(), source_snapshot_sha256=snapshot_hash)
+    checked_inputs = {report["source_snapshot"]: snapshot_hash}
 
     def save():
         (output / "report.json").write_text(json.dumps(report, indent=2) + "\n")
@@ -130,7 +135,7 @@ def main():
         run("secure-native-arm-chain", "tools/test_xnow_secure_chain.py", "--arm",
             "--radio-review", directories["vector"])
     finally:
-        report["source_changed_during_run"] = source_inventory() != before
+        report["source_changed_during_run"] = source_inventory(ROOT) != before
         report["input_hashes"] = checked_inputs
         report["inputs_changed_during_run"] = any(not (ROOT / name).is_file() or digest(ROOT / name) != sha
                                                   for name, sha in checked_inputs.items())

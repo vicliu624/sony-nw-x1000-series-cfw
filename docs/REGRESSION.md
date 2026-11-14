@@ -62,6 +62,11 @@ identity are checked before reuse. The replay still runs the protocol and MCU
 checks, records a fresh snapshot and logs, and binds the selected input files
 by hash. Omit the options to verify a fresh radio and SDK build.
 
+Within the firmware regression runner, the radio check validates and references
+the parent run's source ZIP. Its report records that shared path and hash, so
+keep the parent ZIP with the reports. A standalone radio run creates its own ZIP
+unless given a matching archive via `--source-snapshot`.
+
 `test_shared_owner_retirement.py` combines the actual Root stop wrapper and
 full controller. It checks delayed drain, both native connection states,
 channel-change stop, receive/sleep/release order and retained ownership after

@@ -3,6 +3,7 @@ import hashlib
 import contextlib
 import io
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -12,7 +13,7 @@ from unittest import mock
 import zipfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
-from test_firmware_regressions import write_source_snapshot
+from evidence_checks import source_inventory, verify_source_snapshot, write_source_snapshot
 import test_firmware_regressions as regression
 
 
@@ -28,15 +29,15 @@ class RegressionSnapshotTests(unittest.TestCase):
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_bytes(name.encode())
             visited = []
-            real_walk = regression.os.walk
+            real_walk = os.walk
 
             def walk(*args):
                 for entry in real_walk(*args):
                     visited.append(Path(entry[0]).relative_to(root).parts)
                     yield entry
 
-            with mock.patch.object(regression, "ROOT", root), mock.patch.object(regression.os, "walk", walk):
-                inventory = regression.source_inventory()
+            with mock.patch.object(os, "walk", walk):
+                inventory = source_inventory(root)
             self.assertEqual(set(inventory), {"VERSION", "runtime/live.c", "runtime/managed_components_user/live.h"})
             self.assertFalse(any(set(parts) & {".pio", "managed_components", "__pycache__"} for parts in visited))
 
@@ -90,6 +91,10 @@ class RegressionSnapshotTests(unittest.TestCase):
             def radio_replay(command, **kwargs):
                 report_dir = Path(command[command.index("--output") + 1])
                 self.assertEqual(report_dir, output / "radio-profiles")
+                snapshot = Path(command[command.index("--source-snapshot") + 1])
+                self.assertEqual(snapshot, output / "checked-source.zip")
+                self.assertEqual(verify_source_snapshot(source_inventory(root), snapshot),
+                                 hashlib.sha256(snapshot.read_bytes()).hexdigest())
                 report_dir.mkdir()
                 (report_dir / "report.json").write_bytes(b'{"passed":true}')
                 return subprocess.CompletedProcess(command, 0)
@@ -114,6 +119,11 @@ class RegressionSnapshotTests(unittest.TestCase):
             archive = root / "checked.zip"
             digest = write_source_snapshot(root, hashes, archive)
             self.assertEqual(digest, hashlib.sha256(archive.read_bytes()).hexdigest())
+            self.assertEqual(verify_source_snapshot(hashes, archive), digest)
+            with self.assertRaisesRegex(ValueError, "bytes differ"):
+                verify_source_snapshot({"source.c": "0" * 64}, archive)
+            with self.assertRaisesRegex(ValueError, "inventory differs"):
+                verify_source_snapshot({}, archive)
             with zipfile.ZipFile(archive) as bundle:
                 self.assertEqual(bundle.namelist(), ["source.c"])
                 self.assertEqual(bundle.read("source.c"), data)

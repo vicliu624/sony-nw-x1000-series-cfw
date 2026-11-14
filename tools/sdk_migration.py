@@ -87,8 +87,8 @@ def main():
     report_path=out/'report.json'
     report=json.loads(report_path.read_text()) if report_path.exists() else {'phase':a.phase,'apps':{},'hardware_accessed':False,'firmware_created':False}
     if a.phase=='current':
-        from test_firmware_regressions import source_inventory
-        current_inputs=source_inventory()
+        from evidence_checks import source_inventory
+        current_inputs=source_inventory(ROOT)
         report.update(source_hashes=current_inputs,historical_equivalence_checked=False)
     env=dict(os.environ,QEMU_UNSET_ENV='LD_LIBRARY_PATH,LD_PRELOAD')
     for ident in selected:
@@ -129,7 +129,7 @@ def main():
     print(json.dumps({'phase':a.phase,'passed_apps':[k for k,v in report['apps'].items() if v['passed']],
                       'report':str(report_path.relative_to(ROOT)),'hardware_accessed':False},indent=2))
     if a.phase=='current':
-        changed=current_inputs!=source_inventory()
+        changed=current_inputs!=source_inventory(ROOT)
         report['source_changed_during_run']=changed
         report['passed']=not changed and all(row['passed'] for row in report['apps'].values())
         report_path.write_text(json.dumps(report,indent=2)+'\n')

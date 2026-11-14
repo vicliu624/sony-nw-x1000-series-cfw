@@ -11,10 +11,10 @@ import tempfile
 import zipfile
 
 from app_registry import ROOT
+from evidence_checks import source_inventory
 from market_metadata import parse_version, compare_versions
 from review_managed_remote_profile import digest, private, receipt, radio_dependencies
 from review_managed_root_capacity import inventory, compose_root_inventory, read_localization_root
-from test_firmware_regressions import source_inventory
 
 sys.path.insert(0, str(ROOT / 'scripts'))
 from upg import STOCK_SHA256, unpack
@@ -228,7 +228,7 @@ def reviewed_inputs(firmware_review, allocation_review, regressions):
     rp, radio_regression = matching_radio_regression(bp, bulk, layout, owner)
     service_path = private(supervisor['local_inputs']['service']['local'])
     sp, service = receipt(service_path.parent / 'build.json')
-    pc_changes, app_changes = subsequent_source_changes(bulk['source_hashes'], source_inventory(), layout, firmware,
+    pc_changes, app_changes = subsequent_source_changes(bulk['source_hashes'], source_inventory(ROOT), layout, firmware,
                                                         model, capacity, supervisor, owner, service)
     return dict(firmware=firmware, model=model, layout=layout, owner=owner, supervisor=supervisor, upg=upg,
                 input_paths=(fp, mp, bp, lp, cp, sp, rp), service_review=sp, subsequent_pc_changes=pc_changes,

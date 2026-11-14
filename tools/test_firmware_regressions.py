@@ -8,14 +8,13 @@ inventory so a report cannot be reused after editing the checked tree.
 import argparse
 import hashlib
 import json
-import os
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 import subprocess
 import sys
 import time
-import zipfile
 
 from app_registry import ROOT
+from evidence_checks import source_inventory, write_source_snapshot
 
 
 SUITES = {
@@ -187,48 +186,6 @@ def plan_checks(suites, host_review=None):
     return planned, duplicates
 
 
-def source_inventory():
-    result = {}
-    for name in ("runtime", "sdk", "tools", "config", "scripts", "tests", ".github"):
-        for directory, children, files in os.walk(ROOT / name):
-            children[:] = sorted(child for child in children
-                                 if child not in ("__pycache__", ".pio", "managed_components"))
-            for filename in sorted(files):
-                path = Path(directory) / filename
-                if path.suffix not in (".c", ".h", ".cpp", ".hpp", ".S", ".py", ".json",
-                                       ".inc", ".yml", ".yaml", ".ini", ".ps1", ".ld") and path.name != "VERSION":
-                    continue
-                if path.is_file():
-                    result[path.relative_to(ROOT).as_posix()] = hashlib.sha256(path.read_bytes()).hexdigest()
-    result["VERSION"] = hashlib.sha256((ROOT / "VERSION").read_bytes()).hexdigest()
-    return result
-
-
-def write_source_snapshot(root, inventory, archive):
-    """Retain exactly the hashed text inputs; this is not a firmware/source SDK."""
-    root = root.resolve()
-    payloads = {}
-    for name, expected in sorted(inventory.items()):
-        logical = PurePosixPath(name)
-        if logical.is_absolute() or ".." in logical.parts or "\\" in name:
-            raise ValueError("Invalid snapshot name: " + name)
-        path = root / name
-        if (any(part.is_symlink() for part in [path, *path.parents] if part != root)
-                or not path.resolve().is_relative_to(root)
-                or path.relative_to(root).as_posix() != name):
-            raise ValueError("Invalid snapshot input: " + name)
-        data = path.read_bytes()
-        if hashlib.sha256(data).hexdigest() != expected:
-            raise ValueError("Source changed before snapshot: " + name)
-        payloads[name] = data
-    with zipfile.ZipFile(archive, "x", zipfile.ZIP_DEFLATED) as bundle:
-        for name, data in payloads.items():
-            entry = zipfile.ZipInfo(name, (2026, 1, 1, 0, 0, 0))
-            entry.compress_type = zipfile.ZIP_DEFLATED
-            bundle.writestr(entry, data)
-    return hashlib.sha256(archive.read_bytes()).hexdigest()
-
-
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--suite", choices=SUITES, action="append")
@@ -255,7 +212,7 @@ def main():
         raise ValueError("Regression output must stay under work/")
     output.mkdir(parents=True, exist_ok=False)
     began = time.monotonic()
-    before = source_inventory()
+    before = source_inventory(ROOT)
     snapshot = output / "checked-source.zip"
     snapshot_hash = write_source_snapshot(ROOT, before, snapshot)
     report = {
@@ -286,7 +243,7 @@ def main():
         radio_review = None
         if command[0] == "test_radio_profiles.py":
             radio_output = output / "radio-profiles"
-            invocation += ["--output", str(radio_output)]
+            invocation += ["--output", str(radio_output), "--source-snapshot", str(snapshot)]
             radio_review = radio_output / "report.json"
         with log.open("wb") as stream:
             run = subprocess.run(invocation, cwd=ROOT, stdout=stream, stderr=subprocess.STDOUT)
@@ -302,7 +259,7 @@ def main():
         report["checks"].append(check)
         (output / "report.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
         print(f"{'PASS' if run.returncode == 0 else 'FAIL'} {label}", flush=True)
-    report["source_changed_during_run"] = source_inventory() != before
+    report["source_changed_during_run"] = source_inventory(ROOT) != before
     report["total_seconds"] = round(time.monotonic() - began, 3)
     report["passed"] = not report["source_changed_during_run"] and all(
         check["exit_code"] == 0 for check in report["checks"]
