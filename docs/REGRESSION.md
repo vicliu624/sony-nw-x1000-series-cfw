@@ -418,9 +418,13 @@ that guard to run it in an active development tree.
 
 For source archive qualification, build a fresh local SDK archive with
 `tools/package_sdk.py` and pass it to `tools/test_sdk_bundle.py`. This extracts a
-clean SDK and prepares its own pinned libraries. Reusing an old `work/` directory
-does not establish source-only reproducibility. An SDK archive is not a firmware
-update and supplies no device authority.
+clean SDK and prepares its own pinned libraries. The SDK workflow runs the
+checkout runtime fixtures with the original loader and libc, then runs the
+service matrix and ESP-NOW client checks from the extracted archive. The main
+workflow supplies layout and unit checks on main and its pull requests. SDK tag
+and manual runs perform those source checks independently. Source-only
+reproducibility requires fresh inputs. An SDK archive is not a firmware update
+and supplies no device authority.
 
 ## Artifact-dependent checks
 
