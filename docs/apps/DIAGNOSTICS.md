@@ -20,7 +20,9 @@ install this ELF or present it as a repaired/trace-enabled firmware.
 `test_parent_entry_trace.py --review ...` compares original/traced ARM boundary
 states across21 cases, including arbitrary observer returns and failing APF
 results. The optional --parent-trace-review on test_current_home_switch_mode.py
-executes all five capsules with the original name client/manager parser; file
+executes all five capsules in the full preflight case with the original name
+client and manager parser. Supply `--failed-firmware` and `--failed-launcher`
+together for that case, using the hash-matched retained inputs. File
 operations, IPC transport and observer effects remain fixtures. No complete
 original GUI, process retirement or hardware qualification is implied.
 

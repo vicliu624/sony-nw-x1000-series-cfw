@@ -1,28 +1,39 @@
 """Exact current payload APF request mode; no manager, GUI startup or hardware."""
-import argparse,io,json,struct,time,sys,tarfile,gzip
+import argparse,hashlib,io,json,struct,time,sys,tarfile,gzip
 from elftools.elf.elffile import ELFFile
 from unicorn import Uc,UC_ARCH_ARM,UC_MODE_ARM,UC_HOOK_CODE
 from unicorn.arm_const import UC_ARM_REG_R0,UC_ARM_REG_R1,UC_ARM_REG_R2,UC_ARM_REG_R3,UC_ARM_REG_R4,UC_ARM_REG_R6,UC_ARM_REG_SP,UC_ARM_REG_LR,UC_ARM_REG_PC
 from app_registry import ROOT
 from review_managed_remote_profile import receipt,digest
-p=argparse.ArgumentParser(description=__doc__);p.add_argument('--host-review',required=True);p.add_argument('--failed-firmware',help='Read exact failed package AppList for original name lookup');p.add_argument('--parent-trace-review',help='Explicit passive parent capsules; observer modeled, no storage backend');a=p.parse_args()
+p=argparse.ArgumentParser(description=__doc__)
+p.add_argument('--host-review',required=True)
+p.add_argument('--failed-firmware',help='Retained failed package for original name lookup')
+p.add_argument('--failed-launcher',help='Retained launcher from the same failure for the preflight read')
+p.add_argument('--parent-trace-review',help='Explicit passive parent capsules; observer modeled, no storage backend')
+a=p.parse_args()
+if bool(a.failed_firmware)!=bool(a.failed_launcher):
+ p.error('Supply both --failed-firmware and --failed-launcher for the historical preflight case')
 rp,build=receipt(a.host_review);image=rp.parent/'SpiderApp.player-prepare.analysis-only.elf';assert digest(image)==build['candidate_sha256']
 trace=None
 if a.parent_trace_review:
  _,trace=receipt(a.parent_trace_review);assert trace['base_sha256']==digest(image)
  image=ROOT/trace['artifact'];assert digest(image)==trace['sha256']
-raw=image.read_bytes();out=ROOT/'work/current-home-switch-mode'/str(time.time_ns());out.mkdir(parents=True);rows=[]
+raw=image.read_bytes();rows=[]
 config=None
 if a.failed_firmware:
  from review_managed_remote_profile import private
  from native_lookup_fixture import lookup
  sys.path.insert(0,str(ROOT/'scripts'));from upg import unpack
- failed=private(a.failed_firmware);assert digest(failed)=='de4a233023e4855cf4d94cd5a048f8c3aefaa40f86928724c718de4e32a3f1b1'
- _,parts=unpack(failed.read_bytes(),require_stock=False)
+ failed=private(a.failed_firmware).read_bytes()
+ failed_sha=hashlib.sha256(failed).hexdigest()
+ assert failed_sha=='de4a233023e4855cf4d94cd5a048f8c3aefaa40f86928724c718de4e32a3f1b1'
+ _,parts=unpack(failed,require_stock=False)
  decoded=gzip.decompress(parts[3]) # Validate the complete stream before tar seeking.
  with tarfile.open(fileobj=io.BytesIO(decoded),mode='r:') as archive:config=archive.extractfile('./etc/AppList.conf').read()
- launcher=ROOT/'work/sdk-app-refresh/1793710385092748300/managed-launcher/launcher.elf'
- assert digest(launcher)=='0be950324a42eed4c5976d50bca6b7eca4bf057557a8898aa188afb12e9c0d6b'
+ launcher=private(a.failed_launcher).read_bytes()
+ launcher_sha=hashlib.sha256(launcher).hexdigest()
+ assert launcher_sha=='0be950324a42eed4c5976d50bca6b7eca4bf057557a8898aa188afb12e9c0d6b'
+out=ROOT/'work/current-home-switch-mode'/str(time.time_ns());out.mkdir(parents=True)
 routes=[(0,'direct-client'),(1,'direct-client'),(1,'current-home-adapter')]
 if config:routes.append((1,'preflight-and-original-name-lookup'))
 for mode,route in routes:
@@ -57,7 +68,7 @@ for mode,route in routes:
   elif route=='preflight-and-original-name-lookup' and pc==0xe09c:
    assert bytes(u.mem_read(args[0],64)).split(b'\0')[0]==b'/contents/HOMEBREW/launcher/app';value=77
   elif route=='preflight-and-original-name-lookup' and pc==0xe48c:
-   assert args[0]==77;part=launcher.read_bytes()[position:position+args[2]];position+=len(part);u.mem_write(args[1],part);value=len(part)
+   assert args[0]==77;part=launcher[position:position+args[2]];position+=len(part);u.mem_write(args[1],part);value=len(part)
   elif route=='preflight-and-original-name-lookup' and pc in (0xd6f4,0xb00bc,0x33b83c):pass
   elif pc in (0x337a80,0x337ae8,0x265298,0x17c42c):pass
   else:return
@@ -86,8 +97,9 @@ for mode,route in routes:
 report=dict(passed=True,candidate_sha256=digest(image),cases=rows,physical_device_accessed=False,
  limits=['APF active-client state, IPC locks/transport and switch acceptance reply are fixtures.','Adapter-only case supplies completed name lookup; full-preflight case executes original name-query/client/parser and bounded string-copy body. No live manager retirement, GUI startup or physical order executes.'],source_sha256=digest(ROOT/'tools/test_current_home_switch_mode.py'))
 if config:
- import hashlib
+ report['failed_firmware_sha256']=failed_sha
  report['failed_applist_sha256']=hashlib.sha256(config).hexdigest()
+ report['failed_launcher_sha256']=launcher_sha
  report['limits'].append('Full preflight case reads exact launcher header through modeled read/close, then original client and manager parser/name lookup; switch acceptance remains supplied, not a live manager.')
 report['parent_capsules_executed']=bool(trace)
 (out/'report.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))

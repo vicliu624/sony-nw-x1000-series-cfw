@@ -131,6 +131,11 @@ segment data and section contents, so a symbol-table-only rebuild can be
 distinguished from a change in executable code or embedded launch data.
 It does not extract files to disk or create another package.
 
+Use `tools/measure_reviewed_ext2.py --firmware-review <review.json>` for a
+populated ext2 model. For the pinned historical comparison, pass the retained
+UPG as `--baseline-upg <path>`. The model copy and readback files are temporary;
+the report and debugfs/e2fsck logs stay under `work/`.
+
 For a managed player layout, build the localized root once and pass it directly
 to layout assembly:
 

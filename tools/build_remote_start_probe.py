@@ -1,4 +1,5 @@
-"""Build a private read-only queue probe for the current hardware-test UPG."""
+"""Build a private read-only queue probe for the pinned historical UPG."""
+import argparse
 import hashlib
 import io
 import json
@@ -12,11 +13,16 @@ from elftools.elf.elffile import ELFFile
 from app_registry import ROOT
 from player_arm_guest import stock_libraries
 from prepare_managed_firmware_review import unpack
+from review_managed_remote_profile import private
 
-kit = ROOT/'work/startup-candidate-materials/1793858639057351161/01_PC_UPDATE/NW_WM_FW.UPG'
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--firmware', required=True, help='Path to the retained UPG under work/')
+args = parser.parse_args()
+kit = private(args.firmware)
 firmware = kit.read_bytes()
 firmware_sha = hashlib.sha256(firmware).hexdigest()
-assert firmware_sha == '2328d7375e1c1a87b4ff8e1cd77a8bf6d06be0e6498fff953692a7651abb410e'
+if firmware_sha != '2328d7375e1c1a87b4ff8e1cd77a8bf6d06be0e6498fff953692a7651abb410e':
+    parser.error('The UPG does not match the historical library and queue ABI for this probe')
 _, parts = unpack(firmware, require_stock=False)
 with tarfile.open(fileobj=io.BytesIO(parts[3]), mode='r:gz') as archive:
     library = archive.extractfile('./usr/local/lib/libx1000-player.so').read()

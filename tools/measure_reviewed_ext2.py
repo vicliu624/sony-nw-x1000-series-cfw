@@ -32,11 +32,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     inputs = parser.add_mutually_exclusive_group(required=True)
     inputs.add_argument('--firmware-review')
-    inputs.add_argument('--accepted-baseline', action='store_true',
-                        help='Measure the pinned earlier Homebrew hardware-test package')
+    inputs.add_argument('--baseline-upg',
+                        help='Path to the pinned earlier Homebrew hardware-test UPG under work/')
     args = parser.parse_args()
-    if args.accepted_baseline:
-        firmware = private('work/managed-firmware-review/1793817320395206222/DIAGNOSTIC-REVIEW-ONLY.UPG')
+    if args.baseline_upg:
+        firmware = private(args.baseline_upg)
         expected = '0b5ede45ef0703bfdcff75a9fc1531c99f697c5e4d904a782294dd64b9516a49'
     else:
         _, review = receipt(args.firmware_review)
@@ -55,53 +55,55 @@ def main():
     assert before['used_bytes'] == model['used_bytes']
     assert before['available_bytes'] == model['available_nonreserved_bytes']
     out = Path(tempfile.mkdtemp(prefix='reviewed-ext2-', dir=ROOT/'work'))
-    image = out/'candidate.img'
-    shutil.copyfile(source, image)
-    commands, files = [], []
-    changed = sorted(k for k in stock.keys() | candidate.keys() if stock.get(k) != candidate.get(k))
-    with tarfile.open(fileobj=io.BytesIO(parts[3]), mode='r:gz') as archive:
-        for name in sorted(changed, key=lambda k: (k.count('/'), k)):
-            assert re.fullmatch(r'[A-Za-z0-9_./-]+', name)
-            previous, current = stock.get(name), candidate.get(name)
-            assert current and current['kind'] in ('directory', 'file')
-            target = '/'+name
-            if current['kind'] == 'directory':
-                assert previous is None
-                commands.append('mkdir '+target)
-                kind = 0o40000
-            else:
-                assert previous is None or previous['kind'] == 'file'
-                if previous:
-                    commands.append('rm '+target)
-                path = out/f'input-{len(files)}'
-                path.write_bytes(archive.extractfile('./'+name).read())
-                assert digest(path) == current['sha256']
-                commands.append(f'write "{path}" {target}')
-                if current['bytes']:
-                    commands.append(f"fallocate {target} 0 {(current['bytes']-1)//4096}")
-                files.append((target, current))
-                kind = 0o100000
-            commands.extend(f'set_inode_field {target} {field} {value}' for field, value in
-                            [('mode', oct(kind | current['mode']).replace('0o','0')),
-                             ('uid', current['uid']), ('gid', current['gid'])])
+    with tempfile.TemporaryDirectory(prefix='x1000-ext2-') as directory:
+        scratch = Path(directory)
+        image = scratch/'candidate.img'
+        shutil.copyfile(source, image)
+        commands, files = [], []
+        changed = sorted(k for k in stock.keys() | candidate.keys() if stock.get(k) != candidate.get(k))
+        with tarfile.open(fileobj=io.BytesIO(parts[3]), mode='r:gz') as archive:
+            for name in sorted(changed, key=lambda k: (k.count('/'), k)):
+                assert re.fullmatch(r'[A-Za-z0-9_./-]+', name)
+                previous, current = stock.get(name), candidate.get(name)
+                assert current and current['kind'] in ('directory', 'file')
+                target = '/'+name
+                if current['kind'] == 'directory':
+                    assert previous is None
+                    commands.append('mkdir '+target)
+                    kind = 0o40000
+                else:
+                    assert previous is None or previous['kind'] == 'file'
+                    if previous:
+                        commands.append('rm '+target)
+                    path = scratch/f'input-{len(files)}'
+                    path.write_bytes(archive.extractfile('./'+name).read())
+                    assert digest(path) == current['sha256']
+                    commands.append(f'write "{path}" {target}')
+                    if current['bytes']:
+                        commands.append(f"fallocate {target} 0 {(current['bytes']-1)//4096}")
+                    files.append((target, current))
+                    kind = 0o100000
+                commands.extend(f'set_inode_field {target} {field} {value}' for field, value in
+                                [('mode', oct(kind | current['mode']).replace('0o','0')),
+                                 ('uid', current['uid']), ('gid', current['gid'])])
 
-    def run(command, log):
-        result = subprocess.run(command, capture_output=True, text=True, timeout=180)
-        (out/log).write_text(result.stdout+result.stderr)
-        assert result.returncode == 0, result.stderr[-2000:]
-        return result
+        def run(command, log):
+            result = subprocess.run(command, capture_output=True, text=True, timeout=180)
+            (out/log).write_text(result.stdout+result.stderr)
+            assert result.returncode == 0, result.stderr[-2000:]
+            return result
 
-    script = out/'populate.commands'
-    script.write_text('\n'.join(commands)+'\n')
-    result = run(['debugfs','-w','-f',str(script),str(image)], 'populate.log')
-    assert not re.search(r'Could not|not found|No space|Usage:|while (writing|allocating|creating|opening)', result.stderr, re.I)
-    run(['e2fsck','-f','-n',str(image)], 'fsck.log')
-    script = out/'verify.commands'
-    script.write_text(''.join(f'dump {target} "{out/f"readback-{i}"}"\n' for i,(target,_) in enumerate(files)))
-    run(['debugfs','-f',str(script),str(image)], 'verify.log')
-    for i,(target,row) in enumerate(files):
-        assert digest(out/f'readback-{i}') == row['sha256'], target
-    after = stats(image)
+        script = scratch/'populate.commands'
+        script.write_text('\n'.join(commands)+'\n')
+        result = run(['debugfs','-w','-f',str(script),str(image)], 'populate.log')
+        assert not re.search(r'Could not|not found|No space|Usage:|while (writing|allocating|creating|opening)', result.stderr, re.I)
+        run(['e2fsck','-f','-n',str(image)], 'fsck.log')
+        script = scratch/'verify.commands'
+        script.write_text(''.join(f'dump {target} "{scratch/f"readback-{i}"}"\n' for i,(target,_) in enumerate(files)))
+        run(['debugfs','-f',str(script),str(image)], 'verify.log')
+        for i,(target,row) in enumerate(files):
+            assert digest(scratch/f'readback-{i}') == row['sha256'], target
+        after = stats(image)
     result = dict(passed=True, firmware_sha256=expected, model_before=before, model_after=after,
                   added_allocated_bytes=after['used_bytes']-before['used_bytes'],
                   changed_paths=len(changed), verified_files=len(files), readonly_fsck_exit=0,
