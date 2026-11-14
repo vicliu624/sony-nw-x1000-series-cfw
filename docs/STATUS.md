@@ -8,14 +8,16 @@ The experimental native radio archive source is **0.1.0-dev.20**. Its per-link k
 negotiation is connected to the opt-in Root owner and Core2 alpha.29 adapters.
 The matching diagnostic has established a link and delivered authenticated
 player state on hardware; it is not a new public SDK module.
-The X1060 still uses the earlier dev.19 transport. Core2 alpha.30 established
-visible artwork on hardware; alpha.31 has since been application-only updated,
-hash-verified and observed at startup with the stored binding/channel retained.
+The user reports installing the dev.34 diagnostic. Core2 alpha.30 established
+visible artwork on hardware; alpha.31 supplied mode-write UI, and alpha.32 is
+the current application-only timing diagnostic. Its stored binding/channel are
+retained. No additional X1060 image was installed for this timing work.
 Dev.34 adds source-level Play Mode writes, explicit command negotiation and
 bounded bulk packet IO. The local composition, complete allocation model and
 independent extraction pass, together with 104 immutable offline regressions,
-157 unit checks and exact radio-image checks. Physical acceptance of the new
-mode/bulk composition is still pending. The mode composition
+157 unit checks and exact radio-image checks on the 52f5438 source baseline.
+The controller timing addition has its own build and physical measurements.
+Mode changes and lifecycle acceptance of the new composition are still pending. The mode composition
 requires Core2 alpha.31 or newer.
 The release baselines are firmware **v0.1.0-dev.21** and SDK
 **sdk-v0.2.0-alpha.8**. A public release and the current working tree are
@@ -43,8 +45,8 @@ pairing and channel retained. The matched trial established a fresh-key link,
 accepted authenticated player snapshots and began artwork transfer. The user
 confirmed visible playback information and working basic controls. Core2 alpha.30
 subsequently completed and decoded an 82,969-byte cover, and the user confirmed
-visible artwork. Play Mode changes remain unsupported by the current control
-path of the installed image. Cover throughput there remains about 1.3 KiB/s;
+visible artwork. Play Mode writes are unsupported in that earlier control
+path. Cover throughput there was about 1.3 KiB/s;
 its radio adapter copies packet data through scalar word commands. Sleep/wake and USB retirement still
 require separate acceptance.
 Its UPG SHA-256 is `fdff75678168e18461216c458034125f2ff0fb5683fde1f9aad4e178c57fbf97`.
@@ -58,8 +60,15 @@ It pairs Core2 alpha.31 with opt-in five-mode command negotiation and the bounde
 bulk radio/native adapter. The player ELF matches `link-retirement-03` byte for
 byte; the startup wrapper, parent library and Remote/radio components have new
 identities. Its original installation script, kernel and initrd are preserved.
-The new composition has not been installed on the X1060: mode changes, actual
-cover throughput, sleep and USB behavior remain physical acceptance items.
+The user reports installation and the matched controller receives the new mode
+write capability. A 131,872-byte cached image completed in 46.358 seconds with
+normal drawing and 46.229 seconds with progress redraws suppressed, about
+2.8 KiB/s. Mean request-to-Core2-radio-arrival time is about 351 ms per data
+reply; Core2 queue delay averages 5.6 ms. This isolates the dominant wait before
+Core2 processing, not pure RF or X1060 ioctl time. The complete backend replay
+still counts 148 radio commands per representative request/reply/completion,
+excluding extra polls and GUI RPC. See [artwork](apps/REMOTE_ARTWORK.md).
+Mode changes, sleep and USB behavior remain physical acceptance items.
 
 ## Feature status
 
@@ -71,10 +80,10 @@ cover throughput, sleep and USB behavior remain physical acceptance items.
 | Developer SDK architecture | All 36 public service modules and their implementation/header dependency graph are independent of app source; private stock Settings callbacks/layout have a separate platform module | Consumer-specific native composition still needs review; callback device persistence needs qualified ownership, and a general managed task API is not provided; see [delivery gaps](ARCHITECTURE.md#developer-delivery-gaps) |
 | Ordinary Wi-Fi handoff | On `native-ipc-01`, the user reports no Wi-Fi drop through Homebrew entry/exit; the diagnostic uses retained mode0/command6. The Remote trial explicitly used Wi-Fi on without a router | Confirm association/data continuity and sleep/wake separately; enabled radio alone is not an IP connection |
 | Remote pairing | Selection-based Core2 pairing and persisted bindings have worked on the test unit | Retain binding across service restart, USB and sleep in the final composition |
-| Remote controls | The matched `link-retirement-03` trial established a fresh-key link and accepted authenticated player state; the user confirmed visible playback information and working basic controls. Source now adds typed five-mode writes through the original native request/settings order, with explicit legacy-compatible command negotiation | Installed firmware cannot change modes remotely; qualify the new composition, all five modes and restart behavior; old journals remain unchanged |
-| Remote artwork | Core2 alpha.30 completed and decoded an 82,969-byte cover; the user confirmed visible display. The fixed 150 ms read pacing is removed, and size-based bounded job admission replaces the unconditional 120-second cutoff. Authentication, retry and control-priority regressions pass | Throughput remains about 1.3 KiB/s; qualify faster transfer, other image formats and source-read failures |
+| Remote controls | The user confirmed basic controls on the earlier matched profile; the installed dev.34 profile advertises typed five-mode writes through the original native request/settings order with explicit command negotiation | Physically qualify all five mode changes and restart behavior; old journals remain unchanged |
+| Remote artwork | Cover display works. Two Core2 alpha.32 reads of the same cached 131,872-byte image take about 46 seconds, with/without progress redraws, about 2.8 KiB/s; final decode is about 0.34 seconds. The 150 ms pacing and 120-second cutoff fixes remain | Reduce the X1060 control-command overhead; isolate live ioctl/RF times. Another track returned source I/O and needs separate investigation |
 | Quiet remote sessions | Current sender emits no heartbeat; Core2 has no periodic reconnect or quiet-session expiry | Confirm interaction-driven recovery with the final hardware composition |
-| Bulk packet IO | Actual adapter tests reduce a 1 KiB span to 21 RX / 17 TX host commands, retaining ownership/lease/ticket checks. Original instruction replay identifies the 1,500-byte request/event boundary; spans beyond 1,484 data bytes are split | Bulk radio image and native adapter are not installed or throughput-qualified; validate the complete new pair |
+| Bulk packet IO | Payload-copy tests count 21 RX / 17 TX commands, but the complete backend replay still costs 148 commands per representative protected request/reply/completion. The dev.34 profile has been installed and transfers images; requests stay within the 1,500-byte boundary | Aggregate checked control operations; copying alone did not deliver a large throughput improvement. The replay count is not a live driver-time measurement |
 | Sleep and recovery | Native observer tests retain qualified wake entry/completion during a pending transition, defer rearm until stable, and reject recovery after exit | Physical screen-off, suspend and wake timing remain unqualified |
 | USB after remote use | `shared-rx-02` hung after confirmed Remote Off. Actual Root stop functions plus the full controller reproduce a source bug: endpoint drain can execute manager RELEASE before the outer receive/sleep cleanup runs. Dev.19 yields at this transition; host/ARM tests pass connected/unassociated, channel-change and cleanup-failure paths | Physical USB recovery remains unverified. New retirement summaries need a fresh diagnostic seed; the old occupied-slot trace does not describe the failed trial |
 | Root capacity | The new mode/bulk layout adds 640 KiB in an ordinary 148 MiB ext2 model using Sony's formatter, 8 KiB above the installed profile, with about 27.09 MiB nonreserved margin; full content and inode metadata readback pass | Actual NAND geometry, installation and recovery remain unqualified; see [system footprint](SYSTEM_FOOTPRINT.md) |

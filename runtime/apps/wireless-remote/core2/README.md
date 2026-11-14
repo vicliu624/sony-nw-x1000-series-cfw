@@ -160,13 +160,24 @@ evidence merely because a separate control receipt was lost.
   `REMOTE_MODE` separates the observed mode and advertised write capability.
 - `connect`: request one handshake without a playback command.
 - `cover-retry`: retry current artwork without changing binding.
+- `cover-profile`: explicitly repeat the current read and collect fixed RAM timing
+  counters for request/arrival, receive-queue delay, UI drawing and decode.
+- `cover-profile-quiet`: the same timing read with progress-triggered redraws
+  suppressed; user controls and final image drawing keep their normal behavior.
+  `status` prints `REMOTE_COVER_PROFILE`. These alpha.32 diagnostics add no idle
+  radio traffic, persistent logs or automatic reads. A track/session change cancels
+  the measurement. RTT includes the complete Walkman round trip, not just RF time.
 - `channel N`: select the matching radio channel when no command is pending.
 - `pair-start`: open the local pairing window.
 - `unpair`: remove the saved local binding deliberately.
 
 Console commands do not qualify a failed RF path. Read the project's
-[current status](../../../../docs/STATUS.md) for hardware acceptance; complete
-artwork display and current control/screen-off stability remain unresolved.
+[current status](../../../../docs/STATUS.md) for hardware acceptance. Cover
+display works on the matched profile, but a cached 131,872-byte image still takes
+about 46 seconds with or without progress redraws. The dominant observed wait
+is before the Core2 receive callback; see
+[artwork measurements](../../../../docs/apps/REMOTE_ARTWORK.md). Control/screen-off
+stability has separate acceptance limits.
 
 `REMOTE_RADIO` separates local send attempts/queue errors from asynchronous
 wireless completion, and raw receive callbacks from size/type/queue rejection.

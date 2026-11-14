@@ -2,8 +2,41 @@
 
 The original parser fix, native image reader, authenticated transfer and Core2
 decoder are separate parts of artwork support. The fix does not replace the
-audio decoder/DSP or rewrite music. Physical cover display remains unresolved;
-see the current status table.
+audio decoder/DSP or rewrite music. Cover display has been observed on hardware;
+throughput remains poor. See the current status table for the matched profiles.
+
+## Measured transfer bottleneck
+
+On the user's dev.34 X1060 and Core2 alpha.32, a cached 131,872-byte, 500x500
+image completed in 46.358 seconds (2.778 KiB/s). Repeating the read with only
+progress-triggered redraws suppressed took 46.229 seconds (2.786 KiB/s).
+Both runs kept the same observed player sequence and completed without timeout.
+These are two samples, not a general RF benchmark.
+
+The normal run measured 351.8 ms average request-to-radio-arrival time per data
+reply, 5.58 ms average Core2 receive-queue delay and 338.5 ms final decode time.
+Drawing overlapped the request wait: its accumulated time must not be added
+again to the transfer time. Suppressing 99 progress redraws did not materially
+improve throughput. The dominant waiting interval is before the Core2 receive
+callback; that includes its radio send queue, the air exchange and X1060 work.
+It does not measure X1060 ioctl time in isolation.
+
+The earlier 21-RX/17-TX figures count only the guarded payload-copy callbacks.
+`tools/test_xnow_span_guard.py --bulk --frames` executes the complete actual
+backend functions against the existing synthetic register device. A representative
+protected request/reply pair costs 55 commands to receive its 120-byte request
+body, 71 to send its 1,208-byte reply body and 22 for a successful TX completion:
+148 total. It excludes GUI RPC, extra pending/empty polls and encryption.
+Both the host-sanitizer and original-libc ARM paths agree. These are modeled
+command counts, not live driver timings.
+
+Repeated `xnow_full_guard` control-word accesses re-read the pool/TX/RX identity
+words, creating many small synchronous commands despite bulk payload copying.
+This is the principal identified implementation cost on the X1060 side. Further
+optimization must aggregate checked control operations without dropping lease,
+packet ownership, queue-ticket, reset or retirement checks. Merely reducing GUI
+drawing or raising the PHY rate does not remove this cost. No replacement
+X1060 image is qualified by the timing diagnostic.
 
 ## Original UTF-16 alignment defect
 
@@ -113,8 +146,9 @@ It uses software M5Canvas buffers and the unchanged local M5GFX 0.2.32 sources.
 Synthetic JPEG/PNG, fit/letterboxing, rejection, repeated draws and all 9,216
 copied RGB565 pixels are checked, as is the surrounding parent buffer. A local
 85474-byte source JPEG passes this software path. Inputs are hashed before build
-and checked again after execution. Physical LCD, PSRAM, transfer timing and complete
-cover display remain unqualified.
+and checked again after execution. That software test alone does not qualify
+physical LCD, PSRAM, transfer timing or complete cover display; the matched
+hardware measurements are recorded above.
 
 The stock Moma registry identifies THUMBNAIL16, COVERART17 and ALBUMCOVERART18
 as blob attributes. These are not database schema IDs. A dedicated background

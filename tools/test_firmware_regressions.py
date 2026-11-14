@@ -23,6 +23,7 @@ SUITES = {
     "host": [
         ["test_xnow_span_guard.py", "--host-only"],
         ["test_xnow_span_guard.py", "--bulk", "--host-only"],
+        ["test_xnow_span_guard.py", "--bulk", "--frames", "--host-only"],
         ["test_player_hello_compat.py"],
         ["test_xnow_link.py", "--host-only"],
         ["test_core2_link.py"],
@@ -85,6 +86,7 @@ SUITES = {
     "remote": [
         ["test_xnow_span_guard.py"],
         ["test_xnow_span_guard.py", "--bulk"],
+        ["test_xnow_span_guard.py", "--bulk", "--frames"],
         ["test_player_hello_compat.py"],
         ["test_stock_mode_control.py"],
         ["test_stock_provider.py"],

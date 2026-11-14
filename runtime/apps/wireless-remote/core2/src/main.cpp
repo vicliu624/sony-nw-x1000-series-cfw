@@ -12,6 +12,7 @@
 #include "esp_now.h"
 #include "esp_wifi.h"
 #include "esp_random.h"
+#include "esp_timer.h"
 #include "nvs.h"
 
 #include "freertos/FreeRTOS.h"
@@ -39,6 +40,13 @@ static M5Canvas canvas(&M5.Display);
 static M5Canvas cover_canvas(&M5.Display);
 static wr_artwork_client *artwork;
 static bool cover_attempted, cover_decoded;
+/* Explicit console profiling only. Fixed RAM counters; no timer/air traffic. */
+static struct {
+    bool active, quiet, cancelled;
+    uint32_t request, replies, renders;
+    uint64_t started, sent, finished, rtt_sum, rtt_min, rtt_max;
+    uint64_t queue_sum, queue_max, render_sum, render_max, decode;
+} cover_profile;
 static M5Faces_Gamepad3 pad;
 enum remote_page {
     REMOTE_PAGE_PLAYER,
@@ -87,6 +95,7 @@ struct packet {
                                                            : WR_LIBRARY_REPLY_BYTES],
         channel;
     unsigned bytes;
+    uint64_t arrived;
     bool broadcast;
 };
 static wr_library_client library;
@@ -191,7 +200,21 @@ static bool retry_cover() {
         wr_artwork_client_retry(artwork, library_now()))
         return false;
     cover_attempted = cover_decoded = false;
+    if (cover_profile.active) {
+        cover_profile.active = false;
+        cover_profile.cancelled = true;
+    }
     draw_status();
+    return true;
+}
+static bool profile_cover(bool quiet) {
+    if (!retry_cover())
+        return false;
+    cover_profile = {};
+    cover_profile.active = true;
+    cover_profile.quiet = quiet;
+    cover_profile.started = uint64_t(esp_timer_get_time());
+    cover_profile.rtt_min = UINT64_MAX;
     return true;
 }
 static void library_request(xw_media_view view, uint32_t offset, uint64_t revision,
@@ -390,6 +413,7 @@ static void receive(const esp_now_recv_info_t *info, const uint8_t *data, int by
         return;
     }
     packet p = {};
+    p.arrived = uint64_t(esp_timer_get_time());
     p.bytes = unsigned(bytes);
     p.channel = info->rx_ctrl->channel;
     p.broadcast = info->des_addr && !std::memcmp(info->des_addr, pairing_broadcast, 6);
@@ -908,6 +932,27 @@ static void status() {
                 (long)(progress ? progress->last_result : 0), progress ? progress->replies : 0,
                 progress ? progress->timeouts : 0, (unsigned long)(progress ? progress->serial : 0),
                 unsigned(cover_canvas.getBuffer() != nullptr));
+    unsigned image_width = 0, image_height = 0;
+    if (artwork && wr_artwork_client_image_ready(artwork))
+        (void)wr_artwork_dimensions(artwork->data, wr_artwork_client_progress(artwork)->total,
+                                    &image_width, &image_height);
+    std::printf("REMOTE_COVER_PROFILE active=%u quiet=%u cancelled=%u replies=%lu "
+                "elapsed_us=%llu rtt_sum_us=%llu rtt_min_us=%llu rtt_max_us=%llu "
+                "queue_sum_us=%llu queue_max_us=%llu renders=%lu render_sum_us=%llu "
+                "render_max_us=%llu decode_us=%llu width=%u height=%u\n",
+                unsigned(cover_profile.active), unsigned(cover_profile.quiet),
+                unsigned(cover_profile.cancelled), (unsigned long)cover_profile.replies,
+                (unsigned long long)(cover_profile.finished >= cover_profile.started
+                    ? cover_profile.finished - cover_profile.started : 0),
+                (unsigned long long)cover_profile.rtt_sum,
+                (unsigned long long)(cover_profile.replies ? cover_profile.rtt_min : 0),
+                (unsigned long long)cover_profile.rtt_max,
+                (unsigned long long)cover_profile.queue_sum,
+                (unsigned long long)cover_profile.queue_max,
+                (unsigned long)cover_profile.renders,
+                (unsigned long long)cover_profile.render_sum,
+                (unsigned long long)cover_profile.render_max,
+                (unsigned long long)cover_profile.decode, image_width, image_height);
     std::printf("REMOTE_LINK policy=on-demand waiting=%u requested=%u deferred=%u\n",
                 link_demand.waiting, link_demand.requested, deferred_key);
     std::printf("REMOTE_LINK_KEY bound=%u ready=%u negotiating=%u phase=%u epoch=%llu failed=%u\n",
@@ -981,8 +1026,13 @@ static void observe_artwork(uint64_t now) {
         return;
     auto change =
         wr_artwork_client_observe(artwork, &receiver.status, receiver.have_status && !stale, now);
-    if (change == WR_ARTWORK_CONTEXT_CHANGED)
+    if (change == WR_ARTWORK_CONTEXT_CHANGED) {
         cover_attempted = cover_decoded = false;
+        if (cover_profile.active) {
+            cover_profile.active = false;
+            cover_profile.cancelled = true;
+        }
+    }
     if (change != WR_ARTWORK_UNCHANGED && page == REMOTE_PAGE_PLAYER)
         draw_status();
 }
@@ -994,17 +1044,26 @@ static void artwork_step() {
     observe_artwork(now);
     wr_artwork_client_tick(artwork, now);
     const wr_artwork_progress *progress = wr_artwork_client_progress(artwork);
+    if (cover_profile.active && progress->failed) {
+        cover_profile.active = false;
+        cover_profile.cancelled = true;
+    }
     static unsigned shown_progress = UINT32_MAX;
     unsigned presentation = progress->total ? progress->received * 100u / progress->total : 0;
     presentation |= progress->failed ? 256u : progress->complete ? 512u : 0;
     if (presentation != shown_progress) {
         shown_progress = presentation;
-        if (page == REMOTE_PAGE_PLAYER)
+        if (page == REMOTE_PAGE_PLAYER && !(cover_profile.active && cover_profile.quiet))
             draw_status();
     }
     if (wr_artwork_client_image_ready(artwork) && !cover_attempted) {
         cover_attempted = true;
+        uint64_t decode_started = cover_profile.active ? uint64_t(esp_timer_get_time()) : 0;
         cover_decoded = walkman_remote::draw_cover(cover_canvas, artwork->data, progress->total);
+        if (cover_profile.active) {
+            cover_profile.decode = uint64_t(esp_timer_get_time()) - decode_started;
+            cover_profile.active = false;
+        }
         if (page == REMOTE_PAGE_PLAYER)
             draw_status();
     }
@@ -1012,15 +1071,21 @@ static void artwork_step() {
         library.pending || pairing_active)
         return;
     uint8_t wire[WR_ARTWORK_REQUEST_BYTES];
-    if (!wr_artwork_client_request(artwork, now, wire, sizeof wire, receiver.key) &&
-        radio_send(receiver.address, wire, sizeof wire) != ESP_OK) {
-        wr_artwork_client_send_rejected(artwork, now);
+    if (!wr_artwork_client_request(artwork, now, wire, sizeof wire, receiver.key)) {
+        uint64_t sent_at = cover_profile.active ? uint64_t(esp_timer_get_time()) : 0;
+        if (radio_send(receiver.address, wire, sizeof wire) != ESP_OK)
+            wr_artwork_client_send_rejected(artwork, now);
+        else if (cover_profile.active) {
+            cover_profile.sent = sent_at;
+            cover_profile.request = progress->pending;
+        }
     }
 }
 static void render_status() {
     redraw_pending = false;
     if (!lcd_ready)
         return;
+    uint64_t render_started = cover_profile.active ? uint64_t(esp_timer_get_time()) : 0;
     constexpr uint16_t bg = 0x0863, card = 0x10e5, muted = 0x94d4, white = 0xef9d, mint = 0x7f53;
     auto &g = canvas;
     g.fillScreen(bg);
@@ -1271,6 +1336,13 @@ static void render_status() {
             g.fillRoundRect(12 + 80 * i, 215, 46, 2, 1, mint);
     }
     canvas.pushSprite(0, 0);
+    if (render_started) {
+        uint64_t elapsed = uint64_t(esp_timer_get_time()) - render_started;
+        cover_profile.renders++;
+        cover_profile.render_sum += elapsed;
+        if (elapsed > cover_profile.render_max)
+            cover_profile.render_max = elapsed;
+    }
 }
 
 void setup() {
@@ -1361,6 +1433,11 @@ void setup() {
                         std::puts("REMOTE_COVER_RETRY");
                     } else
                         std::puts("REMOTE_COVER_NO_CONFIRMED_TRACK");
+                } else if (!std::strcmp(command, "cover-profile") ||
+                           !std::strcmp(command, "cover-profile-quiet")) {
+                    bool quiet = !std::strcmp(command, "cover-profile-quiet");
+                    std::puts(profile_cover(quiet) ? "REMOTE_COVER_PROFILE_STARTED"
+                                                  : "REMOTE_COVER_NO_CONFIRMED_TRACK");
                 } else if (!std::strcmp(command, "pair-start")) {
                     select_page(REMOTE_PAGE_PAIRING);
                     bool started = start_pairing();
@@ -1459,9 +1536,26 @@ void setup() {
             } else if (artwork && p.bytes >= WR_ARTWORK_REPLY_HEADER_BYTES &&
                        p.bytes <= WR_ARTWORK_REPLY_MAX && !std::memcmp(p.data, "WRAR", 4) &&
                        receiver.paired && !std::memcmp(p.source, receiver.address, 6)) {
+                uint32_t before = wr_artwork_client_progress(artwork)->received;
+                uint64_t dequeued_at = cover_profile.active ? uint64_t(esp_timer_get_time()) : 0;
                 if (!wr_artwork_client_accept(artwork, library_now(), p.data, p.bytes,
-                                              receiver.key))
+                                              receiver.key)) {
                     wr_transport_goal_peer_response(&transport_goal, receiver.session);
+                    auto progress = wr_artwork_client_progress(artwork);
+                    if (cover_profile.active && progress->received > before &&
+                        progress->serial == cover_profile.request && cover_profile.sent &&
+                        p.arrived >= cover_profile.sent) {
+                        uint64_t rtt = p.arrived - cover_profile.sent;
+                        uint64_t queue = dequeued_at - p.arrived;
+                        cover_profile.replies++;
+                        cover_profile.rtt_sum += rtt;
+                        if (rtt < cover_profile.rtt_min) cover_profile.rtt_min = rtt;
+                        if (rtt > cover_profile.rtt_max) cover_profile.rtt_max = rtt;
+                        cover_profile.queue_sum += queue;
+                        if (queue > cover_profile.queue_max) cover_profile.queue_max = queue;
+                        if (progress->complete) cover_profile.finished = p.arrived;
+                    }
+                }
             } else if (p.bytes == WR_LIBRARY_REPLY_BYTES && !std::memcmp(p.data, "WLBR", 4) &&
                        receiver.paired && !std::memcmp(p.source, receiver.address, 6)) {
                 if (!wr_library_client_accept(&library, p.data, p.bytes, receiver.key)) {
