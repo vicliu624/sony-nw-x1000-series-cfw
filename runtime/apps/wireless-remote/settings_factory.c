@@ -3,6 +3,7 @@
 #include "../../platform/player/wireless_host.h"
 #include "../../platform/player/host_managed_service.h"
 #include "../../platform/player/managed_host.h"
+#include "../../platform/player/owner_wait.h"
 #include <unistd.h>
 #include <string.h>
 #include <sys/socket.h>
@@ -327,6 +328,54 @@ int wr_settings_factory_bind(struct wr_settings_factory *f,uint64_t generation,v
  if(rc){if(!wr_settings_backend_unbind(&f->backend))f->initialized=0;else f->fault_latched=1;return rc;}
  return 0;
 }
+
+int wr_settings_factory_work_ready(const struct wr_settings_factory *f) {
+    if (!f->initialized || f->owner_pid != (int)getpid())
+        return 0;
+    /* A local intent needs one owner turn before it has a descriptor to wake on. */
+    if (f->backend.pending_enabled)
+        return 1;
+#ifdef WR_PAIRING_PROCESS
+    if (f->pairing_store_request && !f->pairing_store_job.child)
+        return f->pairing_store_request == 1 || (!f->held && f->backend.phase == WR_SETTINGS_OFF);
+#endif
+    return 0;
+}
+
+unsigned wr_settings_factory_wait_descriptors(const struct wr_settings_factory *f,
+                                             struct xw_owner_wait_fd *descriptors,
+                                             unsigned capacity) {
+    if (!descriptors || !capacity || !f->initialized || f->owner_pid != (int)getpid())
+        return 0;
+    unsigned count = 0;
+    if (f->owner_view.bound && !f->owner_view.fault && f->owner_view.fd >= 0) {
+        descriptors[count].fd = f->owner_view.fd;
+        descriptors[count++].events =
+            f->owner_view.pending ? XW_OWNER_WAIT_WRITE : XW_OWNER_WAIT_READ;
+    }
+#ifdef WR_PAIRING_PROCESS
+    /* The job's poll still validates its pinned reader before consuming data. */
+    if (count < capacity && f->pairing_store_job.child && f->pairing_store_job.reader >= 3 &&
+        f->pairing_store_job.owner == f->owner_pid) {
+        descriptors[count].fd = f->pairing_store_job.reader;
+        descriptors[count++].events = XW_OWNER_WAIT_READ;
+    }
+#endif
+    return count;
+}
+
+int wr_settings_factory_needs_short_wait(const struct wr_settings_factory *f) {
+    /* Existing work must still progress after admission closes. */
+    int active = f->held || f->backend.phase == WR_SETTINGS_STARTING ||
+                 f->backend.phase == WR_SETTINGS_STOPPING ||
+                 (f->backend.process.child > 0 && !f->backend.process.reaped);
+#ifdef WR_PAIRING_PROCESS
+    active = active || f->pairing_store_job.child > 0 ||
+             (f->pairing.owner > 0 && !f->pairing.reaped);
+#endif
+    return active;
+}
+
 int wr_settings_factory_tick(struct wr_settings_factory *f){
  if(!owner(f))return XW_PLAYER_BUSY;
  struct wr_settings_backend *b=&f->backend;

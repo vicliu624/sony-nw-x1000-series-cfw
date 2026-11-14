@@ -27,42 +27,13 @@
 #include "remote_factory_profile.h"
 static struct wr_settings_factory factory;
 static int blocked;
-/* Local UI intents need one owner-pump turn before they have an IPC descriptor.
- * They must not sleep behind Sony's otherwise valid long native-input wait. */
 int xw_player_host_remote_work_ready(void) {
-    if (blocked || !factory.initialized || factory.owner_pid != (int)getpid() ||
-        xw_player_host_original_exiting())
-        return 0;
-    if (factory.backend.pending_enabled)
-        return 1;
-#ifdef WR_PAIRING_PROCESS
-    if (factory.pairing_store_request && !factory.pairing_store_job.child)
-        return factory.pairing_store_request == 1 ||
-               (!factory.held && factory.backend.phase == WR_SETTINGS_OFF);
-#endif
-    return 0;
+    return !blocked && wr_settings_factory_work_ready(&factory) &&
+           !xw_player_host_original_exiting();
 }
 unsigned xw_player_host_remote_wait_descriptors(struct xw_owner_wait_fd *descriptors,
                                                 unsigned capacity) {
-    if (!descriptors || !capacity || !factory.initialized || factory.owner_pid != (int)getpid())
-        return 0;
-    unsigned count = 0;
-    if (factory.owner_view.bound && !factory.owner_view.fault && factory.owner_view.fd >= 0) {
-        descriptors[count].fd = factory.owner_view.fd;
-        descriptors[count++].events =
-            factory.owner_view.pending ? XW_OWNER_WAIT_WRITE : XW_OWNER_WAIT_READ;
-    }
-#ifdef WR_PAIRING_PROCESS
-    /* Readiness is not a read grant. The job poll validates its pinned reader
-     * before consuming data, and the wait adapter preserves native input FDs. */
-    if (count < capacity && factory.pairing_store_job.child &&
-        factory.pairing_store_job.reader >= 3 &&
-        factory.pairing_store_job.owner == factory.owner_pid) {
-        descriptors[count].fd = factory.pairing_store_job.reader;
-        descriptors[count++].events = XW_OWNER_WAIT_READ;
-    }
-#endif
-    return count;
+    return wr_settings_factory_wait_descriptors(&factory, descriptors, capacity);
 }
 /* The production owner-loop supplies the pinned idle implementation. Generic
  * lifecycle fixtures have no Sony timing object and leave this port unavailable. */
@@ -470,18 +441,7 @@ void xw_player_host_remote_auto(void) {
         }
 #endif
     }
-    /* Existing work still needs its owner pump after admission closes. USB,
-     * application preparation and sleep must not restore a long native wait
-     * while children/readers or radio retirement remain outstanding. This
-     * changes waiting only; the independent admission checks remain closed. */
-    int idle_active = factory.held || factory.backend.phase == WR_SETTINGS_STARTING ||
-                      factory.backend.phase == WR_SETTINGS_STOPPING ||
-                      (factory.backend.process.child > 0 && !factory.backend.process.reaped);
-#ifdef WR_PAIRING_PROCESS
-    idle_active = idle_active || factory.pairing_store_job.child > 0 ||
-                  (factory.pairing.owner > 0 && !factory.pairing.reaped);
-#endif
-    (void)xw_player_host_remote_idle(idle_active);
+    (void)xw_player_host_remote_idle(wr_settings_factory_needs_short_wait(&factory));
 #ifdef WR_PAIRING_TRACE
     runtime_trace_settings_result();
     runtime_trace_flush();

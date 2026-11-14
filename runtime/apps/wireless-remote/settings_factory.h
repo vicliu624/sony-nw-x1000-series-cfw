@@ -34,6 +34,13 @@ int wr_settings_factory_tick(struct wr_settings_factory *);
 int wr_settings_factory_unbind(struct wr_settings_factory *);
 int wr_settings_factory_forward_owner_view(struct wr_settings_factory *);
 int wr_settings_factory_use_shared_wifi(struct wr_settings_factory *);
+/* Private GUI-owner wait interface. The host controls admission and the Sony
+ * timeout; the factory decides which of its work still needs owner turns. */
+struct xw_owner_wait_fd;
+int wr_settings_factory_work_ready(const struct wr_settings_factory *);
+unsigned wr_settings_factory_wait_descriptors(const struct wr_settings_factory *,
+                                             struct xw_owner_wait_fd *, unsigned capacity);
+int wr_settings_factory_needs_short_wait(const struct wr_settings_factory *);
 #ifdef WR_PAIRING_PROCESS
 int wr_settings_factory_pairing_start(struct wr_settings_factory *,const uint8_t cookie[16]);
 int wr_settings_factory_pairing_stop(struct wr_settings_factory *);

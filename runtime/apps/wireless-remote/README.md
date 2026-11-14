@@ -49,9 +49,11 @@ stream. It does not replace the receiver with a packet-socket data path.
 | `core2/`, `cardputer/` | Controller-specific display, input and radio adapters |
 
 Original menu callbacks, choice-view access and stock layout constants live in
-`runtime/platform/sony-settings/`. The app-local page bridge and Settings factory
-are consumer-specific private integration, not SDK examples. Ordinary third-party
-apps use public SDK modules instead of stock callbacks or authority construction.
+`runtime/platform/sony-settings/`. The Settings factory reports ready work,
+descriptor interests and whether retirement still needs a short wait. The
+player's owner loop controls native admission and the wait timeout. The page
+bridge and factory are private to this consumer. Third-party apps use public
+SDK modules for player and radio access.
 
 The shared radio implementation belongs in `runtime/platform/espnow`; original
 player access belongs in `runtime/platform/player`. Neither should depend on a

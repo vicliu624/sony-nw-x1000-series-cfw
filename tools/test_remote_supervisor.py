@@ -277,13 +277,12 @@ if native_worker_retirement:
 if native_owner_wait:
  assert 'FACTORY_NATIVE_OWNER_WAIT_PASS' in (out/'serial.log').read_text(errors='replace')
  assert 'FACTORY_NATIVE_NOTICE_WAIT_PASS' in (out/'serial.log').read_text(errors='replace')
- inputs+=['runtime/platform/player/owner_wait.h']
 if application_handoff:
  assert 'FACTORY_APPLICATION_WIFI_RETURN_PASS' in (out/'serial.log').read_text(errors='replace')
  inputs+=['runtime/platform/player/host_handoff_bridge.c','runtime/platform/player/host_handoff_bridge.h','tools/fixtures/factory_application_view.h']
 if revoked_exit_context:assert 'FACTORY_REVOKED_EXIT_RETIRED_PASS' in (out/'serial.log').read_text(errors='replace')
 if sleep_retirement:inputs+=['runtime/platform/player/sleep_retirement.h','runtime/platform/player/sleep_host.h']
-if settings_factory:inputs+=['runtime/apps/wireless-remote/settings_factory.h','runtime/apps/wireless-remote/owner_admission.h','runtime/platform/player/wireless_host.h','runtime/platform/wireless/native_publisher.h','runtime/platform/wireless/mode_channel.h','runtime/platform/wireless/mode_client.h','runtime/platform/services/session.h']
+if settings_factory:inputs+=['runtime/apps/wireless-remote/settings_factory.h','runtime/apps/wireless-remote/owner_admission.h','runtime/platform/player/wireless_host.h','runtime/platform/player/owner_wait.h','runtime/platform/wireless/native_publisher.h','runtime/platform/wireless/mode_channel.h','runtime/platform/wireless/mode_client.h','runtime/platform/services/session.h']
 if settings_backend:inputs+=['runtime/apps/wireless-remote/settings_backend.h','runtime/platform/wireless/mode.h','runtime/platform/wireless/mode_policy.h','runtime/platform/player/host_managed_service.h','tools/fixtures/player_host_managed_service.c','tools/fixtures/player_broker.c']
 if settings_backend:inputs+=['runtime/platform/sony-settings/native_page.h','runtime/platform/sony-settings/bindings.h','runtime/apps/wireless-remote/native_page_bridge.h']
 if native_page_chain:inputs=[p for p in inputs if p!='tools/fixtures/settings_backend_chain.c']
