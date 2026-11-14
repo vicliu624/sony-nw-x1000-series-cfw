@@ -13,16 +13,32 @@ from build_player_host import build
 from builtin_language import SETTINGS_SHA
 from player_arm_guest import stock_libraries
 from review_managed_root_capacity import read_root_input
-from review_managed_remote_profile import receipt, artifact, select_player_remote_inputs
+from review_managed_remote_profile import receipt, artifact, private, select_player_remote_inputs
 from remote_choice_resource import SOURCE as REMOTE_TEMPLATE, TARGET as REMOTE_RESOURCE
 from remote_choice_resource import BOUND_TARGET,CONFIRM_TARGET,CONFIRM_SOURCE,PAIR_TARGET
 from sdk_build import fresh_work
+
+
+def reviewed_host(host_review, supervisor_review, radio_review):
+    host_path, host = receipt(host_review)
+    if not host.get('passed') or not host.get('analysis_only') or not host.get('remote_factory_automatic'):
+        raise ValueError('Expected composed automatic analysis host')
+    library = host_path.parent / 'libx1000-player-analysis.so'
+    payload = private(host_path.parent / 'SpiderApp.player-prepare.analysis-only.elf')
+    artifact(library, host['library_sha256'], host['library_bytes'])
+    if hashlib.sha256(payload.read_bytes()).hexdigest() != host['candidate_sha256']:
+        raise ValueError('Player identity mismatch')
+    binding, supervisor, image = select_player_remote_inputs(host, supervisor_review, radio_review)
+    return host_path, host, library, payload, binding, supervisor, image
+
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     base_input = parser.add_mutually_exclusive_group(required=True)
     base_input.add_argument('--localization-root', type=Path, help='Built-in localization root tarball under work/')
     base_input.add_argument('--localization-firmware', type=Path, help='Legacy built-in localization UPG under work/')
+    base_input.add_argument('--check-host-reuse', action='store_true',
+                            help='Validate a host and its selected Remote inputs without assembling an overlay')
     parser.add_argument('--host-review',type=Path,help='Reuse a fresh composed managed host receipt instead of building the base profile')
     parser.add_argument('--supervisor-review', type=Path, help='Select a supervisor with the compiled host contract')
     parser.add_argument('--radio-review', type=Path, help='Select the shared Wi-Fi overlay matched to that supervisor')
@@ -30,6 +46,19 @@ def main():
     args=parser.parse_args()
     if (args.supervisor_review or args.radio_review) and not args.host_review:
         parser.error('Replacing Remote inputs requires --host-review')
+    if args.check_host_reuse and (not args.host_review or args.output):
+        parser.error('--check-host-reuse requires --host-review and does not write an output directory')
+    if args.host_review:
+        host_path, host, library, payload, binding, supervisor_review, image_review = reviewed_host(
+            args.host_review, args.supervisor_review, args.radio_review)
+        if args.check_host_reuse:
+            print(json.dumps(dict(
+                host_reusable=True, host_review=host_path.relative_to(ROOT).as_posix(),
+                library_sha256=host['library_sha256'], supervisor_review=binding['review'],
+                supervisor_sha256=binding['sha256'],
+                radio_review=image_review.relative_to(ROOT).as_posix() if image_review else None,
+                compile_contract=host.get('remote_factory_contract'), layout_assembled=False), indent=2))
+            return
     source, localized_root, source_sha = read_root_input(args.localization_root or args.localization_firmware,
                                                          root_only=args.localization_root is not None)
     kind = 'localization_root' if args.localization_root else 'localization_input'
@@ -55,22 +84,12 @@ def main():
     replacement=app_list
     out=fresh_work(args.output or ROOT/'work/player-system-layout'/str(time.time_ns()))
     supervisor=None
-    binding = image_review = None
     runtime_source_hashes={}
     new_ownership={}
     page_review=None
     if args.host_review:
-        host_path,host=receipt(args.host_review)
         runtime_source_hashes.update(host['source_hashes'])
         runtime_source_hashes[host_path.relative_to(ROOT).as_posix()]=hashlib.sha256(host_path.read_bytes()).hexdigest()
-        if not host.get('passed') or not host.get('analysis_only') or not host.get('remote_factory_automatic'):
-            raise ValueError('Expected composed automatic analysis host')
-        library=host_path.parent/'libx1000-player-analysis.so'
-        payload=host_path.parent/'SpiderApp.player-prepare.analysis-only.elf'
-        artifact(library,host['library_sha256'],host['library_bytes'])
-        if hashlib.sha256(payload.read_bytes()).hexdigest()!=host['candidate_sha256']:raise ValueError('Player identity mismatch')
-        binding, supervisor_review, image_review = select_player_remote_inputs(
-            host, args.supervisor_review, args.radio_review)
         supervisor_path = ROOT / binding['review']
         supervisor = ROOT / binding['supervisor_artifact']
         runtime_source_hashes.update(supervisor_review['source_hashes'])
@@ -82,6 +101,7 @@ def main():
         if image_review is not None:
             runtime_source_hashes[image_review.relative_to(ROOT).as_posix()] = hashlib.sha256(image_review.read_bytes()).hexdigest()
     else:
+        image_review=None
         with contextlib.redirect_stdout(io.StringIO()):
             library,payload,host=build(managed_host=True,engine_provider=True,native_prepare=True,
                                        builtin_localization=True,review_output=out/'host')

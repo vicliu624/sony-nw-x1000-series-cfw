@@ -312,6 +312,21 @@ feature contract required by the selected inputs. Layout assembly checks the
 new binaries, their receipts and the matched radio image. A changed compile
 contract requires building the host again.
 
+You can check that selection before preparing a localized root or running the
+compiler:
+
+```sh
+.venv/bin/python tools/prepare_player_system_layout.py --check-host-reuse \
+  --host-review work/example/host/build.json \
+  --supervisor-review work/example/new-supervisor/build.private.json \
+  --radio-review work/example/new-wifi-image/report.json
+```
+
+This command uses the same host and Remote input validator as layout assembly.
+It reports the selected identities and compile contract without creating any
+output or checking the localized root and its resource overlays. Omit the
+replacement arguments to validate the host's recorded inputs.
+
 Before qualifying the candidate, replay the final Wireless Mode page with
 `test_wireless_mode_refresh.py` and the deferred Off action with
 `test_shared_wifi_auto_off.py`. Use independent Rockbox extraction to compare

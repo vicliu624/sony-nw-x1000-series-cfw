@@ -2,6 +2,7 @@
 import hashlib
 import json
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -139,6 +140,35 @@ class ManagedComponentProvenanceTests(unittest.TestCase):
         library.write_bytes(b'different library')
         with self.assertRaisesRegex(ValueError, 'linked input differs: .*supervisor-dependency'):
             select_player_remote_inputs(host, replacement)
+
+    def test_layout_preflight_checks_host_reuse_without_assembling(self):
+        original = self.supervisor('original', b'old')
+        replacement = self.supervisor('replacement', b'new')
+        contract, binding, _, _ = player_remote_inputs(original)
+        library = self.directory / 'libx1000-player-analysis.so'
+        library.write_bytes(b'host library')
+        payload = self.directory / 'SpiderApp.player-prepare.analysis-only.elf'
+        payload.write_bytes(b'player payload')
+        host = self.directory / 'build.json'
+        host.write_text(json.dumps(dict(
+            passed=True, analysis_only=True, remote_factory_automatic=True, source_hashes={},
+            library_sha256=digest(library), library_bytes=library.stat().st_size,
+            candidate_sha256=digest(payload), remote_factory_profile=binding,
+            remote_factory_contract=contract)))
+        command = [sys.executable, '-B', str(ROOT/'tools/prepare_player_system_layout.py'),
+                   '--check-host-reuse', '--host-review', str(host),
+                   '--supervisor-review', str(replacement)]
+        before = set(self.directory.rglob('*'))
+        process = subprocess.run(command, check=True, capture_output=True, text=True)
+        report = json.loads(process.stdout)
+        self.assertTrue(report['host_reusable'])
+        self.assertFalse(report['layout_assembled'])
+        self.assertEqual(report['supervisor_sha256'], digest(self.directory / 'replacement.arm'))
+        self.assertEqual(set(self.directory.rglob('*')), before)
+        command[-1] = str(self.supervisor('incompatible', b'larger'))
+        process = subprocess.run(command, capture_output=True, text=True)
+        self.assertNotEqual(process.returncode, 0)
+        self.assertIn('rebuilding the player host: supervisor_bytes', process.stderr)
 
     def test_layout_refuses_supervisor_with_changed_size_or_owner_mode(self):
         original = self.supervisor('original', b'old')
