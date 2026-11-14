@@ -19,7 +19,9 @@ numbers identify delivery artifacts, not another implementation of the workflow.
 
 The player host builds its selected language composition once per invocation.
 The builder validates the stock image and patch spans, and records the resulting
-ELF and Settings overlay with their input identities. Independent tests use the
+ELF and Settings overlay with their input identities. Its library receipt records
+the compiler command, the project headers selected by GCC and the linked Sony
+libraries. A changed tracked input invalidates reuse. Independent tests use the
 same builder, then execute the refusal cases and ARM replay. Packaging consumes
 reviewed outputs through their receipts. Build the localized root once and use
 its archive directly for managed layout, capacity and QEMU checks. See the

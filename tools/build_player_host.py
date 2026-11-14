@@ -1,6 +1,6 @@
 """Build an analysis-only owner-loop DSO and one-instruction ELF candidate."""
 from pathlib import Path
-import hashlib,io,json,struct,subprocess,time
+import hashlib,io,json,os,re,struct,subprocess,time
 from elftools.elf.elffile import ELFFile
 ROOT=Path(__file__).resolve().parents[1]
 CORE_SOURCES=['runtime/platform/player/host_hook.c','runtime/platform/player/host_pid.S','runtime/platform/player/client.c','runtime/platform/player/stock_provider.c','runtime/platform/player/stock_info.c','runtime/platform/player/local_identity.c','runtime/platform/player/stock_gui.c','runtime/platform/player/stock_volume.c','runtime/platform/player/stock_image.c','runtime/native/sha256.c']
@@ -10,6 +10,50 @@ ENGINE_SOURCES=['runtime/platform/player/engine_provider.c','runtime/platform/pl
 MANAGED_SOURCES=['runtime/platform/player/'+n+'.c' for n in ('host_managed_service','managed_host','managed','managed_rpc','managed_channel','managed_control','session_offer','service_drain','deferred_prepare')]+['runtime/platform/services/'+n+'.c' for n in ('session','request','events','descriptor')]
 MANAGED_SOURCES+=['runtime/platform/player/host_inherited.c']
 PREPARE_SOURCES=['runtime/platform/player/host_prepare_bridge.c','runtime/platform/player/stock_prepare_view.c','runtime/platform/player/stock_play_mode.c','runtime/platform/player/play_mode.c']
+
+
+def build_player_library(library, sources, flags):
+    from player_arm_guest import stock_libraries
+
+    stock = stock_libraries(include_rt=True, include_dl=True)
+    pthread = ROOT / 'work/player-sqlite-ro/libpthread.so.0'
+    if pthread.read_bytes() != stock['libpthread.so.0'].read_bytes():
+        raise ValueError('Player libpthread differs from the verified Sony library')
+    libraries = [stock['libdl.so.2'], pthread, stock['librt.so.1'], stock['libc.so.6'], stock['ld-linux.so.3']]
+    compiler = ['arm-linux-gnueabi-gcc', *flags]
+    # GCC emits one dependency rule per translation unit with -MM. A single
+    # -MMD file on a multi-source link would only retain the last unit's rule.
+    rules = subprocess.check_output([*compiler, '-MM', '-MT', 'player-host', *sources], cwd=ROOT, text=True)
+    rules = rules.replace('\\\n', ' ').splitlines()
+    if len(rules) != len(sources):
+        raise ValueError('Incomplete GCC dependencies for the player host')
+    dependencies = set(sources)
+    for rule in rules:
+        target, separator, files = rule.partition(':')
+        if target != 'player-host' or not separator or not files.strip():
+            raise ValueError('Unexpected GCC dependencies for the player host')
+        for token in re.findall(r'(?:\\.|[^\s\\])+', files):
+            name = re.sub(r'\\([ #\\\t])', r'\1', token).replace('$$', '$')
+            path = Path(os.path.abspath(ROOT / name))
+            if not path.is_relative_to(ROOT) or not path.resolve().is_relative_to(ROOT):
+                raise ValueError('Player host dependency outside the project: ' + name)
+            dependencies.add(path.relative_to(ROOT).as_posix())
+    dependencies.update(path.relative_to(ROOT).as_posix() for path in libraries)
+    before = {name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest() for name in sorted(dependencies)}
+    command = [*compiler, *sources, *map(str, libraries), '-lgcc', '-o', str(library)]
+    version = subprocess.check_output([compiler[0], '--version'], cwd=ROOT, text=True).splitlines()[0]
+    libgcc_path = subprocess.check_output([*compiler, '-print-libgcc-file-name'], cwd=ROOT, text=True).strip()
+    libgcc = ROOT / libgcc_path
+    libgcc_sha256 = hashlib.sha256(libgcc.read_bytes()).hexdigest()
+    subprocess.run(command, cwd=ROOT, check=True)
+    if hashlib.sha256(libgcc.read_bytes()).hexdigest() != libgcc_sha256:
+        raise ValueError('Player host libgcc changed during compilation')
+    for name, expected in before.items():
+        if hashlib.sha256((ROOT / name).read_bytes()).hexdigest() != expected:
+            raise ValueError('Player host input changed during compilation: ' + name)
+    return before, dict(compiler=version, libgcc_sha256=libgcc_sha256, arguments=command[1:])
+
+
 def patch_owner_anchor(stock):
     """Analysis primitive; caller must qualify the complete base composition."""
     elf=ELFFile(io.BytesIO(stock));segments=list(elf.iter_segments())
@@ -66,7 +110,6 @@ def build(engine_provider=False,managed_host=False,native_prepare=False,builtin_
         work.mkdir(parents=True)
     else:
         work=ROOT/'work'/name;work.mkdir(exist_ok=True)
-    lib=ROOT/'work/arm-signal-tests/lib';extra=ROOT/'work/player-sqlite-ro'
     library=work/'libx1000-player-analysis.so'
     native_flags=['-DXW_PLAYER_NATIVE_REMOTE_SETTINGS'] if native_remote_settings else []
     factory_profile = factory_contract = shared_wifi = None
@@ -187,11 +230,17 @@ def build(engine_provider=False,managed_host=False,native_prepare=False,builtin_
             'runtime/apps/wireless-remote/native_page_bridge.h',
             page['guard_profile'],(page_dir/'report.json').relative_to(ROOT).as_posix(),
         ]+[resource['artifact'] for resource in page['resource_overlay'].values()]
-    subprocess.run(['arm-linux-gnueabi-gcc','-std=c99','-Os','-Wall','-Wextra','-Werror','-Wno-misleading-indentation','-DHB_STORE_LIBC_CLOCK',*(['-DXW_PLAYER_ENGINE_PROVIDER'] if engine_provider else []),*(['-DXW_PLAYER_NATIVE_PREPARE','-DXW_PLAYER_CAPTURE_ARG2'] if native_prepare else []),*native_flags,'-U_FORTIFY_SOURCE','-D_FORTIFY_SOURCE=0','-march=armv5te','-marm','-mfloat-abi=soft','-fPIC','-fvisibility=hidden','-fno-builtin','-fno-stack-protector','-nostdlib','-shared','-Wl,--hash-style=sysv,--build-id=none,-z,defs',*sources,str(extra/'libdl.so.2'),str(extra/'libpthread.so.0'),str(ROOT/'work/stock-resolver-probe/librt.so.1'),str(lib/'libc.so.6'),str(lib/'ld-linux.so.3'),'-lgcc','-o',str(library)],cwd=ROOT,check=True)
+    flags = ['-std=c99', '-Os', '-Wall', '-Wextra', '-Werror', '-Wno-misleading-indentation',
+             '-DHB_STORE_LIBC_CLOCK', *(['-DXW_PLAYER_ENGINE_PROVIDER'] if engine_provider else []),
+             *(['-DXW_PLAYER_NATIVE_PREPARE', '-DXW_PLAYER_CAPTURE_ARG2'] if native_prepare else []),
+             *native_flags, '-U_FORTIFY_SOURCE', '-D_FORTIFY_SOURCE=0', '-march=armv5te',
+             '-marm', '-mfloat-abi=soft', '-fPIC', '-fvisibility=hidden', '-fno-builtin',
+             '-fno-stack-protector', '-nostdlib', '-shared', '-Wl,--hash-style=sysv,--build-id=none,-z,defs']
+    compiled_inputs, compile_receipt = build_player_library(library, sources, flags)
     output.write_bytes(candidate)
     dso=ELFFile(io.BytesIO(library.read_bytes()))
     needed=[tag.needed for tag in dso.get_section_by_name('.dynamic').iter_tags() if tag.entry.d_tag=='DT_NEEDED']
-    inputs=sorted(set(sources+['tools/build_player_host.py','tools/build_player_met_anchor.py','runtime/native/sha256.h','runtime/store/deadline.h']+[p.relative_to(ROOT).as_posix() for p in (ROOT/'runtime/platform/player').glob('*.h')]))
+    inputs=['tools/build_player_host.py', 'tools/build_player_met_anchor.py', 'tools/player_arm_guest.py']
     if composition_report:
         inputs += [composition_artifact.relative_to(ROOT).as_posix(),
                    (composition_dir/'report.json').relative_to(ROOT).as_posix(),
@@ -199,12 +248,10 @@ def build(engine_provider=False,managed_host=False,native_prepare=False,builtin_
         if native_remote_settings:
             inputs.append(composition_report['settings_resource_review'])
     if settings_visible_count:inputs+=list(settings_visible_count['source_hashes'])
-    if native_remote_settings:inputs+=['runtime/apps/wireless-remote/settings_backend.h','runtime/apps/wireless-remote/supervisor_process.h','runtime/platform/wireless/mode.h','runtime/store/stock_fs_bridge.h','runtime/store/stock_stat64.h','runtime/store/target_abi.h']
-    if native_rf_gate and native_remote_settings:inputs+=['runtime/apps/wireless-remote/settings_factory.h']
     if factory_profile:
-        inputs += [factory_header.relative_to(ROOT).as_posix(), 'tools/review_managed_remote_profile.py']
-    if native_wireless_settings:inputs+=list(wireless_composition['source_hashes'])+['runtime/platform/wireless/native_setting.h','runtime/platform/wireless/mode_policy.h','runtime/platform/wireless/mode.h']
-    if native_rf_gate:inputs+=list(rf_composition['source_hashes'])+[p.relative_to(ROOT).as_posix() for p in (ROOT/'runtime/platform/wireless').glob('*.h')]+['runtime/store/target_abi.h','runtime/store/stock_fs_bridge.h','runtime/store/stock_stat64.h']
+        inputs.append('tools/review_managed_remote_profile.py')
+    if native_wireless_settings:inputs+=list(wireless_composition['source_hashes'])
+    if native_rf_gate:inputs+=list(rf_composition['source_hashes'])
     if sleep_composition:inputs+=list(sleep_composition['source_hashes'])
     inputs+=page_inputs
     if stock_artwork_fix:inputs+=['tools/stock_artwork_fix.py']
@@ -232,7 +279,9 @@ def build(engine_provider=False,managed_host=False,native_prepare=False,builtin_
         library_load_file_bytes=sum(int(s['p_filesz']) for s in dso.iter_segments() if s['p_type']=='PT_LOAD'),
         library_load_memory_bytes=sum(int(s['p_memsz']) for s in dso.iter_segments() if s['p_type']=='PT_LOAD'),
         edit=edit,met_edit=met_edit,combined_sha256=hashlib.sha256(combined).hexdigest(),combined_growth_bytes=len(combined)-len(stock),
-        source_hashes={name:hashlib.sha256((ROOT/name).read_bytes()).hexdigest() for name in inputs},
+        library_compile=compile_receipt,
+        source_hashes={**{name:hashlib.sha256((ROOT/name).read_bytes()).hexdigest() for name in sorted(set(inputs))
+                          if name not in compiled_inputs}, **compiled_inputs},
         limits=['No preload/boot integration is installed or included in a firmware package.','The DSO contains the local endpoint and experimental native-Moma metadata/default-track and FORMAT3 playlist-prototype workers; playlist semantics, queue and physical runtime qualification remain incomplete.','PID/anchor, native ABI and host-worker fixtures are separate evidence; Sony worker creation, resource handoff and hardware are unqualified.'])
     if engine_provider:report['limits'].append('Explicit engine-provider analysis profile only: original owner/lifetime, managed grants, deferred teardown, post-handoff control and real playback remain unqualified; not ready to install.')
     if managed_host:report['limits'].append('Managed profile has one caller-owned session workspace and no automatic listener/authorization source. Trusted descriptor offer and native exit hooks remain uninstalled; no physical service qualification.')
