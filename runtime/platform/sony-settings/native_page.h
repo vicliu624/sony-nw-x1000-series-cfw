@@ -44,14 +44,6 @@ uint32_t wr_remote_page_back(uint32_t, uint32_t, uint32_t);
 uint32_t wr_remote_page_home(uint32_t, uint32_t, uint32_t);
 uint32_t wr_remote_page_playback(uint32_t, uint32_t, uint32_t);
 #ifdef WR_PAIRING_PROCESS
-enum {
-    WR_PAIR_UI_SEARCHING = 20,
-    WR_PAIR_UI_FOUND,
-    WR_PAIR_UI_APPROVAL,
-    WR_PAIR_UI_VERIFIED,
-    WR_PAIR_UI_SAVED,
-    WR_PAIR_UI_FAILED
-};
 uint32_t wr_remote_page_keyboard(uint32_t, uint32_t, uint32_t);
 uint32_t wr_remote_page_forget_result(uint32_t, uint32_t, uint32_t);
 uint32_t wr_remote_page_pair_result(uint32_t, uint32_t, uint32_t);

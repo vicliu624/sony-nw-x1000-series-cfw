@@ -140,7 +140,7 @@ int wr_settings_factory_pairing_offer(struct wr_settings_factory *f,const uint8_
  wr_walkman_pairing_close(&next);
  return !rc?XW_PLAYER_ACCEPTED:rc==XNOW_CLIENT_PENDING?XW_PLAYER_BUSY:XW_PLAYER_IO;
 }
-int wr_settings_factory_pair_auto_offer(struct wr_settings_factory *f,const uint8_t private_key[32],const uint8_t nonce[16]){
+static int pair_auto_offer(struct wr_settings_factory *f,const uint8_t private_key[32],const uint8_t nonce[16]){
  static const uint8_t broadcast[6]={255,255,255,255,255,255};
  if(!owner(f)||!private_key||!nonce)return XW_PLAYER_INVALID;
  if(!f->pairing.owner||!f->pairing.client.used||f->fault_latched)return XW_PLAYER_UNAVAILABLE;
@@ -312,6 +312,189 @@ static void pairing_store_tick(struct wr_settings_factory *f){
  f->pairing_store_known=1;
  if(result)memset(f->paired_peer,0,6);else memcpy(f->paired_peer,peer,6);
  f->pairing_store_request=0;
+}
+
+static int peer_present(const uint8_t peer[6]) {
+    static const uint8_t empty[6] = {0};
+    return memcmp(peer, empty, sizeof empty) != 0;
+}
+static int candidate_matches(const struct wr_settings_factory *f) {
+    return peer_present(f->selected_peer) &&
+           !memcmp(f->selected_peer, f->pairing_state.transcript.controller, 6) &&
+           !memcmp(f->selected_invite, f->pairing_state.transcript.controller_nonce, 16) &&
+           !memcmp(f->selected_public, f->pairing_state.controller_public, 32);
+}
+static void clear_pairing_selection(struct wr_settings_factory *f) {
+    memset(f->selected_peer, 0, sizeof f->selected_peer);
+    memset(f->selected_invite, 0, sizeof f->selected_invite);
+    memset(f->selected_public, 0, sizeof f->selected_public);
+}
+static int start_pairing_discovery(struct wr_settings_factory *f, wr_settings_random_fn random_bytes) {
+    clear_pairing_selection(f);
+    uint8_t cookie[16];
+    int rc = random_bytes(cookie, sizeof cookie) ? XW_PLAYER_UNAVAILABLE
+                                                 : wr_settings_factory_pairing_start(f, cookie);
+    volatile uint8_t *p = cookie;
+    for (unsigned i = 0; i < sizeof cookie; i++)
+        p[i] = 0;
+#ifdef WR_PAIRING_TRACE
+    xw_player_pairing_trace(3, rc);
+#endif
+    return rc;
+}
+/* Passive UI lookup. Never starts RF or changes a stored binding. */
+int wr_settings_factory_binding_refresh(struct wr_settings_factory *f) {
+    if (!f->initialized || xw_player_host_original_exiting())
+        return XW_PLAYER_UNAVAILABLE;
+    if (f->pairing_store_request)
+        return XW_PLAYER_BUSY;
+    return wr_settings_factory_pairing_store_request(f, 0);
+}
+int wr_settings_factory_binding_peek(const struct wr_settings_factory *f, uint8_t peer[6]) {
+    if (!peer || !f->initialized || xw_player_host_original_exiting())
+        return XW_PLAYER_UNAVAILABLE;
+    if (f->pairing_store_request == 2)
+        return XW_PLAYER_BUSY;
+    if (!f->pairing_store_known)
+        return XW_PLAYER_BUSY;
+    if (!f->pairing_store_result && peer_present(f->paired_peer)) {
+        memcpy(peer, f->paired_peer, 6);
+        return 0;
+    }
+    /* WPS1: 1 means absent/forgotten; 2 is IO failure, 3 uncertain. */
+    if (f->pairing_store_result == 1)
+        return 1;
+    return XW_PLAYER_IO;
+}
+int wr_settings_factory_pairing_begin(struct wr_settings_factory *f, wr_settings_random_fn random_bytes) {
+    if (!f->initialized || xw_player_host_original_exiting())
+        return XW_PLAYER_UNAVAILABLE;
+    if (f->pairing.owner) {
+        if (f->pairing_state.phase == WR_PAIRING_VERIFIED)
+            return wr_settings_factory_pairing_commit(f);
+        if (f->pairing_state.phase != WR_PAIRING_DISCOVERING ||
+            !peer_present(f->pairing_state.transcript.controller))
+            return XW_PLAYER_BUSY;
+        unsigned long long now;
+        if (hb_monotonic_millis(&now) || now < f->pairing_state.seen_ms ||
+            now - f->pairing_state.seen_ms >= 3000)
+            return XW_PLAYER_STALE;
+        if (!candidate_matches(f))
+            return WR_PAIR_UI_SHOW_PEER;
+        return wr_settings_factory_pairing_select(f, random_bytes);
+    }
+    if (f->pairing_store_request)
+        return XW_PLAYER_BUSY;
+    if (!f->pairing_store_result && peer_present(f->paired_peer))
+        return WR_PAIR_UI_SHOW_PEER;
+    if (f->pairing_store_result == 1)
+        return start_pairing_discovery(f, random_bytes);
+    int rc = wr_settings_factory_pairing_store_request(f, 0);
+    f->pairing_start_after_lookup = rc == XW_PLAYER_ACCEPTED;
+    return rc;
+}
+int wr_settings_factory_pairing_display_peer(struct wr_settings_factory *f, uint8_t peer[6]) {
+    if (!peer || !f->initialized || f->pairing_store_request)
+        return XW_PLAYER_UNAVAILABLE;
+    if (f->pairing.owner && f->pairing_state.phase == WR_PAIRING_DISCOVERING &&
+        peer_present(f->pairing_state.transcript.controller)) {
+        memcpy(f->selected_peer, f->pairing_state.transcript.controller, 6);
+        memcpy(f->selected_invite, f->pairing_state.transcript.controller_nonce, 16);
+        memcpy(f->selected_public, f->pairing_state.controller_public, 32);
+        memcpy(peer, f->selected_peer, 6);
+        return 0;
+    }
+    if (f->pairing_store_result || !peer_present(f->paired_peer))
+        return XW_PLAYER_UNAVAILABLE;
+    for (unsigned i = 0; i < 6; i++)
+        peer[i] = f->paired_peer[i];
+    return 0;
+}
+/* Read-only GUI progress; never begins discovery or grants a pairing. */
+int wr_settings_factory_pairing_progress(const struct wr_settings_factory *f) {
+    if (!f->initialized || f->fault_latched ||
+        xw_player_host_original_exiting())
+        return WR_PAIR_UI_FAILED;
+    if (f->pairing_store_request)
+        return WR_PAIR_UI_SEARCHING;
+    if (f->pairing.owner) {
+        /* Process launch precedes consumption of WPL READY. CLOSED at this point
+         * is an uninitialized handshake, not a failed owner. The GUI deadline and
+         * process retirement/fault paths still bound a missing readiness message. */
+        if (f->pairing_state.phase == WR_PAIRING_CLOSED)
+            return WR_PAIR_UI_SEARCHING;
+        if (f->pairing_commit_pending)
+            return WR_PAIR_UI_APPROVAL;
+        if (f->pairing_state.phase == WR_PAIRING_VERIFIED)
+            return WR_PAIR_UI_VERIFIED;
+        if (f->pairing_state.phase == WR_PAIRING_OFFERED)
+            return WR_PAIR_UI_APPROVAL;
+        if (f->pairing_state.phase == WR_PAIRING_DISCOVERING) {
+            unsigned long long now;
+            if (hb_monotonic_millis(&now))
+                return WR_PAIR_UI_FAILED;
+            if (peer_present(f->pairing_state.transcript.controller) &&
+                now >= f->pairing_state.seen_ms && now - f->pairing_state.seen_ms < 3000)
+                return WR_PAIR_UI_FOUND;
+            return WR_PAIR_UI_SEARCHING;
+        }
+        return WR_PAIR_UI_FAILED;
+    }
+    return f->pairing_store_known && !f->pairing_store_result &&
+                   peer_present(f->paired_peer)
+               ? WR_PAIR_UI_SAVED
+               : WR_PAIR_UI_FAILED;
+}
+int wr_settings_factory_pairing_forget(struct wr_settings_factory *f, const uint8_t peer[6], int confirm) {
+    if (!peer || !f->initialized || f->pairing.owner || f->pairing_store_request ||
+        f->pairing_store_result || !peer_present(f->paired_peer) ||
+        memcmp(peer, f->paired_peer, 6))
+        return XW_PLAYER_STALE;
+    return confirm ? wr_settings_factory_pairing_store_request(f, 1) : 0;
+}
+int wr_settings_factory_pairing_select(struct wr_settings_factory *f, wr_settings_random_fn random_bytes) {
+    if (!f->initialized || xw_player_host_original_exiting() ||
+        !f->pairing.owner)
+        return XW_PLAYER_UNAVAILABLE;
+    if (!candidate_matches(f))
+        return XW_PLAYER_STALE;
+    uint8_t private_key[32], nonce[16];
+    int rc =
+        random_bytes(private_key, 16) || random_bytes(private_key + 16, 16) ||
+        random_bytes(nonce, sizeof nonce)
+            ? XW_PLAYER_UNAVAILABLE
+            : pair_auto_offer(f, private_key, nonce);
+    volatile uint8_t *p = private_key, *q = nonce;
+    for (unsigned i = 0; i < 32; i++)
+        p[i] = 0;
+    for (unsigned i = 0; i < 16; i++)
+        q[i] = 0;
+    return rc;
+}
+void wr_settings_factory_pairing_cancel(struct wr_settings_factory *f) {
+    f->pairing_start_after_lookup = 0;
+    clear_pairing_selection(f);
+    if (f->pairing.owner)
+        (void)wr_settings_factory_pairing_stop(f);
+}
+
+void wr_settings_factory_pairing_after_tick(struct wr_settings_factory *f,
+                                           wr_settings_random_fn random_bytes) {
+#ifdef WR_PAIRING_TRACE
+    if (f->pairing_state.phase == WR_PAIRING_DISCOVERING) {
+        xw_player_pairing_trace(4, 0);
+        if (peer_present(f->pairing_state.transcript.controller))
+            xw_player_pairing_trace(5, 0);
+    }
+#endif
+    if (f->pairing_start_after_lookup && !f->pairing_store_request) {
+        f->pairing_start_after_lookup = 0;
+#ifdef WR_PAIRING_TRACE
+        xw_player_pairing_trace(2, f->pairing_store_result);
+#endif
+        if (!xw_player_host_original_exiting() && f->pairing_store_result == 1)
+            (void)start_pairing_discovery(f, random_bytes);
+    }
 }
 #endif
 int wr_settings_factory_use_shared_wifi(struct wr_settings_factory *f){

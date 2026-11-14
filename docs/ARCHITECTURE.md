@@ -88,6 +88,12 @@ experiment remains outside the ordinary delivery profile until its actual
 startup, controls and retirement are qualified. Compiler success or an isolated
 packet replay cannot select that profile for a working release.
 
+The Remote Settings factory owns the selected invitation, saved-binding lookup
+and pairing transitions. The player adapter supplies process entropy and
+retains its original GUI invocation checks. The native page receives only a
+peer address, operation result or progress state. Selecting an invitation still
+requires the same address, nonce and public key as the one shown to the user.
+
 Player result codes are a separate domain: `XW_PLAYER_IO` is -6 and
 `XW_PLAYER_CLOSED` is -7. A service's post-cleanup flag describes its final
 resource state, not the reason HELLO failed. Record CRC proves byte integrity;

@@ -12,6 +12,7 @@ static struct wr_native_page_bridge page;
 static struct wr_native_choice_view view;
 static uint32_t status(int rc) { return WR_NATIVE_PAGE_STATUS_TAG | ((uint32_t)rc & 0xffffu); }
 #ifdef WR_PAIRING_PROCESS
+#include "../../apps/wireless-remote/settings_factory.h"
 extern int xw_player_host_remote_pairing_begin(void);
 extern void xw_player_host_remote_pairing_cancel(void);
 extern int xw_player_host_remote_pairing_submit_code(const uint16_t *, unsigned);
@@ -468,7 +469,7 @@ uint32_t xw_player_host_remote_page_request(uint32_t operation, uint32_t row) {
             return WR_NATIVE_PAGE_FORGET_TAG;
         }
         int rc = xw_player_host_remote_pairing_begin();
-        if (rc == 3) {
+        if (rc == WR_PAIR_UI_SHOW_PEER) {
             rc = xw_player_host_remote_pairing_display_peer(pairing_peer);
             if (rc)
                 return status(rc);

@@ -4,6 +4,7 @@
 #include "../../platform/wireless/mode_policy.h"
 #include "../../platform/wireless/mode_channel.h"
 #ifdef WR_PAIRING_PROCESS
+#include <stddef.h>
 #include "pairing_proof.h"
 #endif
 /* Original GUI owner composition, not an external-app radio authority.
@@ -27,6 +28,8 @@ struct wr_settings_factory {
  struct wr_pairing_store_job pairing_store_job;
  unsigned pairing_store_request,pairing_store_result,pairing_store_known;
  uint8_t paired_peer[6];
+ uint8_t selected_peer[6],selected_invite[16],selected_public[32];
+ int pairing_start_after_lookup;
 #endif
 };
 int wr_settings_factory_bind(struct wr_settings_factory *,uint64_t,void *,int (*)(void *));
@@ -42,10 +45,30 @@ unsigned wr_settings_factory_wait_descriptors(const struct wr_settings_factory *
                                              struct xw_owner_wait_fd *, unsigned capacity);
 int wr_settings_factory_needs_short_wait(const struct wr_settings_factory *);
 #ifdef WR_PAIRING_PROCESS
+enum {
+    WR_PAIR_UI_SHOW_PEER = 3,
+    WR_PAIR_UI_SEARCHING = 20,
+    WR_PAIR_UI_FOUND,
+    WR_PAIR_UI_APPROVAL,
+    WR_PAIR_UI_VERIFIED,
+    WR_PAIR_UI_SAVED,
+    WR_PAIR_UI_FAILED
+};
+/* The owner supplies a synchronous entropy port (zero on complete read).
+ * The factory binds selection to the invitation shown on the native page. */
+typedef int (*wr_settings_random_fn)(void *, size_t);
+int wr_settings_factory_binding_refresh(struct wr_settings_factory *);
+int wr_settings_factory_binding_peek(const struct wr_settings_factory *, uint8_t peer[6]);
+int wr_settings_factory_pairing_begin(struct wr_settings_factory *, wr_settings_random_fn);
+int wr_settings_factory_pairing_display_peer(struct wr_settings_factory *, uint8_t peer[6]);
+int wr_settings_factory_pairing_progress(const struct wr_settings_factory *);
+int wr_settings_factory_pairing_forget(struct wr_settings_factory *, const uint8_t peer[6], int);
+int wr_settings_factory_pairing_select(struct wr_settings_factory *, wr_settings_random_fn);
+void wr_settings_factory_pairing_cancel(struct wr_settings_factory *);
+void wr_settings_factory_pairing_after_tick(struct wr_settings_factory *, wr_settings_random_fn);
 int wr_settings_factory_pairing_start(struct wr_settings_factory *,const uint8_t cookie[16]);
 int wr_settings_factory_pairing_stop(struct wr_settings_factory *);
 int wr_settings_factory_pairing_offer(struct wr_settings_factory *,const uint8_t secret[16],const uint8_t nonce[16]);
-int wr_settings_factory_pair_auto_offer(struct wr_settings_factory *,const uint8_t private_key[32],const uint8_t nonce[16]);
 int wr_settings_factory_pairing_commit(struct wr_settings_factory *);
 int wr_settings_factory_pairing_store_request(struct wr_settings_factory *,int forget);
 #endif
