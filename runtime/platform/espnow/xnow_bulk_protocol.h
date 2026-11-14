@@ -12,4 +12,14 @@ enum {
     XNOW_BULK_WORDS = XNOW_BULK_DATA_BYTES / 4,
     XNOW_BULK_IMAGE_MARKER = 0x314b4c42u
 };
+/* BLK2 adds a read-only vector at this reserved GET address. Entries are
+ * address/value pairs; only aligned addresses in the first 64 KiB of radio
+ * SRAM are accepted. SET at the sentinel is always rejected. */
+enum {
+    XNOW_BULK_VECTOR_MARKER = 0x324b4c42u,
+    XNOW_BULK_VECTOR_SENTINEL = 0xc000d5a8u,
+    XNOW_BULK_VECTOR_MASK = 0xffff0003u,
+    XNOW_BULK_VECTOR_REGION = 0xc0000000u,
+    XNOW_BULK_VECTOR_FIELDS = 43u
+};
 #endif

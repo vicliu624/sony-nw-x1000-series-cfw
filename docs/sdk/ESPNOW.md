@@ -42,7 +42,7 @@ For example, an application using a supplied client capability declares:
 
 ```json
 "sdk": {
-  "version": "0.2.0-alpha.10",
+  "version": "0.2.0-alpha.12",
   "profile": "native-services",
   "modules": ["startup", "espnow-client"]
 }
@@ -75,6 +75,11 @@ discovery, automatic activation, reconnect or fork reuse.
 Client payloads are bounded to 1,470 bytes; the actual owner/profile may impose
 a lower limit. RSSI is not fabricated. Pending LMKs are wiped after complete
 write or failure; callers must wipe their own copies.
+
+A step performs one write or at most two reads for one header/body record.
+It yields on partial I/O and checks HUP before each read. A staged event blocks
+further reads until taken. Caller scheduling and deadlines remain explicit;
+this change supplies no worker thread, idle heartbeat or automatic reconnect.
 
 Admission and cleanup belong to the system owner. Depending on the qualified
 profile, it supplies an exclusive lease or a shared borrow. A shared client

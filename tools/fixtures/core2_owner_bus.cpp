@@ -51,7 +51,7 @@ static void collect_events() {
         app_events.erase(app_events.begin(), app_events.begin() + size);
     }
 }
-static void round(ControllerLink &c, bool confirm = true) {
+static void round(ControllerLink &c, bool confirm = true, bool flood = false) {
     now += 10;
     int progress = c.step(now, true);
     assert(progress >= 0 && progress != 2);
@@ -63,7 +63,7 @@ static void round(ControllerLink &c, bool confirm = true) {
         auto frame = outbound.front();
         outbound.pop_front();
         inject_payload(frame.data(), frame.size(), false);
-    } else if (confirm && c.ready() && !confirm_sent) {
+    } else if (confirm && c.ready() && (!confirm_sent || flood) && bus_root_rx_empty()) {
         inject_payload("CONTROLLER APP", 14, true);
         confirm_sent = true;
     }
@@ -131,6 +131,13 @@ int main() {
     bind(*c);
     assert(!c->connect(now));
     connect_and_exchange(*c, 23);
+    unsigned before_flood = root_messages;
+    bus_root_send(100, "ROOT APP");
+    for (unsigned i = 0; i < 100 && root_messages == before_flood; i++)
+        round(*c, true, true);
+    assert(root_messages > before_flood); // Continuous RX cannot starve application SEND.
+    for (unsigned i = 0; i < 10; i++)
+        round(*c);
     unsigned installed = bus_root_installs(), sent_before = send_count;
     now += 100000;
     for (int i = 0; i < 20; i++)
@@ -170,6 +177,25 @@ int main() {
     for (unsigned i = 0; !bus_root_finished(); i++) {
         assert(i < 300);
         (void)bus_root_step(++now, frame, sizeof frame, &bytes);
+    }
+    bus_root_finish();
+    // Stop with a validated application RX retained behind command/reply work.
+    bus_root_start(auth, pmk, controller_mac);
+    controller_messages = root_messages = 0;
+    connect_and_exchange(*c, 27);
+    bus_root_send(28, "ROOT APP");
+    inject_payload("CONTROLLER APP", 14, true);
+    for (unsigned i = 0; !bus_root_pending_receive(); i++) {
+        assert(i < 100);
+        (void)bus_root_step(++now, frame, sizeof frame, &bytes);
+        bus_root_complete();
+    }
+    bus_root_stop(0);
+    for (unsigned i = 0; !bus_root_finished(); i++) {
+        assert(i < 300);
+        (void)bus_root_step(++now, frame, sizeof frame, &bytes);
+        assert(bus_root_receive_cleared());
+        bus_root_complete();
     }
     bus_root_finish();
     assert(c->close(true) == ESP_OK);

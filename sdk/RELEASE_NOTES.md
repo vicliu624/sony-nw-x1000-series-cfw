@@ -1,3 +1,33 @@
+# X1000 SDK 0.2.0-alpha.12 (unreleased)
+
+Updates the shared native radio adapter to dev.21. Explicit BLK2 profiles use
+fresh read-only vectors at each guard validation, invalidate them on writes,
+and retain lease, owned-span, RX-ticket and retirement checks. Legacy BLK1
+profiles keep their previous command path. Rebuild source consumers against
+the matching headers: device/owner contexts have additional private state.
+
+The complete modeled radio request/reply/completion costs 41 commands instead
+of 148. This is not a hardware-throughput result. The development throughput
+target is 1,000,000 useful application bits/s (125,000 B/s), measured without
+player queries, then separately through the cover business path. No new SDK or
+firmware release is created by this source update.
+
+Source app pins move to alpha.12. Counter/Canvas move to alpha.6 for their
+embedded SDK identity; Chat moves to dev.5 for its linked shared adapter.
+
+The client/owner stream step can read one header and its available body in one
+turn (at most two nonblocking reads). Partial I/O yields, HUP is checked before
+each read, and only one event/request is published. Output steps still perform
+at most one write; no busy idle loop or automatic command retry is introduced.
+
+The owner processes one queued transport event before admitting an application
+request and rechecks readiness afterward. A queued peer restart cannot leave a
+new application send using the previously ready key. RX work remains bounded
+to one event per turn; pending native TX and retirement keep their own ordering.
+One application RX uses the existing receive buffer while a command/reply
+progresses, then is delivered before another RX is read. Continuous incoming
+data cannot monopolize command admission. Stop discards the retained record.
+
 # X1000 SDK 0.2.0-alpha.11 (unreleased)
 
 Adds canonical SET_PLAY_MODE as operation7 without renumbering existing commands.

@@ -19,6 +19,14 @@ static volatile int stop_requested;
 static uint64_t current_ms;
 static uint32_t copied_token;
 static unsigned nonce = 100; // Independent deterministic entropy domains in this fixture.
+static unsigned receive_calls;
+int __real_xnow_owner_commands_receive(struct xnow_owner_commands *, void *, size_t,
+                                       struct xnow_full_received *);
+int __wrap_xnow_owner_commands_receive(struct xnow_owner_commands *commands, void *data,
+                                       size_t capacity, struct xnow_full_received *received) {
+    receive_calls++;
+    return __real_xnow_owner_commands_receive(commands, data, capacity, received);
+}
 static int storage_guard(void *context) {
     (void)context;
     return 0;
@@ -81,8 +89,10 @@ void bus_root_start(const uint8_t auth[32], const uint8_t pmk[16], const uint8_t
 void bus_root_mac(uint8_t out[6]) { memset(out, 2, 6); } // Mock driver supplies this MAC.
 int bus_root_step(uint64_t now, uint8_t *action, size_t capacity, size_t *bytes) {
     current_ms = now;
+    unsigned before_receive = receive_calls;
     int rc = xnow_owner_runtime_step(&runtime);
     assert(rc == 0 || rc == XNOW_PENDING);
+    assert((unsigned)(receive_calls - before_receive) <= 1); // One bounded RX call per turn.
     if (!control.backend.inflight || control.backend.inflight == copied_token)
         return 0;
     copied_token = control.backend.inflight;
@@ -145,6 +155,17 @@ int bus_root_ready(void) {
     return ops.ready(ops.context);
 }
 unsigned bus_root_installs(void) { return root.installed; }
+int bus_root_rx_empty(void) { return *at(layout.rx + 4) == *at(layout.rx + 8); }
+int bus_root_pending_receive(void) { return runtime.receive_pending; }
+int bus_root_receive_cleared(void) {
+    unsigned any = runtime.receive_pending;
+    for (unsigned i = 0; i < sizeof runtime.receive; i++)
+        any |= runtime.receive[i];
+    const unsigned char *p = (const unsigned char *)&runtime.received;
+    for (unsigned i = 0; i < sizeof runtime.received; i++)
+        any |= p[i];
+    return !any;
+}
 void bus_root_stop(unsigned active) {
     stop_requested = 1;
     *at(layout.rx + 60) = active;

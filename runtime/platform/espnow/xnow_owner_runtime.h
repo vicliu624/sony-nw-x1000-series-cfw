@@ -21,6 +21,10 @@ struct xnow_owner_runtime {
  int writer,pid,prepared,cleaned,released,done,fault,application_failure;
  uint64_t writer_device,writer_inode;uint8_t cookie[16];
  unsigned dropped,application_origin;uint8_t receive[XNOW_ESPNOW_V2_MAX];
+ /* One authenticated/validated application record may share receive[] while
+  * an admitted command or its reply progresses. No second data buffer. */
+ struct xnow_full_received received;
+ unsigned receive_pending;
  struct xnow_owner_transport transport;
  struct xnow_owner_receive_stats receive_stats;
  unsigned started,transport_bound,transport_stopped,stepping;
@@ -44,7 +48,11 @@ int xnow_owner_runtime_init(struct xnow_owner_runtime *,struct xnow_full_control
 /* Optional negotiation seam, configured once before the first step. It grants
  * no radio authority. Caller owns context through independent radio retirement.
  * Holding input never invents a PENDING command ACK; pipe HUP and stop-token
- * observation remain live. Existing runtimes without a transport are unchanged. */
+ * observation remain live. One queued RX event is processed before admitting
+ * an app request; transport readiness is checked again after that event.
+ * An application RX is retained for one command opportunity, then delivered
+ * before another RX is read. Stop discards the retained record.
+ * Existing runtimes without a transport are unchanged. */
 int xnow_owner_runtime_transport(struct xnow_owner_runtime *,const struct xnow_owner_transport *);
 /* OK only after controller finished, data closed, stream/gate closed and a
  * complete restoration notification+writer close. Pending is not exit permission.

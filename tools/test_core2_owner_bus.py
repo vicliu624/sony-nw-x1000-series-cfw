@@ -16,6 +16,7 @@ sources+=['runtime/platform/espnow/'+name+'.c' for name in
 sources+=['runtime/store/stock_fs_bridge.c','runtime/store/stock_stat64.c','runtime/native/sha256.c']
 cxx=['tools/fixtures/core2_owner_bus.cpp','runtime/apps/wireless-remote/core2/src/link_transport.cpp']
 flags=['-g','-Wall','-Wextra','-Werror','-Wno-unused-function','-fsanitize=address,undefined',
+       '-Wl,--wrap=xnow_owner_commands_receive',
        '-I',str(ROOT),'-I',str(ROOT/'tools/fixtures/core2_link'),
        '-I',str(ROOT/'work/external-tls-probe/bearssl-0.6/inc'),
        '-DXNOW_OWNER_GATE_NAMESPACE="x1000-core2-owner-bus-test-v1"']
@@ -39,9 +40,10 @@ inputs+=['runtime/platform/espnow/'+name+'.h' for name in
           'xnow_link_counter','xnow_security','xnow_endpoint','xnow_ccmp')]
 report=dict(passed=True,real_owner_pipes_and_ccmp=True,real_core2_link_adapter=True,
     host_sanitizers=True,radio_and_native_peer_api_modeled=True,device_accessed=False,
-    covers=['both endpoint restarts','app SEND held until encrypted peer confirmation',
+    covers=['both endpoint restarts','queued peer negotiation precedes app SEND','at most one RX call per turn','app SEND held until encrypted peer confirmation',
             'PN1 accepted only under fresh link key','actual encrypted bidirectional data',
-            'quiet session has no heartbeat','Off waits for producer and actual TX completion'],
+            'quiet session has no heartbeat','continuous RX cannot starve application SEND',
+            'Off discards retained application RX','Off waits for producer and actual TX completion'],
     source_hashes={name:hashlib.sha256((ROOT/name).read_bytes()).hexdigest() for name in inputs})
 (out/'report.json').write_text(json.dumps(report,indent=2)+'\n')
 print(json.dumps(dict(passed=True,report=(out/'report.json').relative_to(ROOT).as_posix())))

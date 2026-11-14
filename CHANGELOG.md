@@ -1,6 +1,18 @@
 # Changelog
 
-## Unreleased (0.1.0-dev.34)
+## Unreleased (0.1.0-dev.35)
+
+- Add checked read vectors for matching shared-radio profiles, reducing a complete
+  modeled request/reply/completion from 148 commands to 41. Code/state stays
+  within the same 1,900-byte reservation; physical throughput remains unmeasured.
+- Consume an available FIFO header and body in one bounded client/owner turn,
+  with HUP checks before each read, partial I/O and one-record backpressure.
+- Process queued peer negotiation before admitting a new application send,
+  rechecking readiness without increasing the per-turn RX budget.
+- Update source consumers to SDK alpha.12 and the native radio archive to dev.21.
+  Keep the installed dev.34 package and its physical results separate.
+
+## 0.1.0-dev.34 development changes
 
 - Add explicit five-mode Remote controls through Sony's native request/settings
   path, with legacy-compatible SDK command negotiation and Core2 alpha.31 UI.

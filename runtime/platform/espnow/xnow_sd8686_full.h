@@ -2,11 +2,18 @@
 #define XNOW_SD8686_FULL_H
 #include "xnow_full_guard.h"
 #include "xnow_session.h"
+#include "xnow_bulk_protocol.h"
 struct xnow_sd8686_full {
     int fd;
     struct xnow_full_guard boundary;
     void *lease_context;
     int (*lease_valid)(void *);
+    struct {
+        struct xnow_word_io scalar;
+        uint32_t marker;
+        unsigned valid;
+        uint32_t address[XNOW_BULK_VECTOR_FIELDS], value[XNOW_BULK_VECTOR_FIELDS];
+    } vector;
 };
 #ifdef __cplusplus
 extern "C" {

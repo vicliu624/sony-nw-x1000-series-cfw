@@ -7,7 +7,12 @@ extern void xnow_radio_doorbell(uint32_t, uint32_t);
 #include "radio_packet.h"
 #include "xnow_bulk_protocol.h"
 /* Immutable feature marker, included in the generated image fingerprint. */
-__attribute__((used)) const uint32_t xnow_radio_bulk_commands = XNOW_BULK_IMAGE_MARKER;
+__attribute__((used)) const uint32_t xnow_radio_bulk_commands =
+#ifdef XNOW_RADIO_READ_VECTOR
+    XNOW_BULK_VECTOR_MARKER;
+#else
+    XNOW_BULK_IMAGE_MARKER;
+#endif
 unsigned xnow_radio_word_io(uint8_t *body) {
     /* Original dispatch supplies an aligned header+8 body. The command size
      * lives six bytes before it and includes the original eight-byte header. */
@@ -20,6 +25,21 @@ unsigned xnow_radio_word_io(uint8_t *body) {
         if (count - 1u > XNOW_BULK_WORDS - 1u || half[-3] != XNOW_BULK_HEADER_BYTES + count * 4 ||
             (address & 3))
             goto invalid;
+#ifdef XNOW_RADIO_READ_VECTOR
+        if (address == XNOW_BULK_VECTOR_SENTINEL) {
+            if ((action | count) & 1u)
+                goto invalid;
+            uint32_t *entry = words + 2;
+            do {
+                uint32_t a = *entry++;
+                if ((a & XNOW_BULK_VECTOR_MASK) != XNOW_BULK_VECTOR_REGION)
+                    goto invalid;
+                *entry++ = *(volatile uint32_t *)(uintptr_t)a;
+                count -= 2;
+            } while (count);
+            return 0;
+        }
+#endif
         uint32_t packet = 0xc0008bd8u;
         for (unsigned i = 0;; i++, packet += 1900u) {
             if (i == 3)

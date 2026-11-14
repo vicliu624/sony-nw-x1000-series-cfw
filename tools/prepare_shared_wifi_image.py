@@ -20,6 +20,7 @@ def main():
     parser.add_argument('--rx-diagnostics', action='store_true')
     parser.add_argument('--bulk-commands', action='store_true',
                         help='Bounded packet-only command extension; requires its matching native adapter')
+    parser.add_argument('--read-vector', action='store_true')
     args = parser.parse_args()
     rootfs = ROOT / 'work/upg-jp/verified-3.bin'
     with rootfs.open('rb') as file:
@@ -36,7 +37,7 @@ def main():
     assert b'helper_name=${fw_dir}/helper_sd.bin fw_name=${fw_dir}/sd8686.bin' in loader
     for name in (RADIO_PATH,HELPER_PATH):
         (out/Path(name).name).write_bytes(inputs[name][1])
-    radio = build(out/'sd8686.bin',out/'helper_sd.bin',out/'radio-build',args.rx_diagnostics,args.bulk_commands)
+    radio = build(out/'sd8686.bin',out/'helper_sd.bin',out/'radio-build',args.rx_diagnostics,args.bulk_commands,args.read_vector)
     assert radio['rx_initially_disabled'] and radio['crc_roundtrip_passed']
     payload = (out/'radio-build/candidate/sd8686.bin').read_bytes()
     assert digest(payload)==radio['candidate_sha256']

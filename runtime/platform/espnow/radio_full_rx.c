@@ -11,10 +11,18 @@ __attribute__((section(".state"))) volatile uint32_t xnow_rx_seen,xnow_rx_eligib
 #endif
 static int original(const uint8_t *frame,void *context){return ((original_fn)(uintptr_t)0xa315)(frame,context);}
 static int work_bounds(const uint8_t *frame,void *context){
+#ifdef XNOW_RADIO_READ_VECTOR
+    const volatile uint32_t *pool=(const volatile uint32_t *)(uintptr_t)0xc000d5ec;
+#else
     const volatile uint16_t *pool=(const volatile uint16_t *)(uintptr_t)0xc000d5ec;
+#endif
     /* Original163ac: one1700-byte slot atcdac. Original factory gives
      * context=slot+40 and frame=slot+92 (1608 bytes remain). */
+#ifdef XNOW_RADIO_READ_VECTOR
+    if(pool[1]!=0x000106a4u||(uintptr_t)context!=0xc000cdd4u||(uintptr_t)frame!=0xc000ce08u)return 0;
+#else
     if(pool[2]!=1700||pool[3]!=1||(uintptr_t)context!=0xc000cdd4u||(uintptr_t)frame!=0xc000ce08u)return 0;
+#endif
     const volatile uint32_t *node=(const volatile uint32_t *)(uintptr_t)0xc000cdb0;
     return node[2]==(uint32_t)(uintptr_t)frame&&node[6]==0xc0014710u;
 }
@@ -31,12 +39,23 @@ int xnow_radio_full_receive(const uint8_t *frame,void *context){
     unsigned bytes=length-48;
     if(protected){
         if(bytes<31||frame[34]||(frame[35]&0x3f)!=0x20)return original(frame,context);
-    }else if(bytes>1520||frame[32]!=127||frame[33]!=0x18||frame[34]!=0xfe||frame[35]!=0x34)return original(frame,context);
+    }
+#ifdef XNOW_RADIO_READ_VECTOR
+    else if(bytes>1520||*(const uint32_t *)(frame+32)!=0x34fe187fu)return original(frame,context);
+#else
+    else if(bytes>1520||frame[32]!=127||frame[33]!=0x18||frame[34]!=0xfe||frame[35]!=0x34)return original(frame,context);
+#endif
     const uint8_t *own=*(const uint8_t *volatile *)(uintptr_t)0x04001bc4;
     if(!own)return original(frame,context);
+#ifdef XNOW_RADIO_READ_VECTOR
+    unsigned ours=0,all_ff=255,bssid_ff=255;
+    for(unsigned i=0;i<6;i++){ours|=frame[6+i]^own[i];all_ff&=frame[6+i];bssid_ff&=frame[18+i];}
+    if(bssid_ff!=255||(ours&&all_ff!=255)||(protected&&ours))return original(frame,context);
+#else
     unsigned ours=1,all_ff=1,bssid_ff=1;
     for(unsigned i=0;i<6;i++){ours&=frame[6+i]==own[i];all_ff&=frame[6+i]==255;bssid_ff&=frame[18+i]==255;}
     if(!bssid_ff||(!ours&&!all_ff)||(protected&&!ours))return original(frame,context);
+#endif
 #ifdef XNOW_RADIO_RX_DIAGNOSTICS
     xnow_rx_eligible++;
 #endif
@@ -60,7 +79,11 @@ int xnow_radio_full_receive(const uint8_t *frame,void *context){
     struct xnow_full_rx_slot *slot=&s->slots[head&1];
     slot->packet=packet;slot->bytes=bytes;
     for(unsigned i=0;i<6;i++)slot->source[i]=frame[12+i];
+#ifdef XNOW_RADIO_READ_VECTOR
+    slot->reserved[0]=(uint8_t)(protected|((all_ff==255)<<1));slot->reserved[1]=0;
+#else
     slot->reserved[0]=(uint8_t)(protected|(all_ff<<1));slot->reserved[1]=0;
+#endif
     __asm__ volatile("":::"memory");s->head=head+1;
 finished:
     __asm__ volatile("":::"memory");s->producer_active=0;

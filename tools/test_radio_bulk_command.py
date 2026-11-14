@@ -22,7 +22,7 @@ assert manifest.get('bulk_word_commands') and manifest['occupied_span_bytes']<=1
 with payload.open('rb') as f:
  e=ELFFile(f);sections=[(s['sh_addr'],s.data()) for s in e.iter_sections() if s['sh_flags']&2 and s['sh_size']];symbols={s.name:s['st_value'] for s in e.get_section_by_name('.symtab').iter_symbols() if s.name}
 request,response=0xc00155b8,0xc0014e4c
-def run(action,count,address,size=None,invalid_node=False,patched=True):
+def run(action,count,address,size=None,invalid_node=False,patched=True,vector=None):
  if size is None:size=16+count*4 if action in (0x100,0x101) else 20
  cpu=Uc(UC_ARCH_ARM,UC_MODE_THUMB)
  for base,n in ((0,0x20000),(0xc0000000,0x20000),(0x80000000,0x10000),(0x04000000,0x2000),(0x200000,0x10000)):cpu.mem_map(base,n)
@@ -36,10 +36,12 @@ def run(action,count,address,size=None,invalid_node=False,patched=True):
   cpu.mem_write(p-4,struct.pack('<I',node));cpu.mem_write(node+8,struct.pack('<I',p));cpu.mem_write(node+24,struct.pack('<I',0 if invalid_node else 0xc0014728))
   cpu.mem_write(p,bytes((j*7+i+3)&255 for j in range(1760)))
  data=bytes((j*13+11)&255 for j in range(max(4,min(count*4,1536))))
+ if vector is not None:data=b''.join(struct.pack('<II',a,0) for a in vector)
  command=struct.pack('<4H',0x86,size,0x55aa,0)+struct.pack('<HHI',action,count,address)+data
  cpu.mem_write(request,command);cpu.mem_write(response,b'\xa5'*1900)
  cpu.mem_write(0xc0007859,b'\x01');cpu.mem_write(0xc000edf4,b'\0');cpu.mem_write(0xc001452a,b'\x01')
  cpu.reg_write(UC_ARM_REG_SP,0x208000);saved={};copies=[];before=bytes(cpu.mem_read(address,max(4,min(count*4,1536))))
+ expected_vector=[bytes(cpu.mem_read(a,4)) if (a&0xffff0003)==0xc0000000 else None for a in vector] if vector is not None else None
  def hook(u,pc,n,context):
   if pc==0x88d6:
    for reg in (UC_ARM_REG_R4,UC_ARM_REG_R5,UC_ARM_REG_R7,UC_ARM_REG_SP):saved[reg]=u.reg_read(reg)
@@ -56,7 +58,12 @@ def run(action,count,address,size=None,invalid_node=False,patched=True):
  output=bytes(cpu.mem_read(response,copied));assert struct.unpack_from('<H',output)[0]==0x8086
  status=struct.unpack_from('<H',output,6)[0]
  if not status:
-  if action==0x100 and patched:assert output[16:16+count*4]==before
+  if vector is not None:
+   for i,(a,expected) in enumerate(zip(vector,expected_vector)):
+    assert output[16+i*8:20+i*8]==struct.pack('<I',a)
+    assert output[20+i*8:24+i*8]==expected
+    assert bytes(cpu.mem_read(a,4))==expected
+  elif action==0x100 and patched:assert output[16:16+count*4]==before
   elif action==0x101 and patched:assert bytes(cpu.mem_read(address,count*4))==data[:count*4]
   elif action==1:assert bytes(cpu.mem_read(address,4))==data[:4]
   else:assert output[16:20]==before[:4]
@@ -72,6 +79,21 @@ for action in (0x100,0x101):
 for kw in ({'count':0},{'count':372},{'count':384},{'count':65535,'size':65532},{'count':4,'address':0xc0008bd9},{'count':4,'address':0x8000a300},{'count':4,'address':0xc0008bd8+1752},{'count':4,'invalid_node':True},{'count':4,'size':20}):
  args=dict(action=0x101,count=4,address=0xc0008bd8);args.update(kw);cases.append(run(**args));assert cases[-1]['status']==2
 cases.append(run(0x100,2,0xc0008bd8,patched=False));assert cases[-1]['status']==0
+if manifest['bulk_word_commands'].get('read_vector'):
+ addresses=[manifest['bulk_word_commands']['marker_address'],0xc000d5a8]
+ for name in ('xnow_full_tx','xnow_full_rx','xnow_tx_completion'):
+  row=manifest['controls'][name];addresses.extend(range(row['address'],row['address']+row['bytes'],4))
+ for p in (0xc0008bd8,0xc0009344,0xc0009ab0):addresses.extend((p-4,p-128,p-112))
+ for v in ([0xc000d5a8],addresses,[0xc000d5a8]*185):
+  cases.append(run(0x100,len(v)*2,0xc000d5a8,vector=v));assert cases[-1]['status']==0
+ for kw in (dict(action=0x101,count=2,vector=[0xc000d5a8]),
+            dict(action=0x100,count=1,vector=[0xc000d5a8]),
+            dict(action=0x100,count=2,vector=[0x04000000]),
+            dict(action=0x100,count=2,vector=[0xc0010000]),
+            dict(action=0x100,count=2,vector=[0xc000d5a9]),
+            dict(action=0x100,count=372,vector=[0xc000d5a8]*186),
+            dict(action=0x100,count=2,size=16,vector=[0xc000d5a8])):
+  cases.append(run(address=0xc000d5a8,**kw));assert cases[-1]['status']==2
 inputs=sorted(set([*manifest['source_hashes'],'tools/test_radio_bulk_command.py','tools/radio_test_profile.py','tools/generate_espnow_full_profile.py']))
 report=dict(passed=True,cases=cases,payload_sha256=hashlib.sha256(payload.read_bytes()).hexdigest(),candidate_sha256=manifest['candidate_sha256'],stock_radio_sha256=hashlib.sha256(raw).hexdigest(),original_dispatch_and_response_instructions=True,memcpy_effects_modeled=True,firmware_update_created=False,device_accessed=False,occupied_span_bytes=manifest['occupied_span_bytes'],source_hashes={p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in inputs})
 (OUT/'instruction-report.json').write_text(json.dumps(report,indent=2)+'\n')

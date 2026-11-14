@@ -12,9 +12,15 @@ typedef int (*submit_fn)(void *);
 __attribute__((section(".state"))) struct xnow_full_tx_control xnow_full_tx={.magic=XNOW_FULL_TX_MAGIC};
 static const uint8_t broadcast[6]={255,255,255,255,255,255};
 static int destination_ok(const volatile uint8_t *mac){
+#ifdef XNOW_RADIO_READ_VECTOR
+    unsigned all_ff=255,any=0;
+    for(unsigned i=0;i<6;i++){all_ff&=mac[i];any|=mac[i];}
+    return any&&(!(mac[0]&1)||all_ff==255);
+#else
     unsigned all_ff=1,any=0;
     for(unsigned i=0;i<6;i++){all_ff&=mac[i]==255;any|=mac[i];}
     return any&&(!(mac[0]&1)||all_ff);
+#endif
 }
 extern int xnow_radio_tx_ready(void) __attribute__((weak));
 extern void xnow_radio_tx_arm(uint32_t,uint32_t) __attribute__((weak));
@@ -43,7 +49,12 @@ static int operation(struct xnow_full_tx_control *s){
         volatile uint8_t *body=(volatile uint8_t *)(uintptr_t)(packet+32);
         if(protected){
             if(bytes<31||(s->destination[0]&1)||body[2]||(body[3]&0x3f)!=0x20)return -5;
-        }else if(body[0]!=127||body[1]!=0x18||body[2]!=0xfe||body[3]!=0x34)return -5;
+        }
+#ifdef XNOW_RADIO_READ_VECTOR
+        else if(*(volatile uint32_t *)(uintptr_t)body!=0x34fe187fu)return -5;
+#else
+        else if(body[0]!=127||body[1]!=0x18||body[2]!=0xfe||body[3]!=0x34)return -5;
+#endif
         uint8_t destination[6];for(unsigned i=0;i<6;i++)destination[i]=s->destination[i];
         FN(0xda01,header_fn)((void *)(uintptr_t)packet,destination,13,broadcast);
         if(protected)((volatile uint8_t *)(uintptr_t)packet)[3]|=0x40;

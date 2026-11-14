@@ -47,7 +47,22 @@ no speculative action probe, image installation or automatic scalar retry after
 a failed write. The original 1,500-byte request boundary permits 1,484 data
 bytes per command; a 1,536-byte packet span uses two commands. This changes no
 application payload or CCMP framing. The optional backend adds context fields;
-dev.20 consumers must rebuild against its matching headers/archive.
+consumers must rebuild against the matching headers/archive.
+
+Dev.21 recognizes BLK2 read vectors in an explicitly verified image. Every
+guard validation fetches a new bounded read-only vector, including the image
+marker, pool/control words and packet-node identity. Cached values belong to
+that single validation, are checked against the live lease and are invalidated
+on writes. They are not retained across validations, stop or radio close.
+The radio accepts only aligned first-64-KiB SRAM reads; the sentinel rejects SET.
+The native request uses 43 address/value entries (360 total bytes), checks every
+echoed address and publishes no partial or wrong-image response.
+
+The complete synthetic protected request/reply/completion path falls from
+148 commands to 41 (RX12, TX23, completion6). This is a command-count result,
+not measured hardware throughput. The matching radio payload uses 1,888 of the
+same 1,900 reserved bytes. That reservation is the fourth original large-pool
+block, removed from its allocator; it is not the chip's total SRAM capacity.
 
 The full transport's Root/Core2 fresh-link handshake and the legacy fixed-word
 mailbox below are different profiles. Idle Root/Core2 sessions send no heartbeat.

@@ -2,6 +2,18 @@
 
 ## Current profile boundaries
 
+The installed dev.34 composition uses the dev.20 bulk profile. A cached
+131,872-byte image takes about 46 seconds (2.8 KiB/s), with or without Core2
+progress drawing. Mean request-to-radio-arrival is about 351 ms; this does not
+isolate pure RF or individual X1060 driver calls.
+
+Dev.21's BLK2 read-vector profile is offline only. Original command/response,
+RX and completion instructions pass with the selected 1,888-byte payload.
+Native host-sanitizer and original-libc ARM checks count 41 complete-path
+commands, retain the old 148-command comparison, and reject partial, malformed,
+wrong-image and revoked replies before output publication. No dev.21 image has
+been installed; no hardware speedup, sleep or USB claim follows from these tests.
+
 The dev.19 `link-retirement-03` Root transport and Core2 alpha.29 established
 an authenticated session on the test X1060. Core2 alpha.30 subsequently
 completed an 82,969-byte image and the user confirmed visible cover display.

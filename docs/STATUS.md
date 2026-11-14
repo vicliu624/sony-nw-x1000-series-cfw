@@ -3,11 +3,17 @@
 Target: Japanese NW-X1050/NW-X1060, based on Sony 1.11. International NWZ-X
 firmware and other Walkman families are comparison material only.
 
-The working tree is **0.1.0-dev.34**; SDK source is **0.2.0-alpha.11**.
-The experimental native radio archive source is **0.1.0-dev.20**. Its per-link key
+The working tree is **0.1.0-dev.35**; SDK source is **0.2.0-alpha.12**.
+The experimental native radio archive source is **0.1.0-dev.21**. Its per-link key
 negotiation is connected to the opt-in Root owner and Core2 alpha.29 adapters.
 The matching diagnostic has established a link and delivered authenticated
 player state on hardware; it is not a new public SDK module.
+Dev.35 is an offline optimization: its BLK2 profile reduces the complete modeled
+request/reply/completion from 148 commands to 41 within the same 1,900-byte radio
+reservation. Client/owner FIFOs consume an available header and body in one
+bounded turn, retaining partial I/O, HUP checks and one-record backpressure.
+No dev.35 update image or physical throughput result is available. The target is
+1 Mbps of validated application payload; see [performance](reference/ESPNOW_PERFORMANCE.md).
 The user reports installing the dev.34 diagnostic. Core2 alpha.30 established
 visible artwork on hardware; alpha.31 supplied mode-write UI, and alpha.32 is
 the current application-only timing diagnostic. Its stored binding/channel are
@@ -83,7 +89,7 @@ Mode changes, sleep and USB behavior remain physical acceptance items.
 | Remote controls | The user confirmed basic controls on the earlier matched profile; the installed dev.34 profile advertises typed five-mode writes through the original native request/settings order with explicit command negotiation | Physically qualify all five mode changes and restart behavior; old journals remain unchanged |
 | Remote artwork | Cover display works. Two Core2 alpha.32 reads of the same cached 131,872-byte image take about 46 seconds, with/without progress redraws, about 2.8 KiB/s; final decode is about 0.34 seconds. The 150 ms pacing and 120-second cutoff fixes remain | Reduce the X1060 control-command overhead; isolate live ioctl/RF times. Another track returned source I/O and needs separate investigation |
 | Quiet remote sessions | Current sender emits no heartbeat; Core2 has no periodic reconnect or quiet-session expiry | Confirm interaction-driven recovery with the final hardware composition |
-| Bulk packet IO | Payload-copy tests count 21 RX / 17 TX commands, but the complete backend replay still costs 148 commands per representative protected request/reply/completion. The dev.34 profile has been installed and transfers images; requests stay within the 1,500-byte boundary | Aggregate checked control operations; copying alone did not deliver a large throughput improvement. The replay count is not a live driver-time measurement |
+| Bulk packet IO | Installed dev.34 transfers artwork at about 2.8 KiB/s. Offline BLK2 reduces the complete modeled request/reply/completion from 148 commands to 41 and retains the 1,500-byte command boundary, full packet limits and ownership checks | Measure actual command/PHY timing and validate complete-frame transactions before composition; no physical BLK2 throughput result exists |
 | Sleep and recovery | Native observer tests retain qualified wake entry/completion during a pending transition, defer rearm until stable, and reject recovery after exit | Physical screen-off, suspend and wake timing remain unqualified |
 | USB after remote use | `shared-rx-02` hung after confirmed Remote Off. Actual Root stop functions plus the full controller reproduce a source bug: endpoint drain can execute manager RELEASE before the outer receive/sleep cleanup runs. Dev.19 yields at this transition; host/ARM tests pass connected/unassociated, channel-change and cleanup-failure paths | Physical USB recovery remains unverified. New retirement summaries need a fresh diagnostic seed; the old occupied-slot trace does not describe the failed trial |
 | Root capacity | The new mode/bulk layout adds 640 KiB in an ordinary 148 MiB ext2 model using Sony's formatter, 8 KiB above the installed profile, with about 27.09 MiB nonreserved margin; full content and inode metadata readback pass | Actual NAND geometry, installation and recovery remain unqualified; see [system footprint](SYSTEM_FOOTPRINT.md) |

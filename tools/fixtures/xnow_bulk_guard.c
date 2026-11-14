@@ -18,6 +18,7 @@ static struct xnow_sd8686_full radio;
 static struct xnow_full_profile profile;
 static struct xnow_full_fingerprint code;
 static unsigned scalar_reads, scalar_writes, bulk_calls, data_scalar_writes, aborts;
+static unsigned vector_calls, vector_corrupt;
 static unsigned corrupt;
 static int revoked;
 static uint32_t *cell(uint32_t address) {
@@ -28,24 +29,26 @@ static uint32_t *cell(uint32_t address) {
         return packet + (address - PACKET) / 4;
     return 0;
 }
-static int read_word(void *unused, uint32_t address, uint32_t *value) {
-    (void)unused;
-    scalar_reads++;
+static int memory_word(uint32_t address, uint32_t *value) {
     if (address == 0xc000d5a8u)
         *value = 0x0003076c;
-    else if (address == PACKET - 4)
-        *value = PACKET - 136;
-    else if (address == PACKET - 136 + 8)
-        *value = PACKET;
-    else if (address == PACKET - 136 + 24)
-        *value = 0xc0014728u;
     else {
+        for (uint32_t p = PACKET; p < 0xc000a000u; p += 1900u) {
+            if (address == p - 4) { *value = p - 136; return 0; }
+            if (address == p - 128) { *value = p; return 0; }
+            if (address == p - 112) { *value = 0xc0014728u; return 0; }
+        }
         uint32_t *source = cell(address);
         if (!source)
             return -1;
         *value = *source;
     }
     return 0;
+}
+static int read_word(void *unused, uint32_t address, uint32_t *value) {
+    (void)unused;
+    scalar_reads++;
+    return memory_word(address, value);
 }
 static int write_word(void *unused, uint32_t address, uint32_t value) {
     (void)unused;
@@ -101,6 +104,27 @@ int ioctl(int fd, unsigned long operation, ...) {
         uint32_t value;
         assert(size == 20 && !read_word(0, address, &value));
         put32(frame + 16, value);
+    } else if (action == XNOW_BULK_GET && address == XNOW_BULK_VECTOR_SENTINEL) {
+        vector_calls++;
+        unsigned words = get16(frame + 10);
+        assert(words == XNOW_BULK_VECTOR_FIELDS * 2 && size == 16 + words * 4);
+        for (unsigned i = 0; i < words / 2; ++i) {
+            uint32_t a = get32(frame + 16 + i * 8), value;
+            assert((a & XNOW_BULK_VECTOR_MASK) == XNOW_BULK_VECTOR_REGION);
+            assert(!memory_word(a, &value));
+            put32(frame + 20 + i * 8, value);
+        }
+        if (vector_corrupt == 1) return -1;
+        if (vector_corrupt == 2) request->u.data.length -= 4;
+        if (vector_corrupt == 3) put16(frame + 2, size - 4);
+        if (vector_corrupt == 4) put16(frame + 6, 2);
+        if (vector_corrupt == 5) put16(frame + 8, 0x101);
+        if (vector_corrupt == 6) put16(frame + 10, words - 2);
+        if (vector_corrupt == 7) put32(frame + 12, address + 4);
+        if (vector_corrupt == 8) put32(frame + 16 + 5 * 8, BASE);
+        if (vector_corrupt == 9) put32(frame + 20, 0);
+        if (vector_corrupt == 10) revoked = 1;
+        if (vector_corrupt == 11) put16(frame, 0x8087);
     } else {
         bulk_calls++;
         unsigned words = get16(frame + 10);
@@ -135,7 +159,7 @@ int ioctl(int fd, unsigned long operation, ...) {
         if (corrupt == 9)
             (*cell(layout.rx + 8))++;
     }
-    put16(frame, corrupt == 10 ? 0x8087 : 0x8086);
+    if (vector_corrupt != 11) put16(frame, corrupt == 10 ? 0x8087 : 0x8086);
     return 0;
 }
 static void open_radio(void) {
@@ -143,10 +167,15 @@ static void open_radio(void) {
     memset(state, 0, sizeof state);
     memset(packet, 0, sizeof packet);
     revoked = corrupt = 0;
+    vector_calls = vector_corrupt = 0;
     scalar_reads = scalar_writes = bulk_calls = data_scalar_writes = aborts = 0;
     *cell(layout.tx) = 0x3254584e;
     *cell(layout.rx) = 0x3252584e;
-    *cell(BASE + 256) = 0x314b4c42;
+#ifdef XNOW_VECTOR_FIXTURE
+    *cell(BASE + 256) = XNOW_BULK_VECTOR_MARKER;
+#else
+    *cell(BASE + 256) = XNOW_BULK_IMAGE_MARKER;
+#endif
     code.address = BASE + 256;
     code.bytes = 4;
     struct hb_sha256 hash;
@@ -165,6 +194,7 @@ static void open_radio(void) {
     assert(!xnow_sd8686_full_enable_bulk(&radio, &profile, BASE + 256));
     assert(xnow_sd8686_full_enable_bulk(&radio, &profile, BASE + 256) == XNOW_IDENTITY);
     scalar_reads = scalar_writes = bulk_calls = data_scalar_writes = aborts = 0;
+    vector_calls = 0;
 }
 static void prepare_rx(unsigned bytes) {
     *cell(layout.rx + 4) = 1;
@@ -185,17 +215,28 @@ int main(void) {
         memset(output, 0xa5, sizeof output);
         assert(!xnow_full_guard_read_span(&radio.boundary, PACKET, output, size));
         unsigned calls = (size + 1483u) / 1484u;
-        assert(!memcmp(output, input, size) && bulk_calls == calls && scalar_reads == 20);
+        assert(!memcmp(output, input, size) && bulk_calls == calls);
+#ifdef XNOW_VECTOR_FIXTURE
+        assert(scalar_reads == 0 && vector_calls == 2);
+#else
+        assert(scalar_reads == 20);
+#endif
         for (unsigned tail = size; tail < sizeof output; ++tail)
             assert(output[tail] == 0xa5);
+        unsigned rx_commands = scalar_reads + scalar_writes + bulk_calls + vector_calls;
         *cell(layout.tx + 24) = PACKET;
         *cell(layout.tx + 28) = 1760;
-        scalar_reads = bulk_calls = 0;
+        scalar_reads = bulk_calls = vector_calls = 0;
         assert(!xnow_full_guard_write_span(&radio.boundary, PACKET + 32, input, size));
         assert(!memcmp((uint8_t *)packet + 32, input, size));
-        assert(bulk_calls == calls && scalar_reads == 16 && !data_scalar_writes);
-        printf("BULK bytes=%u RX_commands=%u TX_commands=%u data_commands=%u\n", size, 20 + calls,
-               16 + calls, calls);
+        assert(bulk_calls == calls && !data_scalar_writes);
+#ifdef XNOW_VECTOR_FIXTURE
+        assert(scalar_reads == 0 && vector_calls == 2);
+#else
+        assert(scalar_reads == 16);
+#endif
+        printf("BULK bytes=%u RX_commands=%u TX_commands=%u data_commands=%u\n", size, rx_commands,
+               scalar_reads + scalar_writes + bulk_calls + vector_calls, calls);
     }
     for (unsigned failure = 1; failure <= 10; ++failure) {
         open_radio();
@@ -205,7 +246,11 @@ int main(void) {
         assert(xnow_full_guard_read_span(&radio.boundary, PACKET, output, 1208));
         for (unsigned i = 0; i < sizeof output; ++i)
             assert(output[i] == 0xa5);
+#ifdef XNOW_VECTOR_FIXTURE
+        assert(bulk_calls == (failure == 10 ? 0u : 1u));
+#else
         assert(bulk_calls == 1);
+#endif
         if (failure == 8 || failure == 9)
             assert(radio.boundary.fault);
     }

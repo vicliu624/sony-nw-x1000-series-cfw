@@ -199,6 +199,87 @@ static int bulk_write(void *context, uint32_t address, const void *data, size_t 
     }
     return XNOW_OK;
 }
+/* Each guard validation begins with a pool read. Fetch a new read-only vector
+ * at that boundary; never reuse it for the next validation or after a write. */
+static int vector_fetch(struct xnow_sd8686_full *r) {
+    r->vector.valid = 0;
+    if (r->fd < 0 || !r->boundary.verified || r->boundary.fault || !r->boundary.profile ||
+        !r->lease_valid || !r->lease_valid(r->lease_context))
+        return XNOW_IDENTITY;
+    const struct xnow_full_layout *l = &r->boundary.profile->layout;
+    uint32_t *address = r->vector.address;
+    unsigned n = 0;
+    address[n++] = r->vector.marker;
+    address[n++] = XNOW_BULK_VECTOR_SENTINEL;
+    const uint32_t bases[3] = {l->tx, l->rx, l->completion};
+    const unsigned words[3] = {10, 16, 6};
+    for (unsigned i = 0; i < 3; ++i)
+        for (unsigned j = 0; j < words[i]; ++j)
+            address[n++] = bases[i] + j * 4;
+    for (unsigned p = 0xc0008bd8u; p < 0xc000a000u; p += 1900u) {
+        address[n++] = p - 4;
+        address[n++] = p - 128;
+        address[n++] = p - 112;
+    }
+    if (n != XNOW_BULK_VECTOR_FIELDS)
+        return XNOW_IDENTITY;
+    uint8_t command[XNOW_BULK_HEADER_BYTES + XNOW_BULK_VECTOR_FIELDS * 8];
+    memset(command, 0, sizeof command);
+    put16(command, XNOW_BULK_COMMAND);
+    put16(command + 2, sizeof command);
+    put16(command + 8, XNOW_BULK_GET);
+    put16(command + 10, n * 2);
+    put32(command + 12, XNOW_BULK_VECTOR_SENTINEL);
+    for (unsigned i = 0; i < n; ++i)
+        put32(command + XNOW_BULK_HEADER_BYTES + i * 8, address[i]);
+    struct iwreq request;
+    memset(&request, 0, sizeof request);
+    strcpy(request.ifr_name, "eth0");
+    request.u.data.pointer = command;
+    request.u.data.length = sizeof command;
+    if (xnow_full_original_ioctl(r->fd, 0x8be4, &request) < 0 ||
+        request.u.data.length != sizeof command || get16(command) != 0x8086 ||
+        get16(command + 2) != sizeof command || get16(command + 6) ||
+        get16(command + 8) != XNOW_BULK_GET || get16(command + 10) != n * 2 ||
+        get32(command + 12) != XNOW_BULK_VECTOR_SENTINEL)
+        return XNOW_IO;
+    for (unsigned i = 0; i < n; ++i)
+        if (get32(command + XNOW_BULK_HEADER_BYTES + i * 8) != address[i])
+            return XNOW_IDENTITY;
+    if (get32(command + XNOW_BULK_HEADER_BYTES + 4) != XNOW_BULK_VECTOR_MARKER ||
+        !r->lease_valid(r->lease_context))
+        return XNOW_IDENTITY;
+    for (unsigned i = 0; i < n; ++i)
+        r->vector.value[i] = get32(command + XNOW_BULK_HEADER_BYTES + i * 8 + 4);
+    r->vector.valid = 1;
+    return XNOW_OK;
+}
+static int vector_read(void *context, uint32_t address, uint32_t *out) {
+    struct xnow_sd8686_full *r = context;
+    if (!out || r->fd < 0 || !r->lease_valid || !r->lease_valid(r->lease_context))
+        return XNOW_IDENTITY;
+    if (address == XNOW_BULK_VECTOR_SENTINEL) {
+        int rc = vector_fetch(r);
+        if (rc) {
+            r->boundary.fault = 1;
+            return rc;
+        }
+    }
+    if (r->vector.valid)
+        for (unsigned i = 0; i < XNOW_BULK_VECTOR_FIELDS; ++i)
+            if (r->vector.address[i] == address) {
+                *out = r->vector.value[i];
+                return XNOW_OK;
+            }
+    return r->vector.scalar.read(r->vector.scalar.context, address, out);
+}
+static int vector_write(void *context, uint32_t address, uint32_t value) {
+    struct xnow_sd8686_full *r = context;
+    r->vector.valid = 0;
+    if (r->fd < 0 || !r->lease_valid || !r->lease_valid(r->lease_context))
+        return XNOW_IDENTITY;
+    return r->vector.scalar.write(r->vector.scalar.context, address, value);
+}
 int xnow_sd8686_full_enable_bulk(struct xnow_sd8686_full *r,
                                  const struct xnow_full_profile *profile, uint32_t marker) {
     if (!r || !profile || r->boundary.profile != profile || (marker & 3) || !r->boundary.verified ||
@@ -212,10 +293,18 @@ int xnow_sd8686_full_enable_bulk(struct xnow_sd8686_full *r,
             included = 1;
     }
     uint32_t value;
-    if (!included || word(r, marker, 0, &value) || value != BULK_MARKER)
+    if (!included || word(r, marker, 0, &value) ||
+        (value != BULK_MARKER && value != XNOW_BULK_VECTOR_MARKER))
         return XNOW_IDENTITY;
     struct xnow_full_span_io bulk = {r, bulk_read, bulk_write};
-    return xnow_full_guard_bulk(&r->boundary, &bulk);
+    int result = xnow_full_guard_bulk(&r->boundary, &bulk);
+    if (!result && value == XNOW_BULK_VECTOR_MARKER) {
+        r->vector.valid = 0;
+        r->vector.marker = marker;
+        r->vector.scalar = r->boundary.raw;
+        r->boundary.raw = (struct xnow_word_io){r, vector_read, vector_write};
+    }
+    return result;
 }
 static int channel_request(struct xnow_sd8686_full *r, unsigned set, unsigned channel,
                            unsigned *observed) {
@@ -292,5 +381,6 @@ void xnow_sd8686_full_close(struct xnow_sd8686_full *r) {
         xnow_full_guard_close(&r->boundary);
         r->lease_valid = 0;
         r->lease_context = 0;
+        memset(&r->vector, 0, sizeof r->vector);
     }
 }

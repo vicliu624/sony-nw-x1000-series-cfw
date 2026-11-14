@@ -12,13 +12,13 @@ static void backend_open(struct xnow_full *backend) {
     assert(!xnow_full_open(backend, &bounded, &layout));
     assert(!xnow_sd8686_full_enable_spans(&radio, backend));
     assert(!xnow_sd8686_full_enable_bulk(&radio, &profile, BASE + 256));
-    scalar_reads = scalar_writes = bulk_calls = 0;
+    scalar_reads = scalar_writes = bulk_calls = vector_calls = 0;
 }
 static unsigned report_cost(const char *name) {
-    unsigned count = scalar_reads + scalar_writes + bulk_calls;
-    printf("FRAME_COST %s scalar_reads=%u scalar_writes=%u bulk=%u total=%u\n",
-           name, scalar_reads, scalar_writes, bulk_calls, count);
-    scalar_reads = scalar_writes = bulk_calls = 0;
+    unsigned count = scalar_reads + scalar_writes + bulk_calls + vector_calls;
+    printf("FRAME_COST %s scalar_reads=%u scalar_writes=%u bulk=%u vector=%u total=%u\n",
+           name, scalar_reads, scalar_writes, bulk_calls, vector_calls, count);
+    scalar_reads = scalar_writes = bulk_calls = vector_calls = 0;
     return count;
 }
 int main(void) {
@@ -46,8 +46,35 @@ int main(void) {
     assert(!xnow_full_receive_action(&backend, local, received, sizeof received, &used));
     assert(used == 144 && bulk_calls == 1 && received[0] == 0xd0 && received[1] == 0x40);
     unsigned request = report_cost("protected-120-byte-body-RX");
+#ifdef XNOW_VECTOR_FIXTURE
+    assert(sent + complete + request <= 50);
+#else
     assert(sent > 17 && request > 21);
+#endif
     printf("CACHED_IMAGE_CHUNK radio_commands=%u payload_copies=2; excludes GUI RPC, "
            "empty polls, encryption and peer retries\n", sent + complete + request);
+#ifdef XNOW_VECTOR_FIXTURE
+    for (unsigned failure = 1; failure <= 11; ++failure) {
+        backend_open(&backend);
+        prepare_rx(120);
+        memset(received, 0xa5, sizeof received);
+        used = 0xdead;
+        vector_corrupt = failure;
+        assert(xnow_full_receive_action(&backend, local, received, sizeof received, &used));
+        assert(radio.boundary.fault && used == 0xdead);
+        for (unsigned i = 0; i < sizeof received; ++i) assert(received[i] == 0xa5);
+    }
+    backend_open(&backend);
+    uint32_t value;
+    assert(!backend.io.read(backend.io.context, layout.tx + 8, &value) && !value);
+    unsigned before = vector_calls;
+    *cell(layout.tx + 8) = 77;
+    assert(!backend.io.read(backend.io.context, layout.tx + 8, &value) && value == 77);
+    assert(vector_calls == before + 1);
+    assert(!backend.io.write(backend.io.context, layout.tx + 20, 100));
+    assert(!radio.vector.valid && *cell(layout.tx + 20) == 100);
+    puts("READ_VECTOR_GUARD_PASS: fresh snapshot per validation, write invalidation, "
+         "malformed/partial/stale-image/revoked replies fail before output publication");
+#endif
     return 0;
 }

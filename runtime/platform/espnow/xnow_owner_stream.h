@@ -16,7 +16,8 @@ extern "C" {
 /* Fresh object. Requires distinct, already nonblocking readonly/writeonly FIFO
  * descriptions. Duplicates as CLOEXEC without changing caller file flags. */
 int xnow_owner_stream_open(struct xnow_owner_stream *,struct xnow_owner_commands *,int input,int output);
-/* At most one bounded read or write per step. Checks pipe HUP before dispatch,
+/* At most one write or two reads (one header and body) per step. Partial IO
+ * and EAGAIN yield; at most one request is dispatched. Checks HUP before each IO,
  * including HUP with unread data. Bad framing, EOF, reused FDs or I/O failure
  * wipe staged keys/data and request controller STOP, never claim restoration. */
 int xnow_owner_stream_step(struct xnow_owner_stream *);
