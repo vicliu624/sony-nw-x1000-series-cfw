@@ -28,12 +28,10 @@ language preference reads. A separate Language app is not part of this profile
 or its release/setup packages. Historical external/cache candidates remain
 separate; retaining their sources does not qualify them for current firmware.
 
-`tools/prepare_builtin_localization.py` prepares a root-resource overlay from
-the retained translations. Against candidate9, Japanese is unchanged and complete
-English/Simplified/Traditional replacements add48228 bytes in total, before block
-rounding. Required Japanese wording entries are all present. It produces no UPG
-and does not yet remove hooks or expose the Settings selector. Final occupancy
-must be recomputed against the selected firmware base, not inferred from ZIP size.
+For a root-resource review use `tools/release_firmware.py --root-only --output
+<new-work-directory>`. It uses the pinned stock root and the four checked-in
+translation documents. Historical wording-overlay experiments remain in Git
+history. Final occupancy must be recomputed against the selected firmware base.
 
 Pinned stock analysis identifies UI:LANGUAGE, category11/item0xb00. The getter
 is0x3d6dc and the original setter/apply wrapper is0x3dedc. Confirmation callback
@@ -44,11 +42,12 @@ the original confirmation instructions for both market layouts and cancel cases
 (16 passes); persistence and UI boundaries are modeled, not device-qualified.
 Function0x39af8 belongs to reset-settings flow and is not the language setter.
 
-`tools/prepare_builtin_language_settings.py` enables the existing language item
-without changing the market classification. It retains the Japanese Settings
+`tools/builtin_language.py` enables the existing language item without changing
+the market classification. It retains the Japanese Settings
 list's ten entries, appends0xf80000 in an unused44-byte read-only region and
 updates only that list pointer/count. Original selector/callbacks remain intact.
-ARM replay covers95 list IDs under both classifications (190 cases), requiring
+Run `tools/test_builtin_firmware.py --replay-settings <existing-upg>` to replay
+95 list IDs under both classifications (190 cases), requiring
 all other lists unchanged. ELF length is unchanged. This preserves the original
 language picker rather than claiming a new four-item UI: four language resources
 are completed; other native languages retain their original coverage. Hardware
@@ -73,17 +72,18 @@ not add process-cache hooks or generate external language files. Its Settings
 edit is the same pinned edit checked by the ARM list replay. This option alone
 does not activate the player SDK or add Wireless Remote to Settings.
 `tools/test_builtin_firmware.py` independently unpacks that local UPG, compares
-the retained completed translations, verifies the unchanged first three
-components and checks archive changes and existing metadata. The tested build
+every wording ID with stock text and the checked-in translations, verifies the
+unchanged first three components, and checks archive changes and metadata. The tested build
 adds98754 regular-file bytes versus stock; a4KiB regular-file allocation estimate
 adds106496 bytes. These figures exclude filesystem metadata/reserved blocks and
 are not a free-space or hardware qualification. No extra original-player copy is
 included in this profile.
 
-Source is in runtime/apps/language; shared Sony lifecycle/resource code remains
-under runtime/native. Builders include build_language_packs.py,
-build_external_language_app.py, build_external_language_bridge.py and
-build_process_language_cache.py. They are PC tools, not device scripts.
+The legacy switcher remains in `runtime/apps/language`. Use `tools/build_app.py
+language` for its independent build and `tools/build_language_packs.py` for
+data-only packs. The independent parser check accepts an explicit English STX
+via `tools/test_external_language_pack.py --wording <file>`. Archived candidate
+build recipes and replays are available from Git history.
 
 Wording and resource analysis distinguishes STX strings, SWD layouts and indexed
 TEXGRP graphics. style.dat has204 layout slots and32 control slots per layout;
