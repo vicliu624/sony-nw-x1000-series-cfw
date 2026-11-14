@@ -34,6 +34,14 @@ work output. Optional device-full composition is not a hardware-ready claim.
 Do not ship synthetic identities or test CAs. Do not import another client's
 cookies/cache or repeatedly issue fresh QR codes to avoid debugging later stages.
 
+For distributable app files, use the [standard application build](../APP_SPEC.md)
+with an explicit public installation profile. Package the finished directory
+using `tools/sdk.py package qqmusic --from-package <directory>`.
+QQ Startup Check builds separately with `tools/build_app.py qqcheck` and uses
+`runtime/apps/qqcheck/VERSION`. Its ZIP can be generated with `tools/sdk.py
+package qqcheck --from-package <directory>`. The earlier combined package
+recipes are retained in Git history for reproducing old artifacts.
+
 ## Wi-Fi findings and priorities
 
 The physical existing connection uses eth0. Default route/DNS and a public ICMP
