@@ -1,6 +1,6 @@
 """Build an analysis-only owner-loop DSO and one-instruction ELF candidate."""
 from pathlib import Path
-import contextlib,hashlib,io,json,struct,subprocess,runpy,time
+import hashlib,io,json,struct,subprocess,time
 from elftools.elf.elffile import ELFFile
 ROOT=Path(__file__).resolve().parents[1]
 CORE_SOURCES=['runtime/platform/player/host_hook.c','runtime/platform/player/host_pid.S','runtime/platform/player/client.c','runtime/platform/player/stock_provider.c','runtime/platform/player/stock_info.c','runtime/platform/player/local_identity.c','runtime/platform/player/stock_gui.c','runtime/platform/player/stock_volume.c','runtime/platform/player/stock_image.c','runtime/native/sha256.c']
@@ -130,23 +130,20 @@ def build(engine_provider=False,managed_host=False,native_prepare=False,builtin_
             raise ValueError('Mode control requires the managed native player composition')
     stock=(ROOT/'work/targets-jp/SpiderApp').read_bytes()
     if hashlib.sha256(stock).hexdigest()!=STOCK_SHA:raise ValueError('Pinned Japanese1.11 image required')
-    composition=None
-    if builtin_localization:
-        from player_prepare_bridge import build_builtin
-        composition_dir=work/'builtin-composition'
+    composition_report=None
+    if native_prepare:
+        from player_prepare_bridge import build_builtin,build_external_prepare
+        composition_dir=work/('builtin-composition' if builtin_localization else 'external-language-composition')
         if review_output is None:
             composition_dir/=str(time.time_ns())
-        _,artifact,composition_report=build_builtin(composition_dir,stock,native_settings=native_remote_settings)
-        composition=dict(artifact=artifact,work=composition_dir,edit=composition_report['prepare_edit'],
-                         owner_edit=composition_report['owner_edit'],met_edit=composition_report['met_edit'],
-                         source_hashes=composition_report['source_hashes'])
-    elif native_prepare:
-        with contextlib.redirect_stdout(io.StringIO()):
-            composition=runpy.run_path(str(ROOT/'tools/test_player_prepare_composition.py'))
+        if builtin_localization:
+            _,composition_artifact,composition_report=build_builtin(composition_dir,stock,native_settings=native_remote_settings)
+        else:
+            _,composition_artifact,composition_report=build_external_prepare(composition_dir,stock)
     wireless_composition=None;rf_composition=None;sleep_composition=None
     if native_wireless_settings:
         from wireless_callback_bridge import compose
-        wireless_candidate,wireless_composition=compose(composition['artifact'].read_bytes(),work/'wireless-callback',stock_return=bool(shared_wifi))
+        wireless_candidate,wireless_composition=compose(composition_artifact.read_bytes(),work/'wireless-callback',stock_return=bool(shared_wifi))
         from wireless_init_bridge import compose as compose_init
         wireless_candidate,wireless_init=compose_init(wireless_candidate,work/'wireless-init',2 if shared_wifi else 3)
         wireless_composition['initializer']=wireless_init
@@ -188,14 +185,11 @@ def build(engine_provider=False,managed_host=False,native_prepare=False,builtin_
     settings_visible_count=None;artwork_composition=None
     if stock_artwork_fix:from stock_artwork_fix import compose as compose_artwork
     if native_prepare:
-        candidate=composition['artifact'].read_bytes();combined=candidate
+        candidate=composition_artifact.read_bytes();combined=candidate
         if native_wireless_settings:
             if hashlib.sha256(candidate).hexdigest()!=wireless_composition['base_sha256']:raise ValueError('Wireless base composition changed during build')
             candidate=combined=wireless_candidate
-        if builtin_localization:
-            edit=composition['owner_edit'];met_edit=composition['met_edit']
-        else:
-            edit=composition['composition']['edit'];met_edit=composition['composition']['met_edit']
+        edit=composition_report['owner_edit'];met_edit=composition_report['met_edit']
         if stock_artwork_fix:
             candidate,artwork_composition=compose_artwork(candidate);combined=candidate
         if native_remote_settings:
@@ -237,11 +231,10 @@ def build(engine_provider=False,managed_host=False,native_prepare=False,builtin_
     dso=ELFFile(io.BytesIO(library.read_bytes()))
     needed=[tag.needed for tag in dso.get_section_by_name('.dynamic').iter_tags() if tag.entry.d_tag=='DT_NEEDED']
     inputs=sorted(set(sources+['tools/build_player_host.py','tools/build_player_met_anchor.py','runtime/native/sha256.h','runtime/store/deadline.h']+[p.relative_to(ROOT).as_posix() for p in (ROOT/'runtime/platform/player').glob('*.h')]))
-    if composition:
-        inputs += [composition['artifact'].relative_to(ROOT).as_posix(),
-                   (composition['work']/'report.json').relative_to(ROOT).as_posix()]
-        inputs += list(composition['source_hashes']) if builtin_localization else [
-            'tools/player_prepare_bridge.py','tools/test_player_prepare_composition.py']
+    if composition_report:
+        inputs += [composition_artifact.relative_to(ROOT).as_posix(),
+                   (composition_dir/'report.json').relative_to(ROOT).as_posix(),
+                   *composition_report['source_hashes']]
         if native_remote_settings:
             inputs.append(composition_report['settings_resource_review'])
     if settings_visible_count:inputs+=list(settings_visible_count['source_hashes'])
@@ -282,7 +275,7 @@ def build(engine_provider=False,managed_host=False,native_prepare=False,builtin_
         limits=['No preload/boot integration is installed or included in a firmware package.','The DSO contains the local endpoint and experimental native-Moma metadata/default-track and FORMAT3 playlist-prototype workers; playlist semantics, queue and physical runtime qualification remain incomplete.','PID/anchor, native ABI and host-worker fixtures are separate evidence; Sony worker creation, resource handoff and hardware are unqualified.'])
     if engine_provider:report['limits'].append('Explicit engine-provider analysis profile only: original owner/lifetime, managed grants, deferred teardown, post-handoff control and real playback remain unqualified; not ready to install.')
     if managed_host:report['limits'].append('Managed profile has one caller-owned session workspace and no automatic listener/authorization source. Trusted descriptor offer and native exit hooks remain uninstalled; no physical service qualification.')
-    if composition:report.update(prepare_edit=composition['edit'],prepare_bridge_growth_bytes=0,source_composition_report=str((composition['work']/'report.json').relative_to(ROOT)))
+    if composition_report:report.update(prepare_edit=composition_report['prepare_edit'],prepare_bridge_growth_bytes=0,source_composition_report=(composition_dir/'report.json').relative_to(ROOT).as_posix())
     if native_prepare:report['limits'].append('Explicit native-prepare analysis pairing only; original manager descriptor delivery, complete intervening-event ordering, loader/hardware acceptance and recovery remain unqualified. No firmware activation.')
     report['native_sleep_analysis']=native_sleep_analysis
     report['warm_homebrew_analysis']=warm_homebrew

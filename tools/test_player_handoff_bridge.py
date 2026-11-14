@@ -1,11 +1,14 @@
 """Production C command6 wait/view -> original coordinator, offline ARM only."""
-import contextlib,hashlib,io,json,runpy,struct,subprocess,time
+import hashlib,io,json,struct,subprocess,time
 from app_registry import ROOT
+from player_prepare_bridge import build_external_prepare
 from elftools.elf.elffile import ELFFile
 from unicorn import Uc,UC_ARCH_ARM,UC_MODE_ARM,UC_HOOK_CODE
 from unicorn.arm_const import UC_ARM_REG_R0,UC_ARM_REG_R1,UC_ARM_REG_R2,UC_ARM_REG_SP,UC_ARM_REG_LR,UC_ARM_REG_PC
 out=ROOT/'work/player-handoff-bridge'/str(time.time_ns());out.mkdir(parents=True)
-with contextlib.redirect_stdout(io.StringIO()):base=runpy.run_path(str(ROOT/'tools/test_player_prepare_composition.py'))['artifact'].read_bytes()
+stock=(ROOT/'work/targets-jp/SpiderApp').read_bytes()
+_,artifact,_=build_external_prepare(out/'base',stock)
+base=artifact.read_bytes()
 sources=['runtime/platform/player/'+name for name in ('host_handoff_bridge.c','stock_prepare_view.c','stock_image.c')]+['runtime/native/sha256.c','tools/fixtures/player_handoff_bridge.c']
 binary=out/'handoff.arm'
 subprocess.run(['arm-linux-gnueabi-gcc','-std=c99','-Os','-Wall','-Wextra','-Werror','-Wno-misleading-indentation','-march=armv5te','-marm','-mfloat-abi=soft','-ffreestanding','-fno-builtin','-fno-stack-protector','-fno-pie','-no-pie','-nostdlib','-Wl,--build-id=none,-Ttext=0x50000000,-e,_start',*sources,'-lgcc','-o',str(binary)],cwd=ROOT,check=True)

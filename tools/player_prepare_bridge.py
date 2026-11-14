@@ -5,6 +5,7 @@ import io
 import json
 import re
 from elftools.elf.elffile import ELFFile
+from app_registry import ROOT
 from build_player_met_anchor import branch, patch_met_anchor
 PREPARE_BRIDGE=0x4d7fc0
 PREPARE_HANDLED=0x58575052
@@ -75,8 +76,41 @@ def patch_prepare_bridge(raw,original,*,profile='external-language'):
                              original_spans=spans,stock_sha256=stock_hash)
 
 
+def check_stock_spans(owner):
+    native_guards = []
+    elf = ELFFile(io.BytesIO(owner))
+    loads = [segment for segment in elf.iter_segments() if segment['p_type'] == 'PT_LOAD']
+    for path in sorted((ROOT / 'runtime/platform/player').glob('stock_*.c')):
+        name = path.relative_to(ROOT).as_posix()
+        source = path.read_text(encoding='utf-8')
+        arrays = [(match.start(), match[1], bytes(int(value, 16) for value in
+                   re.findall(r'0x([0-9a-fA-F]+)', match[2])))
+                  for match in re.finditer(r'(\w+)\[32\]\s*=\s*\{([^}]+)\}', source)]
+        calls = [(*match.groups(), match.start()) for match in re.finditer(
+            r'xw_stock_image_match\(\s*(0x[0-9a-fA-F]+)u?\s*,\s*(0x[0-9a-fA-F]+)u?\s*,\s*(\w+)\s*\)', source)]
+        if path.name == 'stock_volume.c':
+            constants = dict(re.findall(r'#define\s+(REGION_\w+)\s+(0x[0-9a-fA-F]+)u?', source))
+            count = int(constants['REGION_END'], 16) - int(constants['REGION_BEGIN'], 16)
+            calls.append((constants['REGION_BEGIN'], hex(count), 'expected', len(source)))
+        for address, length, identifier, position in calls:
+            expected = next(value for start, symbol, value in reversed(arrays)
+                            if symbol == identifier and start < position)
+            start, count = int(address, 16), int(length, 16)
+            mappings = [segment for segment in loads if segment['p_vaddr'] <= start
+                        and start + count <= segment['p_vaddr'] + segment['p_filesz']]
+            if len(mappings) != 1:
+                raise ValueError(f'Expected one stock guard mapping at {address}')
+            segment = mappings[0]
+            offset = segment['p_offset'] + start - segment['p_vaddr']
+            if hashlib.sha256(owner[offset:offset + count]).digest() != expected:
+                raise ValueError(f'Stock guard mismatch in {name} at {address}')
+            native_guards.append(dict(source=name, address=address, bytes=count, digest=identifier))
+    if len(native_guards) < 17:
+        raise ValueError('Missing stock player guards')
+    return native_guards
+
+
 def build_builtin(out, stock, *, native_settings=False):
-    from app_registry import ROOT
     from build_home_feedback import build as build_home
     from build_player_host import patch_owner_anchor
     from builtin_language import enable_home_settings
@@ -102,37 +136,10 @@ def build_builtin(out, stock, *, native_settings=False):
     sources.extend(home_sources)
 
     owner, owner_edit = patch_owner_anchor(base)
-    native_guards = []
-    elf = ELFFile(io.BytesIO(owner))
-    loads = [segment for segment in elf.iter_segments() if segment['p_type'] == 'PT_LOAD']
-    for path in sorted((ROOT / 'runtime/platform/player').glob('stock_*.c')):
-        name = path.relative_to(ROOT).as_posix()
-        sources.append(name)
-        source = path.read_text(encoding='utf-8')
-        arrays = [(match.start(), match[1], bytes(int(value, 16) for value in
-                   re.findall(r'0x([0-9a-fA-F]+)', match[2])))
-                  for match in re.finditer(r'(\w+)\[32\]\s*=\s*\{([^}]+)\}', source)]
-        calls = [(*match.groups(), match.start()) for match in re.finditer(
-            r'xw_stock_image_match\(\s*(0x[0-9a-fA-F]+)u?\s*,\s*(0x[0-9a-fA-F]+)u?\s*,\s*(\w+)\s*\)', source)]
-        if path.name == 'stock_volume.c':
-            constants = dict(re.findall(r'#define\s+(REGION_\w+)\s+(0x[0-9a-fA-F]+)u?', source))
-            count = int(constants['REGION_END'], 16) - int(constants['REGION_BEGIN'], 16)
-            calls.append((constants['REGION_BEGIN'], hex(count), 'expected', len(source)))
-        for address, length, identifier, position in calls:
-            expected = next(value for start, symbol, value in reversed(arrays)
-                            if symbol == identifier and start < position)
-            start, count = int(address, 16), int(length, 16)
-            mappings = [segment for segment in loads if segment['p_vaddr'] <= start
-                        and start + count <= segment['p_vaddr'] + segment['p_filesz']]
-            if len(mappings) != 1:
-                raise ValueError(f'Expected one stock guard mapping at {address}')
-            segment = mappings[0]
-            offset = segment['p_offset'] + start - segment['p_vaddr']
-            if hashlib.sha256(owner[offset:offset + count]).digest() != expected:
-                raise ValueError(f'Stock guard mismatch in {name} at {address}')
-            native_guards.append(dict(source=name, address=address, bytes=count))
-    if len(native_guards) < 17:
-        raise ValueError('Missing stock player guards')
+    guards = check_stock_spans(owner)
+    sources.extend(path.relative_to(ROOT).as_posix()
+                   for path in (ROOT / 'runtime/platform/player').glob('stock_*.c'))
+    native_guards = [{key: row[key] for key in ('source', 'address', 'bytes')} for row in guards]
     met, met_edit = patch_met_anchor(owner, mapped_stub=0x4d7ff0)
     candidate, prepare_edit = patch_prepare_bridge(met, stock, profile=profile)
     artifact = out / 'SpiderApp.builtin-player-met.analysis-only.elf'
@@ -148,3 +155,61 @@ def build_builtin(out, stock, *, native_settings=False):
                                  for name in sorted(set(sources))})
     (out / 'report.json').write_text(json.dumps(report, indent=2) + '\n', encoding='utf-8')
     return base, artifact, report
+
+
+def build_external_language(out):
+    """Build the legacy Homebrew language cache and the player owner/Met anchors."""
+    from build_home_feedback import build as build_home
+    from build_player_host import patch_owner_anchor
+    from builtin_language import normalize_home_feedback
+    from release_firmware import add_language_cache
+
+    out.mkdir(parents=True)
+    home, symbols, home_report = build_home(out / 'home')
+    base = add_language_cache(normalize_home_feedback(home, symbols), out)
+    owner, owner_edit = patch_owner_anchor(base)
+    guards = check_stock_spans(owner)
+    hook = (ROOT / 'runtime/platform/player/host_hook.c').read_text(encoding='utf-8')
+    declaration = re.search(r'\banchor_digest\s*\[\s*32\s*\]\s*=\s*\{([^}]+)\}', hook)
+    if declaration is None:
+        raise ValueError('Missing literal owner-anchor digest in host_hook.c')
+    digest = bytes(int(value, 16) for value in re.findall(r'0x([0-9a-fA-F]+)', declaration[1]))
+    elf = ELFFile(io.BytesIO(owner))
+    address = int(owner_edit['address'], 16)
+    segment = next(segment for segment in elf.iter_segments() if segment['p_type'] == 'PT_LOAD'
+                   and segment['p_vaddr'] <= address and address + 8 <= segment['p_vaddr'] + segment['p_filesz'])
+    offset = segment['p_offset'] + address - segment['p_vaddr']
+    if hashlib.sha256(owner[offset:offset + 8]).digest() != digest:
+        raise ValueError('Owner anchor does not match host_hook.c digest')
+    met, met_edit = patch_met_anchor(owner, mapped_stub=0x4d7ff0)
+    sources = ['tools/player_prepare_bridge.py', 'tools/builtin_language.py',
+               'tools/build_player_host.py', 'tools/build_player_met_anchor.py',
+               'tools/release_firmware.py', 'runtime/platform/player/host_hook.c',
+               'runtime/apps/language/process_cache_entry.S', 'runtime/apps/language/process_cache.c',
+               'runtime/apps/language/package.c', 'runtime/apps/language/package.h', 'runtime/native/sha256.c']
+    sources.extend(path.relative_to(ROOT).as_posix()
+                   for path in (ROOT / 'runtime/platform/player').glob('stock_*.c'))
+    report = dict(baseline_sha256=hashlib.sha256(base).hexdigest(),
+                  composite_sha256=hashlib.sha256(owner).hexdigest(),
+                  combined_sha256=hashlib.sha256(met).hexdigest(),
+                  anchor_edit=owner_edit, met_edit=met_edit, native_guard_checks=guards,
+                  home_source_hashes=home_report['source_hashes'],
+                  source_hashes={name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest()
+                                 for name in sources})
+    return base, owner, met, report
+
+
+def build_external_prepare(out, stock):
+    _, _, met, composition = build_external_language(out)
+    candidate, edit = patch_prepare_bridge(met, stock)
+    artifact = out / 'SpiderApp.prepare-bridge.analysis-only.elf'
+    artifact.write_bytes(candidate)
+    report = dict(analysis_only=True, ready_to_flash=False, device_accessed=False,
+                  firmware_package_created=False, base_sha256=composition['combined_sha256'],
+                  candidate_sha256=hashlib.sha256(candidate).hexdigest(),
+                  artifact=artifact.relative_to(ROOT).as_posix(),
+                  owner_edit=composition['anchor_edit'], met_edit=composition['met_edit'],
+                  prepare_edit=edit, native_guard_checks=composition['native_guard_checks'],
+                  source_hashes={**composition['source_hashes'], **composition['home_source_hashes']})
+    (out / 'report.json').write_text(json.dumps(report, indent=2) + '\n', encoding='utf-8')
+    return met, artifact, report

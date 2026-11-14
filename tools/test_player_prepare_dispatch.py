@@ -2,17 +2,19 @@
 
 Host ownership policy, workers and native component effects remain fixtures.
 """
-import contextlib,hashlib,io,json,runpy,struct,subprocess,time,sys
+import hashlib,io,json,struct,subprocess,time,sys
 from elftools.elf.elffile import ELFFile
 from unicorn import Uc,UC_ARCH_ARM,UC_MODE_ARM,UC_HOOK_CODE
 from unicorn.arm_const import UC_ARM_REG_R0,UC_ARM_REG_R1,UC_ARM_REG_R2,UC_ARM_REG_SP,UC_ARM_REG_LR,UC_ARM_REG_PC
 from app_registry import ROOT
+from player_prepare_bridge import build_external_prepare
 work=ROOT/'work/player-prepare-dispatch'/str(time.time_ns());work.mkdir(parents=True)
 wireless='--wireless' in sys.argv
 original_finalize='--finalize-original' in sys.argv
 assert not original_finalize or wireless
-with contextlib.redirect_stdout(io.StringIO()):composed=runpy.run_path(str(ROOT/'tools/test_player_prepare_composition.py'))
-native=composed['artifact'].read_bytes()
+stock=(ROOT/'work/targets-jp/SpiderApp').read_bytes()
+_,artifact,_=build_external_prepare(work/'base',stock)
+native=artifact.read_bytes()
 sources=['runtime/platform/player/'+n for n in ('host_pid.S','host_prepare_bridge.c','stock_prepare_view.c','stock_image.c','client.c','service_drain.c','deferred_prepare.c')]+['runtime/platform/services/session.c','runtime/native/sha256.c','tools/fixtures/player_prepare_dispatch.c']
 binary=work/'dispatch.arm'
 subprocess.run(['arm-linux-gnueabi-gcc','-std=c99','-Os','-Wall','-Wextra','-Werror','-Wno-misleading-indentation','-march=armv5te','-marm','-mfloat-abi=soft','-DXW_PLAYER_CAPTURE_ARG2',*(['-DXW_PLAYER_NATIVE_RF'] if wireless else []),'-ffreestanding','-fno-builtin','-fno-stack-protector','-fno-pie','-no-pie','-nostdlib','-Wl,--build-id=none,-Ttext=0x50000000,-e,_start',*sources,'-lgcc','-o',str(binary)],cwd=ROOT,check=True)

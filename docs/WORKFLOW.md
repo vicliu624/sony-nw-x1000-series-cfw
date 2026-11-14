@@ -17,7 +17,7 @@ numbers identify delivery artifacts, not another implementation of the workflow.
 
 ## Build and verification inputs
 
-The current player host builds its built-in composition once per invocation.
+The player host builds its selected language composition once per invocation.
 The builder validates the stock image and patch spans, and records the resulting
 ELF and Settings overlay with their input identities. Independent tests use the
 same builder, then execute the refusal cases and ARM replay. Packaging consumes

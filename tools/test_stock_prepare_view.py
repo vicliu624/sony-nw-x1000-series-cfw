@@ -1,13 +1,14 @@
 """Actual ARM read-only pre-prepare view on a fresh composed bridge image."""
-import contextlib,hashlib,io,json,runpy,struct,subprocess,time
+import hashlib,io,json,struct,subprocess,time
 from elftools.elf.elffile import ELFFile
 from unicorn import Uc,UC_ARCH_ARM,UC_MODE_ARM
 from unicorn.arm_const import UC_ARM_REG_R0,UC_ARM_REG_R1,UC_ARM_REG_SP,UC_ARM_REG_LR,UC_ARM_REG_PC
 from app_registry import ROOT
+from player_prepare_bridge import build_external_prepare
 work=ROOT/'work/stock-prepare-view'/str(time.time_ns());work.mkdir(parents=True)
-with contextlib.redirect_stdout(io.StringIO()):
-    composed=runpy.run_path(str(ROOT/'tools/test_player_prepare_composition.py'))
-native=composed['artifact'].read_bytes()
+stock=(ROOT/'work/targets-jp/SpiderApp').read_bytes()
+_,artifact,_=build_external_prepare(work/'base',stock)
+native=artifact.read_bytes()
 sources=['runtime/platform/player/stock_prepare_view.c','runtime/platform/player/stock_image.c','runtime/native/sha256.c','tools/fixtures/player_prepare_view.c']
 binary=work/'view.arm'
 subprocess.run(['arm-linux-gnueabi-gcc','-std=c99','-Os','-Wall','-Wextra','-Werror','-Wno-misleading-indentation','-march=armv5te','-marm','-mfloat-abi=soft','-ffreestanding','-fno-builtin','-fno-stack-protector','-fno-pie','-no-pie','-nostdlib','-Wl,--build-id=none,-Ttext=0x50000000,-e,_start',*sources,'-lgcc','-o',str(binary)],cwd=ROOT,check=True)
