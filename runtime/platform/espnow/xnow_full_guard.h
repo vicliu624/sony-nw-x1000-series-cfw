@@ -12,9 +12,10 @@ struct xnow_full_profile {
 };
 /* Internal device-adapter boundary, not an arbitrary-address public SDK API.
  * Profile must be generated/compiled from a verified image. raw is a private
- * matching-driver word transport. Lease must become invalid on USB/sleep/reset
- * or loss of exclusive radio ownership; a boolean supplied by an app is not
- * an actual ownership implementation. Runtime checks exclude reclaimed tables. */
+ * matching-driver word transport. Data admission closes for USB/sleep/stop;
+ * the resource lease remains valid through authorized drain. Actual reset,
+ * identity or ownership loss invalidates it. A boolean supplied by an app is
+ * not an ownership implementation. Runtime checks exclude reclaimed tables. */
 struct xnow_full_guard {
     struct xnow_word_io raw;
     const struct xnow_full_profile *profile;

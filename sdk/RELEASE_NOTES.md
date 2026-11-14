@@ -1,3 +1,24 @@
+# X1000 SDK 0.2.0-alpha.13 (unreleased)
+
+Adds an optional exact-image FRM1 packet backend. Submit, TX completion, staged
+RX and consumption have distinct outcomes. The protected frame-body limit stays
+1,536 bytes using at most two submit commands; application payload limits stay
+unchanged. Source consumers rebuild for the extended private device/backend
+contexts. Supplied `espnow-client` FIFOs keep their existing wire contract.
+
+Uncertain data is never replayed. Ticket cancellation fences and correlated
+readback can prove a cancellation or the exact in-flight TX to drain; new data
+admission closes while the caller still sees UNCERTAIN. Unresolved resources
+retain the unsafe hold. RX and completion acknowledgements are idempotent,
+bounded and scoped to their original absolute ticket. Stop closes raw receive
+admission; stop_step/discard retain the private drain path.
+
+Host-sanitizer and original-libc ARM checks connect the real native adapter to
+the exact original MCU dispatch/packet/release path. The representative complete
+exchange costs eight commands instead of 41; this is not a measured physical rate.
+Source apps pin alpha.13, Counter/Canvas move to alpha.7 for embedded SDK identity,
+and Chat moves to dev.6 for the linked native dev.22 archive. No release is made.
+
 # X1000 SDK 0.2.0-alpha.12 (unreleased)
 
 Updates the shared native radio adapter to dev.21. Explicit BLK2 profiles use

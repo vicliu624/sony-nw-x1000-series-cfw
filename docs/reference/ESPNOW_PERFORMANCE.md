@@ -31,6 +31,7 @@ result or a promise about the platform's physical ceiling.
 | Installed dev.34 + Core2 alpha.32 cover | 46.358 s normal drawing, 46.229 s without progress redraws; about 2.8 KiB/s | Physical cached-image trial; not a pure RF benchmark |
 | Full BLK1 request/reply/completion | RX55 + TX71 + completion22 = 148 commands | Actual native backend with a synthetic register device |
 | BLK2 read-vector version | RX12 + TX23 + completion6 = 41 commands | Same complete native path, host sanitizers and Sony-libc ARM926 |
+| FRM1 packet transactions | RX6 + TX1 + completion1 = 8 commands; a full 1,536-byte TX/RX pair uses 11 | Native host/ARM code connected to original MCU dispatch/allocator/submit/release instructions |
 
 The BLK2 command vector is fresh for each guard validation. Writes invalidate
 it. Marker/address echoes, lease admission, packet-node identity and pre/post
@@ -44,6 +45,10 @@ tests cover 1,470-byte records, absent bodies, short I/O, a writer disappearing
 between header/body reads, output backpressure and staged-event retention.
 The owner/service loops still have a 10 ms wait per turn; framing improvement
 does not establish an event-driven loop or the throughput target.
+These application-loop waits yield CPU time; they are not established hardware
+settling requirements. An event-aware replacement must bound work per turn and
+preserve stop/drain progress. Chip startup, reset and original driver waits are
+separate timing contracts. Removing the waits into a busy loop is not qualified.
 The owner processes queued negotiation before admitting an application request
 and checks readiness again afterward, with at most one RX event per turn.
 Application readiness observed at turn entry cannot authorize a send after a
@@ -55,15 +60,41 @@ progress under continuous incoming data; stop clears the retained record.
 ## Current implementation limits
 
 The 1,900-byte radio reservation is one removed original packet-pool block,
-not the chip's total memory. The BLK2 code/state uses 1,888 bytes and retains
-three large packet blocks. Another region cannot be used until original code
+not the chip's total memory. BLK2 uses 1,888 bytes; the checked FRM1 profile uses
+1,896 bytes with its RX counters and retains three large packet blocks.
+Its 24-byte command entry occupies the replaced original command0x86 case at
+0x88d8, within that case's 0x88d6..0x88f2 bounds. It does not reserve another
+packet block. The complete case and all reservation code are fingerprinted.
+Another region cannot be used until original code
 ownership and concurrent accesses are established.
 
-Complete-frame transaction prototypes remain under ignored work/. Small-frame
-submission can fit, but the supported maximum payload, staged allocation,
-partial I/O, unknown submission, TX completion, RX consumption and stop must
-all have explicit outcomes before such a profile replaces the existing path.
-An unconfirmed side effect is never automatically repeated.
+FRM1 is an explicit generated-image profile. It submits at most 1,464 frame-body
+bytes per command; the full 1,536-byte protected body uses two fragments. TX
+completion is separate. RX metadata, owned packet nodes and tickets are checked
+before/after a staged copy and again around consumption. Too-small destinations
+retain the packet; read failures publish no partial output. Plaintext and
+protected APIs retain their existing application limits.
+
+Data submission is never automatically repeated. A lost reply uses an absolute
+ticket cancellation fence and readback: a fence that wins rejects late data;
+a proven accepted TX remains tracked until original completion. The caller
+receives UNCERTAIN and new data admission closes. Only verified resources drain.
+Unresolved identity/lease/IO faults retain the unsafe hold. Repeated queue and
+completion acknowledgements use the same idempotent absolute ticket and a
+bounded check; they cannot consume the next packet or submit application data.
+The private PC test bridges actual host/ARM native code to the exact MCU image,
+including delayed commands, several lost replies, three occupied packet blocks
+and original release ordering. IRQ/DMA, command-queue waiting, ciphertext
+contents, actual SDIO timing and RF remain separate physical acceptance items.
+
+Before original TX free, FRM1 replaces the pending aligned pointer with a
+release claim. Only the callback that obtained that claim may publish completion.
+A different task reusing the same freed packet address cannot overwrite the
+status or acknowledge that send. A rejected queue cancels tracking before its
+original free. Native reconciliation retains a pending claim until completion;
+it never dereferences the old packet or treats its reuse as current ownership.
+The preemption replay schedules this interleaving explicitly; it does not measure
+hardware scheduling frequency or establish physical stability.
 
 Current code does not explicitly configure a higher ESP-NOW peer rate. Record
 actual TX/RX PHY information, then verify rates supported by both devices.

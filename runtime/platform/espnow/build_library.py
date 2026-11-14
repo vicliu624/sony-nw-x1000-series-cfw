@@ -51,7 +51,7 @@ sources=([f'runtime/platform/espnow/{name}.c' for name in
 crypto=ROOT/'work/external-tls-probe/bearssl-0.6';crypto_archive=ROOT/'work/external-tls-probe/arm-build/libbearssl.a'
 if hashlib.sha256((ROOT/'work/bearssl-0.6.tar.gz').read_bytes()).hexdigest()!='6705bba1714961b41a728dfc5debbe348d2966c117649392f8c8139efc83ff14':raise ValueError('unqualified crypto source')
 if not crypto_archive.is_file():raise ValueError('Run SDK setup --services for BearSSL')
-sources += ['runtime/platform/espnow/'+name+'.c' for name in ('xnow_peer','xnow_full','xnow_endpoint','xnow_pn','xnow_pn_file','xnow_ccmp','xnow_security','xnow_endpoint_security','xnow_keywrap','xnow_keyring','xnow_full_guard','xnow_sd8686_full','xnow_full_control','xnow_shared_session','xnow_link','xnow_link_counter','xnow_owner_link')]
+sources += ['runtime/platform/espnow/'+name+'.c' for name in ('xnow_peer','xnow_full','xnow_endpoint','xnow_pn','xnow_pn_file','xnow_ccmp','xnow_security','xnow_endpoint_security','xnow_keywrap','xnow_keyring','xnow_full_guard','xnow_sd8686_full','xnow_sd8686_frames','xnow_full_control','xnow_shared_session','xnow_link','xnow_link_counter','xnow_owner_link')]
 flags=['-std=c99','-Os','-Wall','-Wextra','-Werror','-D_DEFAULT_SOURCE','-DHB_STORE_SONY_LIBC',
        '-U_FORTIFY_SOURCE','-D_FORTIFY_SOURCE=0','-DXNOW_LIBRARY_VERSION='+json.dumps(version),
        '-march=armv5te','-marm','-mfloat-abi=soft','-fno-builtin','-fno-pie','-fno-stack-protector',

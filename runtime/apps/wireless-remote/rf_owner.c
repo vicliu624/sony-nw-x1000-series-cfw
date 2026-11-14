@@ -726,7 +726,11 @@ static int owner_prepare(void *context, struct xnow_endpoint *endpoint, const ui
     (void)context;
     if (endpoint != &owner_control.endpoint || memcmp(local, owner_control.local_mac, 6))
         return -1;
-#ifdef XNOW_RADIO_BULK_WORD_COMMANDS
+#ifdef XNOW_RADIO_FRAME_TRANSACTIONS
+    if (xnow_sd8686_full_enable_frames(&owner_control.radio, endpoint->transport,
+                                       &xnow_full_compiled_profile, XNOW_RADIO_FRAME_MARKER))
+        return -1;
+#elif defined(XNOW_RADIO_BULK_WORD_COMMANDS)
     if (xnow_sd8686_full_enable_bulk(&owner_control.radio, &xnow_full_compiled_profile,
                                      XNOW_RADIO_BULK_MARKER))
         return -1;

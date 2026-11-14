@@ -15,8 +15,8 @@ custom C main programs. These retain their own renderers, loops, file formats
 and storage policies. The small settings/resource limits below apply to the
 callback profile, not to the existing readers, emulators or music workflows.
 
-Current source development version: **0.2.0-alpha.12**, with checked shared-radio
-read vectors and bounded FIFO framing. The managed player client remains experimental.
+Current source development version: **0.2.0-alpha.13**, with checked packet
+transactions and bounded FIFO framing. The managed player client remains experimental.
 This version has not been published. The previous alpha.8
 source archive remains available from
 [SDK releases](https://github.com/vicliu624/sony-nw-x1000-series-cfw/releases/tag/sdk-v0.2.0-alpha.8).

@@ -68,6 +68,25 @@ The full transport's Root/Core2 fresh-link handshake and the legacy fixed-word
 mailbox below are different profiles. Idle Root/Core2 sessions send no heartbeat.
 Keep their source receipts and physical validation scopes separate.
 
+Dev.22 adds FRM1 through the trusted provider's explicit
+`xnow_sd8686_full_enable_frames(radio, backend, profile, marker_address)` call.
+It replaces the custom word TX doorbell for that exact image. Scalar, BLK1 and
+BLK2 profiles retain their own paths; an older bulk adapter rejects FRM1.
+The packet interface stages RX before consuming its exact ticket, preserves
+capacity retry and separates queue admission from original TX completion.
+One submit command carries up to 1,464 body bytes; the supported 1,536-byte
+protected body uses two commands. Its checked radio code/state uses 1,900 bytes.
+
+A lost data reply closes admission and reports UNCERTAIN. Cancellation fences
+cannot repeat the data; readback must prove either cancellation or the exact
+TX to drain. `commit.settled` describes resources, never application execution.
+An unresolved lease/identity/IO fault does not authorize release. Read, queue-ACK
+and completion-ACK checks are bounded; acknowledgements keep the same absolute
+ticket. These context extensions require source consumers to rebuild.
+The host/ARM native-to-MCU replay counts eight representative complete-path
+commands. It models IRQ/DMA, work origin and ROM queues; physical rate remains
+unqualified.
+
 | Header | Interface | Important boundary |
 | --- | --- | --- |
 | xnow_frame.h | Payload encode/decode | Byte framing, no RF IO |

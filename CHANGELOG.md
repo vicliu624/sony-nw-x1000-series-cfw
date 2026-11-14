@@ -1,6 +1,21 @@
 # Changelog
 
-## Unreleased (0.1.0-dev.35)
+## Unreleased (0.1.0-dev.36)
+
+- Add an explicit FRM1 packet adapter with bounded full-size fragments,
+  staged RX and separate original TX completion. The exact radio image stays
+  within 1,900 bytes and retains three large packet blocks.
+- Reconcile uncertain submissions with ticket cancellation fences and verified
+  drain, never data replay or a fabricated clean shutdown.
+- Retain a unique release claim across original TX free and packet-address
+  reuse; cancel a rejected queue before free. Reuse the replaced command case
+  for its entry and keep reservation code/state at 1,896 bytes.
+- Connect native host/ARM code to original MCU instructions in offline checks;
+  representative complete-path command count drops from 41 to eight. Physical
+  throughput and the 1 Mbps target remain unmeasured.
+- Move source SDK pins to alpha.13 and the experimental native archive to dev.22.
+
+## 0.1.0-dev.35 development changes
 
 - Add checked read vectors for matching shared-radio profiles, reducing a complete
   modeled request/reply/completion from 148 commands to 41. Code/state stays

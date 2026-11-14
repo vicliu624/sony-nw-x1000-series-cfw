@@ -2,6 +2,16 @@
 
 ## Current profile boundaries
 
+Dev.22's FRM1 packet profile is offline only. Native host/ARM code connected to
+the exact MCU image uses eight representative complete-path commands, or 11
+for the full 1,536-byte TX/RX pair. The image fits the same 1,900-byte reservation.
+The replay covers delayed data losing to a cancellation fence, confirmed TX
+retirement after lost replies, several lost cancellation replies, full packet
+blocks, exact RX consumption and unsafe lease/IO holds. Original hostcmd
+response-copy instructions independently verify short replies and iwreq.length.
+IRQ/DMA, queue waits, ciphertext contents, physical rate, sleep and USB remain
+outside that replay. No dev.22 image has been installed.
+
 The installed dev.34 composition uses the dev.20 bulk profile. A cached
 131,872-byte image takes about 46 seconds (2.8 KiB/s), with or without Core2
 progress drawing. Mean request-to-radio-arrival is about 351 ms; this does not

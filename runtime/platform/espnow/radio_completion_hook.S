@@ -24,11 +24,19 @@ xnow_radio_completion_entry:
  movs r2,#0
 2:
  bl xnow_radio_tx_observe
+#ifdef XNOW_RADIO_FRAME_TRANSACTIONS
+ /* Only this claim may publish after free; nested/unrelated releases get0. */
+ movs r5,r0
+#endif
  movs r0,r4
  ldr r3,=0x1360
  blx r3
  movs r6,r0
+#ifdef XNOW_RADIO_FRAME_TRANSACTIONS
+ movs r0,r5
+#else
  movs r0,r4
+#endif
  bl xnow_radio_tx_released
  movs r0,r6
  pop {r4,r5,r6,pc}

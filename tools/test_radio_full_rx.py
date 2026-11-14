@@ -21,13 +21,19 @@ if selected:elf=selected[0]
 else:subprocess.run(['arm-linux-gnueabi-gcc','-std=c99','-Os','-Wall','-Wextra','-Werror','-march=armv5te','-mthumb','-mfloat-abi=soft','-ffreestanding','-fno-builtin','-fno-pie','-fno-stack-protector','-nostdlib','-static','-Wl,--build-id=none','-Wl,-T,'+str(link),*sources,'-o',str(elf)],cwd=ROOT,check=True)
 with elf.open('rb') as f:
     image=ELFFile(f);sections=[(s['sh_addr'],s.data()) for s in image.iter_sections() if s['sh_flags']&2 and s['sh_size']]
+    immutable_sections=[(s['sh_addr'],s.data()) for s in image.iter_sections() if s['sh_flags']&2 and s['sh_size'] and s.name!='.state']
     symbols={s.name:s['st_value'] for s in image.get_section_by_name('.symtab').iter_symbols() if s.name}
 env=runpy.run_path(str(ROOT/'tools/test_radio_full_tx.py'))
 cpu,put,word,call,free_count,command=[env[n] for n in ('cpu','put','word','call','free_count','command')]
 cpu.mem_write(0xc000a190,bytes(1900))
 for address,data in sections:cpu.mem_write(address,data)
 cpu.ctl_remove_cache(0xc000a190,0xc000a8fc)
-cpu.mem_write(0x88d6,struct.pack('<HHHI',0x4b01,0x4718,0x46c0,symbols['xnow_radio_word_command_entry']|1))
+if selected:
+    for patch in selected[1]['patches']:
+        cpu.mem_write(patch['address'],bytes.fromhex(patch['after']))
+else:
+    cpu.mem_write(0x88d6,struct.pack('<HHHI',0x4b01,0x4718,0x46c0,symbols['xnow_radio_word_command_entry']|1))
+cpu.ctl_remove_cache(0,0x20000)
 rx=symbols['xnow_full_rx'];fallback=[]
 assert word(rx+56)==0 and word(rx+60)==0
 put(rx+56,1) # explicit experimental activation after code/state initialization
@@ -125,10 +131,13 @@ old_packet=slot(0)[0];pause_free=[True]
 def preempt(u,pc,size,unused):
     if pause_free[0] and pc==0x1360:u.emu_stop()
 cpu.hook_add(UC_HOOK_CODE,preempt)
-ticket=(word(rx+8)+1)&0xffffffff;put(rx+12,ticket)
-cpu.reg_write(UC_ARM_REG_R0,rx+12);cpu.reg_write(UC_ARM_REG_R1,ticket)
+ticket=(word(rx+8)+1)&0xffffffff
+# Use the actual host STORE/dispatch entry. LTO may inline the private RX
+# doorbell; a private symbol address is not an executable protocol contract.
+cpu.mem_write(env['request'],struct.pack('<4H',0x86,20,0x55aa,0)+struct.pack('<HHII',1,0,rx+12,ticket))
+cpu.mem_write(0xc000edf4,b'\0')
 cpu.reg_write(UC_ARM_REG_SP,0x208000);cpu.reg_write(UC_ARM_REG_LR,0x1f001)
-cpu.emu_start(symbols['xnow_radio_rx_doorbell']|1,0x1f002,count=20000)
+cpu.emu_start(0x8079,0x9b40,count=30000)
 assert cpu.reg_read(UC_ARM_REG_PC)==0x1360 and word(rx+8)==ticket
 consumer=cpu.context_save();pause_free[0]=False
 def producer(entry,*args):
@@ -140,8 +149,8 @@ def producer(entry,*args):
     return cpu.reg_read(UC_ARM_REG_R0)
 assert inject(first,runner=producer)==0
 new_packet=slot(0)[0];assert new_packet and new_packet!=old_packet and free_count()==0
-cpu.context_restore(consumer);cpu.emu_start(0x1360,0x1f002,count=20000)
-assert cpu.reg_read(UC_ARM_REG_PC)==0x1f000 and free_count()==1 and slot(0)[0]==new_packet
+cpu.context_restore(consumer);cpu.emu_start(0x1360,0x9b40,count=30000)
+assert cpu.reg_read(UC_ARM_REG_PC)==0x9a46 and free_count()==1 and slot(0)[0]==new_packet
 assert bytes(cpu.mem_read(new_packet,len(first)))==first
 assert pop((ticket+1)&0xffffffff)==0 and pop((ticket+2)&0xffffffff)==0 and free_count()==3
 # Stop with unread packets: disable closes admission, existing packets drain.
@@ -211,13 +220,15 @@ for profile,prefix,mask in PROFILES:
             assert pop((word(rx+8)+1)&0xffffffff)==0 and free_count()==3
             capture_cases.append({'profile':profile,'version':version,'payload_bytes':length,'key_id':key_id,'canonical_capture_authenticated':True})
 assert call(0x1360,frame)==0 # original singleton RX work object is independently released
-for address,data in sections:
-    if address<rx and address<symbols['xnow_full_tx']:assert bytes(cpu.mem_read(address,len(data)))==data
+for address,data in immutable_sections:
+    assert bytes(cpu.mem_read(address,len(data)))==data
 tracked=[*sources,'runtime/platform/espnow/radio_packet.h','runtime/platform/espnow/radio_full_rx.h','runtime/platform/espnow/radio_full_tx.h','tools/test_radio_full_rx.py','tools/test_radio_full_tx.py','tools/test_radio_packet_ownership.py']
 report={'passed':True,'original_rx_work_factory_and_4b9c_ring_copy_executed':True,'queue_depth':2,'v1_250_and_v2_1470_bodies_preserved':True,'borrowed_work_pointer_not_retained':True,'queue_full_and_pool_exhaustion_drop_without_overwrite':True,'stale_duplicate_and_empty_pop_handled':True,'protected_rx_flag_and_a3_fragment_unicast_filter':True,'tickets_wrap':True,'disabled_admission_and_queued_drain':True,'stop_during_private_allocation_releases_before_inactive':True,'unsupported_traffic_falls_back':True,'own_unicast_and_broadcast_only':True,'producer_preemption_between_tail_publish_and_free_safe':True,'task_preemption_manually_scheduled':True,'all_packet_buffers_released':free_count()==3,'combined_reserved_region_bytes':sum(len(data) for _,data in sections),'rom_irq_copy_and_dma_producer_modeled':True,'physical_rx_tested':False,'download_image_created':False,'source_hashes':{p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in tracked}}
 report.update(synthetic_encrypted_capture_cases=capture_cases,upstream_unknown_key_admission_proven=False)
 if selected:
  report['exact_selected_radio']=dict(elf=elf.relative_to(ROOT).as_posix(),sha256=selected[1]['payload_elf_sha256'],candidate_sha256=selected[1]['candidate_sha256'])
+ report['source_hashes'].update(selected[1]['source_hashes'])
+ report['source_hashes'][(elf.parent/'manifest.json').relative_to(ROOT).as_posix()]=hashlib.sha256((elf.parent/'manifest.json').read_bytes()).hexdigest()
  report['source_hashes']['tools/radio_test_profile.py']=hashlib.sha256((ROOT/'tools/radio_test_profile.py').read_bytes()).hexdigest()
 report['source_hashes']['tools/espnow_known_key_frame.py']=hashlib.sha256((ROOT/'tools/espnow_known_key_frame.py').read_bytes()).hexdigest()
 (OUT/'report.json').write_text(json.dumps(report,indent=2));print(json.dumps(report,indent=2))

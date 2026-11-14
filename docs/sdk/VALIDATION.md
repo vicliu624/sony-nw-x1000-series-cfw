@@ -14,7 +14,7 @@ Build output must also be fresh and below `work/`. Explicit source roots reject
 symlinks and paths outside `work/`; an unknown app never falls back to the formal
 catalog. Nondeclarative application builders retain their regular build path.
 
-Current SDK source is **0.2.0-alpha.12**. The published source SDK is
+Current SDK source is **0.2.0-alpha.13**. The published source SDK is
 **0.2.0-alpha.8**. Build and validation receipts identify the exact source or
 archive they checked; publication, offline validation and device acceptance
 are separate results.

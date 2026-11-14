@@ -1,7 +1,12 @@
 .syntax unified
 .arch armv5te
 .thumb
+#ifdef XNOW_RADIO_FRAME_TRANSACTIONS
+/* Reuse only the replaced stock command0x86 case, before the next case88f2. */
+.section .word_hook,"ax",%progbits
+#else
 .section .text.xnow_word_command,"ax",%progbits
+#endif
 .align 2
 .global xnow_radio_word_command_entry
 .thumb_func
@@ -12,14 +17,23 @@ xnow_radio_word_command_entry:
      * the bulk profile publishes its command result through r6. */
     push {r0-r3,r7,lr}
     movs r0,r4
+#ifdef XNOW_RADIO_FRAME_TRANSACTIONS
+    ldr r3,=xnow_radio_word_io
+    blx r3
+#else
     bl xnow_radio_word_io
+#endif
 #ifdef XNOW_RADIO_BULK_COMMANDS
     movs r6,r0
 #endif
     pop {r0-r3,r7}
     pop {r3}
     mov lr,r3
+#ifdef XNOW_RADIO_FRAME_TRANSACTIONS
+    b 0x82e8
+#else
     ldr r3,=0x82e9
     bx r3
+#endif
 .ltorg
 .section .note.GNU-stack,"",%progbits

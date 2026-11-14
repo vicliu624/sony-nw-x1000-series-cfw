@@ -482,6 +482,7 @@
       "sources": [
         "runtime/platform/espnow/xnow_full_guard.c",
         "runtime/platform/espnow/xnow_sd8686_full.c",
+        "runtime/platform/espnow/xnow_sd8686_frames.c",
         "runtime/platform/espnow/xnow_full_control.c"
       ],
       "requires": [
@@ -495,6 +496,10 @@
         "tools/marvell_firmware.py",
         "runtime/platform/espnow/radio_full_rx.c",
         "runtime/platform/espnow/radio_full_tx.c",
+        "runtime/platform/espnow/radio_frame_tx.c",
+        "runtime/platform/espnow/radio_frame_command.c",
+        "runtime/platform/espnow/xnow_frame_protocol.h",
+        "runtime/platform/espnow/sd8686_private.h",
         "runtime/platform/espnow/radio_packet.c",
         "runtime/platform/espnow/radio_tx_completion.c",
         "runtime/platform/espnow/radio_word_command.c",

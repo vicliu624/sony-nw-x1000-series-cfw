@@ -59,14 +59,14 @@ Set this `sdk` field in `app.json`:
 
 ```json
 "sdk": {
-  "version": "0.2.0-alpha.12",
+  "version": "0.2.0-alpha.13",
   "profile": "native-services",
   "modules": ["startup", "display", "signals-libc", "abi", "hash"]
 }
 ```
 
 Pin the exact value from `sdk/VERSION`. This example targets current source
-alpha.12; an extracted alpha.8 SDK needs its own pin. The app's `VERSION` is
+alpha.13; an extracted alpha.8 SDK needs its own pin. The app's `VERSION` is
 independent.
 
 Use this declarative `build.json` and keep the generated `build.py`:

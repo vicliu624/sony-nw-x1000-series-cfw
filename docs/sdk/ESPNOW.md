@@ -42,7 +42,7 @@ For example, an application using a supplied client capability declares:
 
 ```json
 "sdk": {
-  "version": "0.2.0-alpha.12",
+  "version": "0.2.0-alpha.13",
   "profile": "native-services",
   "modules": ["startup", "espnow-client"]
 }
@@ -86,6 +86,13 @@ profile, it supplies an exclusive lease or a shared borrow. A shared client
 must not disconnect the surviving native Wi-Fi owner. Sony Settings callbacks
 and the private shared-session adapter are not public SDK entry points.
 See [wireless lifecycle](WIRELESS.md).
+
+The private JP1.11 provider can select FRM1 packet transactions from a generated
+exact-image profile. Applications still use the supplied client; no packet
+backend, image loading, channel or cleanup authority is implied by linking it.
+Low-level context changes require rebuilding source consumers. Data is never
+automatically resubmitted after an uncertain result; see the
+[performance and transaction contract](../reference/ESPNOW_PERFORMANCE.md).
 
 ## Standard datagrams and security
 
