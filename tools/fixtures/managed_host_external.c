@@ -24,6 +24,10 @@ static int model_volume = 12;
 static int model_ready = 1;
 static enum xw_player_operation last_operation;
 static int32_t last_value;
+#ifdef XW_FIXTURE_MODE_CONTROL
+static unsigned observed_modes;
+static uint32_t model_mode = 5;
+#endif
 static int state(void *c, struct xw_player_snapshot *s) {
     (void)c;
     s->valid =
@@ -48,6 +52,13 @@ static int command(void *c, const struct xw_player_command *r) {
     controls++;
     last_operation = r->operation;
     last_value = r->value;
+#ifdef XW_FIXTURE_MODE_CONTROL
+    if (r->operation == XW_OP_SET_PLAY_MODE) {
+        assert(r->value >= XW_MODE_NORMAL && r->value < XW_MODE_COUNT);
+        model_mode = r->value == XW_MODE_REPEAT_ONE ? 5u : (uint32_t)r->value;
+        observed_modes |= 1u << r->value;
+    }
+#endif
     if (r->operation == XW_OP_PLAY)
         playing = XW_PLAY_PLAYING;
     if (r->operation == XW_OP_PAUSE)
@@ -97,6 +108,7 @@ static int broker_close(void *c) {
     b->backend = 0;
     return 0;
 }
+#ifndef XW_FIXTURE_MODE_CONTROL
 static void check_example_control(const char *action) {
     enum xw_player_operation expected;
     int32_t value = 0;
@@ -121,10 +133,14 @@ static void check_example_control(const char *action) {
     assert(playing == (expected == XW_OP_PAUSE ? XW_PLAY_PAUSED : XW_PLAY_PLAYING));
     puts("PUBLIC_MANAGED_EXAMPLE_CONTROL_PASS");
 }
+#endif
 #ifdef XW_FIXTURE_PLAY_MODE
 static int read_mode(void *c, uint32_t *raw, uint32_t *index) {
     (void)c;
-#ifdef XW_FIXTURE_ALL_PLAY_MODES
+#ifdef XW_FIXTURE_MODE_CONTROL
+    *raw = model_mode;
+    *index = model_mode == 5 ? 4 : model_mode;
+#elif defined(XW_FIXTURE_ALL_PLAY_MODES)
     static unsigned next;
     static const uint32_t modes[] = {0, 1, 2, 3, 5};
     *raw = modes[next++ % 5];
@@ -252,6 +268,9 @@ int main(int argc, char **argv) {
                                    original_close};
     if (example == 2)
         o.commands |= (1u << XW_OP_PLAY) | (1u << XW_OP_PREVIOUS);
+#ifdef XW_FIXTURE_MODE_CONTROL
+    o.commands |= 1u << XW_OP_SET_PLAY_MODE;
+#endif
     assert(!xw_player_bind(&original, &o));
     struct xw_player_provider b = o;
     b.context = &broker;
@@ -293,15 +312,26 @@ int main(int argc, char **argv) {
         poll(0, 0, 1);
     }
     assert(!slot.channel.bound && host.slots[0] == 2 &&
-           controls == (example == 5                                     ? 2u
-                        : (example == 2 || example == 7 || example == 8) ? 1u
-                        : example                                        ? 0u
-                                                                         : 4u) &&
+           controls == (
+#ifdef XW_FIXTURE_MODE_CONTROL
+                           7u
+#else
+                           example == 5                                     ? 2u
+                           : (example == 2 || example == 7 || example == 8) ? 1u
+                           : example                                        ? 0u
+                                                                            : 4u
+#endif
+                           ) &&
            selections == (example ? 0u : 2u) && original.initialized);
+#ifdef XW_FIXTURE_MODE_CONTROL
+    assert(observed_modes == 31 && playing == XW_PLAY_PAUSED && model_mode == 5);
+    puts("PUBLIC_MANAGED_FIVE_MODE_WRITES_PASS");
+#else
     if (example == 2)
         check_example_control(argv[argc - 1]);
     else
         assert(model_volume == 12);
+#endif
     int status;
 #ifdef XW_FIXTURE_MANAGED_PROCESS
     if (managed_process) {

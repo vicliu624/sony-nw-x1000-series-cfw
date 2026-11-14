@@ -1,5 +1,26 @@
 # Physical validation scope
 
+## Current profile boundaries
+
+The dev.19 `link-retirement-03` Root transport and Core2 alpha.29 established
+an authenticated session on the test X1060. Core2 alpha.30 subsequently
+completed an 82,969-byte image and the user confirmed visible cover display.
+That pair still moved packet data through scalar host commands; its observed
+cover progress was about 1.3 KiB/s. These results do not qualify dev.20 bulk IO,
+all control modes, sleep/wake or USB retirement.
+
+Dev.20's opt-in bulk profile retains the 1,900-byte radio reservation and three
+packet blocks. Original command/response instruction replay and native-adapter
+tests check bounded data transfer, malformed replies, lease loss, changed RX
+tickets and write failure without fallback. The original ingress replay shows
+that a 1,552-byte request overwrites an adjacent live event workspace; native
+commands are therefore limited to 1,500 total bytes and split larger spans.
+These checks are offline and establish no over-the-air throughput result.
+
+The fixed-mailbox results below retain their own exact identities and scope.
+
+## Fixed-mailbox physical evidence
+
 On 2026-10-28, a Japanese NW-X1060 on the 1.11 platform and an original
 Cardputer on COM17 completed a bidirectional ESP-NOW exchange on channel8.
 The X1060 native worker used libxnow0.1.0-dev.8, the original Sony Linux driver

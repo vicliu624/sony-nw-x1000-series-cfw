@@ -1,6 +1,6 @@
 """Full managed owner loop on real IPC/gate with synthetic RF and stock effects."""
 from pathlib import Path
-import hashlib,json,subprocess,sys,time
+import hashlib,json,re,subprocess,sys,time
 power_off='--power-off' in sys.argv
 mode_admission='--mode-admission' in sys.argv
 pairing_policy='--pairing-policy' in sys.argv
@@ -19,9 +19,9 @@ extra=[];pthread=[]
 if stop_boundaries:extra+=['-Wl,--wrap=xnow_owner_stream_step','-Wl,--wrap=xnow_owner_commands_poll','-Wl,--wrap=xnow_owner_commands_receive']
 if pairing_policy:
  owner_source=(ROOT/'runtime/apps/wireless-remote/rf_owner.c').read_text()
- init_at=owner_source.index(' if(xnow_owner_runtime_init(')
- begin=owner_source.index(' if(pairing_listener){',init_at)
- end=owner_source.index(' volatile uint8_t *secret=cookie;',begin)
+ init_at=re.search(r'\bif\s*\(\s*xnow_owner_runtime_init\(',owner_source).start()
+ begin=init_at+re.search(r'\bif\s*\(\s*pairing_listener\s*\)\s*\{',owner_source[init_at:]).start()
+ end=begin+re.search(r'\bvolatile\s+uint8_t\s*\*\s*secret\s*=\s*cookie\s*;',owner_source[begin:]).start()
  policy=owner_source[begin:end].replace('owner_commands','commands')
  fixture=(ROOT/'tools/fixtures/full_owner_runtime.c').read_text()
  initializer=' assert(!xnow_owner_runtime_init(&runtime,&controller,&gate,&stream,&commands,handoff[1],cookie,&data,cause>=3?prepare_mark:0,close_data));'

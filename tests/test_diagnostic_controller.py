@@ -42,6 +42,55 @@ class DiagnosticControllerTests(unittest.TestCase):
     def write_core(self):
         self.core_receipt.write_text(json.dumps(self.core))
 
+    def mode_fixture(self):
+        self.core['version']='0.1.0-alpha.31'
+        self.core['play_mode_write_ui']=True
+        names=('runtime/platform/player/player.h',
+               'runtime/apps/wireless-remote/control.c','runtime/apps/wireless-remote/control.h',
+               'runtime/apps/wireless-remote/link.c','runtime/apps/wireless-remote/link.h',
+               'runtime/apps/wireless-remote/mode_wire.c','runtime/apps/wireless-remote/mode_wire.h')
+        protocol={name:digest(ROOT/name) for name in names}
+        self.core['source_hashes'].update(protocol);self.write_core()
+        path=self.folder/'service-review.json'
+        service=dict(built=True,command_negotiation_supported=True,source_hashes=protocol)
+        path.write_text(json.dumps(service))
+        return path,service
+
+    def test_mode_control_requires_new_peer_and_matching_service(self):
+        path,_=self.mode_fixture()
+        result=materials.matching_controller(self.owner,self.core_receipt,
+            play_mode_control=True,service_review=path)
+        self.assertTrue(result['play_mode_control'])
+        self.assertIn('runtime/platform/player/player.h',result['player_protocol_source_hashes'])
+        self.core['version']='0.1.0-alpha.30';self.write_core()
+        with self.assertRaisesRegex(ValueError,'alpha.31'):
+            materials.matching_controller(self.owner,self.core_receipt,
+                play_mode_control=True,service_review=path)
+
+    def test_mode_control_rejects_missing_ui_or_service(self):
+        path,_=self.mode_fixture();self.core['play_mode_write_ui']=False;self.write_core()
+        with self.assertRaisesRegex(ValueError,'mode-write UI'):
+            materials.matching_controller(self.owner,self.core_receipt,
+                play_mode_control=True,service_review=path)
+        self.core['play_mode_write_ui']=True;self.write_core()
+        with self.assertRaisesRegex(ValueError,'service receipt'):
+            materials.matching_controller(self.owner,self.core_receipt,play_mode_control=True)
+
+    def test_mode_control_rejects_incomplete_player_protocol_receipt(self):
+        path,service=self.mode_fixture()
+        del service['source_hashes']['runtime/apps/wireless-remote/control.c']
+        path.write_text(json.dumps(service))
+        with self.assertRaisesRegex(ValueError,'command protocol sources differ'):
+            materials.matching_controller(self.owner,self.core_receipt,
+                play_mode_control=True,service_review=path)
+
+    def test_mode_control_rejects_service_without_negotiation(self):
+        path,service=self.mode_fixture();service['command_negotiation_supported']=False
+        path.write_text(json.dumps(service))
+        with self.assertRaisesRegex(ValueError,'explicit command negotiation'):
+            materials.matching_controller(self.owner,self.core_receipt,
+                play_mode_control=True,service_review=path)
+
     def test_matching_build_keeps_exact_image_and_transport_identity(self):
         result=materials.matching_controller(self.owner,self.core_receipt)
         self.assertEqual(result['binary'],self.image)

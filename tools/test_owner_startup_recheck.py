@@ -17,7 +17,7 @@ sources = ['tools/test_owner_startup_recheck.c', 'runtime/apps/wireless-remote/o
            'runtime/store/stock_stat64.c']
 owner_path = ROOT / 'runtime/apps/wireless-remote/rf_owner.c'
 owner = owner_path.read_text()
-preflight_line, = re.findall(r' if\(owner_mode_\w+\([^;\n]*?\)\)return owner_startup_failed\(writer,cookie,105\);',owner)
+preflight_line, = re.findall(r'\bif\s*\(owner_mode_\w+\([^;]*?\)\s*\)\s*return\s+owner_startup_failed\(\s*writer\s*,\s*cookie\s*,\s*105\s*\);',owner)
 def function(name):
     begin = owner.index('static int ' + name + '(')
     brace = owner.index('{', begin)

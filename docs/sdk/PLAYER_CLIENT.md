@@ -74,10 +74,35 @@ Build an xw_player_command with PLAY, PAUSE, NEXT, PREVIOUS or STEP_VOLUME (+1/-
 and call xw_player_command. Check the negotiated provider.commands mask before
 showing optional operations. SET_VOLUME is not bound by the original provider.
 Zero-initialize each command, including when reusing storage. Only SET_VOLUME
-and STEP_VOLUME use `value`; only PLAY_ITEM uses `item`, `container` and
+and STEP_VOLUME use `value`; SET_PLAY_MODE uses a canonical XW_MODE_* value.
+Only PLAY_ITEM uses `item`, `container` and
 `expected_revision`. Both direct and managed clients reject nonzero unused
 fields before invoking a provider. A stale selection ID must not be silently
 ignored by a later transport or volume command.
+
+SDK alpha.11 appends SET_PLAY_MODE without changing existing operation numbers.
+The canonical preferences are Normal, Repeat, Shuffle, Shuffle & Repeat and
+Repeat One. Sony's native value mapping stays in the private platform adapter.
+An accepted request means native admission and observed cached preference,
+not engine completion or durable-save confirmation. Uncertain requests are
+never automatically repeated.
+
+Default ordinary and managed binds retain the original seven-bit HELLO, so
+older applications can connect to a newer host. On a known matching new host,
+`xw_managed_client_negotiate_commands(player, client, known_mask)` explicitly
+requests newer capabilities. It changes only the local command bitmap after a
+validated reply; the descriptor, grants, generation and observation history
+remain owned by their existing lifecycles. A zero mask requests no commands.
+Do not automatically probe legacy hosts or reconnect after negotiation failure.
+This optional HELLO field expresses client knowledge and grants no authority.
+The current ordinary bind has no explicit negotiation helper and therefore
+continues advertising only legacy operations.
+
+After successful managed negotiation, check the SET_PLAY_MODE bit, zero a
+command, set `operation = XW_OP_SET_PLAY_MODE` and `value = XW_MODE_SHUFFLE`,
+then call `xw_player_command`. The existing CONTROL grant and original-owner
+checks still apply. Green selection in a controller must follow a fresh valid
+mode observation, rather than changing when the request is sent.
 
 The managed-session example is `sdk/examples/player-managed-client/main.c`.
 It accepts an explicitly delivered descriptor/generation, demonstrates snapshot,

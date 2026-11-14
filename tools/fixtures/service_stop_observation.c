@@ -43,6 +43,16 @@ int main(void) {
             assert(result == (read_result ? read_result : XW_PLAYER_BUSY) && reads == 1 && !frames);
         assert(service_stop_requested(0) == (scenario != 0));
     }
+    stopping = stop_during_read = read_result = 0;
+    reads = frames = mode_checked = mode_sent = mode_sequence = mode_control_serial = 0;
+    sender.mode_refresh_serial = sender.resync_serial = 0;
+    assert(!sample_mode(0) && reads == 1 && frames == 1);
+    assert(!sample_mode(0) && reads == 1 && frames == 1);
+    sender.mode_refresh_serial++;
+    assert(!sample_mode(0) && reads == 2 && frames == 2 && mode_control_serial == 1);
+    assert(!sample_mode(0) && reads == 2 && frames == 2);
+    puts("MODE_REFRESH_PASS: explicit same-value control bypasses read throttling once; no idle "
+         "refresh");
     puts("SERVICE_STOP_OBSERVATION_PASS: active, pre-stop, stop-during-read and retained IO error");
     return 0;
 }

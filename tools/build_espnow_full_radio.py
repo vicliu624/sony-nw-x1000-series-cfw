@@ -10,7 +10,7 @@ from elftools.elf.elffile import ELFFile
 from marvell_firmware import Record,parse,serialize
 from prepare_espnow_radio_candidate import ROOT,STOCK_SHA,HELPER_SHA,RESERVED_START,RESERVED_END,BSS_START,BSS_END,memory
 SOURCES=['runtime/platform/espnow/'+n for n in ('radio_packet.c','radio_full_rx.c','radio_full_tx.c','radio_tx_completion.c','radio_completion_hook.S','radio_word_command.c','radio_command_hook.S')]
-HEADERS=['runtime/platform/espnow/'+n for n in ('radio_packet.h','radio_full_rx.h','radio_full_tx.h','radio_tx_completion.h')]
+HEADERS=['runtime/platform/espnow/'+n for n in ('radio_packet.h','radio_full_rx.h','radio_full_tx.h','radio_tx_completion.h','xnow_bulk_protocol.h')]
 def digest(data):return hashlib.sha256(data).hexdigest()
 def literal_jump(address,target):
  if not target&1:raise ValueError('Thumb target missing state bit')
@@ -39,6 +39,10 @@ def construct(stock,payload):
  if {n for n,_,_ in sections}!={'.text','.state'}:raise ValueError('missing code/state section')
  text=next((a,b) for n,a,b in sections if n=='.text');state_section=next((a,b) for n,a,b in sections if n=='.state')
  entries={name:symbols[name] for name in ('xnow_radio_full_receive','xnow_radio_word_command_entry','xnow_radio_completion_entry')}
+ bulk_marker=symbols.get('xnow_radio_bulk_commands')
+ if bulk_marker is not None:
+  if bulk_marker&3 or not text[0]<=bulk_marker<bulk_marker+4<=text[1] or struct.unpack_from('<I',reservation,bulk_marker-RESERVED_START)[0]!=0x314b4c42:
+   raise ValueError('invalid immutable bulk-command feature marker')
  for entry in entries.values():
   if not entry&1 or not text[0]<=entry&~1<text[1]:raise ValueError('invalid code entry')
  controls={};control_bytes=set()
@@ -81,12 +85,15 @@ def construct(stock,payload):
  # These aligned immutable spans can be checked after mutable controls change.
  immutable=[]
  for a,n in ((RESERVED_START,state_section[0]-RESERVED_START),(state_section[1],RESERVED_END-state_section[1]),(0x163ec,8),(0xc00026b0,4),(0x88d4,12),(0xd51c,8)):
+  if not n:continue
   data=bytes(loaded[a+i] for i in range(n));immutable.append({'address':a,'bytes':n,'sha256':digest(data)})
  used=max(b for _,_,b in sections)-RESERVED_START
  manifest={'profile':'full-radio-experimental-v2','radio_only':True,'original_sha256':STOCK_SHA,'candidate_sha256':digest(candidate),'payload_elf_sha256':digest(Path(payload).read_bytes()),'original_bytes':len(stock),'candidate_bytes':len(candidate),'reserved_start':RESERVED_START,'reserved_end':RESERVED_END,'reserved_bytes':1900,'section_bytes':sum(b-a for _,a,b in sections),'occupied_span_bytes':used,'tail_free_bytes':1900-used,'entries':entries,'controls':controls,'patches':plan,'immutable_segments':immutable,'startup_only_segments':[{'address':0x17328,'bytes':24,'sha256':digest(bytes(loaded[0x17328+i] for i in range(24))),'runtime_reclaimed':True}],'pool_blocks_after':3,'rx_initially_disabled':True,'all_other_loaded_bytes_unchanged':True,'all_other_bss_zeroing_preserved':True,'crc_roundtrip_passed':True,'hardware_tested':False,'driver_reload_qualified':False,'device_written':False}
+ if bulk_marker is not None:
+  manifest['bulk_word_commands']={'marker_address':bulk_marker,'marker_value':0x314b4c42,'command':0x86,'get_action':0x100,'set_action':0x101,'max_words':371,'header_bytes':16,'packet_only':True,'error_response_bytes':16,'request_boundary_bytes':1500}
  return candidate,manifest
 
-def build(stock_path,helper_path,output,rx_diagnostics=False):
+def build(stock_path,helper_path,output,rx_diagnostics=False,bulk_commands=False):
  output=Path(output).resolve()
  if not output.is_relative_to((ROOT/'work').resolve()) or output.exists():raise ValueError('output must be a new project work directory')
  stock=Path(stock_path).read_bytes();helper=Path(helper_path).read_bytes()
@@ -95,6 +102,7 @@ def build(stock_path,helper_path,output,rx_diagnostics=False):
  link=output/'radio.ld';link.write_text('ENTRY(xnow_radio_full_receive)\nSECTIONS { . = 0xc000a190; .text : { *(.text*) *(.rodata*) } .state : { *(.state) } /DISCARD/ : { *(.ARM.exidx*) *(.ARM.extab*) *(.comment*) *(.note*) } ASSERT(.<=0xc000a8fc,"reserved block exceeded") }')
  payload=output/'radio.elf';flags=['-std=c99','-Os','-Wall','-Wextra','-Werror','-march=armv5te','-mthumb','-mfloat-abi=soft','-ffreestanding','-fno-builtin','-fno-pie','-fno-stack-protector','-nostdlib','-static','-Wl,--build-id=none','-Wl,-T,'+str(link)]
  if rx_diagnostics:flags+=['-DXNOW_RADIO_RX_DIAGNOSTICS']
+ if bulk_commands:flags+=['-DXNOW_RADIO_BULK_COMMANDS','-flto','-fno-inline']
  subprocess.run(['arm-linux-gnueabi-gcc',*flags,*SOURCES,'-o',str(payload)],cwd=ROOT,check=True)
  image,manifest=construct(stock,payload);manifest['helper_sha256']=HELPER_SHA;manifest['compiler']=subprocess.check_output(['arm-linux-gnueabi-gcc','--version'],text=True).splitlines()[0];manifest['source_hashes']={p:digest((ROOT/p).read_bytes()) for p in [*SOURCES,*HEADERS,'tools/build_espnow_full_radio.py','tools/marvell_firmware.py']}
  manifest['rx_diagnostics']=rx_diagnostics
@@ -108,4 +116,4 @@ def build(stock_path,helper_path,output,rx_diagnostics=False):
  (output/'README.txt').write_text('OFFLINE FULL-RADIO RESEARCH CANDIDATE. NOT HARDWARE QUALIFIED.\nNo loader/automatic installation supplied. Never use Sony system updater for these files.\nOriginal helper and rollback radio retained. No kernel/module/partition edits.\n')
  return manifest
 if __name__=='__main__':
- p=argparse.ArgumentParser(description=__doc__);p.add_argument('--original',type=Path,required=True);p.add_argument('--helper',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--rx-diagnostics',action='store_true');a=p.parse_args();print(json.dumps(build(a.original,a.helper,a.output,a.rx_diagnostics),indent=2))
+ p=argparse.ArgumentParser(description=__doc__);p.add_argument('--original',type=Path,required=True);p.add_argument('--helper',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--rx-diagnostics',action='store_true');p.add_argument('--bulk-commands',action='store_true');a=p.parse_args();print(json.dumps(build(a.original,a.helper,a.output,a.rx_diagnostics,a.bulk_commands),indent=2))

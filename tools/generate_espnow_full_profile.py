@@ -9,6 +9,7 @@ def render(directory):
  if image!=(directory/'candidate/sd8686.bin').read_bytes():raise ValueError('candidate/ELF mismatch')
  for name in ('profile','candidate_sha256','controls','immutable_segments','startup_only_segments'):
   if derived[name]!=manifest[name]:raise ValueError('manifest mismatch: '+name)
+ if derived.get('bulk_word_commands')!=manifest.get('bulk_word_commands'):raise ValueError('bulk command declaration mismatch')
  for item in manifest['immutable_segments']:
   if item['address']&3 or item['bytes']&3 or item['address']==0x17328:raise ValueError('invalid runtime range')
  l=manifest['controls'];text='/* Generated internal exact-image profile. Reclaimed scatter data excluded. */\n'
@@ -18,6 +19,8 @@ def render(directory):
  text+='};\nstatic const struct xnow_full_profile xnow_full_compiled_profile={{0x%xu,0x%xu,0x%xu},sizeof(xnow_full_ranges)/sizeof(xnow_full_ranges[0]),xnow_full_ranges};\n'%(l['xnow_full_tx']['address'],l['xnow_full_rx']['address'],l['xnow_tx_completion']['address'])
  if 'xnow_rx_seen' in l:
   text+='#define XNOW_RADIO_RX_SEEN 0x%xu\n#define XNOW_RADIO_RX_ELIGIBLE 0x%xu\n'%(l['xnow_rx_seen']['address'],l['xnow_rx_eligible']['address'])
+ if manifest.get('bulk_word_commands'):
+  text+='#define XNOW_RADIO_BULK_WORD_COMMANDS 1\n#define XNOW_RADIO_BULK_MARKER 0x%xu\n'%manifest['bulk_word_commands']['marker_address']
  return text
 if __name__=='__main__':
  p=argparse.ArgumentParser(description=__doc__);p.add_argument('build',type=Path);p.add_argument('output',type=Path);a=p.parse_args();out=a.output.resolve()

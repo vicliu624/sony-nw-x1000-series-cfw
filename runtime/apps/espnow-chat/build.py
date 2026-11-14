@@ -9,6 +9,7 @@ sys.path.insert(0,str(ROOT/'tools'))
 from elftools.elf.elffile import ELFFile
 from sdk_services import compiler
 sdk_run=compiler(ROOT/'runtime/apps/espnow-chat')
+version=(ROOT/'runtime/apps/espnow-chat/VERSION').read_text().strip()
 OUT=ROOT/'work/espnow-chat-app';OUT.mkdir(parents=True,exist_ok=True)
 LIB=ROOT/'work/arm-signal-tests/lib'
 for name,digest in {'libc.so.6':'5afbf3074dfa9ba0478d6670f220ef4d7ec065a255ee856d9093d39210f23812','ld-linux.so.3':'2f007b0809684fde0ac446ad203135c10b4318eb8c10d4160a9f59b32c3c52de'}.items():
@@ -45,7 +46,7 @@ for i,source in enumerate(sources):
     obj=OUT/f'{i}.o'
     sdk_run(['arm-linux-gnueabi-gcc','-std=c99','-Os','-Wall','-Wextra','-Werror',
                     '-ffunction-sections','-fdata-sections',
-                    '-DHB_USE_POSIX_DEVICE_IO','-DHB_STORE_SONY_LIBC','-D_DEFAULT_SOURCE','-U_FORTIFY_SOURCE','-D_FORTIFY_SOURCE=0',
+                    '-DHB_BUILD_VERSION="'+version+'"','-DHB_USE_POSIX_DEVICE_IO','-DHB_STORE_SONY_LIBC','-D_DEFAULT_SOURCE','-U_FORTIFY_SOURCE','-D_FORTIFY_SOURCE=0',
                     '-march=armv5te','-marm','-mfloat-abi=soft','-ffreestanding','-fno-builtin',
                     '-fno-pie','-fno-stack-protector','-I'+str(ROOT/'work/espnow-radio-bridge'),'-I'+str(ROOT/'sdk/include'),'-I'+str(OUT),
                     '-MMD','-MF',str(OUT/f'{i}.d'),'-c',source,'-o',str(obj)],cwd=ROOT,check=True);objects.append(str(obj))
@@ -57,6 +58,7 @@ checks=[]
 for arg in ['--help','--version','--selftest']:
     r=subprocess.run(base+[arg],capture_output=True,text=True,timeout=15);assert r.returncode==0,(r.stdout,r.stderr)
     checks.append({'arg':arg,'stdout':r.stdout})
+    if arg=='--version':assert r.stdout.strip()==version,'Executable and package version differ'
 from PIL import Image
 for flag,name in [('--render-preview','preview'),('--render-keyboard-preview','keyboard-preview')]:
     r=subprocess.run(base+[flag],capture_output=True,timeout=15);assert r.returncode==0 and len(r.stdout)==240*432*2
@@ -64,7 +66,7 @@ for flag,name in [('--render-preview','preview'),('--render-keyboard-preview','k
     for i in range(0,len(r.stdout),2):
         v=r.stdout[i]|(r.stdout[i+1]<<8);rgb.extend((((v>>11)&31)*255//31,((v>>5)&63)*255//63,(v&31)*255//31))
     Image.frombytes('RGB',(240,432),bytes(rgb)).save(OUT/(name+'.png'))
-version=(ROOT/'runtime/apps/espnow-chat/VERSION').read_text().strip();data=app.read_bytes();digest=hashlib.sha256(data).hexdigest()
+data=app.read_bytes();digest=hashlib.sha256(data).hexdigest()
 (folder/'app.ini').write_text(f'api=1\nid=espnow-chat\nname=ESP-NOW Chat\nversion={version}\ntarget=sony-nw-x1000-jp\nexec=app\nbytes={len(data)}\nsha256={digest}\n')
 (folder/'launch.contract').write_text('XNOW-MANAGED-1\n'+digest+'\n')
 (folder/'files.sha256').write_text('HBFILES1\n'+''.join(f'{hashlib.sha256(p.read_bytes()).hexdigest()} {p.stat().st_size} {p.name}\n' for p in sorted([app,worker,folder/'app.ini',folder/'launch.contract'])))

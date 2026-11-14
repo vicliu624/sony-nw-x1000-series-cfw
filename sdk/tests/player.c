@@ -46,7 +46,7 @@ static void verify_client_contract(void){
   struct xw_player_command malformed;memset(&malformed,0,sizeof malformed);
   malformed.operation=(enum xw_player_operation)operation;
   if(operation==XW_OP_PLAY_ITEM)strcpy(malformed.item.value,"demo:2");
-  if(operation!=XW_OP_SET_VOLUME&&operation!=XW_OP_STEP_VOLUME){
+  if(operation!=XW_OP_SET_VOLUME&&operation!=XW_OP_STEP_VOLUME&&operation!=XW_OP_SET_PLAY_MODE){
    malformed.value=1;assert(xw_player_command(&player,&malformed)==XW_PLAYER_INVALID&&!commands);malformed.value=0;
   }
   if(operation!=XW_OP_PLAY_ITEM){
@@ -56,6 +56,11 @@ static void verify_client_contract(void){
    malformed.expected_revision=7;assert(xw_player_command(&player,&malformed)==XW_PLAYER_INVALID&&!commands);
   }
  }
+ struct xw_player_command mode;memset(&mode,0,sizeof mode);mode.operation=XW_OP_SET_PLAY_MODE;
+ mode.value=-1;assert(xw_player_command(&player,&mode)==XW_PLAYER_INVALID&&!commands);
+ mode.value=XW_MODE_COUNT;assert(xw_player_command(&player,&mode)==XW_PLAYER_INVALID&&!commands);
+ for(mode.value=XW_MODE_NORMAL;mode.value<XW_MODE_COUNT;mode.value++)
+  assert(xw_player_command(&player,&mode)==XW_PLAYER_UNSUPPORTED&&!commands);
  static struct xw_player_snapshot observed;
  uint32_t changed;assert(!xw_player_poll(&player,&observed,&changed)&&(changed&XW_PC_AVAILABLE));
  assert(!xw_player_poll(&player,&observed,&changed)&&!changed);

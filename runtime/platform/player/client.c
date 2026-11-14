@@ -80,11 +80,14 @@ int xw_player_command(struct xw_player *p, const struct xw_player_command *comma
         (command->item.value[0] || command->container.value[0] || command->expected_revision))
         return XW_PLAYER_INVALID;
     if (command->operation != XW_OP_SET_VOLUME && command->operation != XW_OP_STEP_VOLUME &&
-        command->value)
+        command->operation != XW_OP_SET_PLAY_MODE && command->value)
         return XW_PLAYER_INVALID;
     if (command->operation == XW_OP_PLAY_ITEM && !command->item.value[0])
         return XW_PLAYER_INVALID;
     if (command->operation == XW_OP_STEP_VOLUME && !command->value)
+        return XW_PLAYER_INVALID;
+    if (command->operation == XW_OP_SET_PLAY_MODE &&
+        (command->value < XW_MODE_NORMAL || command->value >= XW_MODE_COUNT))
         return XW_PLAYER_INVALID;
     if ((rc = enter(p)))
         return rc;

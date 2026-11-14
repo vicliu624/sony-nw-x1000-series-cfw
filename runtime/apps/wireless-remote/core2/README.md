@@ -76,8 +76,12 @@ uses the opposite explicit PLAY/PAUSE intent. A successful send does not toggle
 the displayed state speculatively.
 
 The mode page displays Normal, Repeat, Shuffle, Shuffle & Repeat and Repeat 1
-Song only when the received mode is valid. Focus is not a mode change. Library
-requests are user-driven and bounded; unsupported, stale, empty and failed
+Song only when the received mode is valid. Alpha.31 sends a mode change only on
+explicit A/touch confirmation and only when the matching player advertises the
+new command. Focus movement does not send a command. The selected row follows
+authenticated player observations; a receipt does not speculate its selection.
+Older firmware retains basic controls and reports mode writing as unsupported.
+Library requests are user-driven and bounded; unsupported, stale, empty and failed
 results are distinct from a populated list.
 
 ## Pairing and connection
@@ -108,6 +112,10 @@ installation, and peer replacement waits for native TX callbacks. Pairing and
 app payload formats remain unchanged. See
 [link keys](../../../../docs/reference/ESPNOW_LINK_KEYS.md) for the protocol and
 validation limits. Builds do not automatically update either device.
+
+The mode-write composition requires Core2 alpha.31 or newer: earlier status
+decoders reject its new command bit. Update the matched controller before that
+firmware. This is separate from preserving the stored pairing.
 
 A matching receipt and a newer authenticated snapshot are independent response
 evidence. PLAY/PAUSE completes only when its target state is observed. A timeout
@@ -149,6 +157,7 @@ evidence merely because a separate control receipt was lost.
 ## USB console
 
 - `status`: source version, binding, channel, session, control and artwork counters.
+  `REMOTE_MODE` separates the observed mode and advertised write capability.
 - `connect`: request one handshake without a playback command.
 - `cover-retry`: retry current artwork without changing binding.
 - `channel N`: select the matching radio channel when no command is pending.

@@ -1,3 +1,26 @@
+# X1000 SDK 0.2.0-alpha.11 (unreleased)
+
+Adds canonical SET_PLAY_MODE as operation7 without renumbering existing commands.
+The native adapter follows Sony's request/settings order, retains queue-admission
+results and reports post-mutation failures as uncertain. It does not replace the
+audio engine or introduce a separate settings file.
+
+Default HELLO remains the legacy seven-bit contract. A managed client can opt
+in to an explicit known-command mask on a matching new host. Server capability
+intersection and existing CONTROL grants preserve old clients. Real clients
+compiled from the retained seven-operation SDK have passed local ordinary and
+managed IPC checks against the new host.
+
+The experimental native radio source is dev.20. Its optional bulk packet IO
+retains owned-span and retirement checks and enforces the original 1,500-byte
+request boundary. Larger packet spans use multiple bounded commands. This new
+radio composition still requires physical acceptance.
+
+Source app definitions pin alpha.11. Pocket Counter and Canvas Playground move
+to alpha.5 because their embedded SDK identity changes. Chat moves to dev.4 for
+its updated shared native adapter; other application version lines are retained.
+Existing installed apps need no bulk replacement for the new player handshake.
+
 # X1000 SDK 0.2.0-alpha.10 (unreleased)
 
 Storage checks cancellation both before and after the ownership callback. A

@@ -33,6 +33,26 @@ Include xnow.h or an individual header. Public C functions have C++ linkage
 guards. Compile/link with the matching Sony profile, not a modern system libc
 or another Walkman model's binaries. No C++ runtime is supplied by this library.
 
+The variable-length full transport uses `xnow_full`, `xnow_endpoint`, the
+security adapter and a separately owned controller. Its guarded span interface
+has two data implementations: scalar word commands and optional bulk packet IO.
+Both retain complete-span packet/lease/ticket validation before and after data
+transfer. These are private matching-driver integrations, not application
+permission grants. Applications normally use the supplied owner/client channel.
+
+For a generated bulk-image profile, the owner explicitly enables
+`xnow_sd8686_full_enable_bulk(radio, profile, marker_address)`. The marker must
+be inside that verified immutable profile and match the radio image. There is
+no speculative action probe, image installation or automatic scalar retry after
+a failed write. The original 1,500-byte request boundary permits 1,484 data
+bytes per command; a 1,536-byte packet span uses two commands. This changes no
+application payload or CCMP framing. The optional backend adds context fields;
+dev.20 consumers must rebuild against its matching headers/archive.
+
+The full transport's Root/Core2 fresh-link handshake and the legacy fixed-word
+mailbox below are different profiles. Idle Root/Core2 sessions send no heartbeat.
+Keep their source receipts and physical validation scopes separate.
+
 | Header | Interface | Important boundary |
 | --- | --- | --- |
 | xnow_frame.h | Payload encode/decode | Byte framing, no RF IO |

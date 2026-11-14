@@ -169,5 +169,6 @@ report=dict(passed=True,engine_provider=engine_provider,original_dispatch_and_fi
 report['complete_matrix_run']=not (direct_only or engine_provider)
 report['selected_profile']='engine-provider' if engine_provider else 'direct-only' if direct_only else 'full-gui'
 report['source_hashes']['runtime/platform/player/stock_controller_binding.h']=hashlib.sha256((ROOT/'runtime/platform/player/stock_controller_binding.h').read_bytes()).hexdigest()
+report['source_hashes']['runtime/platform/player/stock_mode_binding.h']=hashlib.sha256((ROOT/'runtime/platform/player/stock_mode_binding.h').read_bytes()).hexdigest()
 report['report_path']=(work/('report-engine-provider.json' if engine_provider else 'report-direct.json' if direct_only else 'report.json')).relative_to(ROOT).as_posix()
 (work/('report-engine-provider.json' if engine_provider else 'report-direct.json' if direct_only else 'report.json')).write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))

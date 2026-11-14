@@ -95,6 +95,31 @@ static int control(struct xw_managed_client *c, uint32_t op, uint64_t after, uin
         return rc;
     return xw_managed_remote_exchange(&c->remote, frame, sizeof frame);
 }
+int xw_managed_client_negotiate_commands(struct xw_player *p, struct xw_managed_client *c,
+                                         uint32_t known_commands) {
+    const uint32_t compiled = (1u << XW_OP_COUNT) - 1u;
+    if (!p || !c || !p->initialized || !c->used || p->provider.context != c ||
+        p->provider.snapshot != snapshot || p->provider.command != command ||
+        p->provider.browse != browse || p->provider.close != detach || (known_commands & ~compiled))
+        return XW_PLAYER_INVALID;
+    if (p->busy || c->remote.busy)
+        return XW_PLAYER_BUSY;
+    p->busy = 1;
+    struct xw_rpc_request request = {0};
+    request.kind = XW_RPC_HELLO;
+    request.body.hello.present = 1;
+    request.body.hello.known_commands = known_commands;
+    int result = legacy(c, &request);
+    if (!result && (c->response.kind != XW_RPC_HELLO || c->response.serial != request.serial ||
+                    (c->response.body.commands & ~known_commands))) {
+        (void)xw_managed_remote_detach(&c->remote);
+        result = XW_PLAYER_PROTOCOL;
+    }
+    if (!result)
+        p->provider.commands = c->response.body.commands;
+    p->busy = 0;
+    return result;
+}
 int xw_managed_client_status(struct xw_managed_client *c, struct xw_session_snapshot *out) {
     if (!out)
         return XW_PLAYER_INVALID;

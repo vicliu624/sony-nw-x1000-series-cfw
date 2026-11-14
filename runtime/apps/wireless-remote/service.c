@@ -28,7 +28,7 @@ static struct wr_worker worker;
 static volatile sig_atomic_t stopping;
 static volatile int transport_cancel;
 static struct wr_mode last_mode;
-static uint32_t mode_sequence, mode_resync_serial;
+static uint32_t mode_sequence, mode_resync_serial, mode_control_serial;
 static uint64_t mode_checked_at;
 static unsigned mode_checked, mode_sent;
 static uint32_t hello_elapsed_ms = UINT32_MAX;
@@ -43,7 +43,8 @@ static int sample_mode(void *context) {
     unsigned long long now;
     if (hb_monotonic_millis(&now))
         return XW_PLAYER_IO;
-    if (mode_checked && now >= mode_checked_at && now - mode_checked_at < 1000)
+    int requested = mode_control_serial != sender.mode_refresh_serial;
+    if (!requested && mode_checked && now >= mode_checked_at && now - mode_checked_at < 1000)
         return 0;
     mode_checked = 1;
     mode_checked_at = now;
@@ -54,8 +55,9 @@ static int sample_mode(void *context) {
     if (rc && !managed.remote.bound)
         return rc;
     struct wr_mode value = {sender.session, 0, rc ? 0u : 1u, rc ? 0u : native, rc ? 0u : index};
-    if (mode_sent && mode_resync_serial == sender.resync_serial && value.valid == last_mode.valid &&
-        value.native == last_mode.native && value.index == last_mode.index)
+    if (!requested && mode_sent && mode_resync_serial == sender.resync_serial &&
+        value.valid == last_mode.valid && value.native == last_mode.native &&
+        value.index == last_mode.index)
         return 0;
     if (mode_sequence == UINT32_MAX)
         return XW_PLAYER_UNAVAILABLE;
@@ -66,6 +68,7 @@ static int sample_mode(void *context) {
         last_mode = value;
         mode_sent = 1;
         mode_resync_serial = sender.resync_serial;
+        mode_control_serial = sender.mode_refresh_serial;
     }
     return rc;
 }
@@ -122,7 +125,9 @@ static int configuration(int fd, uint8_t out[80]) {
             continue;
         }
         if (!n) {
-            if (used == 80 && (!memcmp(data, "XWRUN001", 8) || !memcmp(data, "XWRUN002", 8)) &&
+            if (used == 80 &&
+                (!memcmp(data, "XWRUN001", 8) || !memcmp(data, "XWRUN002", 8) ||
+                 !memcmp(data, "XWRUN003", 8)) &&
                 !data[30] && !data[31] && u64(data + 8) && u64(data + 16)) {
                 memcpy(out, data, 80);
                 wipe(data, sizeof data);
@@ -234,7 +239,8 @@ int main(int argc, char **argv) {
     }
     close(fds[0]);
     uint64_t generation = u64(config + 8), session = u64(config + 16);
-    unsigned modes = !memcmp(config, "XWRUN002", 8);
+    unsigned mode_control = !memcmp(config, "XWRUN003", 8);
+    unsigned modes = mode_control || !memcmp(config, "XWRUN002", 8);
     int rc = xnow_handoff_adopt_reader(&handoff, fds[4], config + 64);
     if (!rc)
         rc = wr_radio_retirement_init(&retirement, &handoff);
@@ -261,6 +267,13 @@ int main(int argc, char **argv) {
     if (rc) {
         wipe(config, sizeof config);
         return start_refused(WR_START_PLAYER_HELLO, rc);
+    }
+    if (mode_control) {
+        rc = xw_managed_client_negotiate_commands(&player, &managed, (1u << XW_OP_COUNT) - 1u);
+        if (rc) {
+            wipe(config, sizeof config);
+            return start_refused(WR_START_PLAYER_CAPABILITIES, rc);
+        }
     }
     managed.remote.timeout = 1500;
     rc = wr_sender_init(&sender, &player, &radio, config + 24, config + 32, session);

@@ -4,12 +4,13 @@ peer=bytes.fromhex('020102030405');key=bytes(range(1,33));cookie=bytes(range(16)
 session=1234567
 mode_profile=os.environ.get('XW_FIXTURE_PLAY_MODE')=='1'
 all_modes=os.environ.get('XW_FIXTURE_ALL_PLAY_MODES')=='1'
+mode_control=os.environ.get('XW_FIXTURE_MODE_CONTROL')=='1'
 library_profile=os.environ.get('XW_FIXTURE_LIBRARY')=='1'
 library_replies=0
 seen_modes=set()
 config_in,config_out=os.pipe();owner_in,client_out=os.pipe();client_in,owner_out=os.pipe();retire_in,retire_out=os.pipe()
 for fd in (config_in,client_out,client_in,retire_in,owner_in):os.set_blocking(fd,False)
-config=(b'XWRUN002' if mode_profile else b'XWRUN001')+struct.pack('<QQ',23,session)+peer+b'\0\0'+key+cookie
+config=(b'XWRUN003' if mode_control else b'XWRUN002' if mode_profile else b'XWRUN001')+struct.pack('<QQ',23,session)+peer+b'\0\0'+key+cookie
 assert len(config)==80
 process=subprocess.Popen(sys.argv[1:]+['--run',str(config_in),'3',str(client_in),str(client_out),str(retire_in)],
                          pass_fds=(3,config_in,client_in,client_out,retire_in))
@@ -17,6 +18,13 @@ for fd in (3,config_in,client_in,client_out,retire_in):os.close(fd)
 os.write(config_out,config);os.close(config_out)
 command=b'WRC1'+struct.pack('<QIIiII',session,1,1,0,0,0) # explicit PAUSE
 command+=hmac.new(key,command,hashlib.sha256).digest()[:16]
+mode_targets=(0,1,2,3,4,4) # Include an explicit same-value final request.
+mode_sent=0;mode_receipts={};mode_observed=False;mode_sequence=0;mode_start_sequence=0
+
+def mode_command(index):
+ request=index+2
+ packet=b'WRC1'+struct.pack('<QIIiII',session,request,7,mode_targets[index],0,0)
+ return packet+hmac.new(key,packet,hashlib.sha256).digest()[:16]
 def inbound(data=None):
  data=command if data is None else data
  return struct.pack('<4sII6sBB4sII',b'XNR1',32+len(data),0,peer,2,1,b'1234',2,0)+data
@@ -43,22 +51,36 @@ try:
    body=bytes(buffer[16:16+bytes_]);del buffer[:16+bytes_]
    assert body[:6]==peer
    payload=body[6:]
-   if payload[:4]==b'WRS1':
-    assert len(payload)==893 and hmac.compare_digest(hmac.new(key,payload[:877],hashlib.sha256).digest()[:16],payload[877:])
+   if payload[:4] in (b'WRS1',b'WRS2'):
+    assert hmac.compare_digest(hmac.new(key,payload[:-16],hashlib.sha256).digest()[:16],payload[-16:])
     assert struct.unpack_from('<Q',payload,4)[0]==session
     valid=struct.unpack_from('<I',payload,16)[0];state=struct.unpack_from('<I',payload,24)[0]
-    assert valid&39==39 and payload[109:365].split(b'\0')[0]==b'Channel song'
+    if payload[:4]==b'WRS1':
+     assert len(payload)==893
+     title=payload[109:365].split(b'\0')[0]
+    else:
+     lengths=struct.unpack_from('<4H',payload,44)
+     assert len(payload)==68+sum(lengths)
+     title=payload[52+lengths[0]:52+lengths[0]+lengths[1]]
+    assert valid&39==39 and title==b'Channel song'
     statuses+=1;paused=paused or state==2
    elif payload[:4]==b'WRA1':
     assert len(payload)==48 and hmac.compare_digest(hmac.new(key,payload[:32],hashlib.sha256).digest()[:16],payload[32:])
-    assert struct.unpack_from('<QIi',payload,4)==(session,1,1)
-    receipts+=1
+    result_session,result_request,result=struct.unpack_from('<QIi',payload,4)
+    assert result_session==session and result==1
+    if result_request==1:receipts+=1
+    else:
+     assert mode_control and result_request==mode_sent+1
+     mode_receipts[result_request]=mode_receipts.get(result_request,0)+1
    elif payload[:4]==b'WRM1':
     assert len(payload)==48 and hmac.compare_digest(hmac.new(key,payload[:32],hashlib.sha256).digest()[:16],payload[32:])
     valid,native,index=struct.unpack_from('<III',payload,16)
     assert struct.unpack_from('<Q',payload,4)[0]==session and valid==1
     assert native in (0,1,2,3,5) and index==(4 if native==5 else native)
-    if not all_modes:assert (native,index)==(5,4)
+    if not all_modes and not mode_control:assert (native,index)==(5,4)
+    mode_sequence=struct.unpack_from('<I',payload,12)[0]
+    if mode_control and mode_sent and index==mode_targets[mode_sent-1] and mode_sequence>mode_start_sequence:
+     mode_observed=True
     seen_modes.add(native)
     modes+=1
    elif payload[:4]==b'WLBR':
@@ -67,19 +89,30 @@ try:
     assert struct.unpack_from('<QIIII',payload,20)==(7,0,1,1,1)
     assert payload[92:157].split(b'\0')[0]==b'model:42' and payload[157:413].split(b'\0')[0]==b'Channel song'
     library_replies+=1
-   else:raise AssertionError('Unexpected service payload')
+   else:raise AssertionError(('Unexpected service payload',payload[:16].hex(),len(payload)))
    os.write(owner_out,struct.pack('<4sIII',b'XNA1',request,0,4))
    os.write(owner_out,struct.pack('<4sIII6s2xII',b'XNT1',32,request,0,peer,0,0))
-   if payload[:4]==b'WRS1' and statuses==1 and not receipts:os.write(owner_out,inbound())
+   if payload[:4] in (b'WRS1',b'WRS2') and statuses==1 and not receipts:os.write(owner_out,inbound())
    if receipts==1 and payload[:4]==b'WRA1':os.write(owner_out,inbound()) # same ID: cached receipt, no second native PAUSE
+   if mode_control:
+    if payload[:4]==b'WRA1' and result_request>=2 and mode_receipts[result_request]==1:
+     os.write(owner_out,inbound(mode_command(mode_sent-1)))
+    mode_done=mode_sent and mode_receipts.get(mode_sent+1)==2 and mode_observed
+    if (not mode_sent and receipts==2) or (mode_done and mode_sent<len(mode_targets)):
+     mode_start_sequence=mode_sequence;mode_observed=False
+     os.write(owner_out,inbound(mode_command(mode_sent)));mode_sent+=1
+     mode_done=False
    if library_profile and receipts==2 and payload[:4]==b'WRA1':os.write(owner_out,inbound(library_request))
    if library_profile and library_replies==1 and payload[:4]==b'WLBR':os.write(owner_out,inbound(library_request))
-   if statuses>=2 and paused and receipts==2 and (not mode_profile or modes) and (not all_modes or len(seen_modes)==5) and (not library_profile or library_replies==2) and not requested_stop:
+   if statuses>=2 and paused and receipts==2 and (not mode_profile or modes) and (not all_modes or len(seen_modes)==5) and (not mode_control or (mode_sent==len(mode_targets) and mode_done)) and (not library_profile or library_replies==2) and not requested_stop:
     requested_stop=True;process.send_signal(signal.SIGTERM)
  assert owner_eof and statuses>=2 and paused and receipts==2 and (not mode_profile or modes)
  assert process.wait(timeout=5)==0
  print('REMOTE_SERVICE_OWNER_MODEL_PASS: real ARM service, SDK status, pause, duplicate receipt, SIGTERM, client EOF and retirement receipt',flush=True)
  if mode_profile:print('REMOTE_SERVICE_MODE_MODEL_PASS: actual SDK query and authenticated native5/index4 packet',flush=True)
+ if mode_control:
+  assert seen_modes=={0,1,2,3,5} and all(n==2 for n in mode_receipts.values())
+  print('REMOTE_SERVICE_FIVE_MODE_WRITES_PASS: six explicit intents, all five modes, duplicate receipts, fresh same-value observation',flush=True)
  if all_modes:
   assert seen_modes=={0,1,2,3,5}
   print('REMOTE_SERVICE_ALL_FIVE_MODES_PASS',flush=True)

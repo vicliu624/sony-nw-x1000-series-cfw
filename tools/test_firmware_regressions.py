@@ -21,6 +21,9 @@ SUITES = {
     # No Sony inputs, ARM toolchain, network bootstrap or firmware composition.
     # These are a subset of remote/workers, so exclude host from the default run.
     "host": [
+        ["test_xnow_span_guard.py", "--host-only"],
+        ["test_xnow_span_guard.py", "--bulk", "--host-only"],
+        ["test_player_hello_compat.py"],
         ["test_xnow_link.py", "--host-only"],
         ["test_core2_link.py"],
         ["test_core2_tx_frame.py"],
@@ -80,6 +83,10 @@ SUITES = {
         ["tests/test_sdk_shared_dependencies.py"],
     ],
     "remote": [
+        ["test_xnow_span_guard.py"],
+        ["test_xnow_span_guard.py", "--bulk"],
+        ["test_player_hello_compat.py"],
+        ["test_stock_mode_control.py"],
         ["test_stock_provider.py"],
         ["test_stock_info.py", "--engine-control"],
         ["test_stock_gui_host.py"],
@@ -108,6 +115,8 @@ SUITES = {
         ["test_full_owner_runtime.py", "--stop-boundaries"],
         ["test_full_owner_runtime.py", "--power-off", "--mode-admission", "--pairing-policy", "--stop-boundaries"],
         ["test_service_lifecycle.py"],
+        ["test_remote_service.py", "--play-mode-control"],
+        ["test_remote_supervisor.py", "--automatic-factory", "--owner-view-forward", "--shared-wifi", "--device-pairing", "--play-mode-control"],
         ["test_remote_observation_chain.py"],
         ["test_player_service_drain.py", "--host-wrapper", "--wait-backpressure"],
         ["test_player_service_drain.py", "--host-wrapper", "--handoff-revocation"],

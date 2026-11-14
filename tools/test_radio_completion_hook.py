@@ -5,12 +5,15 @@ from elftools.elf.elffile import ELFFile
 from unicorn import UC_HOOK_CODE
 from unicorn.arm_const import UC_ARM_REG_R0,UC_ARM_REG_R1,UC_ARM_REG_R4,UC_ARM_REG_R5,UC_ARM_REG_R6,UC_ARM_REG_R7,UC_ARM_REG_SP,UC_ARM_REG_LR,UC_ARM_REG_PC
 from app_registry import ROOT
+from radio_test_profile import selected_radio
 OUT=ROOT/'work/espnow-completion-hook';OUT.mkdir(exist_ok=True)
 with contextlib.redirect_stdout(io.StringIO()):env=runpy.run_path(str(ROOT/'tools/test_radio_full_tx.py'))
 cpu,put,word,call,free_count,command=[env[n] for n in ('cpu','put','word','call','free_count','command')]
 sources=['runtime/platform/espnow/'+n for n in ('radio_packet.c','radio_full_rx.c','radio_full_tx.c','radio_tx_completion.c','radio_completion_hook.S','radio_word_command.c','radio_command_hook.S')]
 elf=OUT/'completion.elf';link=OUT/'completion.ld';link.write_text(env['link'].read_text())
-subprocess.run(['arm-linux-gnueabi-gcc','-std=c99','-Os','-Wall','-Wextra','-Werror','-march=armv5te','-mthumb','-mfloat-abi=soft','-ffreestanding','-fno-builtin','-fno-pie','-fno-stack-protector','-nostdlib','-static','-Wl,--build-id=none','-Wl,-T,'+str(link),*sources,'-o',str(elf)],cwd=ROOT,check=True)
+selected=selected_radio()
+if selected:elf=selected[0]
+else:subprocess.run(['arm-linux-gnueabi-gcc','-std=c99','-Os','-Wall','-Wextra','-Werror','-march=armv5te','-mthumb','-mfloat-abi=soft','-ffreestanding','-fno-builtin','-fno-pie','-fno-stack-protector','-nostdlib','-static','-Wl,--build-id=none','-Wl,-T,'+str(link),*sources,'-o',str(elf)],cwd=ROOT,check=True)
 with elf.open('rb') as f:
  e=ELFFile(f);sections=[(s['sh_addr'],s.data()) for s in e.iter_sections() if s['sh_flags']&2 and s['sh_size']];symbols={s.name:s['st_value'] for s in e.get_section_by_name('.symtab').iter_symbols() if s.name}
 cpu.mem_write(0xc000a190,bytes(1900))
@@ -73,6 +76,9 @@ env['env']['queue_result'][0]=1
 before=len(releases);assert operation(2)==-1 and word(completion)==0 and releases[before:]==[packet] and free_count()==3
 assert operation(1)==0 and operation(3)==0 and free_count()==3
 report={'passed':True,'original_common_management_free_patched':True,'pre_mac_rejection_reports_terminal_status2':True,'original_release_exactly_once':True,'unrelated_management_packet_ignored_by_observer':True,'completion_status_and_token_correlated':True,'unread_completion_backpressure':True,'queue_rejection_clears_pending':True,'task_stack_callee_saved_and_displaced_loads_preserved':True,'combined_reserved_bytes':sum(len(d) for _,d in sections),'completion_records_and_scheduler_modeled':True,'device_accessed':False,'download_image_created':False,'source_hashes':{p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in [*sources,'tools/test_radio_completion_hook.py']}}
+if selected:
+ report['exact_selected_radio']=dict(elf=elf.relative_to(ROOT).as_posix(),sha256=selected[1]['payload_elf_sha256'],candidate_sha256=selected[1]['candidate_sha256'])
+ report['source_hashes']['tools/radio_test_profile.py']=hashlib.sha256((ROOT/'tools/radio_test_profile.py').read_bytes()).hexdigest()
 (OUT/'report.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))
 
 

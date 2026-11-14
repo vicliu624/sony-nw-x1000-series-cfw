@@ -24,6 +24,11 @@ int xw_managed_client_status(struct xw_managed_client *, struct xw_session_snaps
 /* Requires a matching host with PLAY_MODE support; old hosts do not advertise
  * this extension. Do not probe it automatically on unqualified legacy hosts. */
 int xw_managed_client_play_mode(struct xw_managed_client *, uint32_t *native, uint32_t *menu_index);
+/* Explicitly opt in to newer commands on a known matching host. Default binds
+ * retain the legacy seven-bit HELLO. No automatic probe, reconnect or retry;
+ * the previous command bitmap is preserved on failure. Knowledge is not a grant. */
+int xw_managed_client_negotiate_commands(struct xw_player *, struct xw_managed_client *,
+                                         uint32_t known_commands);
 /* Matching experimental host only. Start at offset zero to bind this READ
  * session to one immutable image cache. STALE requires a new zero-offset read,
  * not appending another cache epoch to already received bytes. */

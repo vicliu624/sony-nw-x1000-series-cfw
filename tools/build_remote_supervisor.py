@@ -3,7 +3,9 @@ import argparse,hashlib,json,os,re,shutil,subprocess,time
 from pathlib import Path
 from app_registry import ROOT
 from player_arm_guest import stock_libraries
-parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--review',type=Path,required=True);parser.add_argument('--reusable-sessions',action='store_true');parser.add_argument('--forward-owner-mode-view',action='store_true');parser.add_argument('--shared-wifi-owner-review',type=Path);parser.add_argument('--device-pairing',action='store_true',help='Read mutable pairing data while keeping executable hashes pinned');parser.add_argument('--embedded-runtime',action='store_true');args=parser.parse_args()
+parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--review',type=Path,required=True);parser.add_argument('--reusable-sessions',action='store_true');parser.add_argument('--forward-owner-mode-view',action='store_true');parser.add_argument('--shared-wifi-owner-review',type=Path);parser.add_argument('--device-pairing',action='store_true',help='Read mutable pairing data while keeping executable hashes pinned');parser.add_argument('--embedded-runtime',action='store_true');parser.add_argument('--play-mode-control',action='store_true',help='Explicit matching-host command negotiation; requires Core2 alpha.31 or newer');args=parser.parse_args()
+if args.play_mode_control and not (args.device_pairing and args.reusable_sessions and args.forward_owner_mode_view):
+ parser.error('--play-mode-control requires the managed device-pairing profile')
 if args.embedded_runtime and not args.device_pairing:
  parser.error('--embedded-runtime requires --device-pairing')
 if args.device_pairing and not (args.reusable_sessions and args.forward_owner_mode_view):
@@ -14,6 +16,7 @@ if args.forward_owner_mode_view:assert review.get('owner_mode_view_supported') i
 assert directory=='/contents/HOMEBREW/data/wireless-remote/runtime' or re.fullmatch(r'/contents/HOMEBREW/data/player-sdk-live-[0-9]+/remote',directory)
 out=ROOT/'work/remote-supervisor-build'/str(time.time_ns());out.mkdir(parents=True)
 header=[];inputs=['tools/build_remote_supervisor.py','runtime/apps/wireless-remote/run_profile.h','runtime/apps/wireless-remote/startup_result.h'];rows={};local_rows={};mode_host_snapshot=None
+if args.play_mode_control:header.append('#define WR_PLAY_MODE_CONTROL 1')
 inputs+=['runtime/platform/wireless/mode_policy.h','runtime/platform/wireless/mode.h']
 shared_owner_review=None;shared_wifi_radio_sha256=None
 root_cold_supported=False
@@ -96,6 +99,7 @@ report=dict(built=True,artifact=str(artifact.relative_to(ROOT)),bytes=artifact.s
             owner_mode_view_forwarded=args.forward_owner_mode_view,
             device_pairing=args.device_pairing,
             embedded_runtime=args.embedded_runtime,
+            play_mode_control=args.play_mode_control,
             root_cold_supported=root_cold_supported,
             shared_wifi_owner_review=shared_owner_review,
             shared_wifi_radio_sha256=shared_wifi_radio_sha256,
@@ -106,5 +110,10 @@ report=dict(built=True,artifact=str(artifact.relative_to(ROOT)),bytes=artifact.s
             generated_header_sha256=hashlib.sha256((out/'remote_launch_inputs.h').read_bytes()).hexdigest())
 from review_managed_remote_profile import input_artifact
 for role,leaf in (('owner','remote-rf-owner.arm'),('service','wireless-remote-service.arm')):
- input_artifact(report,role,leaf)
+ component_path,_=input_artifact(report,role,leaf)
+ if role=='service' and args.play_mode_control:
+  from review_managed_remote_profile import receipt
+  _,component=receipt(component_path.parent/'build.json')
+  if component.get('command_negotiation_supported') is not True:
+   raise ValueError('Mode control requires a matching service with explicit command negotiation')
 (out/'build.private.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8');print(json.dumps(report,indent=2))

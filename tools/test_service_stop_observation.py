@@ -36,7 +36,7 @@ inputs = [source, 'runtime/apps/wireless-remote/service.c', 'tools/test_service_
 inputs += [p.relative_to(ROOT).as_posix() for p in
            (ROOT / 'runtime/apps/wireless-remote').glob('*.h')]
 report = dict(passed=True, actual_service_callback=True, host_sanitizers=True,
-    original_libc_arm=True, port_results_modeled=True, cases=4,
+    original_libc_arm=True, port_results_modeled=True, cases=5,
     device_accessed=False, firmware_created=False, stdout=checked.stdout,
     source_hashes={name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest() for name in inputs},
     limits=['Callback is source-included; unused service entry sections are removed.',

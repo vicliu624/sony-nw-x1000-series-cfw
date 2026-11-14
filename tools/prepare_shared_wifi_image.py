@@ -18,6 +18,8 @@ LOADER_PATH = 'usr/local/bin/wlan_load_driver.sh'
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--rx-diagnostics', action='store_true')
+    parser.add_argument('--bulk-commands', action='store_true',
+                        help='Bounded packet-only command extension; requires its matching native adapter')
     args = parser.parse_args()
     rootfs = ROOT / 'work/upg-jp/verified-3.bin'
     with rootfs.open('rb') as file:
@@ -34,7 +36,7 @@ def main():
     assert b'helper_name=${fw_dir}/helper_sd.bin fw_name=${fw_dir}/sd8686.bin' in loader
     for name in (RADIO_PATH,HELPER_PATH):
         (out/Path(name).name).write_bytes(inputs[name][1])
-    radio = build(out/'sd8686.bin',out/'helper_sd.bin',out/'radio-build',args.rx_diagnostics)
+    radio = build(out/'sd8686.bin',out/'helper_sd.bin',out/'radio-build',args.rx_diagnostics,args.bulk_commands)
     assert radio['rx_initially_disabled'] and radio['crc_roundtrip_passed']
     payload = (out/'radio-build/candidate/sd8686.bin').read_bytes()
     assert digest(payload)==radio['candidate_sha256']
@@ -51,6 +53,7 @@ def main():
                   unchanged={name:digest(inputs[name][1]) for name in (HELPER_PATH,LOADER_PATH)},
                   radio_build=(out/'radio-build/manifest.json').relative_to(ROOT).as_posix(),
                   rx_initially_disabled=True,device_accessed=False,ready_to_flash=False,
+                  bulk_word_commands=radio.get('bulk_word_commands'),
                   association_verified=False,simultaneous_espnow_verified=False)
     (out/'report.json').write_text(json.dumps(report,indent=2)+'\n')
     print(json.dumps(dict(report=(out/'report.json').relative_to(ROOT).as_posix(),**report),indent=2))

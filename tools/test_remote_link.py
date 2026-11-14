@@ -17,6 +17,8 @@ sources = ['tools/test_remote_link.c',
            'runtime/apps/wireless-remote/receiver.c',
            'runtime/apps/wireless-remote/session_wire.c',
            'runtime/apps/wireless-remote/control.c',
+           'runtime/apps/wireless-remote/control_player.c',
+           'runtime/platform/player/client.c',
            'runtime/apps/wireless-remote/mode_wire.c',
            'runtime/native/sha256.c']
 flags = ['-std=c99', '-Wall', '-Wextra', '-Werror', '-Wno-misleading-indentation']

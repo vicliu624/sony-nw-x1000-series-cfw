@@ -125,6 +125,9 @@ def build(engine_provider=False,managed_host=False,native_prepare=False,builtin_
         native_flags+=['-I',str(work),'-include',str(factory_header)]
         factory_profile=dict(review=profile_path.relative_to(ROOT).as_posix(),supervisor_artifact=executable.relative_to(ROOT).as_posix(),sha256=profile['sha256'],bytes=len(payload),inputs=profile['inputs'],software_admission_only=True,hardware_qualified=False)
         factory_profile['owner_mode_view_forwarded']=bool(profile.get('owner_mode_view_forwarded'))
+        factory_profile['play_mode_control']=bool(profile.get('play_mode_control'))
+        if factory_profile['play_mode_control'] and not (managed_host and native_prepare):
+            raise ValueError('Mode control requires the managed native player composition')
     wireless_composition=None;rf_composition=None;sleep_composition=None
     if native_wireless_settings:
         from wireless_callback_bridge import compose
@@ -248,6 +251,7 @@ def build(engine_provider=False,managed_host=False,native_prepare=False,builtin_
         stock_sha256=STOCK_SHA,candidate_sha256=hashlib.sha256(candidate).hexdigest(),candidate_growth_bytes=len(candidate)-len(stock),engine_provider=engine_provider,managed_host=managed_host,legacy_listener=not managed_host,native_prepare=native_prepare,
         library_bytes=library.stat().st_size,library_sha256=hashlib.sha256(library.read_bytes()).hexdigest(),needed=needed,
         play_mode_read_supported=bool(managed_host and native_prepare),play_mode_control_operation=5,
+        play_mode_write_supported=bool(managed_host and native_prepare),
         localization_profile='builtin-language' if builtin_localization else 'legacy',
         native_remote_settings_request_bridge=native_remote_settings,settings_visible_count_composition=settings_visible_count,remote_activation_backend_compiled=native_remote_settings,remote_activation_backend_installed=False,remote_factory_compiled=bool(native_rf_gate and native_remote_settings),remote_factory_automatic=bool(factory_profile),remote_factory_profile=factory_profile,
         native_wireless_settings_request_bridge=native_wireless_settings,wireless_composition=wireless_composition,wireless_authority_installed=False,

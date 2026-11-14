@@ -2,17 +2,23 @@
 
 ## Reviewed root layout model
 
-The reviewed link-key/retirement layout adds **599,867 bytes of regular file
+The reviewed mode-write/bulk-IO layout adds **604,839 bytes of regular file
 content** over Japanese Sony 1.11. In a complete ext2 allocation model, its
-increment is **647,168 bytes (632 KiB)**. The latter includes directory, inode
+increment is **655,360 bytes (640 KiB)**. The latter includes directory, inode
 and indirect-block allocation; compressed UPG size is a separate measurement.
 
-| Ordinary 148 MiB model file | Original Sony root | Current analysis layout |
-| --- | ---: | ---: |
-| Allocated filesystem blocks, including metadata | 118,374,400 bytes | 119,021,568 bytes |
-| Reserved space | 7,757,824 bytes | 7,757,824 bytes |
-| Free space after reserved blocks | 29,057,024 bytes | 28,409,856 bytes (about 27.09 MiB) |
-| Used inodes | 1,442 | 1,454 |
+| Ordinary 148 MiB model file | Original Sony root | Installed link/retirement profile | New mode/bulk profile |
+| --- | ---: | ---: | ---: |
+| Allocated filesystem blocks, including metadata | 118,374,400 bytes | 119,021,568 bytes | 119,029,760 bytes |
+| Reserved space | 7,757,824 bytes | 7,757,824 bytes | 7,757,824 bytes |
+| Free space after reserved blocks | 29,057,024 bytes | 28,409,856 bytes | 28,401,664 bytes (about 27.09 MiB) |
+| Used inodes | 1,442 | 1,454 | 1,454 |
+
+The new allocation is 8 KiB above the installed link/retirement profile. Its
+player payload is byte-identical to that profile; the matching startup wrapper,
+parent library and Remote/radio components have new identities. A local UPG
+roundtrip and independent Rockbox extraction pass. The new image is not installed
+or physically qualified, and the earlier working image remains preserved.
 
 `tools/measure_layout_ext2.py` verifies the complete capacity/layout receipts,
 original NAND partition definition, original formatter and its Sony library
@@ -27,8 +33,9 @@ This is a reproducible PC capacity result, not a physical free-space measurement
 or permission to flash. Host debugfs substitutes for Sony's kernel/tar extraction;
 the static 148 MiB definition does not qualify actual NAND geometry, bad blocks,
 installation, recovery or the outstanding lifecycle regressions. The current
-layout is not an updater package. The model includes the opt-in link-key owner,
-shared-retirement ordering fix and matching parent library. Further component
+allocation measurement is not installation qualification. The model includes
+the link-key owner, shared-retirement ordering fix, typed mode writes, bounded
+bulk packet IO and matching parent library. Further component
 changes require a new complete review; component file size alone is insufficient.
 
 ## Physical measurements and slimming candidates

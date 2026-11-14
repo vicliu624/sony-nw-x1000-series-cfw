@@ -30,9 +30,13 @@ def function(name, required=True):
 
 starting = text.index(' puts("REMOTE_RF_OWNER_STARTING")')
 state_begin = text.index('\n', starting) + 1
-loop = text.index(' for(;;){\n', state_begin)
-begin = loop + len(' for(;;){\n')
-end = text.index('#ifdef XNOW_REMOTE_MODE_VIEW\n  if(rc>0)pairing_queue_report(now);', begin)
+loop_match = re.search(r'\bfor\s*\(\s*;\s*;\s*\)\s*\{\s*\n', text[state_begin:])
+assert loop_match, 'Missing actual owner loop'
+loop = state_begin + loop_match.start()
+begin = state_begin + loop_match.end()
+end_match = re.search(r'#ifdef XNOW_REMOTE_MODE_VIEW\s*\n\s*if\s*\(\s*rc\s*>\s*0\s*\)\s*pairing_queue_report\(now\);', text[begin:])
+assert end_match, 'Missing actual post-step boundary'
+end = begin + end_match.start()
 loop_state = text[state_begin:loop]
 step = text[begin:end]
 assert step.count('xnow_owner_runtime_step_with_controller') == 1

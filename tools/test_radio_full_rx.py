@@ -11,11 +11,14 @@ from unicorn.arm_const import UC_ARM_REG_R0,UC_ARM_REG_R1,UC_ARM_REG_R2,UC_ARM_R
 from app_registry import ROOT
 from Crypto.Cipher import AES
 from espnow_known_key_frame import PROFILES,analyze
+from radio_test_profile import selected_radio
 OUT=ROOT/'work/espnow-full-rx';OUT.mkdir(parents=True,exist_ok=True)
 sources=['runtime/platform/espnow/'+n for n in ('radio_packet.c','radio_full_rx.c','radio_full_tx.c','radio_word_command.c','radio_command_hook.S')]
 link=OUT/'rx.ld';link.write_text('ENTRY(xnow_radio_full_receive)\nSECTIONS { . = 0xc000a190; .text : { *(.text*) *(.rodata*) } .state : { *(.state) } /DISCARD/ : { *(.ARM.exidx*) *(.ARM.extab*) *(.comment*) *(.note*) } ASSERT(.<=0xc000a8fc,"reserved block exceeded") }')
 elf=OUT/'rx.elf'
-subprocess.run(['arm-linux-gnueabi-gcc','-std=c99','-Os','-Wall','-Wextra','-Werror','-march=armv5te','-mthumb','-mfloat-abi=soft','-ffreestanding','-fno-builtin','-fno-pie','-fno-stack-protector','-nostdlib','-static','-Wl,--build-id=none','-Wl,-T,'+str(link),*sources,'-o',str(elf)],cwd=ROOT,check=True)
+selected=selected_radio()
+if selected:elf=selected[0]
+else:subprocess.run(['arm-linux-gnueabi-gcc','-std=c99','-Os','-Wall','-Wextra','-Werror','-march=armv5te','-mthumb','-mfloat-abi=soft','-ffreestanding','-fno-builtin','-fno-pie','-fno-stack-protector','-nostdlib','-static','-Wl,--build-id=none','-Wl,-T,'+str(link),*sources,'-o',str(elf)],cwd=ROOT,check=True)
 with elf.open('rb') as f:
     image=ELFFile(f);sections=[(s['sh_addr'],s.data()) for s in image.iter_sections() if s['sh_flags']&2 and s['sh_size']]
     symbols={s.name:s['st_value'] for s in image.get_section_by_name('.symtab').iter_symbols() if s.name}
@@ -213,6 +216,9 @@ for address,data in sections:
 tracked=[*sources,'runtime/platform/espnow/radio_packet.h','runtime/platform/espnow/radio_full_rx.h','runtime/platform/espnow/radio_full_tx.h','tools/test_radio_full_rx.py','tools/test_radio_full_tx.py','tools/test_radio_packet_ownership.py']
 report={'passed':True,'original_rx_work_factory_and_4b9c_ring_copy_executed':True,'queue_depth':2,'v1_250_and_v2_1470_bodies_preserved':True,'borrowed_work_pointer_not_retained':True,'queue_full_and_pool_exhaustion_drop_without_overwrite':True,'stale_duplicate_and_empty_pop_handled':True,'protected_rx_flag_and_a3_fragment_unicast_filter':True,'tickets_wrap':True,'disabled_admission_and_queued_drain':True,'stop_during_private_allocation_releases_before_inactive':True,'unsupported_traffic_falls_back':True,'own_unicast_and_broadcast_only':True,'producer_preemption_between_tail_publish_and_free_safe':True,'task_preemption_manually_scheduled':True,'all_packet_buffers_released':free_count()==3,'combined_reserved_region_bytes':sum(len(data) for _,data in sections),'rom_irq_copy_and_dma_producer_modeled':True,'physical_rx_tested':False,'download_image_created':False,'source_hashes':{p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in tracked}}
 report.update(synthetic_encrypted_capture_cases=capture_cases,upstream_unknown_key_admission_proven=False)
+if selected:
+ report['exact_selected_radio']=dict(elf=elf.relative_to(ROOT).as_posix(),sha256=selected[1]['payload_elf_sha256'],candidate_sha256=selected[1]['candidate_sha256'])
+ report['source_hashes']['tools/radio_test_profile.py']=hashlib.sha256((ROOT/'tools/radio_test_profile.py').read_bytes()).hexdigest()
 report['source_hashes']['tools/espnow_known_key_frame.py']=hashlib.sha256((ROOT/'tools/espnow_known_key_frame.py').read_bytes()).hexdigest()
 (OUT/'report.json').write_text(json.dumps(report,indent=2));print(json.dumps(report,indent=2))
 

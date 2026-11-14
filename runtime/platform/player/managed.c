@@ -257,7 +257,11 @@ int xw_managed_player_command(struct xw_managed_player *p, uint64_t id,
     if (c->operation != XW_OP_PLAY_ITEM &&
         (c->item.value[0] || c->container.value[0] || c->expected_revision))
         return XW_PLAYER_INVALID;
-    if (c->operation != XW_OP_STEP_VOLUME && c->operation != XW_OP_SET_VOLUME && c->value)
+    if (c->operation != XW_OP_STEP_VOLUME && c->operation != XW_OP_SET_VOLUME &&
+        c->operation != XW_OP_SET_PLAY_MODE && c->value)
+        return XW_PLAYER_INVALID;
+    if (c->operation == XW_OP_SET_PLAY_MODE &&
+        (c->value < XW_MODE_NORMAL || c->value >= XW_MODE_COUNT))
         return XW_PLAYER_INVALID;
     unsigned char payload[16 + 2 * XW_MEDIA_ID_BYTES];
     uint32_t bytes = 8, words[2] = {(uint32_t)c->operation, (uint32_t)c->value};

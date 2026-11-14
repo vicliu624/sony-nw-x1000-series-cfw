@@ -12,6 +12,9 @@
 #include "chat_ipc.h"
 
 #include "chat_keyboard.h"
+#ifndef HB_BUILD_VERSION
+#define HB_BUILD_VERSION "unversioned"
+#endif
 extern int chat_original_gettimeofday(void *,void *) __asm__("gettimeofday");
 static unsigned short pixels[HB_DISPLAY_PIXELS];
 static volatile int stopped;
@@ -271,7 +274,7 @@ static int graphical(void) {
 }
 int main(int argc,char **argv) {
     if(argc==2&&!strcmp(argv[1],"--help")){puts("ESP-NOW Chat: on-demand telephone touch keyboard, RAM-only history, BACK TO APPS. Uses an independent native radio owner and restores normal WiFi on exit. Connect stock WiFi first; user-storage files only. --render-preview and --render-keyboard-preview write RGB565 stdout without device access.");return 0;}
-    if(argc==2&&!strcmp(argv[1],"--version")){puts("0.1.0-dev.3");return 0;}
+    if(argc==2&&!strcmp(argv[1],"--version")){puts(HB_BUILD_VERSION);return 0;}
     if(argc==2&&!strcmp(argv[1],"--selftest")) {
         strcpy(editor,"OLD");edited=3;
         if(tap(20,395)||!editing)return 1;

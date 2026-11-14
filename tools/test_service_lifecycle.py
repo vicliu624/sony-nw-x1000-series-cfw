@@ -3,7 +3,7 @@ from pathlib import Path
 import argparse,hashlib,json,os,subprocess,time
 from app_registry import ROOT
 from player_arm_guest import stock_libraries
-fixtures=('session','request','player','events','dispatch','channel','control','descriptor','offer','quiesce','drain','host')
+fixtures=('session','request','player','events','dispatch','channel','control','descriptor','offer','quiesce','drain','host','hello','negotiation')
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--fixture',action='append',choices=fixtures,help='Run an explicit subset; the default runs every fixture')
 args=parser.parse_args()
@@ -68,4 +68,8 @@ for p in ['runtime/platform/player/service_drain.h','runtime/platform/player/pla
 report['source_hashes']['runtime/platform/player/drain_completion.h']=hashlib.sha256((ROOT/'runtime/platform/player/drain_completion.h').read_bytes()).hexdigest()
 report['source_hashes']['runtime/platform/player/deferred_prepare.h']=hashlib.sha256((ROOT/'runtime/platform/player/deferred_prepare.h').read_bytes()).hexdigest()
 for p in ['runtime/platform/player/managed_host.h','tools/fixtures/service_host.c']:report['source_hashes'][p]=hashlib.sha256((ROOT/p).read_bytes()).hexdigest()
+for name in args.fixture or fixtures:
+ p='tools/fixtures/service_'+name+'.c'
+ report['source_hashes'][p]=hashlib.sha256((ROOT/p).read_bytes()).hexdigest()
+report['source_hashes']['tools/test_service_lifecycle.py']=hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
 (out/'report.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))

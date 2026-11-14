@@ -39,9 +39,9 @@ def build(platformio, packages_directory=None):
     inputs += [ROOT/'runtime/apps/wireless-remote/transport_goal.h']
     inputs += [ROOT/'runtime/apps/wireless-remote/playback_icon.h',ROOT/'runtime/apps/wireless-remote/on_demand_link.h']
     inputs += [ROOT/'runtime/apps/wireless-remote'/n for n in ('artwork_wire.c','artwork_wire.h','artwork_client.c','artwork_client.h','artwork_image.c','artwork_image.h')]
-    inputs += [ROOT/'runtime/platform/player/artwork.h']
+    inputs += [ROOT/'runtime/platform/player'/name for name in ('artwork.h','player.h','provider.h')]
     inputs += [ROOT/'runtime/platform/espnow'/name for name in ('xnow_link.c','xnow_link.h')]
-    report=dict(built=True,version=(project/'VERSION').read_text().strip(),target='Core2 + Faces Gamepad3',
+    report=dict(built=True,version=(project/'VERSION').read_text().strip(),target='Core2 + Faces Gamepad3',play_mode_write_ui=True,
                 artifacts=artifacts,source_hashes={p.relative_to(ROOT).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in inputs},
                 device_accessed=False,flashed=False,hardware_qualified=False,
                 limitations=['Library protocol/UI integrated; actual native library/playlist/queue provider capabilities require physical acceptance','Five modes implemented but not physically accepted','Core2 display/touch/Gamepad unqualified'])

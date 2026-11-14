@@ -77,7 +77,7 @@ def main():
             row['failure_origin']={1:'storage-guard-or-endpoint',2:'endpoint-prepare',3:'owner-stream',4:'transmit-poll',5:'receive-security'}.get(state[0],'unknown')
             if state[0] in (2,5) and status==-21:row['failure_domain']='encrypted-counter-storage'
         if row['stage']==25:
-            row['startup_stage']={1:'retirement-channel',2:'radio-client',3:'player-hello',4:'sender',5:'worker'}.get(state[0],'unknown')
+            row['startup_stage']={1:'retirement-channel',2:'radio-client',3:'player-hello',4:'sender',5:'worker',6:'player-command-negotiation'}.get(state[0],'unknown')
             row['player_capability_closed']=state[1]==1
             row['initial_hello_ms']=None if state[2]==0xffffffff else state[2]
         if row['stage']==26:

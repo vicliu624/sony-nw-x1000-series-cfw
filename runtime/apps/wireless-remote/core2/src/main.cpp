@@ -635,6 +635,31 @@ static void restore_channel() {
         radio_channel = saved;
     nvs_close(store);
 }
+static void submit_control(uint32_t op, int32_t value) {
+    if (op >= XW_OP_COUNT || !radio_ready || !receiver.paired || pending_command ||
+        command_serial == UINT32_MAX || !receiver.have_status || stale || !radio_link.ready() ||
+        !(receiver.status.commands & (1u << op)))
+        return;
+    wr_control c = {receiver.session, ++command_serial, op, value};
+    uint8_t wire[WR_CONTROL_BYTES];
+    if (wr_control_encode(wire, sizeof wire, &c, receiver.key))
+        return;
+    esp_err_t result = radio_send(receiver.address, wire, sizeof wire);
+    wipe(wire, sizeof wire);
+    if (result != ESP_OK) {
+        command_state = "SEND REJECTED - NO RETRY";
+        draw_status();
+        return;
+    }
+    wr_transport_goal_begin(&transport_goal, &receiver.status, c.request, op, library_now());
+    last_command_operation = op;
+    last_command_result = 0xffffffffu;
+    last_ack_ms = 0;
+    pending_command = c.request;
+    command_started = xTaskGetTickCount();
+    command_state = "WAITING FOR PLAYER RECEIPT";
+    draw_status();
+}
 static void control_key(unsigned key) {
     if (!radio_ready || !receiver.paired || pending_command || command_serial == UINT32_MAX)
         return;
@@ -668,27 +693,7 @@ static void control_key(unsigned key) {
             return;
     } else
         return;
-    if (!(receiver.status.commands & (1u << op)))
-        return;
-    wr_control c = {receiver.session, ++command_serial, op, value};
-    uint8_t wire[WR_CONTROL_BYTES];
-    if (wr_control_encode(wire, sizeof wire, &c, receiver.key))
-        return;
-    esp_err_t result = radio_send(receiver.address, wire, sizeof wire);
-    wipe(wire, sizeof wire);
-    if (result != ESP_OK) {
-        command_state = "SEND REJECTED - NO RETRY";
-        draw_status();
-        return;
-    }
-    wr_transport_goal_begin(&transport_goal, &receiver.status, c.request, op, library_now());
-    last_command_operation = op;
-    last_command_result = 0xffffffffu;
-    last_ack_ms = 0;
-    pending_command = c.request;
-    command_started = xTaskGetTickCount();
-    command_state = "WAITING FOR PLAYER RECEIPT";
-    draw_status();
+    submit_control(op, value);
 }
 static void confirm_focus() {
     if (page == REMOTE_PAGE_PLAYER) {
@@ -728,9 +733,16 @@ static void confirm_focus() {
             } else if (f == 4)
                 page = REMOTE_PAGE_PLAYER;
         }
-    } else if (page == REMOTE_PAGE_MODES)
-        mode_hint_until = xTaskGetTickCount() + pdMS_TO_TICKS(2000);
-    else if (channel_edit) {
+    } else if (page == REMOTE_PAGE_MODES) {
+        mode_hint_until = xTaskGetTickCount() + pdMS_TO_TICKS(5000);
+        if (!receiver.have_status || stale || !radio_link.ready()) {
+            request_connection();
+        } else if (!(receiver.status.commands & (1u << XW_OP_SET_PLAY_MODE))) {
+            command_state = "MODE CONTROL NOT SUPPORTED";
+        } else {
+            submit_control(XW_OP_SET_PLAY_MODE, int32_t(focus[REMOTE_PAGE_MODES]));
+        }
+    } else if (channel_edit) {
         if (set_channel(channel_preview))
             channel_edit = false;
         else
@@ -902,6 +914,13 @@ static void status() {
                 unsigned(radio_link.bound()), unsigned(radio_link.ready()),
                 unsigned(radio_link.negotiating()), radio_link.phase(),
                 (unsigned long long)radio_link.epoch(), unsigned(radio_link.failed()));
+    std::printf(
+        "REMOTE_MODE valid=%u index=%lu native=%lu sequence=%lu writable=%u pending=%u\n",
+        unsigned(have_mode && play_mode.valid && play_mode.session == receiver.session),
+        (unsigned long)play_mode.index, (unsigned long)play_mode.native,
+        (unsigned long)play_mode.sequence,
+        unsigned(receiver.have_status && (receiver.status.commands & (1u << XW_OP_SET_PLAY_MODE))),
+        unsigned(last_command_operation == XW_OP_SET_PLAY_MODE && pending_command));
     std::printf("REMOTE_PLAYER state=%lu valid=%lu status_sequence=%lu age_ms=%lu pending=%lu "
                 "transport_goal=%lu operation=%lu result=%ld ack_ms=%lu\n",
                 (unsigned long)receiver.status.state, (unsigned long)receiver.status.valid,
@@ -1100,8 +1119,8 @@ static void render_status() {
             g.drawString(mode_names[i], 44, y + 6);
         }
         g.setTextColor(muted);
-        g.drawString(xTaskGetTickCount() < mode_hint_until ? "Change mode on your Walkman"
-                     : mode_known                          ? "A: details   B: back"
+        g.drawString(xTaskGetTickCount() < mode_hint_until ? command_state
+                     : mode_known                          ? "A: set mode   B: back"
                                                            : "Waiting for the stock play mode",
                      18, 202);
     } else if (page == REMOTE_PAGE_LIBRARY) {
@@ -1472,7 +1491,10 @@ void setup() {
                     last_ack_ms = (xTaskGetTickCount() - command_started) * portTICK_PERIOD_MS;
                     wr_transport_goal_receipt(&transport_goal, &receipt);
                     command_state =
-                        receipt.result == XW_PLAYER_ACCEPTED    ? "ACCEPTED - WAIT FOR STATUS"
+                        receipt.result == XW_PLAYER_ACCEPTED &&
+                                last_command_operation == XW_OP_SET_PLAY_MODE
+                            ? "MODE REQUEST ACCEPTED"
+                        : receipt.result == XW_PLAYER_ACCEPTED  ? "ACCEPTED - WAIT FOR STATUS"
                         : receipt.result == XW_PLAYER_OK        ? "PLAYER COMMAND RETURNED OK"
                         : receipt.result == XW_PLAYER_UNCERTAIN ? "UNCERTAIN - NOT REPEATED"
                                                                 : "PLAYER REJECTED COMMAND";

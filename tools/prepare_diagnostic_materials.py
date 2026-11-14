@@ -9,7 +9,7 @@ import tempfile
 import zipfile
 
 from app_registry import ROOT
-from market_metadata import parse_version
+from market_metadata import parse_version, compare_versions
 from review_managed_remote_profile import digest, private, receipt, radio_dependencies
 from review_managed_root_capacity import inventory, compose_root_inventory
 from test_firmware_regressions import source_inventory
@@ -89,13 +89,15 @@ def reviewed_inputs(firmware_review, allocation_review, regressions):
     if not supervisor.get('embedded_runtime'):
         raise ValueError('This material profile requires embedded Remote programs')
     _, owner = receipt(supervisor['shared_wifi_owner_review'])
-    return dict(firmware=firmware, model=model, layout=layout, owner=owner, upg=upg,
+    return dict(firmware=firmware, model=model, layout=layout, owner=owner, supervisor=supervisor, upg=upg,
                 input_paths=(fp, mp, bp, lp, cp), subsequent_pc_changes=changed)
 
 
-def matching_controller(owner, controller_review):
+def matching_controller(owner, controller_review, *, play_mode_control=False, service_review=None):
     """Bind the controller image to the exact transport sources linked by Root."""
     if owner.get('negotiated_link_keys') is not True:
+        if play_mode_control:
+            raise ValueError('Mode-control delivery requires the negotiated-link controller profile')
         if controller_review is not None:
             raise ValueError('Controller delivery requires the negotiated-link firmware profile')
         return None
@@ -107,6 +109,24 @@ def matching_controller(owner, controller_review):
             not isinstance(controller.get('version'), str)):
         raise ValueError('Expected a reviewed Core2 controller build')
     parse_version(controller['version'])
+    player_protocol = None
+    if play_mode_control:
+        if (compare_versions(controller['version'], '0.1.0-alpha.31') < 0 or
+                controller.get('play_mode_write_ui') is not True):
+            raise ValueError('Mode-control firmware requires Core2 alpha.31 or newer with mode-write UI')
+        if service_review is None:
+            raise ValueError('Mode-control delivery requires the matching player service receipt')
+        _, service = receipt(service_review)
+        if service.get('command_negotiation_supported') is not True:
+            raise ValueError('Mode-control service has no explicit command negotiation')
+        player_names = ('runtime/platform/player/player.h',
+                        'runtime/apps/wireless-remote/control.c', 'runtime/apps/wireless-remote/control.h',
+                        'runtime/apps/wireless-remote/link.c', 'runtime/apps/wireless-remote/link.h',
+                        'runtime/apps/wireless-remote/mode_wire.c', 'runtime/apps/wireless-remote/mode_wire.h')
+        player_protocol = {name: controller['source_hashes'].get(name) for name in player_names}
+        if any(sha is None or service['source_hashes'].get(name) != sha
+               for name, sha in player_protocol.items()):
+            raise ValueError('Player service and Core2 command protocol sources differ')
     required = ('runtime/platform/espnow/xnow_link.c', 'runtime/platform/espnow/xnow_link.h',
                 'runtime/apps/wireless-remote/core2/src/main.cpp',
                 'runtime/apps/wireless-remote/core2/src/link_transport.cpp',
@@ -133,7 +153,8 @@ def matching_controller(owner, controller_review):
     if binary.stat().st_size != image.get('bytes') or digest(binary) != image.get('sha256'):
         raise ValueError('Controller firmware image changed')
     return dict(review=cp, native_review=np, binary=binary, version=controller['version'],
-                bytes=image['bytes'], sha256=image['sha256'], transport_source_hashes=transport)
+                bytes=image['bytes'], sha256=image['sha256'], transport_source_hashes=transport,
+                play_mode_control=play_mode_control, player_protocol_source_hashes=player_protocol)
 
 
 def instructions(version, reviewed, controller):
@@ -233,7 +254,11 @@ def main():
     if archive.exists():
         raise ValueError('Preserve the earlier diagnostic archive')
     reviewed = reviewed_inputs(args.firmware_review, args.allocation_review, args.regression_review)
-    controller = matching_controller(reviewed['owner'], args.controller_review)
+    supervisor=reviewed['supervisor']
+    service_path=private(supervisor['local_inputs']['service']['local']).parent/'build.json'
+    controller = matching_controller(reviewed['owner'], args.controller_review,
+                                     play_mode_control=bool(supervisor.get('play_mode_control')),
+                                     service_review=service_path)
     template = ROOT / 'work/candidate6-first-device-inputs/sony-updater'
     independent = ROOT / 'work/updater-static-review-1/extracted'
     if digest(template / 'NW_WM_FW.UPG') != STOCK_SHA256:

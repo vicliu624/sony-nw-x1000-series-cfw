@@ -28,7 +28,7 @@ silently converted into a failed or successful hardware result.
 
 | Group | Coverage | Command |
 | --- | --- | --- |
-| `host` | Thirteen link-negotiation, Core2 peer-adapter, TX-header, shared-receive, media/cache/ownership, broker admission and IPC-wakeup checks under host sanitizers; no Sony inputs or network | `--suite host` |
+| `host` | Link negotiation, Core2 peer adapter, TX headers, guarded scalar/bulk IO, old-client HELLO compatibility, shared receive, media ownership, broker admission and IPC wakeups; no Sony inputs or network | `--suite host` |
 | `lifecycle` | Native app handoff, policy/channel IPC, sleep preparation/recovery and explicit shutdown | `--suite lifecycle` |
 | `sdk` | Callback runtime, individual native modules, C/C++ public clients, managed IPC and adoption audit | `--suite sdk` |
 | `remote` | Original guarded player bindings, status/control, artwork scheduling/reader, receiver correlation and counter persistence | `--suite remote` |
@@ -74,6 +74,27 @@ a simpler image and call that a composition pass. Loader identity and dependent
 effects remain fixtures, and RF/native callbacks are outside that case. A GUI
 diagnostic can independently observe the existing read-only binding exports;
 neither check establishes native radio or hardware readiness.
+
+Mode-write coverage runs the original ARM request/settings instructions and the
+actual guarded native adapter. The service integration sends all five choices,
+duplicates every wire request and requests the same mode again, checking that
+each explicit intent runs once and produces a fresh authenticated observation.
+The full supervisor profile checks the opt-in RAM-only `XWRUN003` delivery while
+the persisted pairing record remains `XWRUN002`. Legacy HELLO compatibility
+compiles the real seven-operation client from commit `161a3d5`; CI must retain
+that Git history. These checks do not establish engine completion or hardware
+persistence.
+
+Radio-image checks are separate from the default groups. Build a fresh
+`prepare_shared_wifi_image.py --rx-diagnostics --bulk-commands` review, then run
+`test_espnow_full_radio.py <radio-build>`, `test_radio_bulk_command.py
+--radio-review <radio-build>`, `test_radio_full_rx.py --radio-review
+<radio-build>` and `test_radio_completion_hook.py --radio-review <radio-build>`
+sequentially. The last two share a fixture build directory. Also run
+`test_radio_command_capacity.py`: it executes original ingress instructions to
+demonstrate why requests over 1,500 bytes overwrite a live event object. The
+bulk guard checks count actual adapter calls but model the device; they are
+not a physical throughput measurement.
 
 ## Native lifecycle cases
 

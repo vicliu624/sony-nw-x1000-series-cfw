@@ -17,8 +17,8 @@ implementation for Japanese firmware 1.11.
 | Current queue | Met-owner capture, immutable query copy and reader | Real grouped ordering and full runtime acceptance remain open |
 | Arbitrary track selection | Experimental validation/source adapter | Not enabled by the standalone native command mask |
 | Position/duration | Contract fields | Native units/validity are not qualified |
-| Play mode | Matching private host/client extension | All five modes must be observed, not invented by the remote |
-| Artwork | Current-ID native blob reader and bounded chunk transport | Complete Core2 display has not passed physical acceptance |
+| Play mode | Typed canonical command, original native request then Sony settings persistence; explicit matching-host negotiation | New write composition is uninstalled; cached preference is not engine/durable-save proof |
+| Artwork | Current-ID native blob reader and bounded chunk transport | Core2 alpha.30 visible display passed for a current-track image; broader image and throughput acceptance remains open |
 
 Published SDK source, a private analysis host and an installed firmware are
 separate products. Source setup does not install a player service. The current

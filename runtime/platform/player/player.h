@@ -58,7 +58,17 @@ enum xw_player_operation {
     XW_OP_SET_VOLUME,
     XW_OP_STEP_VOLUME,
     XW_OP_PLAY_ITEM,
+    XW_OP_SET_PLAY_MODE,
     XW_OP_COUNT
+};
+/* Canonical preference indices. Native Sony values stay private to its adapter. */
+enum xw_play_mode {
+    XW_MODE_NORMAL,
+    XW_MODE_REPEAT,
+    XW_MODE_SHUFFLE,
+    XW_MODE_SHUFFLE_REPEAT,
+    XW_MODE_REPEAT_ONE,
+    XW_MODE_COUNT
 };
 enum xw_media_view {
     XW_MEDIA_TRACKS,
@@ -91,7 +101,7 @@ struct xw_player_snapshot {
     uint64_t library_revision, queue_revision;
 };
 /* IDs are opaque stable provider identities, never filesystem paths or UI rows. */
-/* Zero unused fields. Only volume operations use value; only PLAY_ITEM uses
+/* Zero unused fields. Volume and SET_PLAY_MODE use value; only PLAY_ITEM uses
  * item/container/revision. Invalid extra fields cause no provider action. */
 struct xw_player_command {
     enum xw_player_operation operation;

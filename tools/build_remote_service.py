@@ -36,6 +36,7 @@ inputs += ['runtime/platform/player/artwork.h','runtime/platform/player/managed_
 report=dict(built=True,artifact=str(artifact.relative_to(ROOT)),bytes=artifact.stat().st_size,
             sha256=hashlib.sha256(artifact.read_bytes()).hexdigest(),original_libc_arm_entry_checks=True,
             device_accessed=False,radio_started=False,live_capability_run_verified=False,
+            command_negotiation_supported=True,
             linked_library_hashes={str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in libs.values()},
             source_hashes={p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in inputs})
 (out/'build.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')

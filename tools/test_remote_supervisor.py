@@ -34,6 +34,8 @@ service_start_refusal='--service-start-refusal' in sys.argv or service_handoff_r
 assert not service_start_refusal or shared_wifi
 assert not artwork_transfer or (shared_wifi and automatic_factory and owner_view_forward and not service_start_refusal)
 device_pairing='--device-pairing' in sys.argv
+play_mode_control='--play-mode-control' in sys.argv
+assert not play_mode_control or (device_pairing and shared_wifi)
 diagnostic_ready='--diagnostic-ready' in sys.argv
 assert not diagnostic_ready or device_pairing
 delayed_pairing_ready='--delayed-pairing-ready' in sys.argv
@@ -134,9 +136,10 @@ for name,path in [('service',service['artifact']),('owner',owner),('config',conf
 review_path=out/'review.private.json';review_path.write_text(json.dumps(review,indent=2)+'\n',encoding='utf-8')
 saved=sys.argv
 try:
- sys.argv=['build_remote_supervisor.py','--review',str(review_path)]+(['--reusable-sessions'] if reusable else [])+(['--forward-owner-mode-view'] if owner_view_forward else [])+(['--device-pairing'] if device_pairing else [])+(['--embedded-runtime'] if embedded_runtime else [])
+ sys.argv=['build_remote_supervisor.py','--review',str(review_path)]+(['--reusable-sessions'] if reusable else [])+(['--forward-owner-mode-view'] if owner_view_forward else [])+(['--device-pairing'] if device_pairing else [])+(['--embedded-runtime'] if embedded_runtime else [])+(['--play-mode-control'] if play_mode_control else [])
  with contextlib.redirect_stdout(io.StringIO()):supervisor=runpy.run_path(str(ROOT/'tools/build_remote_supervisor.py'))
 finally:sys.argv=saved
+if play_mode_control:assert supervisor['report']['play_mode_control'] is True
 if device_pairing:
  assert set(supervisor['rows'])=={'service','owner'}
  data=bytearray(config.read_bytes())
