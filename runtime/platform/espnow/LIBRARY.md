@@ -8,11 +8,23 @@ the library, and no Sony shared library or game ROM is included in this output.
 ## Local build
 
 Run runtime/platform/espnow/build_library.py on Linux/WSL from the project root.
-It requires the matching local Sony libraries, compiled radio bridge/header and
-the current candidate under work/espnow-radio-candidate-poll-filter. The builder
-verifies library hashes and candidate/payload consistency; it never downloads,
-deploys or contacts devices. Prepare those analysis inputs using the project RF
-guide before building. This is a local development profile, not a new release CI.
+It requires the matching local Sony libraries and a verified mailbox radio image.
+Use the following commands with the extracted original JP1.11 radio and helper:
+
+```sh
+.venv/bin/python runtime/platform/espnow/build_radio_bridge.py --output work/example/bridge
+.venv/bin/python tools/prepare_espnow_radio_candidate.py \
+  --original work/targets-jp/sd8686.bin --helper work/targets-jp/helper_sd.bin \
+  --payload work/example/bridge/bridge.elf --output work/example/mailbox
+.venv/bin/python runtime/platform/espnow/build_library.py \
+  --mailbox-review work/example/mailbox/review.json --output work/example/native-sdk
+```
+
+The builder reconstructs the mailbox image from the supplied stock image and
+ELF, and derives the guard header in temporary storage. Existing callers that
+omit the review still use the original local mailbox paths. The mailbox inputs
+are for the older chat transport included in the archive. FRM1 and other full
+images are selected separately by their callers.
 
 Pass `--output work/native-sdk-review` to choose a new build directory. By
 default the builder creates a fresh directory under `work/espnow-native-library/`.

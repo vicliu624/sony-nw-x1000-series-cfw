@@ -7,8 +7,9 @@ import subprocess
 import sys
 ROOT=Path(__file__).resolve().parents[3]
 sys.path.insert(0,str(ROOT/'tools'))
-from build_library import build_sdk
-from review_managed_remote_profile import native_sdk_build
+from build_library import LEGACY_REVIEW, build_sdk
+from prepare_espnow_radio_candidate import HELPER_SHA
+from review_managed_remote_profile import native_sdk_build, private
 
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--sdk-review',type=Path)
@@ -16,15 +17,14 @@ args=parser.parse_args()
 OUT=ROOT/'work/espnow-exchange-lab';OUT.mkdir(parents=True,exist_ok=True)
 sdk_review=args.sdk_review if args.sdk_review is not None else build_sdk()[0]
 sdk_review,archive,library_build=native_sdk_build(sdk_review)
-subprocess.run([sys.executable,'runtime/platform/espnow/build_stock_reload_lab.py','--sdk-review',str(sdk_review)],cwd=ROOT,check=True,stdout=subprocess.DEVNULL)
-candidate=ROOT/'work/espnow-radio-candidate-poll-filter'
-review=json.loads((candidate/'review.json').read_text())
+candidate=private(library_build.get('mailbox_review', LEGACY_REVIEW)).parent
 records=[]
 for name in ('sd8686.bin','helper_sd.bin'):
-    path=candidate/'candidate'/name;blob=path.read_bytes();digest=hashlib.sha256(blob).hexdigest()
-    expected=review['candidate_sha256'] if name=='sd8686.bin' else 'b0157d1f4518e806c0bc5128ab302a7f97d78ee34b84cb41cb4f2bbbb2a00e6d'
+    path=private(candidate/'candidate'/name);blob=path.read_bytes();digest=hashlib.sha256(blob).hexdigest()
+    expected=library_build['radio_candidate_sha256'] if name=='sd8686.bin' else HELPER_SHA
     if digest!=expected:raise ValueError('unqualified radio input')
     records.append({'path':'/contents/HOMEBREW/data/espnow/candidate/'+name,'bytes':len(blob),'sha256':digest})
+subprocess.run([sys.executable,'runtime/platform/espnow/build_stock_reload_lab.py','--sdk-review',str(sdk_review)],cwd=ROOT,check=True,stdout=subprocess.DEVNULL)
 header=['static const struct stock_input exchange_inputs[]={']
 for r in records:header.append('{'+json.dumps(r['path'])+','+str(r['bytes'])+',{'+','.join(str(b) for b in bytes.fromhex(r['sha256']))+'}},')
 (OUT/'exchange_inputs.h').write_text('\n'.join(header+['};'])+'\n')

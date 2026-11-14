@@ -7,6 +7,7 @@ kernel, module, system updater or Sony application image is generated/modified.
 import argparse
 from dataclasses import replace
 import hashlib
+import io
 import json
 from pathlib import Path
 import struct
@@ -41,7 +42,8 @@ def construct(stock: bytes, elf_path: Path):
         raise ValueError('original roundtrip mismatch')
     original = memory(records)
     reservation = bytearray(RESERVED_END - RESERVED_START)
-    with elf_path.open('rb') as f:
+    payload = elf_path.read_bytes()
+    with io.BytesIO(payload) as f:
         elf = ELFFile(f)
         if elf['e_machine'] != 'EM_ARM':
             raise ValueError('radio payload is not ARM')
@@ -102,6 +104,7 @@ def construct(stock: bytes, elf_path: Path):
         raise ValueError('incorrect BSS exclusion')
     report = {
         'radio_only': True, 'original_sha256': STOCK_SHA,
+        'payload_elf_sha256': hashlib.sha256(payload).hexdigest(),
         'candidate_sha256': hashlib.sha256(image).hexdigest(),
         'original_bytes': len(stock), 'candidate_bytes': len(image),
         'pool_blocks_before': 4, 'pool_blocks_after': 3,
@@ -131,11 +134,15 @@ def main():
         raise ValueError('unqualified original helper')
     stock = args.original.read_bytes()
     image, report = construct(stock, args.payload)
+    payload = args.payload.read_bytes()
+    if hashlib.sha256(payload).hexdigest() != report['payload_elf_sha256']:
+        raise ValueError('Radio payload changed during preparation')
     for name, data in [('candidate', image), ('stock', stock)]:
         folder = output/name
         folder.mkdir(parents=True)
         (folder/'sd8686.bin').write_bytes(data)
         (folder/'helper_sd.bin').write_bytes(helper)
+    (output/'bridge.elf').write_bytes(payload)
     (output/'review.json').write_text(json.dumps(report, indent=2))
     (output/'README.txt').write_text('RADIO-ONLY LOCAL CANDIDATE. NOT INSTALLED.\n'
         'Never use the Sony system updater for these files.\n'

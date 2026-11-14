@@ -240,10 +240,13 @@ also build a new radio image by accepting the radio profile flags directly.
 Use the original build directory for both the Owner and radio replay.
 
 Build the Root Radio Owner with the native ESP-NOW SDK receipt, exact radio
-review and verified legacy RF files used by the diagnostic kit:
+review and verified legacy RF files used by the diagnostic kit. Prepare the
+SDK's mailbox review with the commands in the
+[native library guide](../runtime/platform/espnow/LIBRARY.md#local-build):
 
 ```sh
 .venv/bin/python runtime/platform/espnow/build_library.py \
+  --mailbox-review work/example/mailbox/review.json \
   --output work/example/native-sdk
 .venv/bin/python tools/build_remote_owner.py \
   --sdk-review work/example/native-sdk/sdk/build.json \

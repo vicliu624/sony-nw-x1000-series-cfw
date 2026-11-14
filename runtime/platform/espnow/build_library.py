@@ -2,6 +2,7 @@
 import argparse
 from pathlib import Path
 import hashlib
+import io
 import json
 import re
 import shlex
@@ -15,20 +16,22 @@ from elftools.elf.elffile import ELFFile
 
 ROOT=Path(__file__).resolve().parents[3]
 sys.path.insert(0,str(ROOT/'tools'))
-from marvell_firmware import parse
+from prepare_espnow_radio_candidate import HELPER_SHA, construct
+from review_managed_remote_profile import digest, private
 from sdk_build import fresh_work
 
 SOURCE = ROOT / 'runtime/platform/espnow'
+LEGACY_REVIEW = ROOT / 'work/espnow-radio-candidate-poll-filter/review.json'
 
 
-def build_sdk(output=None, *, package=False):
+def build_sdk(output=None, *, package=False, mailbox_review=None):
     version = (SOURCE / 'VERSION').read_text().strip()
     if not re.fullmatch(r'\d+\.\d+\.\d+-dev\.\d+', version):
         raise ValueError('invalid experimental VERSION')
     out = fresh_work(output or ROOT / 'work/espnow-native-library' / ('build-' + str(time.time_ns())))
     with tempfile.TemporaryDirectory(prefix='compiler-', dir=out) as folder:
         scratch = Path(folder)
-        report = compile_sdk(scratch, version)
+        report = compile_sdk(scratch, version, mailbox_review=mailbox_review)
         sdk = out / 'sdk'
         (scratch / 'sdk').rename(sdk)
     if package:
@@ -36,7 +39,38 @@ def build_sdk(output=None, *, package=False):
     return sdk / 'build.json', report
 
 
-def compile_sdk(scratch, version):
+def mailbox_inputs(review_path, scratch):
+    legacy = review_path is None
+    review_path = private(LEGACY_REVIEW if legacy else review_path)
+    folder = review_path.parent
+    review = json.loads(review_path.read_text(encoding='utf-8'))
+    radio = private(ROOT/'work/espnow-radio-bridge/bridge.elf' if legacy else folder/'bridge.elf')
+    candidate = private(folder/'candidate/sd8686.bin')
+    stock = private(folder/'stock/sd8686.bin')
+    helper = private(folder/'candidate/helper_sd.bin')
+    image, reconstructed = construct(stock.read_bytes(), radio)
+    if image != candidate.read_bytes() or reconstructed['candidate_sha256'] != review['candidate_sha256']:
+        raise ValueError('Mailbox image differs from the reviewed stock image and payload')
+    if not legacy and reconstructed != review:
+        raise ValueError('Mailbox review differs from the reconstructed image')
+    if digest(helper) != HELPER_SHA:
+        raise ValueError('Mailbox helper differs from the pinned Sony image')
+    payload = radio.read_bytes()
+    if hashlib.sha256(payload).hexdigest() != reconstructed['payload_elf_sha256']:
+        raise ValueError('Mailbox payload changed during validation')
+    with io.BytesIO(payload) as stream:
+        elf = ELFFile(stream)
+        code = elf.get_section_by_name('.text')
+        guard = ('#ifndef XNOW_RADIO_BUILD_H\n#define XNOW_RADIO_BUILD_H\n'
+                 f'#define XNOW_RADIO_CODE_BASE 0x{code["sh_addr"]:08x}u\n'
+                 f'#define XNOW_RADIO_STATE_BASE {reconstructed["mailbox_address"]}u\n'
+                 'static const unsigned char xnow_radio_expected_code[]={' +
+                 ','.join(str(value) for value in code.data()) + '};\n#endif\n')
+    (scratch/'xnow_radio_build.h').write_text(guard, encoding='utf-8')
+    return review_path, reconstructed, (radio, candidate, stock, helper, review_path)
+
+
+def compile_sdk(scratch, version, *, mailbox_review=None):
     SDK = scratch / 'sdk'
     for name in ('include', 'lib', 'examples'):
         (SDK / name).mkdir(parents=True)
@@ -47,23 +81,7 @@ def compile_sdk(scratch, version):
           RESOLVER/'libpthread.so.0':'c932fad1e83821f438add6a1e293e3ae6c41dc1e46d252053b346c73bf467474'}
     for path,digest in libs.items():
         if hashlib.sha256(path.read_bytes()).hexdigest()!=digest:raise ValueError('unqualified library '+path.name)
-    radio=ROOT/'work/espnow-radio-bridge/bridge.elf'
-    candidate=ROOT/'work/espnow-radio-candidate-poll-filter'
-    review=json.loads((candidate/'review.json').read_text());blob=(candidate/'candidate/sd8686.bin').read_bytes()
-    if hashlib.sha256(blob).hexdigest()!=review['candidate_sha256']:raise ValueError('candidate/report mismatch')
-    memory={r.address+i:b for r in parse(blob) if r.command==1 for i,b in enumerate(r.data)}
-    with radio.open('rb') as f:
-        elf=ELFFile(f)
-        for name in ('.text','.state'):
-            section=elf.get_section_by_name(name);base=section['sh_addr']
-            if bytes(memory[base+i] for i in range(section['sh_size']))!=section.data():raise ValueError('candidate/payload mismatch')
-        code=elf.get_section_by_name('.text');state=elf.get_section_by_name('.state')
-        guard=(ROOT/'work/espnow-radio-bridge/xnow_radio_build.h').read_text()
-        encoded=re.search(r'xnow_radio_expected_code\[\]=\{([0-9,]+)\};',guard)
-        if not encoded or bytes(map(int,encoded[1].split(',')))!=code.data():raise ValueError('stale radio guard bytes')
-        for macro,expected in (('CODE',code['sh_addr']),('STATE',state['sh_addr'])):
-            match=re.search(r'#define XNOW_RADIO_'+macro+r'_BASE (0x[0-9a-f]+)u',guard)
-            if not match or int(match[1],16)!=expected:raise ValueError('stale radio guard address')
+    mailbox_path, review, mailbox_files = mailbox_inputs(mailbox_review, scratch)
     sources=([f'runtime/platform/espnow/{name}.c' for name in
              ('xnow_version','xnow_wire','xnow_chat','xnow_mailbox','xnow_sd8686','xnow_session','xnow_manager',
               'xnow_loader_job','xnow_rf_init','xnow_file_check','xnow_control','xnow_ipc_guard')]+
@@ -77,18 +95,19 @@ def compile_sdk(scratch, version):
     flags=['-std=c99','-Os','-Wall','-Wextra','-Werror','-D_DEFAULT_SOURCE','-DHB_STORE_SONY_LIBC',
            '-U_FORTIFY_SOURCE','-D_FORTIFY_SOURCE=0','-DXNOW_LIBRARY_VERSION='+json.dumps(version),
            '-march=armv5te','-marm','-mfloat-abi=soft','-fno-builtin','-fno-pie','-fno-stack-protector',
-           '-I'+str(ROOT/'work/espnow-radio-bridge'),'-I'+str(crypto/'inc')]
+           '-I'+str(scratch),'-I'+str(crypto/'inc')]
     objects=[];dependencies=set(sources)
     dependencies.update(path.relative_to(ROOT).as_posix() for path in (
-        radio, candidate/'review.json', candidate/'candidate/sd8686.bin',
-        ROOT/'work/espnow-radio-bridge/xnow_radio_build.h', ROOT/'work/bearssl-0.6.tar.gz'))
+        *mailbox_files, ROOT/'work/bearssl-0.6.tar.gz'))
+    dependencies.update(('tools/prepare_espnow_radio_candidate.py', 'tools/marvell_firmware.py'))
     for index,source in enumerate(sources):
         obj=scratch/f'{index}.o';dep=scratch/f'{index}.d'
         subprocess.run(['arm-linux-gnueabi-gcc',*flags,'-MMD','-MF',str(dep),'-c',source,'-o',str(obj)],cwd=ROOT,check=True)
         objects.append(str(obj))
         for name in shlex.split(dep.read_text().replace('\\\n',' ').split(':',1)[1]):
             path=(ROOT/name).resolve()
-            if path.is_relative_to(ROOT.resolve()):dependencies.add(path.relative_to(ROOT.resolve()).as_posix())
+            if path.is_relative_to(ROOT) and not path.is_relative_to(scratch):
+                dependencies.add(path.relative_to(ROOT).as_posix())
     archive=SDK/'lib/libxnow.a'
     subprocess.run(['arm-linux-gnueabi-ar','rcsD',str(archive),*objects],cwd=ROOT,check=True)
     # Export only headers actually used by compiled archive sources; private
@@ -132,7 +151,8 @@ def compile_sdk(scratch, version):
     cpp_run=subprocess.run([str(scratch/'cpp-consumer')],capture_output=True,text=True,check=True)
     report={'built':True,'version':version,'target':'Japanese X1000 JP1.11 ARMv5TE soft-float Sony-libc profile',
             'archive_sha256':hashlib.sha256(archive.read_bytes()).hexdigest(),'archive_bytes':archive.stat().st_size,
-            'radio_candidate_sha256':review['candidate_sha256'],'radio_payload_sha256':hashlib.sha256(radio.read_bytes()).hexdigest(),
+            'radio_candidate_sha256':review['candidate_sha256'],'radio_payload_sha256':review['payload_elf_sha256'],
+            'mailbox_review':mailbox_path.relative_to(ROOT).as_posix(),
             'abi_library_hashes':{p.relative_to(ROOT).as_posix():digest for p,digest in libs.items()},
             'compiler':subprocess.check_output(['arm-linux-gnueabi-gcc','--version'],text=True).splitlines()[0],
             'source_hashes':{s:hashlib.sha256((ROOT/s).read_bytes()).hexdigest() for s in sorted(dependencies)},
@@ -163,8 +183,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, help='New directory under work/')
     parser.add_argument('--package', action='store_true', help='Also write a local SDK ZIP')
+    parser.add_argument('--mailbox-review', type=Path, help='Select the mailbox radio review.json and its sibling inputs')
     args = parser.parse_args()
-    path, report = build_sdk(args.output, package=args.package)
+    path, report = build_sdk(args.output, package=args.package, mailbox_review=args.mailbox_review)
     print(json.dumps({'sdk_review': path.relative_to(ROOT).as_posix(),
                       **{key: value for key, value in report.items() if key != 'source_hashes'}}, indent=2))
 
