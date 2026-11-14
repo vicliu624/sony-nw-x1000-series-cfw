@@ -431,6 +431,11 @@ the artifact group explicitly with:
 Never relabel an old pass after editing source, claim QEMU as RF qualification,
 or hide a required input error as a skipped success.
 
+With the managed Remote host, this group uses the same compiled library for the
+native binding menu, pairing and startup progress, and diagnostic write gating.
+The replays use the C layout selected by the host's generated profile. UI and
+storage fixtures remain models for the native renderer and physical user volume.
+
 Managed owner/service artifacts require current child build receipts as well as
 the supervisor's identity. A current parent cannot hide stale child source.
 Root-overlay receipts retain those transitive inputs, so later source edits

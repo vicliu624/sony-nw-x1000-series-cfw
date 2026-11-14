@@ -165,6 +165,8 @@ SUITES = {
         ["test_player_host_anchor.py", "--engine-provider"],
         ["test_shared_wifi_auto_off.py"],
         ["test_remote_binding_menu.py"],
+        ["test_pairing_ui_progress.py"],
+        ["test_remote_runtime_trace.py"],
     ],
 }
 SUITES["unit"] = [[path.relative_to(ROOT).as_posix()]
