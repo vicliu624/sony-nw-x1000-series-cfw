@@ -75,6 +75,13 @@ defect and must not pass against corrected source. `test_remote_retirement_summa
 executes the actual summary writer and parent reader, including legacy and
 truncated input. Neither test establishes physical USB recovery.
 
+For a retained pairing trace, run `tools/read_remote_pairing_trace.py` with the
+local copy under `work/`. Pass `--before work/<capture>/before.bin` when both
+copies already exist. The comparison only attributes a write to the interval
+between copies when both pass CRC checks and previously populated slots were
+preserved. The legacy format stores no build, boot or request identifier. An
+empty or unchanged trace cannot establish whether startup was attempted.
+
 Each new aggregate retains `checked-source.zip` and its SHA-256 alongside the
 report. It contains exactly the inventory's checked source/configuration bytes,
 including uncommitted files, so a later edit cannot erase the tested version.

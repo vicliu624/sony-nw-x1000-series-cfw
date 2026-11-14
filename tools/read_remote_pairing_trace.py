@@ -5,6 +5,8 @@ from read_parent_entry_trace import decode
 from review_managed_remote_profile import private
 
 HEADER = b'X1000-REMOTE-PAIRING-TRACE-1'.ljust(32, b'\0')
+SEED = HEADER.ljust(2048, b'\0')
+SLOTS = 31
 STAGES = {
     1: 'pairing-confirmed',
     2: 'binding-lookup-completed',
@@ -55,10 +57,35 @@ CONTROLLER_ACTIONS = (
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('trace', help='Trace copied to the local work directory')
+    parser.add_argument('--before', help='Local copy taken before a single test attempt')
     args = parser.parse_args()
-    result = decode(HEADER.ljust(2048, b'\0'), private(args.trace).read_bytes(),
-                    prefix=HEADER, names=STAGES,slots=31)
-    result.pop('limits')
+    data = private(args.trace).read_bytes()
+    result = decode(SEED, data, prefix=HEADER, names=STAGES, slots=SLOTS)
+    result['limits'] = [
+        'Record CRC validates bytes. This trace format records no firmware, boot or start-request identity.',
+        'An empty or unchanged slot can also mean refused storage, an occupied slot or an interrupted write.',
+        'New records describe writes between the two copies. They do not independently identify a start request.',
+    ]
+    result['attempt_identity_present'] = False
+    if args.before is not None:
+        before = private(args.before).read_bytes()
+        baseline = decode(SEED, before, prefix=HEADER, names=STAGES, slots=SLOTS)
+        changes = {}
+        for slot in range(1, SLOTS + 1):
+            start = 32 + (slot - 1) * 64
+            previous = before[start:start + 64]
+            current = data[start:start + 64]
+            if previous != current:
+                changes[slot] = 'changed-occupied' if any(previous) else 'new'
+        changed_occupied_slots = [slot for slot, change in changes.items() if change == 'changed-occupied']
+        append_only = baseline['integrity_valid'] and result['integrity_valid'] and not changed_occupied_slots
+        for row in result['records']:
+            row['since_before'] = changes.get(row['stage'], 'unchanged')
+        result['comparison'] = dict(append_only=append_only,
+                                    baseline_invalid_slots=baseline['invalid_slots'],
+                                    changed_occupied_slots=changed_occupied_slots,
+                                    new_committed_slots=[slot for slot, change in changes.items()
+                                                         if append_only and change == 'new'])
     for row in result['records']:
         raw, binding, phase, channel, mode, fault, *state = row.pop('payload')
         status = raw if raw < 2**31 else raw - 2**32
@@ -127,7 +154,7 @@ def main():
                                    3: 'mode-admission', 5: 'controller-or-runtime'}.get((raw >> 24) & 15, 'unknown'))
     result['records'].sort(key=lambda row: row['sequence'])
     print(json.dumps(result, indent=2))
-    return 0 if result['integrity_valid'] else 2
+    return 0 if result['integrity_valid'] and result.get('comparison', {}).get('append_only', True) else 2
 
 
 if __name__ == '__main__':

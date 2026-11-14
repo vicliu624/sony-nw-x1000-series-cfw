@@ -7,7 +7,7 @@ import tempfile
 import zlib
 from pathlib import Path
 
-from read_remote_pairing_trace import HEADER
+from read_remote_pairing_trace import HEADER, SEED
 
 ROOT = Path(__file__).resolve().parents[1]
 with tempfile.TemporaryDirectory(prefix='pairing-trace-', dir=ROOT / 'work') as folder:
@@ -97,5 +97,28 @@ with tempfile.TemporaryDirectory(prefix='pairing-trace-', dir=ROOT / 'work') as 
     assert not decoded['hardware_success_proven']
     assert row['radio_summary']==dict(decoded=19,authentication_rejected=2,replay_rejected=3,
         negotiation_frames=5,negotiated_key_installs=1,shared_wake_unrestored=0)
+    before = Path(folder) / 'before.bin'
+    baseline = bytearray(SEED)
+    baseline[32+22*64:32+23*64] = trace[32+22*64:32+23*64]
+    before.write_bytes(baseline)
+    command = [sys.executable, str(ROOT/'tools/read_remote_pairing_trace.py'), str(path), '--before', str(before)]
+    decoded = json.loads(subprocess.run(command, capture_output=True, text=True, check=True).stdout)
+    assert not decoded['attempt_identity_present']
+    assert decoded['comparison']['append_only'] and 23 not in decoded['comparison']['new_committed_slots']
+    assert 26 in decoded['comparison']['new_committed_slots']
+    assert next(row for row in decoded['records'] if row['stage'] == 23)['since_before'] == 'unchanged'
+    path.write_bytes(SEED)
+    reset = subprocess.run(command, capture_output=True, text=True)
+    comparison = json.loads(reset.stdout)['comparison']
+    assert reset.returncode == 2 and not comparison['append_only']
+    assert comparison['changed_occupied_slots'] == [23] and comparison['new_committed_slots'] == []
+    baseline[32+22*64] ^= 1
+    before.write_bytes(baseline)
+    path.write_bytes(trace)
+    damaged_baseline = subprocess.run(command, capture_output=True, text=True)
+    comparison = json.loads(damaged_baseline.stdout)['comparison']
+    assert damaged_baseline.returncode == 2 and comparison['baseline_invalid_slots']
+    assert comparison['new_committed_slots'] == []
 print(json.dumps(dict(passed=True, summary_formats=cases, crc_rejection=True,
-                     gui_transition_decoded=True, hardware_success_never_inferred=True, device_accessed=False)))
+                     append_only_comparison=True, gui_transition_decoded=True,
+                     hardware_success_never_inferred=True, device_accessed=False)))

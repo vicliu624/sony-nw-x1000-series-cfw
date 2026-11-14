@@ -13,6 +13,7 @@ import zipfile
 from app_registry import ROOT
 from evidence_checks import source_inventory
 from market_metadata import parse_version, compare_versions
+from read_remote_pairing_trace import SEED as PAIRING_TRACE_SEED
 from review_managed_remote_profile import digest, private, receipt, radio_dependencies
 from review_managed_root_capacity import inventory, compose_root_inventory, read_localization_root
 
@@ -387,7 +388,7 @@ def stage_materials(staging, reviewed, controller, updater, radio):
         checked_copy(source, external / name)
     trace = external / 'HOMEBREW/data/diagnostics/remote-pairing.bin'
     trace.parent.mkdir(parents=True, exist_ok=True)
-    trace.write_bytes(b'X1000-REMOTE-PAIRING-TRACE-1'.ljust(2048, b'\0'))
+    trace.write_bytes(PAIRING_TRACE_SEED)
     if controller:
         checked_copy(controller['binary'], staging / '04_CORE2/firmware.bin')
         checked_copy(controller['review'], staging / '04_CORE2/build.json')
