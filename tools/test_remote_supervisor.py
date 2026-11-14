@@ -113,9 +113,13 @@ if diagnostic_ready:owner_flags+=['-DWR_CHAIN_DIAGNOSTIC_READY']
 if delayed_pairing_ready:owner_flags+=['-DWR_CHAIN_DELAYED_PAIRING_READY']
 real_owner_report=None
 if real_owner_refusal:
+ sdk_output=out/'native-sdk'
+ subprocess.run([sys.executable,str(ROOT/'runtime/platform/espnow/build_library.py'),
+  '--output',str(sdk_output)],cwd=ROOT,check=True,stdout=subprocess.DEVNULL)
  owner,real_owner_report=build_owner(legacy_radio=True, power_off_exit=True, mode_view_required=True,
   managed_session=real_owner_managed, window_seconds=None if real_owner_managed else 180,
-  data_leaf='wireless-remote' if formal_data_layout else 'espnow-test', output=out/'real-owner-build')
+  data_leaf='wireless-remote' if formal_data_layout else 'espnow-test', output=out/'real-owner-build',
+  sdk_review=sdk_output/'sdk/build.json')
  owner_sources=[]
  libs['libcnmgr.so.1']=ROOT/'work/stock-resolver-probe/libcnmgr.so.1'
 else:

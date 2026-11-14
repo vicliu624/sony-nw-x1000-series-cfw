@@ -68,7 +68,8 @@ def main():
                 pool_blocks=manifest["pool_blocks_after"],
                 in_place_command=manifest["in_place_command"])
             save()
-        run("native-library", "runtime/platform/espnow/build_library.py")
+        native = output / "native-sdk"
+        run("native-library", "runtime/platform/espnow/build_library.py", "--output", native)
         run("original-hostcmd-response", "tools/test_sd8686_hostcmd_response.py")
         run("original-packet-ownership", "tools/test_radio_packet_ownership.py")
         run("word-tx", "tools/test_radio_full_tx.py")
@@ -85,7 +86,7 @@ def main():
             "--radio-review", output / "frame")
         run("frame-original-rx", "tools/test_radio_full_rx.py", "--radio-review", output / "frame")
         run("frame-native-arm-chain", "tools/test_sd8686_frame_native.py",
-            "--radio-review", output / "frame")
+            "--radio-review", output / "frame", "--sdk-review", native / "sdk/build.json")
         run("secure-native-arm-chain", "tools/test_xnow_secure_chain.py", "--arm",
             "--radio-review", output / "vector")
     finally:

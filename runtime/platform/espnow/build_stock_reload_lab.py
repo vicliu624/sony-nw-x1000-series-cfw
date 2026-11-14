@@ -1,11 +1,20 @@
 """Build an explicit stock-only driver recovery lab. No device/network IO."""
+import argparse
 from pathlib import Path
 import hashlib
 import json
 import subprocess
+import sys
 import tarfile
 
 ROOT=Path(__file__).resolve().parents[3]
+sys.path.insert(0,str(ROOT/'tools'))
+from build_library import build_sdk
+from review_managed_remote_profile import native_sdk_build
+
+parser=argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--sdk-review',type=Path)
+args=parser.parse_args()
 OUT=ROOT/'work/espnow-stock-reload-lab';OUT.mkdir(parents=True,exist_ok=True)
 IMAGE=ROOT/'work/upg-jp/verified-3.bin'
 if hashlib.sha256(IMAGE.read_bytes()).hexdigest()!='c6307dba718f1faae821e0330b64532f13fe6ef98ff330a5919d7fb10525adf5':
@@ -35,9 +44,9 @@ for r in records:
 header+=['};','struct stock_link {const char *path,*target;};','static const struct stock_link stock_links[]={']
 header += ['{'+json.dumps(r['path'])+','+json.dumps(r['target'])+'},' for r in aliases]
 header+=['};'];(OUT/'stock_reload_inputs.h').write_text('\n'.join(header)+'\n')
-subprocess.run(['.venv/bin/python','runtime/platform/espnow/build_library.py'],cwd=ROOT,check=True,stdout=subprocess.DEVNULL)
-version=(ROOT/'runtime/platform/espnow/VERSION').read_text().strip()
-SDK=ROOT/'work/espnow-native-library'/version/'sdk'
+sdk_review=args.sdk_review if args.sdk_review is not None else build_sdk()[0]
+sdk_review,archive,library_build=native_sdk_build(sdk_review)
+version=library_build['version']
 LIB=ROOT/'work/arm-signal-tests/lib';STOCK=ROOT/'work/qqmusic-wifi';RESOLVER=ROOT/'work/stock-resolver-probe'
 sources=['runtime/platform/espnow/stock_reload_lab.c','runtime/store/start.c','runtime/store/start.S']
 app=OUT/'stock-reload-lab.arm'
@@ -46,7 +55,7 @@ subprocess.run(['arm-linux-gnueabi-gcc','-std=c99','-Os','-Wall','-Wextra','-Wer
     '-march=armv5te','-marm','-mfloat-abi=soft','-fno-builtin','-fno-pie','-fno-stack-protector',
     '-nostdlib','-no-pie','-Wl,--hash-style=sysv','-Wl,--build-id=none','-Wl,-E',
     '-Wl,--dynamic-linker=/lib/ld-linux.so.3','-I'+str(OUT),*sources,
-    str(SDK/'lib/libxnow.a'),str(STOCK/'libcnmgr.so.1'),'-Wl,--no-as-needed',str(RESOLVER/'libpthread.so.0'),
+    str(archive),str(STOCK/'libcnmgr.so.1'),'-Wl,--no-as-needed',str(RESOLVER/'libpthread.so.0'),
     str(LIB/'libc.so.6'),str(LIB/'ld-linux.so.3'),'-lgcc','-o',str(app)],cwd=ROOT,check=True)
 run=subprocess.run(['qemu-arm','-cpu','arm926',str(LIB/'ld-linux.so.3'),'--library-path',
     f'{LIB}:{STOCK}:{RESOLVER}',str(app),'--help'],capture_output=True,text=True,check=True,timeout=15)
@@ -55,7 +64,7 @@ report={'built':True,'version':'0.1.0-dev.1','library_version':version,'bytes':a
     'original_root_inputs':records,'original_symlinks':aliases,'help_smoke':run.stdout,
     'source_hashes':{s:hashlib.sha256((ROOT/s).read_bytes()).hexdigest() for s in
         [*sources,'runtime/platform/espnow/stock_wifi_session.c','runtime/platform/espnow/build_stock_reload_lab.py']},
-    'library_build':json.loads((SDK/'build.json').read_text()),
+    'library_build':library_build,'sdk_review':sdk_review.relative_to(ROOT).as_posix(),
     'physical_reload_qualified':False,'device_written':False}
 (OUT/'build.json').write_text(json.dumps(report,indent=2))
 print(json.dumps({k:v for k,v in report.items() if k in ('built','version','library_version','bytes','sha256','md5','help_smoke')},indent=2))

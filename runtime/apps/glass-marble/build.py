@@ -3,7 +3,10 @@ from pathlib import Path
 import hashlib,json,subprocess,sys,time
 ROOT=Path(__file__).resolve().parents[3]
 sys.path.insert(0,str(ROOT/'tools'))
+sys.path.insert(0,str(ROOT/'runtime/platform/espnow'))
+from build_library import build_sdk
 from generate_espnow_full_profile import render
+from review_managed_remote_profile import native_sdk_build
 OUT=ROOT/'work/glass-marble';OUT.mkdir(parents=True,exist_ok=True)
 APP=ROOT/'runtime/apps/glass-marble'
 def run(args,**kw):return subprocess.run([str(a) for a in args],cwd=ROOT,check=True,**kw)
@@ -17,9 +20,7 @@ for name in ('sd8686.bin','helper_sd.bin'):
  data=(radio/'candidate'/name).read_bytes()
  header.append('{'+json.dumps('/contents/HOMEBREW/data/glass-marble/candidate/'+name)+','+str(len(data))+',{'+','.join(map(str,hashlib.sha256(data).digest()))+'}},')
 (OUT/'exchange_inputs.h').write_text('\n'.join(header+['};'])+'\n')
-run([sys.executable,ROOT/'runtime/platform/espnow/build_library.py'],stdout=subprocess.DEVNULL)
-version=(ROOT/'runtime/platform/espnow/VERSION').read_text().strip()
-library=ROOT/'work/espnow-native-library'/version/'sdk/lib/libxnow.a'
+sdk_review,library,_=native_sdk_build(build_sdk()[0])
 lib=ROOT/'work/arm-signal-tests/lib';stock=ROOT/'work/stock-resolver-probe'
 flags=['-std=c99','-Os','-Wall','-Wextra','-Werror','-Wno-unused-function','-D_DEFAULT_SOURCE','-DHB_STORE_SONY_LIBC','-DHB_USE_POSIX_DEVICE_IO','-U_FORTIFY_SOURCE','-D_FORTIFY_SOURCE=0','-march=armv5te','-marm','-mfloat-abi=soft','-fno-builtin','-fno-pie','-fno-stack-protector','-ffunction-sections','-fdata-sections','-nostdlib','-no-pie','-Wl,--gc-sections','-Wl,--hash-style=sysv','-Wl,--build-id=none','-Wl,-E','-Wl,--dynamic-linker=/lib/ld-linux.so.3',
  '-DXNOW_CANDIDATE_DIRECTORY="/contents/HOMEBREW/data/glass-marble/candidate"',
@@ -54,5 +55,6 @@ sources=sorted(set(owner+ui))
 report={'built':True,'version':app_version,'app_sha256':sha,'worker_sha256':hashlib.sha256(worker).hexdigest(),'radio_manifest':str(radio.relative_to(ROOT)/'manifest.json'),'radio_candidate_sha256':manifest['candidate_sha256'],'library_sha256':hashlib.sha256(library.read_bytes()).hexdigest(),'hardware_tested':False,'device_written':False,'managed_launcher_required':True,'deployable':False,'pending':['physical S31 interoperability and latency','managed graphical app and APF/USB/sleep ownership'],'source_hashes':{p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in sources}}
 report['app_inputs']={p.relative_to(ROOT).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in APP.rglob('*') if p.is_file() and '__pycache__' not in p.parts and 'managed_components' not in p.parts and 'dependencies.lock'!=p.name}
 report['original_libraries']={p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in [stock/'libcnmgr.so.1',stock/'libpthread.so.0',stock/'libm.so.6',lib/'libc.so.6',lib/'ld-linux.so.3']}
+report['sdk_review']=sdk_review.relative_to(ROOT).as_posix()
 (OUT/'build.json').write_text(json.dumps(report,indent=2)+'\n')
 print(json.dumps(report,indent=2))

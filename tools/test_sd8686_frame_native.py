@@ -294,16 +294,18 @@ stdout = exercise([binary], "host")
 arm_stdout = None
 if "--host-only" not in sys.argv:
     from player_arm_guest import stock_libraries
+    from review_managed_remote_profile import native_sdk_build
 
     libraries = stock_libraries()
     target = out / "native.arm"
-    native_version = (ROOT / "runtime/platform/espnow/VERSION").read_text().strip()
-    native_sdk = ROOT / "work/espnow-native-library" / native_version / "sdk"
-    archive = native_sdk / "lib/libxnow.a"
-    native_receipt = json.loads((native_sdk / "build.json").read_text())
-    assert hashlib.sha256(archive.read_bytes()).hexdigest() == native_receipt["archive_sha256"]
-    for name, expected in native_receipt["source_hashes"].items():
-        assert hashlib.sha256((ROOT / name).read_bytes()).hexdigest() == expected, name
+    if "--sdk-review" in sys.argv:
+        selected_sdk = sys.argv[sys.argv.index("--sdk-review") + 1]
+    else:
+        native_output = out / "native-sdk"
+        subprocess.run([sys.executable, str(ROOT / "runtime/platform/espnow/build_library.py"),
+                        "--output", str(native_output)], cwd=ROOT, check=True, stdout=subprocess.DEVNULL)
+        selected_sdk = native_output / "sdk/build.json"
+    native_path, archive, native_receipt = native_sdk_build(selected_sdk)
     arm_flags = [
         "-Os",
         "-DHB_STORE_SONY_LIBC",
@@ -362,7 +364,8 @@ inputs = [
     *manifest["source_hashes"],
 ]
 if arm_stdout is not None:
-    inputs += ["runtime/store/start.c", "runtime/store/start.S"]
+    inputs += ["runtime/store/start.c", "runtime/store/start.S", "tools/review_managed_remote_profile.py",
+               native_path.relative_to(ROOT).as_posix(), archive.relative_to(ROOT).as_posix()]
 report = dict(
     passed=True,
     native_host_sanitizers=True,

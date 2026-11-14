@@ -1,11 +1,22 @@
 """Prepare finite native over-air acceptance worker, never deploy or run it."""
+import argparse
 from pathlib import Path
 import hashlib
 import json
 import subprocess
+import sys
 ROOT=Path(__file__).resolve().parents[3]
+sys.path.insert(0,str(ROOT/'tools'))
+from build_library import build_sdk
+from review_managed_remote_profile import native_sdk_build
+
+parser=argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--sdk-review',type=Path)
+args=parser.parse_args()
 OUT=ROOT/'work/espnow-exchange-lab';OUT.mkdir(parents=True,exist_ok=True)
-subprocess.run(['.venv/bin/python','runtime/platform/espnow/build_stock_reload_lab.py'],cwd=ROOT,check=True,stdout=subprocess.DEVNULL)
+sdk_review=args.sdk_review if args.sdk_review is not None else build_sdk()[0]
+sdk_review,archive,library_build=native_sdk_build(sdk_review)
+subprocess.run([sys.executable,'runtime/platform/espnow/build_stock_reload_lab.py','--sdk-review',str(sdk_review)],cwd=ROOT,check=True,stdout=subprocess.DEVNULL)
 candidate=ROOT/'work/espnow-radio-candidate-poll-filter'
 review=json.loads((candidate/'review.json').read_text())
 records=[]
@@ -17,8 +28,7 @@ for name in ('sd8686.bin','helper_sd.bin'):
 header=['static const struct stock_input exchange_inputs[]={']
 for r in records:header.append('{'+json.dumps(r['path'])+','+str(r['bytes'])+',{'+','.join(str(b) for b in bytes.fromhex(r['sha256']))+'}},')
 (OUT/'exchange_inputs.h').write_text('\n'.join(header+['};'])+'\n')
-version=(ROOT/'runtime/platform/espnow/VERSION').read_text().strip()
-SDK=ROOT/'work/espnow-native-library'/version/'sdk'
+version=library_build['version']
 LIB=ROOT/'work/arm-signal-tests/lib';STOCK=ROOT/'work/qqmusic-wifi';RESOLVER=ROOT/'work/stock-resolver-probe'
 sources=['runtime/platform/espnow/exchange_lab.c','runtime/store/start.c','runtime/store/start.S']
 app=OUT/'exchange-lab.arm'
@@ -27,7 +37,7 @@ subprocess.run(['arm-linux-gnueabi-gcc','-std=c99','-Os','-Wall','-Wextra','-Wer
     '-march=armv5te','-marm','-mfloat-abi=soft','-fno-builtin','-fno-pie','-fno-stack-protector',
     '-nostdlib','-no-pie','-Wl,--hash-style=sysv','-Wl,--build-id=none','-Wl,-E',
     '-Wl,--dynamic-linker=/lib/ld-linux.so.3','-I'+str(OUT),'-I'+str(ROOT/'work/espnow-stock-reload-lab'),
-    *sources,str(SDK/'lib/libxnow.a'),str(STOCK/'libcnmgr.so.1'),'-Wl,--no-as-needed',str(RESOLVER/'libpthread.so.0'),
+    *sources,str(archive),str(STOCK/'libcnmgr.so.1'),'-Wl,--no-as-needed',str(RESOLVER/'libpthread.so.0'),
     str(LIB/'libc.so.6'),str(LIB/'ld-linux.so.3'),'-lgcc','-o',str(app)],cwd=ROOT,check=True)
 run=subprocess.run(['qemu-arm','-cpu','arm926',str(LIB/'ld-linux.so.3'),'--library-path',
     f'{LIB}:{STOCK}:{RESOLVER}',str(app),'--help'],capture_output=True,text=True,check=True,timeout=15)
@@ -37,7 +47,7 @@ report={'built':True,'version':'0.1.0-dev.1','library_version':version,'bytes':a
     'source_hashes':{s:hashlib.sha256((ROOT/s).read_bytes()).hexdigest() for s in [*sources,
         'runtime/platform/espnow/stock_reload_lab.c','runtime/platform/espnow/stock_wifi_session.c',
         'runtime/platform/espnow/build_exchange_lab.py']},
-    'library_build':json.loads((SDK/'build.json').read_text()),
+    'library_build':library_build,'sdk_review':sdk_review.relative_to(ROOT).as_posix(),
     'physical_exchange_qualified':False,'device_written':False,'radio_loaded':False}
 (OUT/'build.json').write_text(json.dumps(report,indent=2))
 print(json.dumps({k:v for k,v in report.items() if k in ('built','version','library_version','bytes','sha256','help_smoke')},indent=2))

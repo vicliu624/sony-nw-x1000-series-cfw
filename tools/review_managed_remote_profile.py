@@ -21,6 +21,20 @@ def artifact(path,expected,size):
  path=private(path)
  if path.stat().st_size!=size or digest(path)!=expected:raise ValueError('Artifact identity mismatch: '+path.name)
  return dict(local=path.relative_to(ROOT).as_posix(),bytes=size,sha256=expected)
+
+
+def native_sdk_build(path):
+    path, build = receipt(path)
+    archive = path.parent / 'lib/libxnow.a'
+    if path.name != 'build.json' or build.get('built') is not True:
+        raise ValueError('Expected a native ESP-NOW SDK build receipt')
+    identity = artifact(archive, build['archive_sha256'], build['archive_bytes'])
+    for name, expected in build.get('abi_library_hashes', {}).items():
+        if digest(private((ROOT / name).resolve())) != expected:
+            raise ValueError('Native SDK ABI library changed: ' + name)
+    return path, ROOT / identity['local'], build
+
+
 def component_build(path,leaf):
  path,built=receipt(path)
  if (path.name!='build.json' or built.get('built') is not True or

@@ -2,8 +2,11 @@
 from pathlib import Path
 import hashlib,json,subprocess,sys,shutil
 ROOT=Path(__file__).resolve().parents[3];sys.path.insert(0,str(ROOT/'tools'))
+sys.path.insert(0,str(ROOT/'runtime/platform/espnow'))
+from build_library import build_sdk
 from generate_espnow_full_profile import render
 from owner_native_profile import render as render_native_profile
+from review_managed_remote_profile import native_sdk_build
 OUT=ROOT/'work/autonomous-espnow-test';OUT.mkdir(exist_ok=True)
 radio=ROOT/'work/espnow-full-radio-review-3';manifest=json.loads((radio/'manifest.json').read_text())
 for name,digest in manifest['source_hashes'].items():assert hashlib.sha256((ROOT/name).read_bytes()).hexdigest()==digest,name
@@ -16,10 +19,8 @@ for name in ('sd8686.bin','helper_sd.bin'):
 (OUT/'native_inputs.h').write_text(render_native_profile(
     (ROOT/'work/espnow-stock-reload-lab/stock_reload_inputs.h').read_text(encoding='utf-8'),
     (OUT/'exchange_inputs.h').read_text(encoding='utf-8')), encoding='utf-8')
-subprocess.run([sys.executable,str(ROOT/'runtime/platform/espnow/build_library.py')],cwd=ROOT,check=True,stdout=subprocess.DEVNULL)
-version=(ROOT/'runtime/platform/espnow/VERSION').read_text().strip();sdk=ROOT/'work/espnow-native-library'/version/'sdk';library=json.loads((sdk/'build.json').read_text());archive=sdk/'lib/libxnow.a'
-assert hashlib.sha256(archive.read_bytes()).hexdigest()==library['archive_sha256']
-for name,digest in library['source_hashes'].items():assert hashlib.sha256((ROOT/name).read_bytes()).hexdigest()==digest,name
+sdk_review,archive,library=native_sdk_build(build_sdk()[0])
+version=library['version']
 lib=ROOT/'work/arm-signal-tests/lib';resolver=ROOT/'work/stock-resolver-probe'
 sources=['runtime/apps/espnow-test/main.c','runtime/platform/espnow/native_environment.c','runtime/apps/espnow-test/runner.c','runtime/apps/espnow-test/detached.c','runtime/platform/espnow/xnow_owner_gate.c','runtime/platform/espnow/xnow_loader_job.c','runtime/store/start.c','runtime/store/start.S']
 binary=OUT/'espnow-test.arm'
@@ -30,4 +31,5 @@ for args in ([],['--detach-rx'],['--detach-rx','ffffffffffff','--charger-confirm
     check=subprocess.run(base+args,capture_output=True,text=True,timeout=15);assert check.returncode==64
 shutil.copy2(ROOT/'runtime/apps/espnow-test/README.md',OUT/'README.md')
 report={'built':True,'version':(ROOT/'runtime/apps/espnow-test/VERSION').read_text().strip(),'bytes':binary.stat().st_size,'sha256':hashlib.sha256(binary.read_bytes()).hexdigest(),'arm_help_passed':True,'no_args_and_invalid_invocations_refused':True,'library_version':version,'radio_candidate_sha256':manifest['candidate_sha256'],'terminal_independent_after_detach':True,'user_journal_limit_bytes':8192,'test_window_seconds':60,'physical_radio_qualified':False,'original_apf_usb_sleep_ownership_qualified':False,'device_written':False,'radio_loaded':False,'firmware_created':False,'source_sha256':{p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in [*sources,'runtime/apps/espnow-test/runner.h','runtime/apps/espnow-test/build.py','runtime/platform/espnow/native_environment.h','runtime/platform/espnow/native_entry.h','tools/owner_native_profile.py',str((OUT/'native_inputs.h').relative_to(ROOT))]}}
+report['sdk_review']=sdk_review.relative_to(ROOT).as_posix()
 (OUT/'build.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps({k:v for k,v in report.items() if k!='source_sha256'},indent=2))

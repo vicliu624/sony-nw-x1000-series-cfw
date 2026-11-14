@@ -15,7 +15,7 @@ from app_registry import ROOT
 from generate_espnow_full_profile import render as render_radio_profile
 from owner_native_profile import file_initializer, render as render_native_profile, stock_header
 from player_arm_guest import stock_libraries
-from review_managed_remote_profile import digest, private, receipt
+from review_managed_remote_profile import digest, native_sdk_build, private, receipt
 from sdk_build import fresh_work
 
 
@@ -46,14 +46,10 @@ def build(*, sdk_review=None, rx_diagnostic_radio=None, external_radio_inputs=No
 
     version = (ROOT / 'runtime/platform/espnow/VERSION').read_text().strip()
     if sdk_review is None:
-        if not legacy_radio:
-            raise ValueError('Root owner requires --sdk-review')
-        sdk_review = ROOT / 'work/espnow-native-library' / version / 'sdk/build.json'
-    sdk_receipt, sdk = receipt(sdk_review)
-    archive = private(sdk_receipt.parent / 'lib/libxnow.a')
-    if (sdk.get('built') is not True or sdk.get('version') != version or
-            archive.stat().st_size != sdk['archive_bytes'] or digest(archive) != sdk['archive_sha256']):
-        raise ValueError('Native SDK archive/receipt mismatch')
+        raise ValueError('Radio Owner requires --sdk-review')
+    sdk_receipt, archive, sdk = native_sdk_build(sdk_review)
+    if sdk.get('version') != version:
+        raise ValueError('Native SDK version differs from the current source')
     crypto = ROOT / 'work/external-tls-probe/arm-build/libbearssl.a'
     if digest(crypto) != sdk['bearssl_archive_sha256']:
         raise ValueError('Native SDK BearSSL input changed')
@@ -239,7 +235,7 @@ def main():
     parser.add_argument('--managed-session', action='store_true')
     parser.add_argument('--root-cold', action='store_true')
     parser.add_argument('--data-leaf', default='espnow-test')
-    parser.add_argument('--sdk-review', type=Path, help='Native ESP-NOW SDK build.json under work/')
+    parser.add_argument('--sdk-review', type=Path, required=True, help='Native ESP-NOW SDK build.json under work/')
     parser.add_argument('--external-radio-inputs', type=Path, help='Pinned legacy RF files for the diagnostic kit under work/')
     parser.add_argument('--output', type=Path)
     radio = parser.add_mutually_exclusive_group(required=True)

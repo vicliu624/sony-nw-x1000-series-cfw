@@ -6,7 +6,10 @@ import subprocess
 import sys
 ROOT=Path(__file__).resolve().parents[3]
 sys.path.insert(0,str(ROOT/'tools'))
+sys.path.insert(0,str(ROOT/'runtime/platform/espnow'))
+from build_library import build_sdk
 from elftools.elf.elffile import ELFFile
+from review_managed_remote_profile import native_sdk_build
 from sdk_services import compiler
 sdk_run=compiler(ROOT/'runtime/apps/espnow-chat')
 version=(ROOT/'runtime/apps/espnow-chat/VERSION').read_text().strip()
@@ -14,12 +17,8 @@ OUT=ROOT/'work/espnow-chat-app';OUT.mkdir(parents=True,exist_ok=True)
 LIB=ROOT/'work/arm-signal-tests/lib'
 for name,digest in {'libc.so.6':'5afbf3074dfa9ba0478d6670f220ef4d7ec065a255ee856d9093d39210f23812','ld-linux.so.3':'2f007b0809684fde0ac446ad203135c10b4318eb8c10d4160a9f59b32c3c52de'}.items():
     assert hashlib.sha256((LIB/name).read_bytes()).hexdigest()==digest
-library_version=(ROOT/'runtime/platform/espnow/VERSION').read_text().strip()
-subprocess.run([sys.executable,str(ROOT/'runtime/platform/espnow/build_library.py')],cwd=ROOT,check=True)
-library_folder=ROOT/'work/espnow-native-library'/library_version/'sdk'
-archive=library_folder/'lib/libxnow.a'
-library_report=json.loads((library_folder/'build.json').read_text())
-if hashlib.sha256(archive.read_bytes()).hexdigest()!=library_report['archive_sha256']:raise ValueError('library manifest mismatch')
+sdk_review,archive,library_report=native_sdk_build(build_sdk()[0])
+library_version=library_report['version']
 sources=['runtime/apps/espnow-chat/chat_app.c','runtime/apps/espnow-chat/chat_keyboard.c','runtime/apps/espnow-chat/chat_client.c',
          'runtime/apps/espnow-chat/chat_handoff.c','runtime/platform/espnow/xnow_managed_process.c',
          'runtime/native/frontend.c','runtime/native/linux_devices.c',
@@ -27,7 +26,7 @@ sources=['runtime/apps/espnow-chat/chat_app.c','runtime/apps/espnow-chat/chat_ke
          'runtime/store/start.c','runtime/store/start.S']
 folder=OUT/'HOMEBREW/apps/espnow-chat';folder.mkdir(parents=True,exist_ok=True)
 worker=folder/'radio-worker'
-subprocess.run([sys.executable,str(ROOT/'runtime/platform/espnow/build_exchange_lab.py')],cwd=ROOT,check=True)
+subprocess.run([sys.executable,str(ROOT/'runtime/platform/espnow/build_exchange_lab.py'),'--sdk-review',str(sdk_review)],cwd=ROOT,check=True)
 owner_sources=['runtime/apps/espnow-chat/chat_owner.c','runtime/apps/espnow-chat/chat_owner_platform.c','runtime/apps/espnow-chat/chat_handoff.c','runtime/apps/espnow-chat/chat_handoff_owner.c','runtime/platform/espnow/xnow_managed_process.c','runtime/store/start.c','runtime/store/start.S']
 owner_sources+=['runtime/platform/espnow/xnow_handoff.c','runtime/native/app_process.c','runtime/native/linux_process_posix.c']
 owner_flags=['-std=c99','-Os','-Wall','-Wextra','-Werror','-D_DEFAULT_SOURCE','-DHB_STORE_SONY_LIBC','-U_FORTIFY_SOURCE','-D_FORTIFY_SOURCE=0',
@@ -81,7 +80,7 @@ for i in range(len(sources)):
         if path.is_relative_to(ROOT.resolve()):dependencies.add(path.relative_to(ROOT.resolve()).as_posix())
 report={'built':True,'version':version,'bytes':len(data),'sha256':digest,'needed':needed,'checks':checks,
         'radio_owner_sha256':worker_sha,'radio_owner_bytes':worker.stat().st_size,'owner_sources':{x:hashlib.sha256((ROOT/x).read_bytes()).hexdigest() for x in owner_sources},'linked_library_version':library_version,'linked_library_sha256':library_report['archive_sha256'],
-        'linked_library_sources':library_report['source_hashes'],
+        'linked_library_sources':library_report['source_hashes'],'sdk_review':sdk_review.relative_to(ROOT).as_posix(),
         'renderer_preview':True,'hardware_tested':False,'device_written':False,'radio_installed':False,
         'managed_launcher_required':True,'deployable':False,'pending_validation':['physical graphical UI through managed launcher','physical APF/USB/sleep and stock network restoration'],
         'source_hashes':{s:hashlib.sha256((ROOT/s).read_bytes()).hexdigest() for s in sorted(dependencies)}}

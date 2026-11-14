@@ -208,6 +208,8 @@ Build the Root Radio Owner with the native ESP-NOW SDK receipt, exact radio
 review and verified legacy RF files used by the diagnostic kit:
 
 ```sh
+.venv/bin/python runtime/platform/espnow/build_library.py \
+  --output work/example/native-sdk
 .venv/bin/python tools/build_remote_owner.py \
   --sdk-review work/example/native-sdk/sdk/build.json \
   --rx-diagnostic-radio work/example/wifi-image/radio-build \

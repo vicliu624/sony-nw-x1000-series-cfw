@@ -14,9 +14,13 @@ verifies library hashes and candidate/payload consistency; it never downloads,
 deploys or contacts devices. Prepare those analysis inputs using the project RF
 guide before building. This is a local development profile, not a new release CI.
 
-Output: work/espnow-native-library/<VERSION>/sdk, containing include/, lib/libxnow.a,
-an example with no device access and build.json. The version belongs to this
-library; it is separate from Sony1.11, the chat app and Cardputer firmware.
+Pass `--output work/native-sdk-review` to choose a new build directory. By
+default the builder creates a fresh directory under `work/espnow-native-library/`.
+The result includes `sdk/include/`, `sdk/lib/libxnow.a`, an example with no device
+access and `sdk/build.json`. Pass the reported `sdk_review` path to consumers.
+Builds of the same source version have independent receipts and outputs.
+Use `--package` to also write the local SDK ZIP. Compiler intermediates and
+test executables are temporary.
 
 The build links both a minimal consumer and a whole-archive consumer with the
 pinned original libraries, and runs both under ARM926 QEMU. Whole-archive linkage
