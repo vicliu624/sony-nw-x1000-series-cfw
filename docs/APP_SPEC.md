@@ -154,7 +154,9 @@ entry maps a repository-relative source to an installed relative destination.
 Do not copy a build directory wholesale when it contains profiles or logs.
 Existing individual tools/build_<name>.py entry points remain compatibility
 wrappers. Application-specific CLI options are forwarded to the local builder.
-Use a new output directory; packaging does not overwrite a previous candidate.
+Use a new output directory. Assembly uses a temporary sibling directory and
+publishes the complete package in one rename. If assembly fails, retry the
+same output path after correcting the input.
 
 The --package-from option skips compilation and packages an explicitly selected
 fresh build tree. If that tree has an `app.ini`, its app ID and version must

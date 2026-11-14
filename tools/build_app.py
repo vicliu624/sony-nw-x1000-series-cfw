@@ -1,5 +1,5 @@
 """Build and package one app using its local definition. PC only; no deployment."""
-import argparse,hashlib,json,shutil,subprocess,sys
+import argparse,hashlib,json,shutil,subprocess,sys,tempfile
 from pathlib import Path
 from app_registry import ROOT,applications,application_root
 from app_presentation import install_presentation
@@ -8,9 +8,11 @@ from market_metadata import parse_version
 def package(ident,source,output,app_root=None):
     root=application_root(app_root);info=applications(root)[ident]
     if Path(source).is_symlink():raise ValueError('Linked package root')
+    if Path(output).is_symlink():raise ValueError('Linked package output')
     source=Path(source).resolve();output=Path(output).resolve()
     if not output.is_relative_to(ROOT/'work') or output==ROOT/'work' or output.exists():raise ValueError('Select a new project work directory')
     if source.is_symlink() or not source.is_dir():raise ValueError('Missing package input')
+    if output.is_relative_to(source):raise ValueError('Package output must be outside its source tree')
     files=list(source.rglob('*'))
     if any(p.is_symlink() for p in files):raise ValueError('Linked package input')
     version=(root/ident/'VERSION').read_text().strip();parse_version(version)
@@ -27,22 +29,29 @@ def package(ident,source,output,app_root=None):
     digest = hashlib.sha256(data).hexdigest()
     if manifest is not None and (manifest.get('bytes') != str(len(data)) or manifest.get('sha256') != digest):
         raise ValueError('Package input executable does not match its manifest')
-    output.mkdir(parents=True)
-    # A build directory may contain objects, logs or profiles: only package trees
-    # are copied. Single-executable recipes must explicitly declare that mode.
-    if info.get('build',{}).get('single_executable'):
-        shutil.copyfile(source/executable,output/'app')
-    else:
-        shutil.copytree(source,output,dirs_exist_ok=True)
-        if executable!='app':shutil.copyfile(source/executable,output/'app')
-    for row in info.get('package_files',[]):
-        origin=(ROOT/row['source']).resolve();dest=(output/row['destination']).resolve()
-        if not origin.is_relative_to(ROOT) or not dest.is_relative_to(output) or Path(ROOT/row['source']).is_symlink():raise ValueError('Unsafe resource mapping')
-        if not origin.is_file():raise ValueError('Missing required resource: '+str(origin))
-        dest.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(origin,dest)
-    (output/'app.ini').write_text(f'api=1\nid={ident}\nname={info["title"]}\nversion={version}\ntarget={info["target"]}\nexec=app\nbytes={len(data)}\nsha256={digest}\n')
-    install_presentation(ident,output,version,app_root)
-    (output/'files.sha256').write_text('HBFILES1\n'+''.join(f'{hashlib.sha256(p.read_bytes()).hexdigest()} {p.stat().st_size} {p.relative_to(output).as_posix()}\n' for p in sorted(output.rglob('*')) if p.is_file() and p.name!='files.sha256'))
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix='.app-package-', dir=output.parent) as directory:
+        staging = Path(directory) / output.name
+        # Single-executable recipes can supply a build tree containing logs and
+        # private profiles. Only copy its validated executable in that case.
+        if info.get('build',{}).get('single_executable'):
+            staging.mkdir()
+            (staging/'app').write_bytes(data)
+        else:
+            shutil.copytree(source,staging)
+            if executable!='app':(staging/'app').write_bytes(data)
+        for row in info.get('package_files',[]):
+            origin=(ROOT/row['source']).resolve();dest=(staging/row['destination']).resolve()
+            if not origin.is_relative_to(ROOT) or not dest.is_relative_to(staging) or Path(ROOT/row['source']).is_symlink():raise ValueError('Unsafe resource mapping')
+            if not origin.is_file():raise ValueError('Missing required resource: '+str(origin))
+            dest.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(origin,dest)
+        if (staging/'app').read_bytes()!=data:
+            raise ValueError('Package executable changed during assembly')
+        (staging/'app.ini').write_text(f'api=1\nid={ident}\nname={info["title"]}\nversion={version}\ntarget={info["target"]}\nexec=app\nbytes={len(data)}\nsha256={digest}\n')
+        install_presentation(ident,staging,version,app_root)
+        (staging/'files.sha256').write_text('HBFILES1\n'+''.join(f'{hashlib.sha256(p.read_bytes()).hexdigest()} {p.stat().st_size} {p.relative_to(staging).as_posix()}\n' for p in sorted(staging.rglob('*')) if p.is_file() and p.name!='files.sha256'))
+        if output.exists() or output.is_symlink():raise FileExistsError(output)
+        staging.rename(output)
     return output
 
 def main():
