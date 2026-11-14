@@ -44,7 +44,6 @@ def main():
  if not a.skip_bootstrap:run('tools/ci_bootstrap.py')
  bootstrap=json.loads((ROOT/'work/ci/bootstrap.json').read_text())
  for i,sha in enumerate(bootstrap['stock_components']):assert digest((ROOT/f'work/upg-jp/verified-{i}.bin').read_bytes())==sha
- run('tools/test_upg_crypto.py')
  run('tools/build_hello_app.py');run('tools/build_libc_frontend.py','--review-output','work/libc-launcher-review')
  def copy_app(ident,source):
   dest=apps/ident;shutil.copytree(source,dest);return dest
@@ -52,7 +51,8 @@ def main():
  for ident in policy['apps']:
   if ident=='qqmusic':continue  # Explicit public service profile is prepared below.
   package=work/'apps'/ident
-  run('tools/build_app.py',ident,'--output',package)
+  prepared=['--package-from','work/hello-app/package'] if ident=='hello' else []
+  run('tools/build_app.py',ident,'--output',package,*prepared)
   copy_app(ident,package)
  lib=ROOT/'work/arm-signal-tests/lib';resolver=ROOT/'work/stock-resolver-probe';crypto=ROOT/'work/external-tls-probe'
  # Font source is public/pinned; generated subset carries its original notices.

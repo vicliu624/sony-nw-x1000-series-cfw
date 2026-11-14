@@ -24,10 +24,9 @@ its reverse and refuses errors without retry or fallback. Run
 tools/test_upg_crypto.py for the known-answer/rejection checks and exact original
 UPG rebuild. Independent Rockbox component extraction remains a separate check;
 a same-backend roundtrip is not firmware qualification. This is PC-only tooling.
-The release builder runs this check immediately after verifying bootstrap
-components and before building applications or generating release firmware.
-A failed codec check aborts the release job; its log is retained with build
-diagnostics. This gate does not qualify the private managed-host candidate.
+Release CI runs the small DES checks before starting the build. The firmware
+builder reconstructs and checks the original UPG when it composes a release,
+then decodes and verifies the modified container before writing it.
 
 Extracted original loaders need their executable bit when invoked as QEMU's
 program. Bootstrap preserves mode0755 without changing their bytes. Windows/DrvFS

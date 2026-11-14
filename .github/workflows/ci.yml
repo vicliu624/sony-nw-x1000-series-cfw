@@ -97,8 +97,10 @@ jobs:
         env:
           RELEASE_REPOSITORY: ${{ github.repository }}
         run: |
+          python tools/test_upg_crypto.py --codec-only
           python tools/build_release.py --repository "$RELEASE_REPOSITORY"
           python tools/verify_release.py "dist/$(cat VERSION)/release"
+          python tools/test_download_plan.py
           python tools/test_app_presentation.py
           python tools/test_market_versions.py
           python tools/test_release_market.py "dist/$(cat VERSION)/release/upload"

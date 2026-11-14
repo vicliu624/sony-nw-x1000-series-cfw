@@ -20,6 +20,8 @@ from OS-verified chains for the release/QQ hosts; no test CA or private key is u
 launcher, firmware, apps and metadata into `dist/<VERSION>/release/upload`.
 The tag must exactly match VERSION. `--skip-bootstrap` is for an already verified
 local input set, not an exemption from stock component checks.
+The launcher check and Hello package use the same Hello build. The release
+workflow checks the store's download planner independently after packaging.
 
 The firmware profile is built from original Japanese1.11 components and current
 Homebrew/error-message/built-in localization sources. It preserves the original

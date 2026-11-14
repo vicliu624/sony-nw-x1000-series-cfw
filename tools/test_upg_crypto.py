@@ -1,15 +1,18 @@
 """Legacy DES known-answer, rejection paths and exact Sony container rebuild."""
+import argparse
 import hashlib
 import json
-from pathlib import Path
 import subprocess
 import sys
 from unittest.mock import patch
 from app_registry import ROOT
 sys.path.insert(0, str(ROOT / 'scripts'))
 from upg_crypto import encrypt_verified, decrypt_verified
-from upg import unpack, STOCK_SHA256
-from release_firmware import pack
+
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--codec-only', action='store_true',
+                    help='Check DES without rebuilding Sony inputs or writing a receipt')
+args = parser.parse_args()
 
 key = bytes.fromhex('133457799bbcdff1')
 plain = bytes.fromhex('0123456789abcdef')
@@ -37,17 +40,23 @@ with patch('upg_crypto.subprocess.run', return_value=subprocess.CompletedProcess
         pass
     else:
         raise AssertionError('Wrong roundtrip accepted')
-parts = [(ROOT / ('work/upg-jp/verified-' + str(i) + '.bin')).read_bytes() for i in range(4)]
-rebuilt = pack(parts)
-assert hashlib.sha256(rebuilt).hexdigest() == STOCK_SHA256
-assert unpack(rebuilt)[1] == parts
 report = dict(passed=True, known_des_answer=True, no_retry_on_backend_error=True,
-              invalid_input_and_roundtrip_rejected=True, stock_upg_byte_exact=True,
+              invalid_input_and_roundtrip_rejected=True,
               device_accessed=False, hardware_qualified=False,
               source_hashes={name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest()
-                             for name in ('scripts/upg_crypto.py', 'scripts/upg.py',
-                                          'tools/release_firmware.py', 'tools/test_upg_crypto.py')})
-out = ROOT / 'work/upg-crypto-check'
-out.mkdir(exist_ok=True)
-(out / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
+                             for name in ('scripts/upg_crypto.py', 'tools/test_upg_crypto.py')})
+if not args.codec_only:
+    from upg import unpack, STOCK_SHA256
+    from release_firmware import pack
+
+    parts = [(ROOT / ('work/upg-jp/verified-' + str(i) + '.bin')).read_bytes() for i in range(4)]
+    rebuilt = pack(parts)
+    assert hashlib.sha256(rebuilt).hexdigest() == STOCK_SHA256
+    assert unpack(rebuilt)[1] == parts
+    report['stock_upg_byte_exact'] = True
+    report['source_hashes'].update({name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest()
+                                    for name in ('scripts/upg.py', 'tools/release_firmware.py')})
+    out = ROOT / 'work/upg-crypto-check'
+    out.mkdir(exist_ok=True)
+    (out / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
 print(json.dumps(report, indent=2))
