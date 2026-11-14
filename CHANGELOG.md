@@ -1,6 +1,14 @@
 # Changelog
 
-## Unreleased (0.1.0-dev.36)
+## Unreleased (0.1.0-dev.37)
+
+- Apply correlated release claims and cancellation before free to scalar,
+  BLK1 and BLK2 radio profiles, as well as FRM1.
+- Share the original management queue/notification/free adapter between frame
+  and word-command consumers and name the radio protocol results.
+- Describe managed shared Wi-Fi correctly in owner build receipts.
+
+## 0.1.0-dev.36 development changes
 
 - Add an explicit FRM1 packet adapter with bounded full-size fragments,
   staged RX and separate original TX completion. The exact radio image stays

@@ -12,14 +12,20 @@ with contextlib.redirect_stdout(io.StringIO()):radio=runpy.run_path(str(ROOT/'to
 cpu,put,word,call,free_count,command=[radio[n] for n in ('cpu','put','word','call','free_count','command')]
 symbols=radio['symbols'];tx=symbols['xnow_full_tx'];rx=symbols['xnow_full_rx'];completion=symbols['xnow_tx_completion']
 request=radio['env']['request'];radio['env']['env']['queue_result'][0]=0
-shared=OUT/'backend.so';sources=['runtime/platform/espnow/xnow_full.c','runtime/platform/espnow/xnow_wire.c']
+shared=OUT/'backend.so';sources=['runtime/platform/espnow/xnow_full.c','runtime/platform/espnow/xnow_wire.c','tools/fixtures/xnow_full_layout.c']
 subprocess.run(['gcc','-std=c99','-Wall','-Wextra','-Werror','-shared','-fPIC',*sources,'-o',str(shared)],cwd=ROOT,check=True)
 lib=ctypes.CDLL(str(shared));U=ctypes.c_uint32;P=ctypes.c_void_p
 READ=ctypes.CFUNCTYPE(ctypes.c_int,P,U,ctypes.POINTER(U));WRITE=ctypes.CFUNCTYPE(ctypes.c_int,P,U,U)
 class IO(ctypes.Structure):_fields_=[('context',P),('read',READ),('write',WRITE)]
 class Layout(ctypes.Structure):_fields_=[('tx',U),('rx',U),('completion',U)]
 class Spans(ctypes.Structure):_fields_=[('context',P),('read',P),('write',P)]
-class Full(ctypes.Structure):_fields_=[('io',IO),('layout',Layout),('sequence',U),('inflight',U),('fault',ctypes.c_int),('stopping',ctypes.c_int),('spans',Spans)]
+class Packets(ctypes.Structure):_fields_=[('context',P),('submit',P),('complete',P),('peek',P),('pop',P)]
+class Full(ctypes.Structure):_fields_=[('io',IO),('layout',Layout),('sequence',U),('inflight',U),('fault',ctypes.c_int),('stopping',ctypes.c_int),('spans',Spans),('packets',Packets)]
+lib.xnow_test_full_layout.argtypes=[ctypes.POINTER(ctypes.c_size_t),ctypes.c_size_t]
+lib.xnow_test_full_layout.restype=ctypes.c_size_t
+compiled_layout=(ctypes.c_size_t*9)()
+assert lib.xnow_test_full_layout(compiled_layout,len(compiled_layout))==len(compiled_layout)
+assert tuple(compiled_layout)==(ctypes.sizeof(Full),*(getattr(Full,name).offset for name,_ in Full._fields_)), 'Stale ctypes context layout'
 class Result(ctypes.Structure):_fields_=[('token',U),('status',U),('raw',U)]
 class Wire(ctypes.Structure):_fields_=[('version',ctypes.c_uint8),('random',ctypes.c_uint8*4),('elements',ctypes.c_uint16),('length',ctypes.c_size_t)]
 class Received(ctypes.Structure):_fields_=[('source',ctypes.c_uint8*6),('info',Wire),('flags',U)]
@@ -144,4 +150,6 @@ radio['finish'](pending,1,0) # fixture cleanup, not a native unsafe retry/reset
 assert free_count()==3 and not errors
 assert call(0x1360,frame)==0
 report={'passed':True,'cases':cases,'protected_cases':protected_cases,'all_word_transactions_execute_original_dispatcher':True,'original_rx_ring_and_compiled_rx_executed':True,'actual_original_packet_pool_and_release':True,'upload_abort_and_queue_rejection_release':True,'stop_drain_and_pending_completion':True,'ambiguous_commit_no_retry_or_force_free':True,'callback_errors':errors,'read_commands':counts[0],'write_commands':counts[1],'hardware_dma_queue_completion_and_scheduling_modeled':True,'physical_interoperability':False,'device_accessed':False,'source_hashes':{p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in [*sources,'runtime/platform/espnow/xnow_full.h','tools/test_xnow_full_integration.py']},'radio_source_hashes':radio['report']['source_hashes']}
+report['compiled_context_layout_checked']=True
+report['context_bytes']=ctypes.sizeof(Full)
 (OUT/'report.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))

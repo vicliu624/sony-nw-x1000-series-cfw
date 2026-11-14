@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import runpy
 import struct
+import sys
 import time
 from unicorn import UC_HOOK_CODE
 from unicorn.arm_const import (
@@ -14,10 +15,13 @@ from unicorn.arm_const import (
 )
 from app_registry import ROOT
 
+legacy = "--legacy" in sys.argv
 with contextlib.redirect_stdout(io.StringIO()):
-    fixture = runpy.run_path(str(ROOT / "tools/test_radio_frame_transactions.py"))
-cpu, word, put, call, free_count, fragment, symbols = [fixture[name] for name in (
-    "cpu", "word", "put", "call", "free_count", "fragment", "symbols")]
+    fixture = runpy.run_path(str(ROOT / "tools" / (
+        "test_radio_completion_hook.py" if legacy else "test_radio_frame_transactions.py")))
+cpu, word, put, call, free_count, symbols = [fixture[name] for name in (
+    "cpu", "word", "put", "call", "free_count", "symbols")]
+original = fixture["env"]["env"] if legacy else fixture["env"]
 state = symbols["xnow_tx_completion"]
 schedule = {"pause": None, "free_return": None}
 
@@ -33,7 +37,7 @@ def hook(machine, pc, size, unused):
         schedule["free_return"] = None
 
 
-cpu.hook_add(UC_HOOK_CODE, hook)
+preemption_hook = cpu.hook_add(UC_HOOK_CODE, hook)
 
 
 def other_task(entry, *arguments):
@@ -48,11 +52,14 @@ def other_task(entry, *arguments):
 
 held = [call(0xD458, 1900) for _ in range(2)]
 assert all(held) and free_count() == 1
-fixture["env"]["queue_result"][0] = 0
+original["queue_result"][0] = 0
 body = bytearray(31)
 body[3] = 0x20
-status, submitted = fragment(len(body), body)
-assert not status and not submitted["result"]
+if legacy:
+    fixture["submit"]()
+else:
+    status, submitted = fixture["fragment"](len(body), body)
+    assert not status and not submitted["result"]
 packet, token = word(state), word(state + 4)
 previous_done = word(state + 8)
 schedule["pause"] = symbols["xnow_radio_tx_released"] & ~1
@@ -65,9 +72,13 @@ assert cpu.reg_read(UC_ARM_REG_PC) == schedule["pause"]
 assert free_count() == 1 and word(state) == packet + 1
 saved = cpu.context_save()
 schedule["pause"] = None
-queued_before = len(fixture["env"]["queued"])
-status, blocked = fragment(len(body), body)
-assert not status and blocked["result"] == -2 and len(fixture["env"]["queued"]) == queued_before
+queued_before = len(original["queued"])
+if legacy:
+    assert fixture["operation"](1) == -2
+else:
+    status, blocked = fixture["fragment"](len(body), body)
+    assert not status and blocked["result"] == -2
+assert len(original["queued"]) == queued_before
 reused = other_task(0xD458, 1900)
 assert reused == packet and free_count() == 0
 assert other_task(0xD51C, reused) == 0 and free_count() == 1
@@ -77,14 +88,26 @@ cpu.context_restore(saved)
 cpu.emu_start((symbols["xnow_radio_tx_released"] & ~1) | 1, 0x3A18, count=30000)
 assert cpu.reg_read(UC_ARM_REG_PC) == 0x3A12
 assert not word(state) and word(state + 8) == token
-status, reply = fixture["command"](3, struct.pack("<7I", token, 0, 0, 0, 0, 0, 0))
-assert not status and struct.unpack_from("<II", reply, 28) == (0, 0x70302)
+if legacy:
+    fixture["command"](state + 20, token)
+    assert word(state + 12) == 0 and word(state + 16) == 0x70302
+else:
+    status, reply = fixture["command"](3, struct.pack("<7I", token, 0, 0, 0, 0, 0, 0))
+    assert not status and struct.unpack_from("<II", reply, 28) == (0, 0x70302)
 
 # Rejection is a different original free path, before any MAC ownership.
-fixture["env"]["queue_result"][0] = 1
+if legacy:
+    assert fixture["operation"](1) == 0
+    packet = word(fixture["state"] + 24)
+    cpu.mem_write(packet + 32, b"\x7f\x18\xfe\x34" + bytes(11))
+    fixture["command"](fixture["state"] + 20, 15)
+original["queue_result"][0] = 1
 schedule["free_return"] = "capture"
 try:
-    fragment(len(body), body)
+    if legacy:
+        fixture["operation"](2)
+    else:
+        fixture["fragment"](len(body), body)
     raise AssertionError("rejection failed to stop at original free return")
 except AssertionError:
     assert schedule["pause"] is not None
@@ -98,15 +121,21 @@ assert other_task(0xD51C, reused) == 0 and free_count() == 1
 assert not word(state) and word(state + 8) == word(state + 20)
 cpu.context_restore(saved)
 cpu.emu_start(resume | 1, 0x9B40, count=30000)
-assert cpu.reg_read(UC_ARM_REG_PC) == 0x9A70
+assert cpu.reg_read(UC_ARM_REG_PC) == (0x9A46 if legacy else 0x9A70)
 assert not word(state) and word(state + 8) == word(state + 20)
 for neighbor in held:
     assert call(0x1360, neighbor) == 0
 assert free_count() == 3
-fixture["env"]["queue_result"][0] = 0
-status, submitted = fragment(len(body), body)
-assert not status and not submitted["result"]
-fixture["finish"]()
+cpu.hook_del(preemption_hook)
+original["queue_result"][0] = 0
+if legacy:
+    packet, token = fixture["submit"]()
+    fixture["finish"](packet, 0, 0x70302)
+    fixture["command"](state + 20, token)
+else:
+    status, submitted = fixture["fragment"](len(body), body)
+    assert not status and not submitted["result"]
+    fixture["finish"]()
 
 report = dict(
     passed=True, completion_survives_packet_reuse=True,
@@ -115,11 +144,15 @@ report = dict(
     rejection_cancels_before_original_free=True, next_send_and_pool_restored=True,
     task_interleaving_manually_scheduled=True, irq_dma_and_rom_queue_modeled=True,
     device_accessed=False, hardware_qualified=False,
-    candidate_sha256=fixture["manifest"]["candidate_sha256"],
-    payload_sha256=fixture["manifest"]["payload_elf_sha256"],
+    legacy_word_profile=legacy,
     source_hashes={**fixture["report"]["source_hashes"],
                    "tools/test_radio_completion_preemption.py": hashlib.sha256(Path(__file__).read_bytes()).hexdigest()},
 )
+if legacy:
+    report["radio_identity"] = fixture["report"].get("exact_selected_radio")
+else:
+    report["candidate_sha256"] = fixture["manifest"]["candidate_sha256"]
+    report["payload_sha256"] = fixture["manifest"]["payload_elf_sha256"]
 output = ROOT / "work/radio-completion-preemption" / str(time.time_ns())
 output.mkdir(parents=True)
 (output / "report.json").write_text(json.dumps(report, indent=2) + "\n")

@@ -20,7 +20,12 @@ cpu.mem_write(0xc000a190,bytes(1900))
 for a,d in sections:cpu.mem_write(a,d)
 cpu.ctl_remove_cache(0xc000a190,0xc000a8fc)
 state=symbols['xnow_full_tx'];completion=symbols['xnow_tx_completion']
-cpu.mem_write(0x88d6,struct.pack('<HHHI',0x4b01,0x4718,0x46c0,symbols['xnow_radio_word_command_entry']|1))
+if selected:
+ patch=selected[1]['patches'][2]
+ cpu.mem_write(patch['address'],bytes.fromhex(patch['after']))
+else:
+ cpu.mem_write(0x88d6,struct.pack('<HHHI',0x4b01,0x4718,0x46c0,symbols['xnow_radio_word_command_entry']|1))
+cpu.ctl_remove_cache(0,0x20000)
 # Hook the common wrapper rather than only task3's call site.
 original=bytes(cpu.mem_read(0xd51c,8));assert original==bytes.fromhex('80b5f3f720ef80bd')
 cpu.mem_write(0xd51c,struct.pack('<HHI',0x4b00,0x4718,symbols['xnow_radio_completion_entry']|1))
@@ -29,7 +34,7 @@ seq=100;releases=[]
 def stop(u,pc,size,unused):
  if pc==0x1360:
   packet=u.reg_read(UC_ARM_REG_R0)
-  if word(completion)==packet:assert word(completion+8)!=word(completion+4),'published completion before original free'
+  if word(completion) in (packet,packet+1):assert word(completion+8)!=word(completion+4),'published completion before original free'
   releases.append(packet)
  if pc==0x3a16:u.emu_stop()
 cpu.hook_add(UC_HOOK_CODE,stop)
@@ -70,7 +75,7 @@ assert call(0xd51c,packet)==0
 assert releases[before:]==[packet] and free_count()==3
 assert word(completion)==0 and word(completion+8)==token and word(completion+12)==2 and word(completion+16)==0
 command(completion+20,token)
-# Rejected submission clears correlation and is freed only by d800.
+# Rejected submission clears correlation before the original free.
 assert operation(1)==0;packet=word(state+24);cpu.mem_write(packet+32,b'\x7f\x18\xfe\x34'+bytes(11));command(state+20,15)
 env['env']['queue_result'][0]=1
 before=len(releases);assert operation(2)==-1 and word(completion)==0 and releases[before:]==[packet] and free_count()==3
@@ -79,6 +84,11 @@ report={'passed':True,'original_common_management_free_patched':True,'pre_mac_re
 if selected:
  report['exact_selected_radio']=dict(elf=elf.relative_to(ROOT).as_posix(),sha256=selected[1]['payload_elf_sha256'],candidate_sha256=selected[1]['candidate_sha256'])
  report['source_hashes']['tools/radio_test_profile.py']=hashlib.sha256((ROOT/'tools/radio_test_profile.py').read_bytes()).hexdigest()
+ report['source_hashes'].update(selected[1]['source_hashes'])
+report['source_hashes'].update(env['report']['source_hashes'])
+for name in ('radio_packet.h','radio_full_rx.h','radio_tx_completion.h'):
+ name='runtime/platform/espnow/'+name
+ report['source_hashes'][name]=hashlib.sha256((ROOT/name).read_bytes()).hexdigest()
 (OUT/'report.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))
 
 

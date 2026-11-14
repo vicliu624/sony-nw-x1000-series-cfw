@@ -3,7 +3,7 @@
 Target: Japanese NW-X1050/NW-X1060, based on Sony 1.11. International NWZ-X
 firmware and other Walkman families are comparison material only.
 
-The working tree is **0.1.0-dev.36**; SDK source is **0.2.0-alpha.13**.
+The working tree is **0.1.0-dev.37**; SDK source is **0.2.0-alpha.13**.
 The experimental native radio archive source is **0.1.0-dev.22**. Its per-link key
 negotiation is connected to the opt-in Root owner and Core2 alpha.29 adapters.
 The matching diagnostic has established a link and delivered authenticated
@@ -19,7 +19,10 @@ The checked reservation uses 1,896 of 1,900 bytes. TX release claims preserve
 completion across packet-address reuse, and queue rejection cancels tracking
 before original free. Instruction preemption replay covers both boundaries;
 physical IRQ/DMA and shared lifecycle qualification remain outstanding.
-No dev.36 update image or physical throughput result is available. The target is
+Dev.37 applies the same release ownership to scalar, BLK1 and BLK2 profiles.
+Their common packet queue interface cancels tracking before rejection free;
+only the callback holding the release claim can publish completion.
+No dev.37 update image or physical throughput result is available. The target is
 1 Mbps of validated application payload; see [performance](reference/ESPNOW_PERFORMANCE.md).
 The user reports installing the dev.34 diagnostic. Core2 alpha.30 established
 visible artwork on hardware; alpha.31 supplied mode-write UI, and alpha.32 is

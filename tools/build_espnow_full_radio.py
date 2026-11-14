@@ -148,8 +148,8 @@ def construct(stock, payload):
             raise ValueError("unknown transfer-command feature marker")
     for name, entry in entries.items():
         if word_hook is not None and name == "xnow_radio_word_command_entry":
-            if frame_marker is None or entry != STOCK_WORD_ENTRY + 1:
-                raise ValueError("invalid in-place frame command entry")
+            if entry != STOCK_WORD_ENTRY + 1:
+                raise ValueError("invalid in-place command entry")
             continue
         if not entry & 1 or not text[0] <= entry & ~1 < text[1]:
             raise ValueError("invalid code entry")
@@ -319,6 +319,13 @@ def construct(stock, payload):
         "driver_reload_qualified": False,
         "device_written": False,
     }
+    if word_hook is not None:
+        manifest["in_place_command"] = {
+            "start": STOCK_WORD_CASE_START,
+            "end": STOCK_WORD_CASE_END,
+            "entry": entries["xnow_radio_word_command_entry"],
+            "payload_bytes": len(word_hook),
+        }
     if bulk_value == 0x314D5246:
         manifest["frame_transactions"] = {
             "marker_address": bulk_marker,
@@ -391,7 +398,7 @@ def build(
     link = output / "radio.ld"
     link.write_text(
         'ENTRY(xnow_radio_full_receive)\nSECTIONS { . = 0xc000a190; .text : { *(.text*) *(.rodata*) } .state : { *(.state) } ASSERT(.<=0xc000a8fc,"reserved block exceeded") '
-        + ('.word_hook 0x88d8 : { *(.word_hook) } ' if frame_transactions else '')
+        + '.word_hook 0x88d8 : { *(.word_hook) } '
         + '/DISCARD/ : { *(.ARM.exidx*) *(.ARM.extab*) *(.comment*) *(.note*) } }'
     )
     payload = output / "radio.elf"
@@ -410,6 +417,7 @@ def build(
         "-fno-stack-protector",
         "-nostdlib",
         "-static",
+        "-DXNOW_RADIO_INPLACE_WORD_COMMAND",
         "-Wl,--build-id=none",
         "-Wl,-T," + str(link),
     ]

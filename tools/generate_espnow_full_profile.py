@@ -25,6 +25,8 @@ def render(directory):
         raise ValueError("bulk command declaration mismatch")
     if derived.get("frame_transactions") != manifest.get("frame_transactions"):
         raise ValueError("frame transaction declaration mismatch")
+    if derived.get("in_place_command") != manifest.get("in_place_command"):
+        raise ValueError("command case declaration mismatch")
     for item in manifest["immutable_segments"]:
         if item["address"] & 3 or item["bytes"] & 3 or item["address"] == 0x17328:
             raise ValueError("invalid runtime range")

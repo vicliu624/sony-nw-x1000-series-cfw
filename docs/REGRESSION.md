@@ -32,7 +32,7 @@ silently converted into a failed or successful hardware result.
 | `lifecycle` | Native app handoff, policy/channel IPC, sleep preparation/recovery and explicit shutdown | `--suite lifecycle` |
 | `sdk` | Callback runtime, individual native modules, C/C++ public clients, managed IPC and adoption audit | `--suite sdk` |
 | `remote` | Original guarded player bindings, status/control, artwork scheduling/reader, receiver correlation and counter persistence | `--suite remote` |
-| `integration` | Root/Core2 encrypted link with actual owner pipes; full service/factory/SDK process chains for shared/exclusive sleep and shared pairing | `--suite integration` |
+| `integration` | Scalar/BLK1/BLK2/FRM1 radio instruction replay, Root/Core2 encrypted link with actual owner pipes, full service/factory/SDK chains for sleep and shared pairing | `--suite integration` |
 | `layout` | Source layout, relative includes, Python parsing, English docs and links | `--suite layout` |
 | `workers` | Media-client ownership, cleanup failures, validation workers and broker drain | `--suite workers` |
 | `artifact` | Actual reviewed ELF owner/engine binding, paired library identity and native menu composition | `--suite artifact --host-review work/<review>/build.json` |
@@ -41,6 +41,13 @@ Repeat `--suite` to select several groups. `--output` accepts only a new directo
 under `work/`; it never overwrites an earlier result. Test-specific reports keep
 their own source hashes and validation limits. The aggregate source inventory
 is additional provenance, not a replacement for those receipts.
+
+For radio-only changes, run `tools/test_radio_profiles.py` in the prepared WSL
+environment. It builds all four exact-image profiles, checks release preemption
+and native word transactions for each legacy profile, and connects host/ARM
+native code to the FRM1 MCU image. The legacy FFI checks its context size and
+offsets against compiled C before use. Its SDK/native build and generated radio
+images remain under `work/`; no updater or device operation is performed.
 
 `test_shared_owner_retirement.py` combines the actual Root stop wrapper and
 full controller. It checks delayed drain, both native connection states,

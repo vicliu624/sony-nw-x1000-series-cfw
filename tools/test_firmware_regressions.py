@@ -114,10 +114,7 @@ SUITES = {
         ["test_run_profile.py"],
     ],
     "integration": [
-        ["test_sd8686_hostcmd_response.py"],
-        ["test_radio_frame_transactions.py"],
-        ["test_radio_completion_preemption.py"],
-        ["test_sd8686_frame_native.py"],
+        ["test_radio_profiles.py"],
         ["test_xnow_client.py"],
         ["test_xnow_owner_stream.py"],
         ["test_owner_transport_runtime.py"],

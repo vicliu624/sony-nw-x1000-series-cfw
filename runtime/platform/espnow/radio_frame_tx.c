@@ -8,14 +8,18 @@
 #include "xnow_frame_protocol.h"
 
 typedef void (*header_fn)(void *, const void *, unsigned, const void *);
-typedef int (*submit_fn)(void *);
 typedef void *(*copy_fn)(void *, const void *, unsigned);
 /* Japanese1.11 original Thumb entry bindings; see reference/SD8686.md. */
-enum { STOCK_COPY = 0x9c91, STOCK_HEADER = 0xda01, STOCK_QUEUE = 0x1571d, STOCK_RELEASE = 0x1360 };
+enum { STOCK_COPY = 0x9c91, STOCK_HEADER = 0xda01 };
 
 __attribute__((section(".state"))) struct xnow_full_tx_control xnow_full_tx = {
     .magic = XNOW_FULL_TX_MAGIC};
 static const uint8_t broadcast[6] = {255, 255, 255, 255, 255, 255};
+
+static void cancel_unsubmitted(uint32_t packet) {
+    (void)packet;
+    xnow_tx_completion.pending = 0;
+}
 
 __attribute__((noinline)) int xnow_radio_frame_submit(const struct xnow_frame_submit_body *request,
                                                       unsigned offset, unsigned fragment_bytes) {
@@ -24,9 +28,9 @@ __attribute__((noinline)) int xnow_radio_frame_submit(const struct xnow_frame_su
     uint32_t packet = state->packet;
     uint32_t acknowledged = state->ack;
     if (state->request != acknowledged || acknowledged != request->expected)
-        return -7;
+        return XNOW_RADIO_PACKET_TICKET;
     if (!xnow_radio_tx_ready())
-        return -2;
+        return XNOW_RADIO_PACKET_BUSY;
     int result = 0;
     if (!bytes) {
         if (packet) {
@@ -38,9 +42,9 @@ __attribute__((noinline)) int xnow_radio_frame_submit(const struct xnow_frame_su
         state->body_bytes = 0;
     } else {
         if (offset != (packet ? state->body_bytes : 0))
-            return -7;
+            return XNOW_RADIO_PACKET_TICKET;
         if (packet && !xnow_radio_packet_valid(packet))
-            return -7;
+            return XNOW_RADIO_PACKET_TICKET;
         if (!packet) {
             result = xnow_radio_packet_allocate(&packet);
             if (result)
@@ -66,14 +70,14 @@ __attribute__((noinline)) int xnow_radio_frame_submit(const struct xnow_frame_su
             unsigned all = first == UINT32_MAX && last == UINT16_MAX;
             unsigned any = first | last;
             if (!any || ((mac[0] & 1) && !all))
-                return -5;
+                return XNOW_RADIO_PACKET_ARGUMENT;
             if (kind == XNOW_FULL_SUBMIT_PROTECTED) {
                 if (bytes < 31 || (mac[0] & 1) || ((body[0] >> 16) & 0x3fff) != 0x2000u)
-                    return -5;
+                    return XNOW_RADIO_PACKET_ARGUMENT;
             } else if (bytes > XNOW_FRAME_PLAIN_MAX || body[0] != 0x34fe187fu)
-                return -5;
-            ((header_fn)(uintptr_t)STOCK_HEADER)((void *)(uintptr_t)packet, (const void *)mac, 13,
-                                                 broadcast);
+                return XNOW_RADIO_PACKET_ARGUMENT;
+            ((header_fn)(uintptr_t)STOCK_HEADER)((void *)(uintptr_t)packet, (const void *)mac,
+                                                 XNOW_RADIO_ACTION_SUBTYPE, broadcast);
             if (kind == XNOW_FULL_SUBMIT_PROTECTED)
                 ((volatile uint8_t *)(uintptr_t)packet)[3] |= 0x40;
             *(volatile uint16_t *)(uintptr_t)packet = (uint16_t)bytes;
@@ -88,11 +92,7 @@ __attribute__((noinline)) int xnow_radio_frame_submit(const struct xnow_frame_su
         xnow_radio_tx_arm(packet, ticket);
         /* Original d800 uses this same queue helper and frees on result1.
          * Our pending marker must be cleared before that free, not after it. */
-        if (((submit_fn)(uintptr_t)STOCK_QUEUE)((void *)(uintptr_t)packet) == 1) {
-            xnow_tx_completion.pending = 0;
-            (void)((submit_fn)(uintptr_t)STOCK_RELEASE)((void *)(uintptr_t)packet);
-            result = -1;
-        }
+        result = xnow_radio_packet_submit(packet, cancel_unsubmitted);
         packet = 0;
     }
     state->packet = packet;

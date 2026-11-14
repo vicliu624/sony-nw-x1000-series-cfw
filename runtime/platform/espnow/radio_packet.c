@@ -31,12 +31,12 @@ int xnow_radio_packet_valid(uint32_t packet) {
 }
 int xnow_radio_packet_allocate(uint32_t *out) {
     if (!out || !xnow_radio_pool_ready())
-        return -4;
+        return XNOW_RADIO_PACKET_IDENTITY;
     uint32_t p = (uint32_t)(uintptr_t)((allocate_fn)(uintptr_t)0xd459)(1900);
     if (!p)
-        return -3;
+        return XNOW_RADIO_PACKET_NOMEM;
     if (!xnow_radio_packet_valid(p))
-        return -4;
+        return XNOW_RADIO_PACKET_IDENTITY;
     volatile uint32_t *node = (volatile uint32_t *)(uintptr_t)(p - 136);
     node[3] = 0; /* Original release traverses this link; never inherit old chains. */
     for (unsigned i = 0; i < XNOW_RADIO_PACKET_CAPACITY / 4; i++)
@@ -46,6 +46,6 @@ int xnow_radio_packet_allocate(uint32_t *out) {
 }
 int xnow_radio_packet_release(uint32_t packet) {
     if (!xnow_radio_packet_valid(packet))
-        return -4;
-    return ((release_fn)(uintptr_t)0x1360)((void *)(uintptr_t)packet);
+        return XNOW_RADIO_PACKET_IDENTITY;
+    return ((release_fn)(uintptr_t)XNOW_RADIO_PACKET_FREE)((void *)(uintptr_t)packet);
 }

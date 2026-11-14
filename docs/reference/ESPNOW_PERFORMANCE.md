@@ -60,7 +60,8 @@ progress under continuous incoming data; stop clears the retained record.
 ## Current implementation limits
 
 The 1,900-byte radio reservation is one removed original packet-pool block,
-not the chip's total memory. BLK2 uses 1,888 bytes; the checked FRM1 profile uses
+not the chip's total memory. The release-safe BLK2 profile uses 1,884 bytes;
+scalar uses 1,888 and BLK1 uses 1,896. The checked FRM1 profile uses
 1,896 bytes with its RX counters and retains three large packet blocks.
 Its 24-byte command entry occupies the replaced original command0x86 case at
 0x88d8, within that case's 0x88d6..0x88f2 bounds. It does not reserve another
@@ -87,7 +88,7 @@ including delayed commands, several lost replies, three occupied packet blocks
 and original release ordering. IRQ/DMA, command-queue waiting, ciphertext
 contents, actual SDIO timing and RF remain separate physical acceptance items.
 
-Before original TX free, FRM1 replaces the pending aligned pointer with a
+Before original TX free, the full-radio profiles replace the pending aligned pointer with a
 release claim. Only the callback that obtained that claim may publish completion.
 A different task reusing the same freed packet address cannot overwrite the
 status or acknowledge that send. A rejected queue cancels tracking before its

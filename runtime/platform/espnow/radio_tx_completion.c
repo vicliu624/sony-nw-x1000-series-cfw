@@ -13,7 +13,6 @@ void xnow_radio_tx_cancel(uint32_t packet) {
     if (xnow_tx_completion.pending == packet)
         xnow_tx_completion.pending = 0;
 }
-#ifdef XNOW_RADIO_FRAME_TRANSACTIONS
 uint32_t xnow_radio_tx_observe(uint32_t packet, uint32_t status, uint32_t raw) {
     struct xnow_tx_completion_control *s = &xnow_tx_completion;
     if (!packet || packet != s->pending)
@@ -25,15 +24,7 @@ uint32_t xnow_radio_tx_observe(uint32_t packet, uint32_t status, uint32_t raw) {
     s->raw_fields = raw;
     return packet + XNOW_TX_RELEASE_CLAIM;
 }
-#else
-void xnow_radio_tx_observe(uint32_t packet, uint32_t status, uint32_t raw) {
-    struct xnow_tx_completion_control *s = &xnow_tx_completion;
-    if (!packet || packet != s->pending)
-        return;
-    s->status = status;
-    s->raw_fields = raw;
-}
-#endif
+
 void xnow_radio_tx_released(uint32_t packet) {
     struct xnow_tx_completion_control *s = &xnow_tx_completion;
     if (!packet || packet != s->pending)

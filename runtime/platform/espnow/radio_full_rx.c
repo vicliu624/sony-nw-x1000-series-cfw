@@ -161,7 +161,7 @@ void xnow_radio_rx_doorbell(uint32_t address, uint32_t value) {
         return;
     } /* idempotent last acknowledgement */
     if (value != tail + 1) {
-        s->result = (uint32_t)-5;
+        s->result = (uint32_t)XNOW_RADIO_PACKET_ARGUMENT;
         return;
     }
     if (s->head == tail) {
@@ -171,7 +171,7 @@ void xnow_radio_rx_doorbell(uint32_t address, uint32_t value) {
     struct xnow_full_rx_slot *slot = &s->slots[tail & 1];
     uint32_t packet = slot->packet;
     if (!xnow_radio_packet_valid(packet)) {
-        s->result = (uint32_t)-4;
+        s->result = (uint32_t)XNOW_RADIO_PACKET_IDENTITY;
         return;
     }
     slot->packet = 0;
