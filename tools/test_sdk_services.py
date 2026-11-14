@@ -1,10 +1,13 @@
 """Check public SDK native-service clients and independent module links."""
 import argparse
 import json
+import hashlib
 import os
+from pathlib import Path
 import struct
 import subprocess
 import sys
+import tempfile
 import time
 import zlib
 from app_registry import ROOT
@@ -39,19 +42,24 @@ def check_public_consumer(out):
     print(json.dumps(report,indent=2))
 
 
-def check_modules(out, names):
-    matrix=out/'module-matrix';matrix.mkdir()
+def check_modules(out, names, results):
     for name in names:
-        app=matrix/('check-'+name);app.mkdir()
         modules=['startup'] if name=='startup' else ['startup',name]
-        metadata={'id':app.name,'target':'sony-nw-x1000-jp','sdk':{'version':(ROOT/'sdk/VERSION').read_text().strip(),'profile':'native-services','modules':modules}}
-        (app/'app.json').write_text(json.dumps(metadata));(app/'VERSION').write_text('0.1.0-alpha.1\n')
-        (app/'build.json').write_text(json.dumps({'profile':'native-services','sources':['main.c'],'checks':[['--help']]}))
         source='#include <stdio.h>\nint main(void){puts("SDK module link OK");return 0;}\n'
         if name=='list-ui':
             source='#include <x1000/services/presentation.h>\nint main(void){struct hb_presentation p;return hb_presentation_load(&p,"/sdk-fixture-missing")?1:0;}\n'
-        (app/'main.c').write_text(source)
-        compile_native(app,app/'build')
+        started=time.monotonic()
+        with tempfile.TemporaryDirectory(prefix='module-', dir=out) as folder:
+            app=Path(folder)/('check-'+name);app.mkdir()
+            metadata={'id':app.name,'target':'sony-nw-x1000-jp','sdk':{'version':(ROOT/'sdk/VERSION').read_text().strip(),'profile':'native-services','modules':modules}}
+            (app/'app.json').write_text(json.dumps(metadata));(app/'VERSION').write_text('0.1.0-alpha.1\n')
+            (app/'build.json').write_text(json.dumps({'profile':'native-services','sources':['main.c'],'checks':[['--help']]}))
+            (app/'main.c').write_text(source)
+            artifact=compile_native(app,app/'build',receipt_path=app/'compiler.jsonl')
+            checked=json.loads((app/'build.sdk-report.json').read_text())
+            results.append(dict(module=name,resolved_modules=checked['sdk']['resolved_modules'],
+                                checks=checked['checks'],binary_sha256=hashlib.sha256(artifact.read_bytes()).hexdigest(),
+                                seconds=round(time.monotonic()-started,3)))
 
 
 def main():
@@ -70,12 +78,21 @@ def main():
         return
     out = ROOT / 'work/sdk-service-tests' / ('service-check-' + str(time.time_ns()))
     out.mkdir(parents=True)
-    if public_consumer:
-        check_public_consumer(out)
-    check_modules(out, names)
-    report = dict(passed=True, public_consumer_checked=public_consumer,
-                  individual_service_modules_built=len(names), modules=names, hardware_accessed=False)
-    (out / 'report.json').write_text(json.dumps(report, indent=2) + '\n', encoding='utf-8')
+    results=[]
+    report=dict(passed=False,public_consumer_checked=False,modules=names,module_checks=results,
+                hardware_accessed=False)
+    try:
+        if public_consumer:
+            check_public_consumer(out)
+            report['public_consumer_checked']=True
+        check_modules(out, names, results)
+        report['passed']=True
+    except Exception as error:
+        report['error']=str(error)
+        raise
+    finally:
+        report['individual_service_modules_built']=len(results)
+        (out / 'report.json').write_text(json.dumps(report, indent=2) + '\n', encoding='utf-8')
     print(json.dumps(dict(report, output=out.relative_to(ROOT).as_posix())))
 
 

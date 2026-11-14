@@ -103,7 +103,7 @@ def inputs(contract):
             if found.is_relative_to(ROOT) and found.is_file() and found not in paths:paths.add(found);pending.append(found)
     return sorted(paths)
 
-def compiler(definition):
+def compiler(definition, *, receipt_path=None):
     """Return a subprocess-compatible run function for one app's compiler calls.
 
     Non-compiler fixture/help commands are passed through unchanged. Compiler
@@ -115,7 +115,7 @@ def compiler(definition):
     prepare_modules(contract['modules'])
     allowed=set(service_files(contract['modules']));modules=manifest()
     owned={p for item in modules.values() for p in item['sources']}
-    receipt=ROOT/'work/sdk-services'/contract['id']/'compiler.jsonl'
+    receipt=receipt_path if receipt_path is not None else ROOT/'work/sdk-services'/contract['id']/'compiler.jsonl'
     receipt.parent.mkdir(parents=True,exist_ok=True)
     source_hashes={str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest()
                    for p in [*inputs(contract),definition/'app.json']}
@@ -166,7 +166,7 @@ def compiler(definition):
         return result
     return run
 
-def compile_native(definition,output):
+def compile_native(definition,output,*,receipt_path=None):
     """Build a custom-main SDK client from local source plus service modules.
 
     Existing complex builders use compiler() with their proven ordered recipes;
@@ -208,7 +208,7 @@ def compile_native(definition,output):
     lib=ROOT/'work/arm-signal-tests/lib'
     for name,digest in LIBRARIES.items():
         if not (lib/name).is_file() or hashlib.sha256((lib/name).read_bytes()).hexdigest()!=digest:raise ValueError('Pinned Sony input mismatch')
-    runner=compiler(definition);artifact=out/'app'
+    runner=compiler(definition,receipt_path=receipt_path);artifact=out/'app'
     runner(['arm-linux-gnueabi-gcc',*flags,*sources,*libraries,
             '-nostdlib','-no-pie','-Wl,--hash-style=sysv','-Wl,--build-id=none',
             '-Wl,--dynamic-linker=/lib/ld-linux.so.3','-Wl,-rpath-link,'+str(ROOT/'work/stock-resolver-probe'),
