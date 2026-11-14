@@ -159,7 +159,8 @@ class DiagnosticOutputTests(unittest.TestCase):
         self.firmware.write_bytes(b'fixture candidate')
         self.reviewed = dict(upg=self.firmware, firmware={'sha256': digest(self.firmware)},
                              model=dict(used_growth_bytes=0, model_nonreserved_margin_bytes=0),
-                             input_paths=[], subsequent_pc_changes=[], subsequent_external_app_changes=[])
+                             input_paths=[], radio_regression={}, subsequent_pc_changes=[],
+                             subsequent_external_app_changes=[])
 
     def assemble(self):
         return materials.assemble_materials(self.output, self.reviewed, None,
@@ -235,6 +236,91 @@ class DiagnosticRegressionScopeTests(unittest.TestCase):
                      'runtime/apps/wireless-remote/core2/src/main.cpp', 'runtime/apps/unknown/' + 'new.c'):
             with self.subTest(name=name), self.assertRaisesRegex(ValueError, 'Product sources changed'):
                 materials.subsequent_source_changes({}, {name: 'new'}, {'source_hashes': {}})
+
+
+class RadioRegressionIdentityTests(unittest.TestCase):
+    def setUp(self):
+        area = tempfile.TemporaryDirectory(dir=ROOT / 'work', prefix='radio-evidence-test-')
+        self.addCleanup(area.cleanup)
+        self.folder = Path(area.name)
+        self.radio = self.input_file(Path('frame/candidate') / 'sd8686.bin', b'fixture radio')
+        self.elf = self.input_file(Path('frame') / 'radio.elf', b'fixture ELF')
+        self.archive = self.input_file(Path('native/sdk/lib') / 'libxnow.a', b'fixture native archive')
+        sdk = self.input_file('native/sdk/build.json', b'fixture receipt')
+        snapshot = self.input_file('checked-source.zip', b'fixture snapshot')
+        log = self.input_file('replay.log', b'fixture replay log')
+        self.review = self.folder / 'radio-review.json'
+        self.layout = {'files': {'lib/modules/sd8686.bin': {'sha256': digest(self.radio)}}}
+        self.owner = dict(candidate_sha256=digest(self.radio),
+                          linked_input_hashes={self.relative(self.archive): digest(self.archive)})
+        self.report = dict(
+            passed=True, source_hashes={}, source_snapshot_sha256=digest(snapshot),
+            profiles={'frame': dict(directory=self.relative(self.elf.parent),
+                                    candidate_sha256=digest(self.radio), payload_sha256=digest(self.elf))},
+            input_hashes={self.relative(path): digest(path) for path in (self.radio, self.elf, self.archive, sdk)},
+            native_sdk=dict(review=self.relative(sdk), archive_sha256=digest(self.archive)),
+            checks=[dict(label=label, exit_code=0, log=self.relative(log), log_sha256=digest(log),
+                         command=['fixture.py', '--radio-review', self.relative(self.elf.parent)] +
+                                 (['--sdk-review', self.relative(sdk)] if label == 'frame-native-arm-chain' else []))
+                    for label in ('frame-transactions', 'frame-release-preemption',
+                                  'frame-original-rx', 'frame-native-arm-chain')],
+        )
+
+    def input_file(self, name, data):
+        path = self.folder / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+        return path
+
+    def relative(self, path):
+        return path.relative_to(ROOT).as_posix()
+
+    def match(self):
+        return materials.matching_radio_regression(self.review, self.report, self.layout, self.owner)
+
+    def test_accepts_matching_frame_report_directly_and_through_aggregate(self):
+        self.review.write_text(json.dumps(self.report), encoding='utf-8')
+        materials.check_regression_evidence(self.review, self.report)
+        path, evidence = self.match()
+        self.assertEqual(path, self.review)
+        self.assertEqual(evidence['native_archive_sha256'], digest(self.archive))
+        aggregate = dict(source_hashes={}, checks=[dict(
+            command=['test_radio_profiles.py'], radio_review=self.relative(self.review),
+            radio_review_sha256=digest(self.review))])
+        self.assertEqual(materials.matching_radio_regression(self.folder / 'aggregate.json',
+                         aggregate, self.layout, self.owner), (path, evidence))
+        self.review.write_text('{}', encoding='utf-8')
+        with self.assertRaisesRegex(ValueError, 'Nested radio regression report changed'):
+            materials.matching_radio_regression(self.folder / 'aggregate.json', aggregate, self.layout, self.owner)
+
+    def test_another_radio_image_or_linked_archive_requires_matching_replay(self):
+        self.report['profiles']['frame']['candidate_sha256'] = '0' * 64
+        with self.assertRaisesRegex(ValueError, 'did not replay the selected system image'):
+            self.match()
+        self.report['profiles']['frame']['candidate_sha256'] = digest(self.radio)
+        other = self.input_file('other/sdk/lib/libxnow.a', b'another native archive')
+        self.owner['linked_input_hashes'] = {self.relative(other): digest(other)}
+        with self.assertRaisesRegex(ValueError, 'did not use the native archive'):
+            self.match()
+
+    def test_missing_arm_check_or_binary_evidence_is_refused(self):
+        arm = self.report['checks'].pop()
+        with self.assertRaisesRegex(ValueError, 'missing checks'):
+            self.match()
+        self.report['checks'].append(arm)
+        del self.report['input_hashes'][self.relative(self.elf)]
+        with self.assertRaisesRegex(ValueError, 'missing the replayed image and ELF identities'):
+            self.match()
+
+    def test_commands_must_name_the_replayed_inputs(self):
+        arm = self.report['checks'][-1]
+        arm['command'].append('--host-only')
+        with self.assertRaisesRegex(ValueError, 'did not use the native archive'):
+            self.match()
+        arm['command'].pop()
+        arm['command'][2] = self.relative(self.folder)
+        with self.assertRaisesRegex(ValueError, 'command does not match the selected profile'):
+            self.match()
 
 
 if __name__=='__main__':

@@ -91,6 +91,91 @@ def subsequent_source_changes(tested, current, *reviews):
     return pc_changes, app_changes
 
 
+def check_regression_evidence(path, report):
+    if not report.get('passed') or report.get('source_changed_during_run') or report.get('inputs_changed_during_run'):
+        raise ValueError('Passing immutable regression snapshot required')
+    snapshot = report.get('source_snapshot', (path.parent / 'checked-source.zip').relative_to(ROOT).as_posix())
+    if digest(private(snapshot)) != report['source_snapshot_sha256']:
+        raise ValueError('Regression source snapshot changed')
+    for check in report['checks']:
+        if check['exit_code'] or digest(private(check['log'])) != check['log_sha256']:
+            raise ValueError('Regression log changed or did not pass')
+    for name, expected in report.get('input_hashes', {}).items():
+        if digest(private(name)) != expected:
+            raise ValueError('Regression input changed: ' + name)
+
+
+def owner_native_archive(owner):
+    linked = [(name, sha) for name, sha in owner['linked_input_hashes'].items()
+              if name.replace('\\', '/').endswith('/sdk/lib/libxnow.a')]
+    if len(linked) != 1:
+        raise ValueError('Expected one pinned native transport archive')
+    name, sha = linked[0]
+    path = private(name.replace('\\', '/'))
+    if digest(path) != sha:
+        raise ValueError('Linked native transport archive changed')
+    return path, sha
+
+
+def replay_input(command, option, expected):
+    if command.count(option) != 1:
+        return False
+    index = command.index(option) + 1
+    if index == len(command):
+        return False
+    path = Path(command[index])
+    return (ROOT / path).resolve() == (ROOT / expected).resolve()
+
+
+def matching_radio_regression(path, report, layout, owner):
+    if 'profiles' not in report:
+        matches = [check for check in report['checks'] if check.get('command', [None])[0] == 'test_radio_profiles.py']
+        if len(matches) != 1 or not matches[0].get('radio_review'):
+            raise ValueError('Expected a radio regression report with exact replay inputs')
+        path = private(matches[0]['radio_review'])
+        if digest(path) != matches[0]['radio_review_sha256']:
+            raise ValueError('Nested radio regression report changed')
+        nested = json.loads(path.read_text(encoding='utf-8'))
+        if nested['source_hashes'] != report['source_hashes']:
+            raise ValueError('Radio regression source snapshot differs from the aggregate')
+        report = nested
+        check_regression_evidence(path, report)
+    inputs = report.get('input_hashes', {})
+    radio_sha = layout['files']['lib/modules/sd8686.bin']['sha256']
+    if radio_sha != owner['candidate_sha256']:
+        raise ValueError('System radio image and Owner review differ')
+    matching = [(name, row) for name, row in report['profiles'].items() if row['candidate_sha256'] == radio_sha]
+    if len(matching) != 1:
+        raise ValueError('Radio regression did not replay the selected system image')
+    name, row = matching[0]
+    required_checks = (('frame-transactions', 'frame-release-preemption', 'frame-original-rx', 'frame-native-arm-chain')
+                       if name == 'frame' else tuple(name + suffix for suffix in
+                                                     ('-completion', '-release-preemption', '-native-word-chain')))
+    by_label = {check.get('label'): check for check in report['checks']}
+    if not set(required_checks) <= by_label.keys():
+        raise ValueError('Radio regression is missing checks for the selected profile: ' + name)
+    for label in required_checks:
+        command = by_label[label].get('command', [])
+        if not replay_input(command, '--radio-review', row['directory']):
+            raise ValueError('Radio replay command does not match the selected profile: ' + label)
+    directory = Path(row['directory'])
+    if (inputs.get((directory / 'candidate/sd8686.bin').as_posix()) != radio_sha or
+            inputs.get((directory / 'radio.elf').as_posix()) != row['payload_sha256']):
+        raise ValueError('Radio regression is missing the replayed image and ELF identities')
+    evidence = dict(review=path.relative_to(ROOT).as_posix(), profile=name, radio_sha256=radio_sha)
+    if name == 'frame':
+        _, owner_sha = owner_native_archive(owner)
+        sdk = report.get('native_sdk', {})
+        archive = Path(sdk.get('review', '')).parent / 'lib/libxnow.a'
+        arm_command = by_label['frame-native-arm-chain']['command']
+        if (not sdk.get('review') or sdk.get('archive_sha256') != owner_sha or
+                inputs.get(archive.as_posix()) != owner_sha or '--host-only' in arm_command or
+                not replay_input(arm_command, '--sdk-review', sdk['review'])):
+            raise ValueError('FRM1 regression did not use the native archive linked by the Owner')
+        evidence['native_archive_sha256'] = owner_sha
+    return path, evidence
+
+
 def reviewed_inputs(firmware_review, allocation_review, regressions):
     fp, firmware = receipt(firmware_review)
     mp, model = receipt(allocation_review)
@@ -101,17 +186,7 @@ def reviewed_inputs(firmware_review, allocation_review, regressions):
         raise ValueError('Expected an uninstalled diagnostic firmware review')
     if not model.get('passed') or model.get('physical_margin_verified'):
         raise ValueError('Expected an explicit PC allocation model')
-    if not bulk.get('passed') or bulk.get('source_changed_during_run') or bulk.get('inputs_changed_during_run'):
-        raise ValueError('Passing immutable regression snapshot required')
-    snapshot = bulk.get('source_snapshot', (bp.parent / 'checked-source.zip').relative_to(ROOT).as_posix())
-    if digest(private(snapshot)) != bulk['source_snapshot_sha256']:
-        raise ValueError('Regression source snapshot changed')
-    for check in bulk['checks']:
-        if check['exit_code'] or digest(private(check['log'])) != check['log_sha256']:
-            raise ValueError('Regression log changed or did not pass')
-    for name, expected in bulk.get('input_hashes', {}).items():
-        if digest(private(name)) != expected:
-            raise ValueError('Regression input changed: ' + name)
+    check_regression_evidence(bp, bulk)
     layouts = [name for name, sha in firmware['inputs'].items()
                if sha == firmware['layout_review_sha256']]
     if len(layouts) != 1:
@@ -150,12 +225,14 @@ def reviewed_inputs(firmware_review, allocation_review, regressions):
     if not supervisor.get('embedded_runtime'):
         raise ValueError('This material profile requires embedded Remote programs')
     _, owner = receipt(supervisor['shared_wifi_owner_review'])
+    rp, radio_regression = matching_radio_regression(bp, bulk, layout, owner)
     service_path = private(supervisor['local_inputs']['service']['local'])
     sp, service = receipt(service_path.parent / 'build.json')
     pc_changes, app_changes = subsequent_source_changes(bulk['source_hashes'], source_inventory(), layout, firmware,
                                                         model, capacity, supervisor, owner, service)
     return dict(firmware=firmware, model=model, layout=layout, owner=owner, supervisor=supervisor, upg=upg,
-                input_paths=(fp, mp, bp, lp, cp, sp), service_review=sp, subsequent_pc_changes=pc_changes,
+                input_paths=(fp, mp, bp, lp, cp, sp, rp), service_review=sp, subsequent_pc_changes=pc_changes,
+                radio_regression=radio_regression,
                 subsequent_external_app_changes=app_changes)
 
 
@@ -199,15 +276,9 @@ def matching_controller(owner, controller_review, *, play_mode_control=False, se
                 'runtime/apps/wireless-remote/core2/src/link_transport.h')
     if any(name not in controller['source_hashes'] for name in required):
         raise ValueError('Controller build does not include the negotiated-link adapter')
-    linked = [(name, sha) for name, sha in owner['linked_input_hashes'].items()
-              if name.endswith('/sdk/lib/libxnow.a')]
-    if len(linked) != 1:
-        raise ValueError('Expected one pinned native transport archive')
-    archive = private(linked[0][0])
-    if digest(archive) != linked[0][1]:
-        raise ValueError('Linked native transport archive changed')
+    archive, archive_sha = owner_native_archive(owner)
     np, native = receipt(archive.parent.parent / 'build.json')
-    if native.get('archive_sha256') != linked[0][1]:
+    if native.get('archive_sha256') != archive_sha:
         raise ValueError('Native archive and its source receipt differ')
     transport = {name: controller['source_hashes'][name] for name in required[:2]}
     if any(native['source_hashes'].get(name) != sha for name, sha in transport.items()):
@@ -330,6 +401,7 @@ def stage_materials(staging, reviewed, controller, updater, radio):
                     original_updater_unchanged=True, original_install_components_unchanged=True,
                     mutable_pairing_state_included=False, existing_apps_preserved=True,
                     input_reviews={p.relative_to(ROOT).as_posix(): digest(p) for p in reviewed['input_paths']},
+                    radio_regression=reviewed['radio_regression'],
                     subsequent_pc_source_changes=reviewed['subsequent_pc_changes'],
                     subsequent_external_app_source_changes=reviewed['subsequent_external_app_changes'],
                     source_hashes={name:digest(ROOT / name) for name in (

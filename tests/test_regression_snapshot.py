@@ -4,6 +4,7 @@ import contextlib
 import io
 import json
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -77,6 +78,32 @@ class RegressionSnapshotTests(unittest.TestCase):
                 self.assertEqual(regression.main(), 0)
             self.assertEqual((root / "executed").read_text(), "yes")
             self.assertTrue(json.loads((output / "report.json").read_text())["passed"])
+
+    def test_aggregate_records_the_radio_child_report_identity(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            (root / "sdk").mkdir()
+            (root / "VERSION").write_text("0.1.0\n")
+            (root / "sdk/VERSION").write_text("0.2.0\n")
+            output = root / "work/check"
+
+            def radio_replay(command, **kwargs):
+                report_dir = Path(command[command.index("--output") + 1])
+                self.assertEqual(report_dir, output / "radio-profiles")
+                report_dir.mkdir()
+                (report_dir / "report.json").write_bytes(b'{"passed":true}')
+                return subprocess.CompletedProcess(command, 0)
+
+            with mock.patch.object(regression, "ROOT", root), \
+                    mock.patch.object(regression, "SUITES", {"integration": [["test_radio_profiles.py"]]}), \
+                    mock.patch.object(sys, "argv", ["regressions", "--suite", "integration", "--output", str(output)]), \
+                    mock.patch.object(regression.subprocess, "run", side_effect=radio_replay), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(regression.main(), 0)
+            check = json.loads((output / "report.json").read_text())["checks"][0]
+            self.assertEqual(check["radio_review"], "work/check/radio-profiles/report.json")
+            self.assertEqual(check["radio_review_sha256"],
+                             hashlib.sha256(b'{"passed":true}').hexdigest())
 
     def test_retains_bytes_and_refuses_overwrite(self):
         with tempfile.TemporaryDirectory() as directory:

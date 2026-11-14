@@ -283,14 +283,23 @@ def main():
         invocation = [sys.executable, str(script), *command[1:]]
         if command[0].startswith("tests/"):
             invocation = [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-p", script.name, *command[1:]]
+        radio_review = None
+        if command[0] == "test_radio_profiles.py":
+            radio_output = output / "radio-profiles"
+            invocation += ["--output", str(radio_output)]
+            radio_review = radio_output / "report.json"
         with log.open("wb") as stream:
             run = subprocess.run(invocation, cwd=ROOT, stdout=stream, stderr=subprocess.STDOUT)
-        report["checks"].append({
+        check = {
             "suite": suite, "command": command, "invocation": invocation, "exit_code": run.returncode,
             "seconds": round(time.monotonic() - started, 3),
             "log": log.relative_to(ROOT).as_posix(),
             "log_sha256": hashlib.sha256(log.read_bytes()).hexdigest(),
-        })
+        }
+        if radio_review is not None and run.returncode == 0:
+            check["radio_review"] = radio_review.relative_to(ROOT).as_posix()
+            check["radio_review_sha256"] = hashlib.sha256(radio_review.read_bytes()).hexdigest()
+        report["checks"].append(check)
         (output / "report.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
         print(f"{'PASS' if run.returncode == 0 else 'FAIL'} {label}", flush=True)
     report["source_changed_during_run"] = source_inventory() != before

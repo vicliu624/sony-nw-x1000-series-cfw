@@ -175,7 +175,12 @@ and its matching allocation/regression evidence with:
 The firmware review must already have an independent Rockbox extraction under
 its `rockbox-check/` directory. The tool checks all original installation
 components, the complete root inventory, allocation inputs and original updater
-identities. Shared runtime, SDK, configuration and reviewed inputs must still
+identities. Use the radio profile report directly, or an aggregate regression
+report that records the child radio report and its hash. The selected system
+radio image must match a replayed profile. For FRM1, the ARM replay must also
+use a native archive with the same SHA-256 as the one linked by the Owner.
+Reuse the existing images and archive in a fresh replay if an older report
+lacks those identities. Shared runtime, SDK, configuration and reviewed inputs must still
 match the passing regression snapshot. The diagnostic leaves existing external
 app packages in place. Later source edits under an already registered external
 app are allowed only when that app supplies no input to the reviewed system

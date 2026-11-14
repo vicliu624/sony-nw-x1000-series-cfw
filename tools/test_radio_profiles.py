@@ -109,6 +109,7 @@ def main():
                                     archive_sha256=sdk_report["archive_sha256"], reused=args.sdk_review is not None)
         checked_inputs[sdk_path.relative_to(ROOT).as_posix()] = digest(sdk_path)
         checked_inputs[archive.relative_to(ROOT).as_posix()] = sdk_report["archive_sha256"]
+        directories = {name: path.relative_to(ROOT).as_posix() for name, path in directories.items()}
         run("original-hostcmd-response", "tools/test_sd8686_hostcmd_response.py")
         run("original-packet-ownership", "tools/test_radio_packet_ownership.py")
         run("word-tx", "tools/test_radio_full_tx.py")
@@ -125,7 +126,7 @@ def main():
             "--radio-review", directories["frame"])
         run("frame-original-rx", "tools/test_radio_full_rx.py", "--radio-review", directories["frame"])
         run("frame-native-arm-chain", "tools/test_sd8686_frame_native.py",
-            "--radio-review", directories["frame"], "--sdk-review", sdk_path)
+            "--radio-review", directories["frame"], "--sdk-review", report["native_sdk"]["review"])
         run("secure-native-arm-chain", "tools/test_xnow_secure_chain.py", "--arm",
             "--radio-review", directories["vector"])
     finally:
