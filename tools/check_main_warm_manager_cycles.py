@@ -1,14 +1,22 @@
 """Warm Main cycles with original manager replies, retaining the initial-state limitation."""
 from pathlib import Path
 import check_main_activation_ack as primitives
-import contextlib,hashlib,io,json,runpy,struct,sys
+import argparse,contextlib,hashlib,io,json,runpy,struct,sys
 from unicorn import UC_HOOK_CODE
 from unicorn.arm_const import UC_ARM_REG_R0,UC_ARM_REG_R1,UC_ARM_REG_R2,UC_ARM_REG_R3,UC_ARM_REG_LR,UC_ARM_REG_PC
 from native_lookup_fixture import request_in_session
 ROOT=Path(__file__).resolve().parents[1];client_source=ROOT/'tools/check_home_client_registration.py'
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--registration-report', default='sources/native-home-ipc-client-registration.json')
+parser.add_argument('--report', default='sources/native-main-warm-manager-cycles.json')
+options = parser.parse_args()
+output = (ROOT / options.report).resolve()
+assert output.suffix == '.json' and any(output.is_relative_to(ROOT/folder) for folder in ('sources', 'work'))
+activation_report = (output.with_name(output.stem + '-activation.json') if output.is_relative_to(ROOT/'work')
+                     else ROOT/'sources/native-home-client-registration-active.json')
 previous=sys.argv
 try:
- sys.argv=[str(client_source),'--reply-report','sources/native-home-ipc-client-registration.json','--acknowledge-activation']
+ sys.argv = [str(client_source), '--reply-report', options.registration_report, '--acknowledge-activation', '--report', str(activation_report)]
  with contextlib.redirect_stdout(io.StringIO()):seed=runpy.run_path(str(client_source))
 finally:sys.argv=previous
 u=primitives.machine();call=primitives.call;ret=primitives.returned;manager_session=seed['lookup_session'];manager=manager_session['emulator']
@@ -41,6 +49,6 @@ assert pending is None and len(requests)==6
 home_before=bytes(manager.mem_read(0x60010000,64));bad=bytearray(struct.pack('<6I',*requests[-1]['request']));struct.pack_into('<I',bad,8,0x3ffff)
 rejected,_=request_in_session(manager_session,bytes(bad));rejected_words=list(struct.unpack('<4I',rejected));assert rejected_words[3]!=0 and bytes(manager.mem_read(0x60010000,64))==home_before,rejected_words
 
-tracked=[Path(__file__),client_source,ROOT/'tools/check_main_activation_ack.py',ROOT/'tools/native_lookup_fixture.py',ROOT/'sources/native-home-client-registration-active.json',ROOT/'work/targets-jp/SpiderApp',ROOT/'work/targets-jp/sysmgrd']
+tracked=[Path(__file__),client_source,ROOT/'tools/check_main_activation_ack.py',ROOT/'tools/native_lookup_fixture.py',activation_report,ROOT/options.registration_report,ROOT/'work/targets-jp/SpiderApp',ROOT/'work/targets-jp/sysmgrd']
 report={'passed':True,'initial_warm_state':[3,4],'initial_seed_limit':'Seed uses existing Main2/2 activation prerequisite; native acknowledgement produces initial3/4. This is not cold boot.','invalid_app_control':{'app_id':'0x3ffff','reply':rejected_words,'home_record_unchanged':True},'cycles':transitions,'requests':requests,'source_hashes':{str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in tracked},'hardware_tested':False,'limits':['Completion events supplied; preceding GUI workers and real departure/return not executed.','Original client and retained original manager process every reply; not forced success packets.','Initial warm-state prerequisite remains; no real IPC, kernel or rendering qualification.']}
-(ROOT/'sources/native-main-warm-manager-cycles.json').write_text(json.dumps(report,indent=2)+'\n');print('Three warm Main/client cycles accepted by the same original manager; initial-state/completion-event fixtures remain.')
+output.write_text(json.dumps(report,indent=2)+'\n');print('Three warm Main/client cycles accepted by the same original manager; initial-state/completion-event fixtures remain.')

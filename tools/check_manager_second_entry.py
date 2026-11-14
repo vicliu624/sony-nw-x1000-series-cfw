@@ -1,15 +1,16 @@
 """Continue returned manager/argv-query instance with actual second Home switch request."""
 from pathlib import Path
-import argparse,contextlib,hashlib,io,json,runpy,struct
+import argparse,hashlib,io,json,struct
 from elftools.elf.elffile import ELFFile
 from unicorn import Uc,UC_ARCH_ARM,UC_MODE_ARM,UC_HOOK_CODE
 from unicorn.arm_const import UC_ARM_REG_R0,UC_ARM_REG_R1,UC_ARM_REG_R2,UC_ARM_REG_R3,UC_ARM_REG_R4,UC_ARM_REG_R6,UC_ARM_REG_SP,UC_ARM_REG_LR,UC_ARM_REG_PC
 from evidence_checks import verify_report
+from check_saved_manager_arguments import replay_arguments
 if not __debug__:raise RuntimeError('Run without Python optimization')
 ROOT=Path(__file__).resolve().parents[1];base=ROOT/'tools/check_saved_manager_arguments.py'
 parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--native-ipc',action='store_true');options=parser.parse_args()
-inputs={'return_report':'sources/native-ipc-manager-return.json','output_report':'sources/native-ipc-saved-manager-arguments.json'} if options.native_ipc else {}
-with contextlib.redirect_stdout(io.StringIO()):model=runpy.run_path(str(base),init_globals=inputs)
+return_report = 'sources/native-ipc-manager-return.json' if options.native_ipc else 'sources/native-home-activation-manager-return.json'
+model = replay_arguments(return_report)
 u=model['manager'];u.hook_del(model['manager_hook_id'])
 source=ROOT/'sources/native-home-parent-activation-route-frame-receiver.json';home=verify_report(ROOT,str(source.relative_to(ROOT)))
 requests=[bytes.fromhex(c['native_switch_wire_requests'][-1]['packet_hex']) for c in home['cases'] if c['rebuild_cycle']==1]

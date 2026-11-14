@@ -16,7 +16,7 @@ parser.add_argument('--home-confirmation-report')
 parser.add_argument('--home-confirmation-cycle',type=int,choices=(1,2),default=1,help='Select the original Home recovery cycle; cycle2 requires a three-cycle report.')
 parser.add_argument('--proxy-exit-report',default='sources/native-frontend-proxy-exit.json')
 parser.add_argument('--launch-report',default='sources/native-manager-proxy-exec-request.json')
-parser.add_argument('--report',help='Distinct report under sources/, preserving standard contracts.')
+parser.add_argument('--report',help='Distinct JSON report under work/ or sources/.')
 parser.add_argument('--include-manager-op3-fixture',action='store_true',help='Independent diagnostic only; original proxy self-event shutdown is not manager op3.')
 parser.add_argument('--pending-responder-switch',action='store_true',help='Request target2 from native RUN, then reap Homebrew before inactive ack; USB hardware not simulated.')
 parser.add_argument('--native-stop-enumeration',action='store_true',help='Use native stop/filter/predicate and11858 running-app enumeration; AppList IDs/existence remain fixtures.')
@@ -493,7 +493,9 @@ if options.stop_before_walkman_confirmation:
     report['limits']=[line.replace('Walkman state2 comes from bounded native Home recovery replay when native_home_input is present; otherwise supplied. Startup state1 remains supplied; no real Walkman process or transport.','Walkman confirmation is not supplied; existing record remains state1, no real Walkman process/rendering.').replace('Activation/launch callbacks virtual; native manager returns current app1/RUN after supplied acknowledgements, no player rendering, hardware or USB/sleep qualification.','Activation callback virtual; manager waits with current app0/target1. No recovery acknowledgement, rendering, hardware or USB/sleep qualification.') for line in report['limits']]
 output=ROOT/'sources'/filename
 if options.report:
-    output=(ROOT/options.report).resolve();assert output.is_relative_to(ROOT/'sources') and output.suffix=='.json'
+    output=(ROOT/options.report).resolve()
+    assert output.suffix=='.json' and any(output.is_relative_to(ROOT/folder) for folder in ('work','sources'))
+    output.parent.mkdir(parents=True,exist_ok=True)
     report['all_bounded_checks_passed']=True
     report['source_hashes']={options.proxy_exit_report:hashlib.sha256(captured).hexdigest(),options.launch_report:hashlib.sha256(launch_bytes).hexdigest(),'tools/check_proxy_manager_return.py':hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}
     if home_input:report['source_hashes'][home_input['path']]=home_input['sha256']
@@ -504,7 +506,10 @@ if options.report:
 if options.save_return_state:
     assert options.report and manager_state and home_input and len(rows)==1
     assert rows[0]['walkman_confirmation']['current_app']==1 and word(walkman_record+12)==2
-    folder=ROOT/'work/native-manager-states'/(ROOT/'VERSION').read_text().strip();folder.mkdir(parents=True,exist_ok=True)
+    folder=output.parent
+    if output.is_relative_to(ROOT/'sources'):
+        folder=ROOT/'work/native-manager-states'/(ROOT/'VERSION').read_text().strip()
+        folder.mkdir(parents=True,exist_ok=True)
     saved=bytes(u.mem_read(0x60000000,0x20000));path=folder/(output.stem+'-returned.bin');path.write_bytes(saved)
     regions=[]
     for original in manager_state['module_regions']:

@@ -197,3 +197,34 @@ write reports under `work/stock-sleep/`. The manager IPC, two-client sleep and
 power-event checks initialize their own stock sysmgrd emulator. The client
 checks share the SpiderApp activation fixture without running its separate
 activation replay.
+
+## Warm Main cycles
+
+Use a fresh directory under `work/` for the replay reports. The return check
+accepts existing launch, proxy-exit and Home confirmation captures. Its saved
+manager RAM and writable regions stay beside the report when `--report` points
+under `work/`. The registration check loads that state directly. The separate
+argument-query check is available for the second-entry continuation.
+
+```sh
+python tools/check_proxy_manager_return.py \
+  --proxy-exit-report sources/native-ipc-proxy-exit.json \
+  --launch-report sources/native-manager-native-ipc-exec.json \
+  --manager-state-report sources/native-manager-native-ipc-exec.json \
+  --home-confirmation-report sources/native-home-parent-activation-route-frame-receiver.json \
+  --native-ipc-exit-cleanup --save-return-state \
+  --report work/warm-main-check/manager-return.json
+python tools/check_home_client_registration.py \
+  --report work/warm-main-check/client-request.json
+python tools/check_home_ipc_registration.py \
+  --manager-return-report work/warm-main-check/manager-return.json \
+  --client-request-report work/warm-main-check/client-request.json \
+  --report work/warm-main-check/registration.json
+python tools/check_main_warm_manager_cycles.py \
+  --registration-report work/warm-main-check/registration.json \
+  --report work/warm-main-check/cycles.json
+```
+
+The last check starts from the retained manager and a supplied Main state. It
+executes three departure/activation cycles and rejects an invalid application ID.
+The completion events and transport are modeled.

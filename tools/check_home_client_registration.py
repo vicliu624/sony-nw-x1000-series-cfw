@@ -1,11 +1,12 @@
 """Capture original SpiderApp APF registration request; stop at transport send."""
 from pathlib import Path
-import argparse,contextlib,hashlib,io,json,runpy,struct,sys
+import argparse,contextlib,hashlib,io,json,runpy,struct
 from unicorn import UC_HOOK_CODE
+from check_home_ipc_registration import replay_registration
 from unicorn.arm_const import UC_ARM_REG_R0,UC_ARM_REG_R1,UC_ARM_REG_R2,UC_ARM_REG_R3,UC_ARM_REG_LR,UC_ARM_REG_PC
 if not __debug__:raise RuntimeError('Run without Python optimization')
 ROOT=Path(__file__).resolve().parents[1];base=ROOT/'tools/check_spider_restore_dispatch.py'
-parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--reply-report');parser.add_argument('--receive-registration-events',action='store_true');parser.add_argument('--native-event-lookup',action='store_true');parser.add_argument('--registered-manager-lookup',action='store_true');parser.add_argument('--native-event-services',action='store_true');parser.add_argument('--dispatch-root-events',action='store_true');parser.add_argument('--execute-coordinator',action='store_true');parser.add_argument('--native-gui-submit',action='store_true');parser.add_argument('--consume-gui-queue',action='store_true');parser.add_argument('--run-gui-worker',action='store_true');parser.add_argument('--complete-gui-token',action='store_true');parser.add_argument('--acknowledge-activation',action='store_true');parser.add_argument('--first-start-queries',action='store_true');parser.add_argument('--first-start-usb-state',type=int,choices=range(5),default=0);options=parser.parse_args()
+parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--reply-report');parser.add_argument('--report',type=Path);parser.add_argument('--receive-registration-events',action='store_true');parser.add_argument('--native-event-lookup',action='store_true');parser.add_argument('--registered-manager-lookup',action='store_true');parser.add_argument('--native-event-services',action='store_true');parser.add_argument('--dispatch-root-events',action='store_true');parser.add_argument('--execute-coordinator',action='store_true');parser.add_argument('--native-gui-submit',action='store_true');parser.add_argument('--consume-gui-queue',action='store_true');parser.add_argument('--run-gui-worker',action='store_true');parser.add_argument('--complete-gui-token',action='store_true');parser.add_argument('--acknowledge-activation',action='store_true');parser.add_argument('--first-start-queries',action='store_true');parser.add_argument('--first-start-usb-state',type=int,choices=range(5),default=0);options=parser.parse_args()
 if options.first_start_queries:options.acknowledge_activation=True
 if options.acknowledge_activation:options.complete_gui_token=True
 if options.complete_gui_token:options.run_gui_worker=True
@@ -21,7 +22,8 @@ if options.receive_registration_events:assert options.reply_report
 reply_source=None
 if options.reply_report:
     from evidence_checks import verify_report
-    reply_source=(ROOT/options.reply_report).resolve();assert reply_source.is_relative_to(ROOT/'sources')
+    reply_source=(ROOT/options.reply_report).resolve()
+    assert any(reply_source.is_relative_to(ROOT/folder) for folder in ('sources','work'))
     reply_report=verify_report(ROOT,options.reply_report)
     reply=struct.pack('<5I',*reply_report['registration_reply'])
 with contextlib.redirect_stdout(io.StringIO()):m=runpy.run_path(str(base))
@@ -29,15 +31,12 @@ u=m['u'];call=m['call'];ctx=0x820f68;opened=[];requests=[];threads=[];received=[
 
 coordinator_modules=[(0x16b74,0xc),(0x143c0,0x10),(0xf32c,0x18),(0x3b498,0x1c),(0x37f08,0x20),(0x49d6c,0x38),(0x4492c,0x28),(0x499f8,0x34),(0x4f3dc,0x40)]
 
-registration_model=None
 if options.registered_manager_lookup:
-    assert options.reply_report=='sources/native-home-ipc-client-registration.json'
-    previous_argv=sys.argv
-    try:
-        sys.argv=['tools/check_home_ipc_registration.py','--client-request-report','sources/native-home-client-registration-request.json']
-        with contextlib.redirect_stdout(io.StringIO()):registration_model=runpy.run_path(str(ROOT/'tools/check_home_ipc_registration.py'))
-    finally:sys.argv=previous_argv
-    manager=registration_model['u'];manager.hook_del(registration_model['manager_hook_id'])
+    return_report = reply_report.get('returned_manager_report', 'sources/native-ipc-manager-return.json')
+    manager, registration_hook, registration_report = replay_registration(
+        return_report, reply_report['original_client_request_input'])
+    assert registration_report['registration_reply'] == reply_report['registration_reply']
+    manager.hook_del(registration_hook)
     table=struct.unpack('<I',manager.mem_read(0x60000004,4))[0]
     config_bytes=(ROOT/'work/integration-0.1.0-dev.16/system-overlay/etc/AppList.conf').read_bytes()
     lookup_session.update({'emulator':manager,'core':0x60000000,'table':table,'queries':0,'config_sha256':hashlib.sha256(config_bytes).hexdigest(),'request_address':0x6001b000})
@@ -307,8 +306,7 @@ if options.native_event_lookup:
 if options.registered_manager_lookup:
     assert registration_queries_preserved
     r['registered_manager_lookup']={'same_registration_manager_instance':True,'port_registry_and_pool_unchanged':True,'home_record_unchanged':True,'request_buffer_outside_ipc_pool':'0x6001b000','queries':lookup_session['queries']-len(activation_acks),'requests_including_activation':lookup_session['queries'],'preservation_scope':'before_main_activation_ack'}
-    r['source_hashes'].update({str(path.relative_to(ROOT)):hashlib.sha256(path.read_bytes()).hexdigest() for path in registration_model['paths']})
-    r['source_hashes']['tools/check_home_ipc_registration.py']=hashlib.sha256((ROOT/'tools/check_home_ipc_registration.py').read_bytes()).hexdigest()
+    r['source_hashes'].update(registration_report['source_hashes'])
     r['limits']=[line.replace('separate native manager1574c parser/1084c lookup for each request','retained original registration manager1084c lookup').replace('one retained manager query model; configuration parsed only once, second query preserves table bytes and core mode','same registration manager model; imported original parsed table retained, no configuration reparse or mode reset') for line in r['limits']]
     r['limits'].append('Queries continue in the same manager emulator after original Home registration probe. Home state0 prerequisite was supplied upstream; this is not full native boot or the full Home lifecycle instance.')
 if options.native_event_services:
@@ -374,5 +372,11 @@ if options.first_start_queries:
     r['first_start_queries']={'native_main_constructor':'0x61320','main_constructor_state':[3,1],'inactive_completion_event_fixture':'0x41000a','main_state_after_inactive_event':[2,1],'first_start_handler':'0x61414','usb_raw_state_fixture':options.first_start_usb_state,'usb_reply':usb_reply,'battery_queried':expected_usb==0,'queued_event':m['queued'][-1],'main_after':[3,1],'client_state_after':2,'manager_home_state_after':2}
     r['limits']=[line for line in r['limits'] if not line.startswith('Main state2/2/')]
     r['limits'].append('Native Main constructor and first-start61414 execute after supplied inactive-completion event41000a, not a complete cold boot. Original active acknowledgement/query8/conditional battery requests go to retained manager. USB descriptor/raw ioctl and battery cache remain fixtures. Main returns3/1 and queues42001a/420017; these events not consumed, recovery Main2/2 prerequisite not established.')
-(ROOT/('sources/native-main-first-start-usb'+str(options.first_start_usb_state)+'.json' if options.first_start_queries else 'sources/native-home-client-registration-active.json' if options.acknowledge_activation else 'sources/native-home-client-registration-gui-completion.json' if options.complete_gui_token else 'sources/native-home-client-registration-gui-worker.json' if options.run_gui_worker else 'sources/native-home-client-registration-gui-queue.json' if options.consume_gui_queue else 'sources/native-home-client-registration-gui-submit.json' if options.native_gui_submit else 'sources/native-home-client-registration-coordinator.json' if options.execute_coordinator else 'sources/native-home-client-registration-root.json' if options.dispatch_root_events else 'sources/native-home-client-registration-services.json' if options.native_event_services else 'sources/native-home-client-registration-manager-lookup.json' if options.registered_manager_lookup else 'sources/native-home-client-registration-native-lookup.json' if options.native_event_lookup else 'sources/native-home-client-registration-events.json' if options.receive_registration_events else 'sources/native-home-client-registration-reply.json' if reply_source else 'sources/native-home-client-registration-request.json')).write_text(json.dumps(r,indent=2)+'\n')
+default_report = (
+    'sources/native-main-first-start-usb'+str(options.first_start_usb_state)+'.json' if options.first_start_queries else 'sources/native-home-client-registration-active.json' if options.acknowledge_activation else 'sources/native-home-client-registration-gui-completion.json' if options.complete_gui_token else 'sources/native-home-client-registration-gui-worker.json' if options.run_gui_worker else 'sources/native-home-client-registration-gui-queue.json' if options.consume_gui_queue else 'sources/native-home-client-registration-gui-submit.json' if options.native_gui_submit else 'sources/native-home-client-registration-coordinator.json' if options.execute_coordinator else 'sources/native-home-client-registration-root.json' if options.dispatch_root_events else 'sources/native-home-client-registration-services.json' if options.native_event_services else 'sources/native-home-client-registration-manager-lookup.json' if options.registered_manager_lookup else 'sources/native-home-client-registration-native-lookup.json' if options.native_event_lookup else 'sources/native-home-client-registration-events.json' if options.receive_registration_events else 'sources/native-home-client-registration-reply.json' if reply_source else 'sources/native-home-client-registration-request.json'
+)
+output = (ROOT / (options.report or default_report)).resolve()
+assert output.suffix == '.json' and any(output.is_relative_to(ROOT/folder) for folder in ('sources','work'))
+output.parent.mkdir(parents=True,exist_ok=True)
+output.write_text(json.dumps(r,indent=2)+'\n')
 print('Original Home constructor/registration generates32-byte request and PID-derived ports864/865')
