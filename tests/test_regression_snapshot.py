@@ -114,6 +114,27 @@ class RegressionSnapshotTests(unittest.TestCase):
             self.assertEqual(check["radio_review_sha256"],
                              hashlib.sha256(b'{"passed":true}').hexdigest())
 
+    def test_aggregate_builds_one_service_for_all_selected_consumers(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            (root / "sdk").mkdir()
+            (root / "VERSION").write_text("0.1.0\n")
+            (root / "sdk/VERSION").write_text("0.2.0\n")
+            output = root / "work/check"
+            commands = [["test_remote_service.py"], ["test_remote_supervisor.py", "--automatic-factory"]]
+            with mock.patch.object(regression, "ROOT", root), \
+                    mock.patch.object(regression, "SUITES", {"integration": commands}), \
+                    mock.patch.object(sys, "argv", ["regressions", "--suite", "integration", "--output", str(output)]), \
+                    mock.patch.object(regression.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)) as run, \
+                    contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(regression.main(), 0)
+            build, *consumers = [call.args[0][1:] for call in run.call_args_list]
+            self.assertEqual(Path(build[0]).name, "build_remote_service.py")
+            self.assertEqual(build[1:], ["--output", str(output / "remote-service")])
+            self.assertEqual([Path(command[0]).name for command in consumers], [c[0] for c in commands])
+            for command in consumers:
+                self.assertEqual(command[-2:], ["--service-review", str(output / "remote-service/build.json")])
+
     def test_retains_bytes_and_refuses_overwrite(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -2,6 +2,8 @@
 from pathlib import Path, PurePosixPath
 import hashlib,json
 import os
+import re
+import subprocess
 import zipfile
 
 def _file(root,relative):
@@ -25,6 +27,28 @@ def verify_report(root,relative):
   payload=_file(root,report['artifact']).read_bytes()
   if len(payload)!=report['bytes'] or hashlib.sha256(payload).hexdigest()!=report['sha256']:raise ValueError('Artifact mismatch: '+relative)
  return report
+
+
+def gcc_project_dependencies(root, compiler, sources):
+    """List all project files selected by GCC for a multi-source compile."""
+    # A single -MMD file on a multi-source link only retains the last rule.
+    target = 'project-input'
+    output = subprocess.check_output([*compiler, '-MM', '-MT', target, *sources], cwd=root, text=True)
+    rules = output.replace('\\\n', ' ').splitlines()
+    if len(rules) != len(sources):
+        raise ValueError('Incomplete GCC dependencies')
+    dependencies = set(sources)
+    for rule in rules:
+        name, separator, files = rule.partition(':')
+        if name != target or not separator or not files.strip():
+            raise ValueError('Unexpected GCC dependencies')
+        for token in re.findall(r'(?:\\.|[^\s\\])+', files):
+            dependency = re.sub(r'\\([ #\\\t])', r'\1', token).replace('$$', '$')
+            path = Path(os.path.abspath(root / dependency))
+            if not path.is_relative_to(root) or not path.resolve().is_relative_to(root):
+                raise ValueError('Compiler dependency outside the project: ' + dependency)
+            dependencies.add(path.relative_to(root).as_posix())
+    return dependencies
 
 
 def source_inventory(root):

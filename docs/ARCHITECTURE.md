@@ -88,6 +88,24 @@ Player result codes are a separate domain: `XW_PLAYER_IO` is -6 and
 resource state, not the reason HELLO failed. Record CRC proves byte integrity;
 build/boot/request identity must separately prove which attempt was captured.
 
+The Settings backend already owns a request serial and the process generation.
+Its `last_start` reports parent admission, capability offer, readiness or child
+exit. The owner runtime stores the first application result and its origin,
+while the supervisor verifies the independent retirement receipt before reporting
+recovery. `rf_owner.c` currently collapses the FRM1 and bulk enable results before
+they reach that owner error field. `remote_auto.c` also reconstructs child
+diagnostics from the process's bounded 512-byte log tail. A missing line in that
+tail cannot establish which operation failed.
+
+Keep Settings' existing request serial and readiness checks. A future diagnostic
+result should carry the failing operation and its original result domain and
+code across the child process interface, correlated to that launch. Persist the
+result only after the current owner and storage checks permit it, outside the
+live radio lease. Keep diagnostic evidence independent of readiness and of the
+cookie, DONE, EOF and reap checks used for retirement. The legacy decoder's
+before/after comparison establishes an interval of writes only. See
+[regression diagnostics](REGRESSION.md#groups).
+
 Migration is incremental:
 
 1. Remove build-to-test and test-to-test execution dependencies. Preserve generated

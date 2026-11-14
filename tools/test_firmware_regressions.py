@@ -16,6 +16,8 @@ import time
 from app_registry import ROOT
 from evidence_checks import source_inventory, write_source_snapshot
 
+SERVICE_CHECKS = ("test_remote_service.py", "test_remote_supervisor.py")
+
 
 SUITES = {
     # No Sony inputs, ARM toolchain, network bootstrap or firmware composition.
@@ -195,6 +197,7 @@ def main():
                         help="Explicit immutable analysis-library receipt for the artifact suite")
     parser.add_argument("--radio-reviews", type=Path, help="Use these four existing radio builds in the integration replay")
     parser.add_argument("--sdk-review", type=Path, help="Use this existing native SDK build in the integration replay")
+    parser.add_argument("--service-review", type=Path, help="Use this existing Remote service build in integration tests")
     args = parser.parse_args()
     suites = args.suite or [name for name in SUITES if name not in ("artifact", "host")]
     if "artifact" in suites and args.host_review is None:
@@ -211,6 +214,16 @@ def main():
         for command in commands:
             for flag, value in radio_inputs:
                 command.extend((flag, str(value)))
+    first_service = next((index for index, (_, command) in enumerate(planned)
+                          if command[0] in SERVICE_CHECKS), None)
+    if args.service_review is not None:
+        if first_service is None:
+            parser.error("--service-review requires the Remote service integration checks")
+        for _, command in planned:
+            if command[0] in SERVICE_CHECKS:
+                command.extend(("--service-review", str(args.service_review)))
+    elif first_service is not None:
+        planned.insert(first_service, (planned[first_service][0], ["build_remote_service.py"]))
     if args.plan:
         print(json.dumps({"suites": suites, "checks": [dict(suite=s, command=c) for s, c in planned],
                           "duplicate_checks_omitted": duplicates}, indent=2))
@@ -251,6 +264,11 @@ def main():
         invocation = [sys.executable, str(script), *command[1:]]
         if command[0].startswith("tests/"):
             invocation = [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-p", script.name, *command[1:]]
+        if args.service_review is None:
+            if command[0] == "build_remote_service.py":
+                invocation += ["--output", str(output / "remote-service")]
+            elif command[0] in SERVICE_CHECKS:
+                invocation += ["--service-review", str(output / "remote-service/build.json")]
         radio_review = None
         if command[0] == "test_radio_profiles.py":
             radio_output = output / "radio-profiles"

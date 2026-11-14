@@ -251,6 +251,7 @@ Build the embedded Remote supervisor directly from the owner and service
 build receipts:
 
 ```sh
+.venv/bin/python tools/build_remote_service.py --output work/example/service
 .venv/bin/python tools/build_remote_supervisor.py \
   --shared-wifi-owner-review work/example/owner/build.json \
   --service-review work/example/service/build.json \

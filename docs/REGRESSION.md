@@ -68,8 +68,14 @@ keep the parent ZIP with the reports. A standalone radio run creates its own ZIP
 unless given a matching archive via `--source-snapshot`.
 The firmware runner also accepts `--radio-reviews` and `--sdk-review` when
 selecting `integration`. Both inputs appear in `--plan` and are verified by the
-radio runner before it replays them. Other integration checks keep their own
-build requirements.
+radio runner before it replays them. The firmware runner builds the Remote
+service once for its service and supervisor checks. `--service-review` supplies
+an existing verified build and skips that build step. Use the receipt from
+`tools/build_remote_service.py --output work/<review>/service`. The individual
+Remote checks accept the option as well. Supervisor and test fixtures still
+build per scenario when their inputs differ. The player and service builders
+use GCC's dependency output to record the headers actually selected for each
+translation unit. A changed header invalidates the corresponding build receipt.
 
 `test_shared_owner_retirement.py` combines the actual Root stop wrapper and
 full controller. It checks delayed drain, both native connection states,

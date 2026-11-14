@@ -1,7 +1,8 @@
 """Full native supervisor/service chain in an isolated ARM guest; RF/media modeled."""
-import contextlib,hashlib,io,json,runpy,struct,subprocess,sys,time
+import hashlib,json,struct,subprocess,sys,time
 from app_registry import ROOT
 from build_remote_owner import build as build_owner
+from build_remote_service import build as build_service, reviewed_service
 from build_remote_supervisor import build as build_supervisor
 from player_arm_guest import stock_libraries,run_guest
 out=ROOT/'work/remote-supervisor-integration'/str(time.time_ns());out.mkdir(parents=True)
@@ -71,7 +72,18 @@ assert not early_stop or settings_backend
 assert not settings_factory or not any((bad_generation,bad_grants,early_stop,mode_switch,rf_admission))
 if settings_backend:managed_process=True
 if managed_process:direct_delivery=True
-with contextlib.redirect_stdout(io.StringIO()):service=runpy.run_path(str(ROOT/'tools/build_remote_service.py'))
+if '--service-review' in sys.argv:
+ if service_start_refusal:
+  raise ValueError('A service build cannot replace the failure-injection fixture')
+ _,service_artifact,service_report=reviewed_service(sys.argv[sys.argv.index('--service-review')+1])
+elif service_start_refusal:
+ fixture_flags=['-Wl,--wrap=xw_managed_client_bind_stock']
+ if service_handoff_refusal:
+  fixture_flags+=['-DWR_TEST_HANDOFF_REFUSAL','-Wl,--wrap=xnow_handoff_adopt_reader']
+ service_artifact,service_report=build_service(out/'fixture-service',
+  fixture_sources=['tools/fixtures/remote_bind_refusal.c'],fixture_flags=fixture_flags)
+else:
+ service_artifact,service_report=build_service(out/'service-build')
 libs=stock_libraries(include_rt=True)
 flags=['-std=c99','-Os','-Wall','-Wextra','-Werror','-Wno-misleading-indentation','-DHB_STORE_SONY_LIBC','-DHB_STORE_LIBC_CLOCK',
        '-U_FORTIFY_SOURCE','-D_FORTIFY_SOURCE=0','-march=armv5te','-marm','-mfloat-abi=soft','-fno-builtin',
@@ -79,17 +91,6 @@ flags=['-std=c99','-Os','-Wall','-Wextra','-Werror','-Wno-misleading-indentation
 startup=['runtime/store/start.c','runtime/store/start.S']
 linked=[str(libs[n]) for n in ('librt.so.1','libpthread.so.0','libc.so.6','ld-linux.so.3')]
 def compile(sources,target,extra=()):subprocess.run(['arm-linux-gnueabi-gcc',*flags,*extra,*sources,*startup,*linked,'-lgcc','-o',str(target)],cwd=ROOT,check=True)
-if service_start_refusal:
- original_service=service;service=dict(service);refused=out/'fixture-service/wireless-remote-service.arm';refused.parent.mkdir()
- compile([s for s in original_service['sources'] if s not in startup]+['tools/fixtures/remote_bind_refusal.c'],refused,['-Wl,--wrap=xw_managed_client_bind_stock']+(['-DWR_TEST_HANDOFF_REFUSAL','-Wl,--wrap=xnow_handoff_adopt_reader'] if service_handoff_refusal else []))
- service['artifact']=refused;service['bytes']=refused.stat().st_size;service['sha256']=hashlib.sha256(refused.read_bytes()).hexdigest()
- # This is a built failure-injection fixture, not the unmodified service binary.
- fixture_report=dict(original_service['report'],artifact=refused.relative_to(ROOT).as_posix(),
-                     bytes=service['bytes'],sha256=service['sha256'],fixture_only=True,
-                     original_libc_arm_entry_checks=False)
- fixture_report['source_hashes']=dict(fixture_report['source_hashes'])
- fixture_report['source_hashes']['tools/fixtures/remote_bind_refusal.c']=hashlib.sha256((ROOT/'tools/fixtures/remote_bind_refusal.c').read_bytes()).hexdigest()
- (refused.parent/'build.json').write_text(json.dumps(fixture_report,indent=2)+'\n',encoding='utf-8')
 owner=out/'fixture-owner/remote-rf-owner.arm';owner.parent.mkdir();owner_sources=['tools/fixtures/remote_chain_owner.c','runtime/apps/wireless-remote/control.c','runtime/apps/wireless-remote/link.c','runtime/apps/wireless-remote/status_auth.c','runtime/native/sha256.c','runtime/store/deadline.c']
 owner_sources+=['runtime/apps/wireless-remote/mode_wire.c']
 owner_flags=['-DWR_CHAIN_BROKER_MODEL','-DWR_CHAIN_MANUAL_STOP'] if settings_backend else []
@@ -135,7 +136,7 @@ template_generation=40 if automatic_factory else generation-1 if reusable else g
 config=out/'config.bin';config.write_bytes(b'XWRUN001'+struct.pack('<QQ',template_generation,1234567)+bytes([2,1,2,3,4,5])+b'\0\0'+bytes(range(1,33))+bytes(range(16)))
 review=dict(generation=template_generation,device_directory='/contents/HOMEBREW/data/wireless-remote/runtime' if formal_data_layout else '/contents/HOMEBREW/data/player-sdk-live-1/remote',files={})
 if owner_view_forward:review['owner_mode_view_supported']=True
-for name,path in [('service',service['artifact']),('owner',owner),('config',config)]:review['files'][name]=dict(local=path.relative_to(ROOT).as_posix(),bytes=path.stat().st_size,sha256=hashlib.sha256(path.read_bytes()).hexdigest())
+for name,path in [('service',service_artifact),('owner',owner),('config',config)]:review['files'][name]=dict(local=path.relative_to(ROOT).as_posix(),bytes=path.stat().st_size,sha256=hashlib.sha256(path.read_bytes()).hexdigest())
 review_path=out/'review.private.json';review_path.write_text(json.dumps(review,indent=2)+'\n',encoding='utf-8')
 supervisor,supervisor_report=build_supervisor(review=review_path,output=out/'supervisor-build',
  reusable_sessions=reusable,forward_owner_mode_view=owner_view_forward,device_pairing=device_pairing,
@@ -241,7 +242,7 @@ if device_pairing:markers.append('REMOTE_PAIRING_OWNER_EXECUTED')
 if artwork_transfer:markers.append('REMOTE_CHAIN_ARTWORK_PASS')
 if service_start_refusal:
  markers=['REMOTE_HANDOFF_REFUSAL_FIXTURE' if service_handoff_refusal else 'REMOTE_BIND_REFUSAL_FIXTURE','REMOTE_SUPERVISOR_CHILDREN service=75 owner=0','FACTORY_START_REFUSAL_DRAIN_PASS','PUBLIC_MANAGED_HOST_SERVER_PASS','REMOTE_CHAIN_CHILD_STATUS=0','REMOTE_CONFIG_UNCHANGED']
-report=run_guest(out,init,{'test':server,'supervisor':supervisor,'stage/service.arm':service['artifact'],'stage/owner.arm':owner,'stage/config.bin':config},libs,
+report=run_guest(out,init,{'test':server,'supervisor':supervisor,'stage/service.arm':service_artifact,'stage/owner.arm':owner,'stage/config.bin':config},libs,
                  markers,timeout=75 if artwork_transfer else 25)
 if native_page_chain:assert 'NATIVE_PAGE_BACKEND_CHAIN_PASS' in (out/'serial.log').read_text(errors='replace')
 elif settings_backend and not real_owner_refusal:assert 'SETTINGS_BACKEND_CHAIN_PASS' in (out/'serial.log').read_text(errors='replace')
@@ -304,7 +305,7 @@ report.update(built=True,service_start_refusal=service_start_refusal,client_bind
               system_mode_change=mode_switch,
               actual_mode_policy=settings_backend,mode_policy_evidence_modeled=settings_backend,
               rejects_bad_generation=bad_generation,rejects_bad_grants=bad_grants,
-              device_accessed=False,source_hashes={**(real_owner_report['source_hashes'] if real_owner_report else {}),**service['report']['source_hashes'],**supervisor_report['source_hashes'],**{p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in inputs}})
+              device_accessed=False,source_hashes={**(real_owner_report['source_hashes'] if real_owner_report else {}),**service_report['source_hashes'],**supervisor_report['source_hashes'],**{p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in inputs}})
 report['artwork_transfer']=artwork_transfer
 report['native_exit_bridge_chain']=native_exit_bridge
 report['native_worker_retirement']=native_worker_retirement

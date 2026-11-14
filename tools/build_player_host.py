@@ -1,6 +1,6 @@
 """Build an analysis-only owner-loop DSO and one-instruction ELF candidate."""
 from pathlib import Path
-import hashlib,io,json,os,re,struct,subprocess,time
+import hashlib,io,json,struct,subprocess,time
 from elftools.elf.elffile import ELFFile
 ROOT=Path(__file__).resolve().parents[1]
 CORE_SOURCES=['runtime/platform/player/host_hook.c','runtime/platform/player/host_pid.S','runtime/platform/player/client.c','runtime/platform/player/stock_provider.c','runtime/platform/player/stock_info.c','runtime/platform/player/local_identity.c','runtime/platform/player/stock_gui.c','runtime/platform/player/stock_volume.c','runtime/platform/player/stock_image.c','runtime/native/sha256.c']
@@ -13,6 +13,7 @@ PREPARE_SOURCES=['runtime/platform/player/host_prepare_bridge.c','runtime/platfo
 
 
 def build_player_library(library, sources, flags):
+    from evidence_checks import gcc_project_dependencies
     from player_arm_guest import stock_libraries
 
     stock = stock_libraries(include_rt=True, include_dl=True)
@@ -21,23 +22,7 @@ def build_player_library(library, sources, flags):
         raise ValueError('Player libpthread differs from the verified Sony library')
     libraries = [stock['libdl.so.2'], pthread, stock['librt.so.1'], stock['libc.so.6'], stock['ld-linux.so.3']]
     compiler = ['arm-linux-gnueabi-gcc', *flags]
-    # GCC emits one dependency rule per translation unit with -MM. A single
-    # -MMD file on a multi-source link would only retain the last unit's rule.
-    rules = subprocess.check_output([*compiler, '-MM', '-MT', 'player-host', *sources], cwd=ROOT, text=True)
-    rules = rules.replace('\\\n', ' ').splitlines()
-    if len(rules) != len(sources):
-        raise ValueError('Incomplete GCC dependencies for the player host')
-    dependencies = set(sources)
-    for rule in rules:
-        target, separator, files = rule.partition(':')
-        if target != 'player-host' or not separator or not files.strip():
-            raise ValueError('Unexpected GCC dependencies for the player host')
-        for token in re.findall(r'(?:\\.|[^\s\\])+', files):
-            name = re.sub(r'\\([ #\\\t])', r'\1', token).replace('$$', '$')
-            path = Path(os.path.abspath(ROOT / name))
-            if not path.is_relative_to(ROOT) or not path.resolve().is_relative_to(ROOT):
-                raise ValueError('Player host dependency outside the project: ' + name)
-            dependencies.add(path.relative_to(ROOT).as_posix())
+    dependencies = gcc_project_dependencies(ROOT, compiler, sources)
     dependencies.update(path.relative_to(ROOT).as_posix() for path in libraries)
     before = {name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest() for name in sorted(dependencies)}
     command = [*compiler, *sources, *map(str, libraries), '-lgcc', '-o', str(library)]
@@ -240,7 +225,8 @@ def build(engine_provider=False,managed_host=False,native_prepare=False,builtin_
     output.write_bytes(candidate)
     dso=ELFFile(io.BytesIO(library.read_bytes()))
     needed=[tag.needed for tag in dso.get_section_by_name('.dynamic').iter_tags() if tag.entry.d_tag=='DT_NEEDED']
-    inputs=['tools/build_player_host.py', 'tools/build_player_met_anchor.py', 'tools/player_arm_guest.py']
+    inputs=['tools/build_player_host.py', 'tools/build_player_met_anchor.py', 'tools/player_arm_guest.py',
+            'tools/evidence_checks.py']
     if composition_report:
         inputs += [composition_artifact.relative_to(ROOT).as_posix(),
                    (composition_dir/'report.json').relative_to(ROOT).as_posix(),
