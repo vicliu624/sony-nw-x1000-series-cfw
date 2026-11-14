@@ -1,11 +1,12 @@
 """Capture original SpiderApp APF registration request; stop at transport send."""
 from pathlib import Path
-import argparse,contextlib,hashlib,io,json,runpy,struct
+import argparse,hashlib,json,struct
 from unicorn import UC_HOOK_CODE
 from check_home_ipc_registration import replay_registration
+from check_main_activation_ack import root_fixture
 from unicorn.arm_const import UC_ARM_REG_R0,UC_ARM_REG_R1,UC_ARM_REG_R2,UC_ARM_REG_R3,UC_ARM_REG_LR,UC_ARM_REG_PC
 if not __debug__:raise RuntimeError('Run without Python optimization')
-ROOT=Path(__file__).resolve().parents[1];base=ROOT/'tools/check_spider_restore_dispatch.py'
+ROOT=Path(__file__).resolve().parents[1];base=ROOT/'tools/check_main_activation_ack.py'
 parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--reply-report');parser.add_argument('--report',type=Path);parser.add_argument('--receive-registration-events',action='store_true');parser.add_argument('--native-event-lookup',action='store_true');parser.add_argument('--registered-manager-lookup',action='store_true');parser.add_argument('--native-event-services',action='store_true');parser.add_argument('--dispatch-root-events',action='store_true');parser.add_argument('--execute-coordinator',action='store_true');parser.add_argument('--native-gui-submit',action='store_true');parser.add_argument('--consume-gui-queue',action='store_true');parser.add_argument('--run-gui-worker',action='store_true');parser.add_argument('--complete-gui-token',action='store_true');parser.add_argument('--acknowledge-activation',action='store_true');parser.add_argument('--first-start-queries',action='store_true');parser.add_argument('--first-start-usb-state',type=int,choices=range(5),default=0);options=parser.parse_args()
 if options.first_start_queries:options.acknowledge_activation=True
 if options.acknowledge_activation:options.complete_gui_token=True
@@ -26,8 +27,8 @@ if options.reply_report:
     assert any(reply_source.is_relative_to(ROOT/folder) for folder in ('sources','work'))
     reply_report=verify_report(ROOT,options.reply_report)
     reply=struct.pack('<5I',*reply_report['registration_reply'])
-with contextlib.redirect_stdout(io.StringIO()):m=runpy.run_path(str(base))
-u=m['u'];call=m['call'];ctx=0x820f68;opened=[];requests=[];threads=[];received=[];event_phase=False;event_received=[];event_callbacks=[];event_finished=False;recent=[];name_queries=[];lookup_requests=[];lookup_reply=None;query_trace=[];lookup_session={};service_requests=[];root_initializing=False;root_dispatching=False;root_commands=[];module_calls=[];gui_submit_events=[];gui_service_calls=[];gui_result_slot=None;gui_token_results=[];gui_dispatch=[];gui_restore_trace=[];gui_worker_threads=[];gui_worker_services=[];gui_worker_native=[];coordinator_completion_calls=[];pcs_calls=[];activation_acks=[]
+u, call, queued = root_fixture()
+ctx=0x820f68;opened=[];requests=[];threads=[];received=[];event_phase=False;event_received=[];event_callbacks=[];event_finished=False;recent=[];name_queries=[];lookup_requests=[];lookup_reply=None;query_trace=[];lookup_session={};service_requests=[];root_initializing=False;root_dispatching=False;root_commands=[];module_calls=[];gui_submit_events=[];gui_service_calls=[];gui_result_slot=None;gui_token_results=[];gui_dispatch=[];gui_restore_trace=[];gui_worker_threads=[];gui_worker_services=[];gui_worker_native=[];coordinator_completion_calls=[];pcs_calls=[];activation_acks=[]
 
 coordinator_modules=[(0x16b74,0xc),(0x143c0,0x10),(0xf32c,0x18),(0x3b498,0x1c),(0x37f08,0x20),(0x49d6c,0x38),(0x4492c,0x28),(0x499f8,0x34),(0x4f3dc,0x40)]
 
@@ -174,7 +175,6 @@ def call(entry,arguments):
     except Exception:
         (ROOT/'work/home-registration-call-gap.json').write_text(json.dumps({'entry':hex(entry),'pc':hex(u.reg_read(UC_ARM_REG_PC)),'r0_r3':[hex(u.reg_read(r)) for r in (UC_ARM_REG_R0,UC_ARM_REG_R1,UC_ARM_REG_R2,UC_ARM_REG_R3)],'recent':recent,'scope':'Offline model failure; no device access'},indent=2)+'\n');raise
 if options.dispatch_root_events:
-    m['call'].__globals__['intercept_actions']=False;m['call'].__globals__['deactivate_probe']=False
     root_initializing=True;assert call(0x714c4,(0,))==0
     assert list(u.mem_read(0x6833dc,2))==[1,1]
     u.mem_write(0x613e60+0x4c,bytes(24));u.mem_write(0x613e2c+4,struct.pack('<I',1))
@@ -201,24 +201,24 @@ assert struct.unpack('<I',u.mem_read(ctx+20,4))[0]==1
 if options.receive_registration_events:
     event_phase=True;pending_frames=[bytes.fromhex(frame) for frame in reply_report['all_frames_hex']]
     assert [list(struct.unpack('<5I',frame)) for frame in pending_frames]==[[20,0,9,1,1],[20,0,5,0,0]]
-    expected_frames=[frame.hex() for frame in pending_frames];m['queued'].clear()
+    expected_frames=[frame.hex() for frame in pending_frames];queued.clear()
     u.reg_write(UC_ARM_REG_R0,ctx);u.reg_write(UC_ARM_REG_SP,0x60018000);u.reg_write(UC_ARM_REG_LR,0x50000000)
     try:u.emu_start(0x26551c,0x50000000,count=100000)
     except Exception:
         (ROOT/'work/home-registration-events-gap.json').write_text(json.dumps({'pc':hex(u.reg_read(UC_ARM_REG_PC)),'recent':recent,'frames':event_received,'callbacks':event_callbacks},indent=2)+'\n');raise
     assert event_finished and event_received==expected_frames and event_callbacks==['0xeaa0']
-    assert m['queued']==[[0x420011,0,1,0],[0x420023,0,0,0]],(m['queued'],lookup_requests,query_trace)
+    assert queued==[[0x420011,0,1,0],[0x420023,0,0,0]],(queued,lookup_requests,query_trace)
     assert struct.unpack('<I',u.mem_read(ctx+4,4))[0]==1
 if options.native_event_lookup:
     assert [q['name'] for q in lookup_requests]==['netfront','SpiderApp']
     assert [struct.unpack('<5I',bytes.fromhex(q['reply_hex']))[4] for q in lookup_requests]==[0x20001,1]
     assert struct.unpack('<I',u.mem_read(ctx+20,4))[0]==(5 if options.native_event_services else 3)
-receiver_root_events=[p.copy() for p in m['queued']] if options.receive_registration_events else []
+receiver_root_events=[p.copy() for p in queued] if options.receive_registration_events else []
 if options.dispatch_root_events:
-    root_input_events=[p.copy() for p in m['queued']];m['queued'].clear();root_dispatching=True
+    root_input_events=[p.copy() for p in queued];queued.clear();root_dispatching=True
     assert call(0x17c608,(0x6833dc,root_input_events[0][0],root_input_events[0][2],root_input_events[0][3]))==0
-    assert m['queued']==[[0x20303,0,1,0],[0x580101,0,1,0]]
-    root_child_events=[v.copy() for v in m['queued']]
+    assert queued==[[0x20303,0,1,0],[0x580101,0,1,0]]
+    root_child_events=[v.copy() for v in queued]
     if options.execute_coordinator:
         u.mem_write(0x60016000,bytes(128));u.mem_write(0x613e60+0x2c,struct.pack('<I',0x60016000))
         for index,(entry,offset) in enumerate(coordinator_modules):u.mem_write(0x613e60+offset,struct.pack('<I',0x613f00 if options.native_gui_submit and entry==0x143c0 else 0x60015000+index*32))
@@ -239,28 +239,28 @@ if options.dispatch_root_events:
         assert struct.unpack('<I',u.mem_read(ctx+4,4))[0]==1 and len(requests)==1
         assert list(u.mem_read(0x6833dc,2))==[2,1], {'root_state':list(u.mem_read(0x6833dc,2)),'modules':module_calls,'commands':root_commands}
 if options.run_gui_worker:
-    assert m['queued'][-1]==[0x20670,0,0x207,0]
+    assert queued[-1]==[0x20670,0,0x207,0]
     assert call(0x17c608,(0x60017000,0x20303,1,0))==0
     assert struct.unpack('<I',u.mem_read(0x613f00+0x56d8,4))[0]==1
     assert call(0x17c608,(0x60017000,0x20670,0x207,0))==0
     assert list(u.mem_read(0x60017000,2))==[1,3] and len(gui_worker_threads)==1
     assert call(gui_worker_threads[0][0],(gui_worker_threads[0][1],))==0
     assert gui_worker_native==['0x13f38','0x11a04']
-    assert m['queued'][-2:]==[[0x20671,0,0,0],[0x420034,0,0x207,0]]
-    worker_output_events=[v.copy() for v in m['queued'][-2:]]
+    assert queued[-2:]==[[0x20671,0,0,0],[0x420034,0,0x207,0]]
+    worker_output_events=[v.copy() for v in queued[-2:]]
     assert call(0x17c608,(0x60017000,0x20671,0,0))==0
     assert list(u.mem_read(0x60017000,2))==[1,4]
     assert list(struct.unpack('<2I',u.mem_read(0x60016000,8)))==[1,0x207]
     assert struct.unpack('<I',u.mem_read(ctx+4,4))[0]==1
 if options.complete_gui_token:
     actual_completion=worker_output_events[1]
-    before_wrong=bytes(u.mem_read(0x60016000,128));queued_before_wrong=[v.copy() for v in m['queued']]
+    before_wrong=bytes(u.mem_read(0x60016000,128));queued_before_wrong=[v.copy() for v in queued]
     assert call(0x17c608,(0x6833dc,actual_completion[0],0x999,actual_completion[3]))==0
-    assert bytes(u.mem_read(0x60016000,128))==before_wrong and m['queued']==queued_before_wrong and not coordinator_completion_calls and not pcs_calls
+    assert bytes(u.mem_read(0x60016000,128))==before_wrong and queued==queued_before_wrong and not coordinator_completion_calls and not pcs_calls
     assert call(0x17c608,(0x6833dc,actual_completion[0],actual_completion[2],actual_completion[3]))==0
     assert struct.unpack('<I',u.mem_read(0x60016000,4))[0]==0
     assert len(pcs_calls)==1 and coordinator_completion_calls==['0x10e68','0x140b4']
-    assert m['queued'][-1]==[0x410009,0,0,0]
+    assert queued[-1]==[0x410009,0,0,0]
     assert struct.unpack('<I',u.mem_read(ctx+4,4))[0]==1
 if options.registered_manager_lookup:
     registration_queries_preserved=all(bytes(manager.mem_read(address,len(value)))==value for address,value in registration_preserved.items())
@@ -328,7 +328,7 @@ if options.execute_coordinator:
 if options.native_gui_submit:
     assert gui_token_results==[0x207]
     assert len(gui_submit_events)==1 and gui_submit_events[0][1:]==[0x20110,0,0]
-    assert [0x20670,0,0x207,0] in m['queued']
+    assert [0x20670,0,0x207,0] in queued
     r['native_gui_submission']={'entry':'0x143c0','resume_entry':'0x120ec','context_fixture':'0x613f00','inactive_field_fixture':0,'submitted_queue_items':gui_submit_events,'native_token':0x207,'root_queue_event':[0x20670,0,0x207,0],'backend_services_virtual':gui_service_calls,'completion_delivered':False}
     r['limits']=[line.replace('all nine module bodies and contexts supplied','eight module bodies supplied; GUI143c0/120ec/120d8 native, GUI context and backend services supplied').replace('GUI replacement returns token207','Original GUI submission produces token207').replace('nine module replacements','eight module replacements and native GUI submission') for line in r['limits']]
     r['limits'].append('GUI context is a supplied zeroed inactive context, not a constructed full GUI. Original command7/resume/queue-item construction/token207 execute; GUI queue backend and display/audio/input service effects virtual. Worker and completion not executed.')
@@ -364,12 +364,12 @@ if options.first_start_queries:
     usb_reply=list(struct.unpack('<5I',bytes.fromhex(service_requests[2]['reply_hex'])))
     assert usb_reply==[20,6,8,0,expected_usb]
     expected_main_event=0x420017 if expected_usb==0 else 0x42001a
-    assert m['queued'][-1]==[expected_main_event,0,0,0]
+    assert queued[-1]==[expected_main_event,0,0,0]
     r['main_activation_completion']['main_after']=[3,1]
     r['main_activation_completion']['main_initial_mode_state_fixture']=None
     r['main_activation_completion']['main_constructed_by_original_boot']=False
     r['main_activation_completion']['client_sequence_after']=8 if expected_usb==0 else 7
-    r['first_start_queries']={'native_main_constructor':'0x61320','main_constructor_state':[3,1],'inactive_completion_event_fixture':'0x41000a','main_state_after_inactive_event':[2,1],'first_start_handler':'0x61414','usb_raw_state_fixture':options.first_start_usb_state,'usb_reply':usb_reply,'battery_queried':expected_usb==0,'queued_event':m['queued'][-1],'main_after':[3,1],'client_state_after':2,'manager_home_state_after':2}
+    r['first_start_queries']={'native_main_constructor':'0x61320','main_constructor_state':[3,1],'inactive_completion_event_fixture':'0x41000a','main_state_after_inactive_event':[2,1],'first_start_handler':'0x61414','usb_raw_state_fixture':options.first_start_usb_state,'usb_reply':usb_reply,'battery_queried':expected_usb==0,'queued_event':queued[-1],'main_after':[3,1],'client_state_after':2,'manager_home_state_after':2}
     r['limits']=[line for line in r['limits'] if not line.startswith('Main state2/2/')]
     r['limits'].append('Native Main constructor and first-start61414 execute after supplied inactive-completion event41000a, not a complete cold boot. Original active acknowledgement/query8/conditional battery requests go to retained manager. USB descriptor/raw ioctl and battery cache remain fixtures. Main returns3/1 and queues42001a/420017; these events not consumed, recovery Main2/2 prerequisite not established.')
 default_report = (

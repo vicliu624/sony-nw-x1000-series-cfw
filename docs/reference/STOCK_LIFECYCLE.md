@@ -196,7 +196,10 @@ The storage, acknowledgement, application-callback and kernel-remount checks
 write reports under `work/stock-sleep/`. The manager IPC, two-client sleep and
 power-event checks initialize their own stock sysmgrd emulator. The client
 checks share the SpiderApp activation fixture without running its separate
-activation replay.
+activation replay. Home registration, the saved-manager argument query and the
+sleep callback/completion checks initialize SpiderApp with an empty Root event
+queue. They do not depend on CPU state or output from the standalone Root and
+GUI dispatch replay.
 
 ## Warm Main cycles
 

@@ -1,10 +1,11 @@
 """Original argv client/service using preserved launch-model registry, not rebuilt record."""
 from pathlib import Path
-import argparse,contextlib,hashlib,io,json,runpy,struct
+import argparse,hashlib,io,json,struct
 from elftools.elf.elffile import ELFFile
 from unicorn import Uc,UC_ARCH_ARM,UC_MODE_ARM,UC_HOOK_CODE
 from unicorn.arm_const import UC_ARM_REG_R0,UC_ARM_REG_R1,UC_ARM_REG_R2,UC_ARM_REG_R3,UC_ARM_REG_SP,UC_ARM_REG_LR,UC_ARM_REG_PC
 from evidence_checks import verify_report
+from check_main_activation_ack import root_fixture
 if not __debug__:raise RuntimeError('Run without Python optimization')
 ROOT=Path(__file__).resolve().parents[1]
 
@@ -35,9 +36,7 @@ def load_returned_manager(return_report):
 
 def replay_arguments(return_report):
     manager, elf, state, paths = load_returned_manager(return_report)
-    base=ROOT/'tools/check_spider_restore_dispatch.py'
-    with contextlib.redirect_stdout(io.StringIO()):model=runpy.run_path(str(base))
-    client=model['u'];call=model['call'];g=call.__globals__;g['intercept_actions']=False;g['deactivate_probe']=False
+    client, call, _ = root_fixture()
     service,request=0x6001a000,0x6001a100
     manager.mem_write(service,struct.pack('<2I',0x60000000,44));responses=[];requests=[]
     before=bytes(manager.mem_read(0x60010000,256))
@@ -68,7 +67,7 @@ def replay_arguments(return_report):
     assert list(struct.unpack('<5I',responses[0][:20]))==[1044,4,35,0,0]
     assert list(struct.unpack('<2I',client.mem_read(out,8)))==[0,0]
     assert bytes(manager.mem_read(0x60010000,256))==before
-    paths.extend((base, ROOT/'work/targets-jp/SpiderApp'))
+    paths.extend((ROOT/'tools/check_main_activation_ack.py', ROOT/'work/targets-jp/SpiderApp'))
     report={'all_bounded_checks_passed':True,'saved_state_path':state['path'],'source_phase':'after_native_walkman_confirmation',
             'home_record_imported_not_rebuilt':True,'home_record_prefix_unchanged':True,
             'home_record_words':list(struct.unpack('<6I',before[:24])),

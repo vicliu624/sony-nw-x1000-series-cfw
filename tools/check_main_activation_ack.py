@@ -4,6 +4,7 @@ Mode/state fixtures do not establish the real current mode. IPC/locks/logging
 are virtual; there are no real Sony processes or hardware operations.
 """
 from pathlib import Path
+from functools import partial
 import hashlib
 import io
 import json
@@ -34,17 +35,32 @@ def put(u, address, value):
 def returned(u, value=0):
     u.reg_write(UC_ARM_REG_R0, value)
     u.reg_write(UC_ARM_REG_PC, u.reg_read(UC_ARM_REG_LR))
-def call(u, address, values):
+def call(u, address, values, *, stack=0x60018000, instruction_limit=100000):
     for r, value in zip((UC_ARM_REG_R0, UC_ARM_REG_R1, UC_ARM_REG_R2, UC_ARM_REG_R3), values):
         u.reg_write(r, value)
-    u.reg_write(UC_ARM_REG_SP, 0x60018000)
+    u.reg_write(UC_ARM_REG_SP, stack)
     u.reg_write(UC_ARM_REG_LR, 0x50000000)
     try:
-        u.emu_start(address, 0x50000000, count=100000)
+        u.emu_start(address, 0x50000000, count=instruction_limit)
     except Exception as exc:
         raise AssertionError(f'Unmodeled execution at {u.reg_read(UC_ARM_REG_PC):#x}, lr={u.reg_read(UC_ARM_REG_LR):#x}') from exc
     assert u.reg_read(UC_ARM_REG_PC) == 0x50000000
     return u.reg_read(UC_ARM_REG_R0)
+
+
+def root_fixture():
+    """Fresh SpiderApp with the Root event queue captured in memory."""
+    u = machine()
+    events = []
+
+    def queue_event(cpu, pc, size, context):
+        if pc == 0xa57f0:
+            events.append([cpu.reg_read(reg) for reg in (UC_ARM_REG_R0, UC_ARM_REG_R1,
+                                                         UC_ARM_REG_R2, UC_ARM_REG_R3)])
+            returned(cpu)
+
+    u.hook_add(UC_HOOK_CODE, queue_event)
+    return u, partial(call, u, stack=0x60008000, instruction_limit=20000), events
 
 
 def activation_actions(u):
