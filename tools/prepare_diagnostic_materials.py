@@ -63,6 +63,33 @@ def delivery_inputs(template, radio_directory, owner):
     return updater, radio
 
 
+def subsequent_source_changes(tested, current, *reviews):
+    """Scope an existing test report to a system-only delivery."""
+    changed = sorted(name for name in tested.keys() | current.keys()
+                     if current.get(name) != tested.get(name))
+    reviewed = {name.replace('\\', '/') for review in reviews for name in review['source_hashes']}
+    app_inputs = {'/'.join(name.split('/')[:3]) for name in reviewed
+                  if name.startswith('runtime/apps/')}
+    pc_changes, app_changes, invalid = [], [], []
+    for name in changed:
+        parts = name.split('/')
+        app = '/'.join(parts[:3])
+        definition = app + '/app.json'
+        if name in reviewed or name == 'VERSION':
+            invalid.append(name)
+        elif (parts[:2] == ['runtime', 'apps'] and len(parts) >= 4 and app not in app_inputs and
+              definition in tested and definition in current):
+            # A discoverable external app absent from the selected system layout.
+            app_changes.append(name)
+        elif name.startswith(('runtime/', 'sdk/', 'config/')):
+            invalid.append(name)
+        else:
+            pc_changes.append(name)
+    if invalid:
+        raise ValueError('Product sources changed after the regression run: ' + ', '.join(invalid[:8]))
+    return pc_changes, app_changes
+
+
 def reviewed_inputs(firmware_review, allocation_review, regressions):
     fp, firmware = receipt(firmware_review)
     mp, model = receipt(allocation_review)
@@ -81,11 +108,6 @@ def reviewed_inputs(firmware_review, allocation_review, regressions):
     for check in bulk['checks']:
         if check['exit_code'] or digest(private(check['log'])) != check['log_sha256']:
             raise ValueError('Regression log changed or did not pass')
-    current = source_inventory()
-    changed = sorted(name for name in current.keys() | bulk['source_hashes'].keys()
-                     if current.get(name) != bulk['source_hashes'].get(name))
-    if any(name.startswith(('runtime/', 'sdk/', 'config/')) for name in changed):
-        raise ValueError('Product sources changed after the regression run')
     layouts = [name for name, sha in firmware['inputs'].items()
                if sha == firmware['layout_review_sha256']]
     if len(layouts) != 1:
@@ -124,8 +146,13 @@ def reviewed_inputs(firmware_review, allocation_review, regressions):
     if not supervisor.get('embedded_runtime'):
         raise ValueError('This material profile requires embedded Remote programs')
     _, owner = receipt(supervisor['shared_wifi_owner_review'])
+    service_path = private(supervisor['local_inputs']['service']['local'])
+    sp, service = receipt(service_path.parent / 'build.json')
+    pc_changes, app_changes = subsequent_source_changes(bulk['source_hashes'], source_inventory(), layout, firmware,
+                                                        model, capacity, supervisor, owner, service)
     return dict(firmware=firmware, model=model, layout=layout, owner=owner, supervisor=supervisor, upg=upg,
-                input_paths=(fp, mp, bp, lp, cp), subsequent_pc_changes=changed)
+                input_paths=(fp, mp, bp, lp, cp, sp), service_review=sp, subsequent_pc_changes=pc_changes,
+                subsequent_external_app_changes=app_changes)
 
 
 def matching_controller(owner, controller_review, *, play_mode_control=False, service_review=None):
@@ -300,6 +327,7 @@ def stage_materials(staging, reviewed, controller, updater, radio):
                     mutable_pairing_state_included=False, existing_apps_preserved=True,
                     input_reviews={p.relative_to(ROOT).as_posix(): digest(p) for p in reviewed['input_paths']},
                     subsequent_pc_source_changes=reviewed['subsequent_pc_changes'],
+                    subsequent_external_app_source_changes=reviewed['subsequent_external_app_changes'],
                     source_hashes={name:digest(ROOT / name) for name in (
                         'tools/prepare_diagnostic_materials.py', 'tools/review_managed_remote_profile.py',
                         'tools/review_managed_root_capacity.py', 'tools/test_firmware_regressions.py',
@@ -389,10 +417,9 @@ def main():
     new_delivery_paths(output)
     reviewed = reviewed_inputs(args.firmware_review, args.allocation_review, args.regression_review)
     supervisor = reviewed['supervisor']
-    service_path = private(supervisor['local_inputs']['service']['local']).parent / 'build.json'
     controller = matching_controller(reviewed['owner'], args.controller_review,
                                      play_mode_control=bool(supervisor.get('play_mode_control')),
-                                     service_review=service_path)
+                                     service_review=reviewed['service_review'])
     updater, radio = delivery_inputs(ROOT / args.updater_template, ROOT / args.radio_inputs, reviewed['owner'])
     archive, archive_sha256 = assemble_materials(output, reviewed, controller, updater, radio)
     print(json.dumps(dict(prepared=True, directory=output.relative_to(ROOT).as_posix(),

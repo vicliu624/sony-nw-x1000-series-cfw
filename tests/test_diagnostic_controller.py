@@ -159,7 +159,7 @@ class DiagnosticOutputTests(unittest.TestCase):
         self.firmware.write_bytes(b'fixture candidate')
         self.reviewed = dict(upg=self.firmware, firmware={'sha256': digest(self.firmware)},
                              model=dict(used_growth_bytes=0, model_nonreserved_margin_bytes=0),
-                             input_paths=[], subsequent_pc_changes=[])
+                             input_paths=[], subsequent_pc_changes=[], subsequent_external_app_changes=[])
 
     def assemble(self):
         return materials.assemble_materials(self.output, self.reviewed, None,
@@ -207,6 +207,33 @@ class DiagnosticOutputTests(unittest.TestCase):
                 self.assemble()
         self.assertEqual(list(self.output.parent.iterdir()), [existing])
         self.assertEqual(existing.read_text(encoding='utf-8'), 'other delivery\n')
+
+
+class DiagnosticRegressionScopeTests(unittest.TestCase):
+    def test_unrelated_registered_app_edits_are_reported_separately(self):
+        app = 'runtime/apps/qqmusic/'
+        tested = {app + 'app.json': 'definition', app + 'main.c': 'old', 'tools/editor.py': 'old'}
+        current = {**tested, app + 'main.c': 'new', app + 'new.c': 'added', 'tools/editor.py': 'new'}
+        pc, apps = materials.subsequent_source_changes(tested, current, {'source_hashes': {}})
+        self.assertEqual(pc, ['tools/editor.py'])
+        self.assertEqual(apps, [app + 'main.c', app + 'new.c'])
+
+    def test_reviewed_app_and_layout_builder_changes_invalidate_evidence(self):
+        app = 'runtime/apps/qqmusic/'
+        tests = ((app + 'main.c', app + 'adapter.h'), ('tools/layout.py', 'tools/layout.py'))
+        for changed, reviewed in tests:
+            with self.subTest(changed=changed):
+                tested = {app + 'app.json': 'definition', changed: 'old'}
+                current = {**tested, changed: 'new'}
+                review = {'source_hashes': {reviewed.replace('/', '\\'): 'reviewed'}}
+                with self.assertRaisesRegex(ValueError, 'Product sources changed'):
+                    materials.subsequent_source_changes(tested, current, review)
+
+    def test_system_inputs_and_unclassified_apps_invalidate_evidence(self):
+        for name in ('VERSION', 'runtime/platform/player/remote_auto.c', 'sdk/VERSION', 'config/release.json',
+                     'runtime/apps/wireless-remote/core2/src/main.cpp', 'runtime/apps/unknown/' + 'new.c'):
+            with self.subTest(name=name), self.assertRaisesRegex(ValueError, 'Product sources changed'):
+                materials.subsequent_source_changes({}, {name: 'new'}, {'source_hashes': {}})
 
 
 if __name__=='__main__':

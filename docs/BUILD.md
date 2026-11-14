@@ -175,8 +175,11 @@ and its matching allocation/regression evidence with:
 The firmware review must already have an independent Rockbox extraction under
 its `rockbox-check/` directory. The tool checks all original installation
 components, the complete root inventory, allocation inputs and original updater
-identities. Product runtime/SDK/config sources must still match the passing
-regression snapshot. Subsequent PC-only changes are listed explicitly.
+identities. Shared runtime, SDK, configuration and reviewed inputs must still
+match the passing regression snapshot. The diagnostic leaves existing external
+app packages in place. Later source edits under an already registered external
+app are allowed only when that app supplies no input to the reviewed system
+layout. The manifest records those edits separately from PC tooling changes.
 Use reusable local inputs for the updater and external radio files. The updater
 executables, INI and stock UPG must match the original Japanese 1.11 hashes.
 The radio files must match the sizes and hashes recorded by the selected owner.
