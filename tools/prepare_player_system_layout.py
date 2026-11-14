@@ -150,6 +150,8 @@ def main():
         row=image['overlay'][radio_path]
         candidate=ROOT/row['artifact']
         artifact(candidate,row['sha256'],row['bytes'])
+        if 'radio_build_sha256' in image:
+            runtime_source_hashes[image['radio_build']] = image['radio_build_sha256']
         with tarfile.open(fileobj=io.BytesIO(localized_root),mode='r:gz') as archive:
             original=archive.getmember('./'+radio_path)
             if (not original.isfile() or hashlib.sha256(archive.extractfile(original).read()).hexdigest()!=row['original_sha256'] or

@@ -106,6 +106,11 @@ def player_remote_inputs(supervisor_review, radio_review=None):
         if row['sha256'] != profile.get('shared_wifi_radio_sha256') or not candidate.is_relative_to(image_path.parent):
             raise ValueError('Shared Wi-Fi image does not match the reviewed owner')
         artifact(candidate, row['sha256'], row['bytes'])
+        if 'radio_build_sha256' in image:
+            build_path, radio = receipt(image['radio_build'])
+            if (digest(build_path) != image['radio_build_sha256'] or
+                    radio['candidate_sha256'] != row['sha256']):
+                raise ValueError('Shared Wi-Fi build receipt differs from the overlay')
 
     contract = dict(supervisor_bytes=profile['bytes'], embedded_runtime=embedded,
                     root_cold_supported=root_cold, device_pairing=pairing,

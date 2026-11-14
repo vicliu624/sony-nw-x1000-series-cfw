@@ -4,22 +4,7 @@ import sys
 import struct
 from pathlib import Path
 from app_registry import ROOT
-from build_espnow_full_radio import HELPER_SHA
-from generate_espnow_full_profile import render
-from review_managed_remote_profile import private, receipt
-
-
-def reviewed_radio(directory):
-    manifest_path, manifest = receipt(Path(directory) / 'manifest.json')
-    directory = manifest_path.parent
-    payload = private(directory / 'radio.elf')
-    helper = private(directory / 'candidate/helper_sd.bin')
-    if manifest['helper_sha256'] != HELPER_SHA or hashlib.sha256(helper.read_bytes()).hexdigest() != HELPER_SHA:
-        raise ValueError('Radio helper identity differs')
-    for relative in ('stock/sd8686.bin', 'candidate/sd8686.bin'):
-        private(directory / relative)
-    render(directory)  # Reconstruct the image and check the manifest from the ELF.
-    return payload, manifest
+from generate_espnow_full_profile import reviewed_radio
 
 def selected_radio():
     if '--radio-review' not in sys.argv:

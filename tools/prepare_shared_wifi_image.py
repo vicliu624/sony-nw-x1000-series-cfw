@@ -1,13 +1,16 @@
-"""Build a local radio overlay for the original Japanese 1.11 Wi-Fi loader."""
+"""Prepare a local radio overlay for the original Japanese 1.11 Wi-Fi loader."""
 import argparse
 import hashlib
 import json
-from pathlib import Path
 import tarfile
 import tempfile
+from pathlib import Path
 
 from app_registry import ROOT
 from build_espnow_full_radio import build, digest
+from generate_espnow_full_profile import reviewed_radio
+from review_managed_remote_profile import private
+from sdk_build import fresh_work
 
 ROOT_SHA256 = 'c6307dba718f1faae821e0330b64532f13fe6ef98ff330a5919d7fb10525adf5'
 RADIO_PATH = 'lib/modules/sd8686.bin'
@@ -22,11 +25,15 @@ def main():
                         help='Bounded packet-only command extension; requires its matching native adapter')
     parser.add_argument('--read-vector', action='store_true')
     parser.add_argument('--frame-transactions', action='store_true')
+    parser.add_argument('--radio-review', type=Path, help='Reuse an existing radio build directory under work/')
+    parser.add_argument('--output', type=Path, help='New output directory under work/')
     args = parser.parse_args()
-    rootfs = ROOT / 'work/upg-jp/verified-3.bin'
+    if args.radio_review is not None and any((args.rx_diagnostics, args.bulk_commands, args.read_vector, args.frame_transactions)):
+        parser.error('--radio-review uses the recorded profile and cannot be combined with build flags')
+    rootfs = private('work/upg-jp/verified-3.bin')
     with rootfs.open('rb') as file:
-        assert hashlib.file_digest(file,'sha256').hexdigest() == ROOT_SHA256
-    out = Path(tempfile.mkdtemp(prefix='shared-wifi-image-',dir=ROOT/'work'))
+        if hashlib.file_digest(file, 'sha256').hexdigest() != ROOT_SHA256:
+            raise ValueError('Original Sony root identity differs')
     with tarfile.open(rootfs,'r:gz') as archive:
         inputs = {}
         for name in (RADIO_PATH,HELPER_PATH,LOADER_PATH):
@@ -36,12 +43,30 @@ def main():
     loader = inputs[LOADER_PATH][1]
     assert b'fw_dir=${fw_dir:-/lib/modules}' in loader
     assert b'helper_name=${fw_dir}/helper_sd.bin fw_name=${fw_dir}/sd8686.bin' in loader
-    for name in (RADIO_PATH,HELPER_PATH):
-        (out/Path(name).name).write_bytes(inputs[name][1])
-    radio = build(out/'sd8686.bin',out/'helper_sd.bin',out/'radio-build',args.rx_diagnostics,args.bulk_commands,args.read_vector,args.frame_transactions)
+    if args.radio_review is not None:
+        elf, radio = reviewed_radio(args.radio_review)
+        radio_dir = elf.parent
+    out = (fresh_work(args.output) if args.output is not None else
+           Path(tempfile.mkdtemp(prefix='shared-wifi-image-', dir=ROOT / 'work')))
+    if args.radio_review is None:
+        radio_dir = out / 'radio-build'
+        with tempfile.TemporaryDirectory(prefix='stock-', dir=out) as folder:
+            stock, helper = (Path(folder) / Path(name).name for name in (RADIO_PATH, HELPER_PATH))
+            stock.write_bytes(inputs[RADIO_PATH][1])
+            helper.write_bytes(inputs[HELPER_PATH][1])
+            radio = build(stock, helper, radio_dir, args.rx_diagnostics, args.bulk_commands,
+                          args.read_vector, args.frame_transactions)
     assert radio['rx_initially_disabled'] and radio['crc_roundtrip_passed']
-    payload = (out/'radio-build/candidate/sd8686.bin').read_bytes()
-    assert digest(payload)==radio['candidate_sha256']
+    if (radio['original_sha256'] != digest(inputs[RADIO_PATH][1]) or
+            radio['helper_sha256'] != digest(inputs[HELPER_PATH][1])):
+        raise ValueError('Radio review uses different Sony loader inputs')
+    payload = private(radio_dir / 'candidate/sd8686.bin').read_bytes()
+    if digest(payload) != radio['candidate_sha256']:
+        raise ValueError('Radio image identity differs')
+    build_receipt = private(radio_dir / 'manifest.json')
+    receipt_bytes = build_receipt.read_bytes()
+    if json.loads(receipt_bytes) != radio:
+        raise ValueError('Radio build receipt changed during overlay preparation')
     target = out/'root-overlay'/RADIO_PATH
     target.parent.mkdir(parents=True)
     target.write_bytes(payload)
@@ -53,7 +78,8 @@ def main():
                       bytes=len(payload),delta_bytes=len(payload)-original.size,
                       mode=original.mode,uid=original.uid,gid=original.gid)},
                   unchanged={name:digest(inputs[name][1]) for name in (HELPER_PATH,LOADER_PATH)},
-                  radio_build=(out/'radio-build/manifest.json').relative_to(ROOT).as_posix(),
+                  radio_build=build_receipt.relative_to(ROOT).as_posix(),
+                  radio_build_sha256=digest(receipt_bytes),
                   rx_initially_disabled=True,device_accessed=False,ready_to_flash=False,
                   bulk_word_commands=radio.get('bulk_word_commands'),
                   frame_transactions=radio.get('frame_transactions'),

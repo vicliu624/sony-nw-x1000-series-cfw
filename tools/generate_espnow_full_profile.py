@@ -2,7 +2,21 @@
 
 from pathlib import Path
 import argparse, hashlib, json
-from build_espnow_full_radio import ROOT, construct
+from build_espnow_full_radio import ROOT, HELPER_SHA, construct
+from review_managed_remote_profile import private, receipt
+
+
+def reviewed_radio(directory):
+    manifest_path, manifest = receipt(Path(directory) / 'manifest.json')
+    directory = manifest_path.parent
+    payload = private(directory / 'radio.elf')
+    helper = private(directory / 'candidate/helper_sd.bin')
+    if manifest['helper_sha256'] != HELPER_SHA or hashlib.sha256(helper.read_bytes()).hexdigest() != HELPER_SHA:
+        raise ValueError('Radio helper identity differs')
+    for relative in ('stock/sd8686.bin', 'candidate/sd8686.bin'):
+        private(directory / relative)
+    render(directory)
+    return payload, manifest
 
 
 def render(directory):

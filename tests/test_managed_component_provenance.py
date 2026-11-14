@@ -139,6 +139,30 @@ class ManagedComponentProvenanceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'recorded compile contract'):
             select_player_remote_inputs(dict(remote_factory_profile=binding), cases[0][0])
 
+    def test_shared_overlay_binds_the_selected_radio_build_receipt(self):
+        radio = self.directory / 'sd8686.bin'
+        radio.write_bytes(b'fixture radio image')
+        sha = digest(radio)
+        owner_path = self.directory / 'owner/build.json'
+        supervisor = self.supervisor('shared', b'supervisor', owner_mode_view_forwarded=True,
+                                     shared_wifi_owner_review=owner_path.relative_to(ROOT).as_posix(),
+                                     shared_wifi_radio_sha256=sha)
+        owner = json.loads(owner_path.read_text())
+        owner_path.write_text(json.dumps(dict(owner, shared_wifi_supported=True, candidate_sha256=sha)))
+        radio_build = self.directory / 'radio-build.json'
+        radio_build.write_text(json.dumps(dict(candidate_sha256=sha, source_hashes={})))
+        image_review = self.directory / 'overlay.json'
+        image_review.write_text(json.dumps(dict(
+            rx_initially_disabled=True,
+            radio_build=radio_build.relative_to(ROOT).as_posix(), radio_build_sha256=digest(radio_build),
+            overlay={'lib/modules/sd8686.bin': dict(artifact=radio.relative_to(ROOT).as_posix(),
+                                                  sha256=sha, bytes=radio.stat().st_size)})))
+        self.assertTrue(player_remote_inputs(supervisor, image_review)[0]['shared_wifi'])
+        with radio_build.open('a') as stream:
+            stream.write('\n')
+        with self.assertRaisesRegex(ValueError, 'build receipt differs from the overlay'):
+            player_remote_inputs(supervisor, image_review)
+
 
 if __name__ == '__main__':
     unittest.main()

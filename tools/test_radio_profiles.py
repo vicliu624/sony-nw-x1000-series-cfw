@@ -9,7 +9,7 @@ import time
 
 from app_registry import ROOT
 from build_espnow_full_radio import build
-from radio_test_profile import reviewed_radio
+from generate_espnow_full_profile import reviewed_radio
 from review_managed_remote_profile import digest, native_sdk_build, private
 from test_firmware_regressions import source_inventory, write_source_snapshot
 

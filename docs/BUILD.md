@@ -212,6 +212,17 @@ bundle original Sony files, private identities, session codes, ROMs or music.
 
 ## Shared Wi-Fi candidate
 
+Reuse the radio build that was selected for replay when preparing the overlay:
+
+```sh
+.venv/bin/python tools/prepare_shared_wifi_image.py \
+  --radio-review work/example/regressions/frame --output work/example/wifi-image
+```
+
+The overlay report records the source radio build and its hash. The command can
+also build a new radio image by accepting the radio profile flags directly.
+Use the original build directory for both the Owner and radio replay.
+
 Build the Root Radio Owner with the native ESP-NOW SDK receipt, exact radio
 review and verified legacy RF files used by the diagnostic kit:
 
@@ -220,7 +231,7 @@ review and verified legacy RF files used by the diagnostic kit:
   --output work/example/native-sdk
 .venv/bin/python tools/build_remote_owner.py \
   --sdk-review work/example/native-sdk/sdk/build.json \
-  --rx-diagnostic-radio work/example/wifi-image/radio-build \
+  --rx-diagnostic-radio work/example/regressions/frame \
   --external-radio-inputs work/radio-inputs/candidate \
   --power-off-exit --mode-view-required --managed-session --root-cold \
   --data-leaf wireless-remote --link-keys --output work/example/owner
