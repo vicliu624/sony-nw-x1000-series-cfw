@@ -9,8 +9,7 @@ codec and manager-supplied client have different packet limits and ownership
 contracts. Linking a module does not load a radio image, start an owner, grant
 access, disconnect Wi-Fi or install firmware.
 
-Pin the exact version in `sdk/VERSION`. Current source and the published archive
-are distinct configurations; see [status](../STATUS.md).
+See [status](../STATUS.md) for the SDK release available from each distribution.
 
 ## Choose modules
 
@@ -42,13 +41,12 @@ For example, an application using a supplied client capability declares:
 
 ```json
 "sdk": {
-  "version": "0.2.0-alpha.13",
   "profile": "native-services",
   "modules": ["startup", "espnow-client"]
 }
 ```
 
-The version must match the installed SDK. Original libraries remain local and
+This selects API 1 of each module. Original libraries remain local and
 are excluded from source SDK/application packages. Device-module builds generate
 an identity header for their bridge code, not a deployable radio image. An
 independently supplied image must match that identity and its verified profile.

@@ -29,7 +29,6 @@ def create(ident,template,title=None,app_root=None):
     # JSON quoting is also a valid C string for the permitted ASCII title.
     text=(ROOT/'sdk/templates'/template/'main.c').read_text().replace('"@ID@"',json.dumps(ident)).replace('"@TITLE@"',json.dumps(title))
     (folder/'main.c').write_text(text)
-    version=(ROOT/'sdk/VERSION').read_text().strip()
     info={'schema':1,'id':ident,'target':'sony-nw-x1000-jp','title':title,'summary':'X1000 SDK '+template+' example',
           'description':'Experimental native application built with the X1000 SDK. Computer previews do not qualify device behavior.',
           'changes':'First experimental SDK application.','channel':'experimental',
@@ -37,7 +36,7 @@ def create(ident,template,title=None,app_root=None):
     (folder/'app.json').write_text(json.dumps(info,indent=2)+'\n')
     (folder/'VERSION').write_text('0.1.0-alpha.1\n')
     modules=['app','canvas']+(['storage'] if template=='touch-ui' else [])
-    (folder/'build.json').write_text(json.dumps({'sdk':version,'modules':modules,'sources':['main.c']},indent=2)+'\n')
+    (folder/'build.json').write_text(json.dumps({'api':1,'modules':modules,'sources':['main.c']},indent=2)+'\n')
     (folder/'build.py').write_text('from pathlib import Path\nimport sys\nsys.path.insert(0,str(Path(__file__).resolve().parents[3]/"tools"))\nfrom sdk_build import build\nif __name__ == "__main__":\n    build(Path(__file__).resolve().parent)\n')
     if app_root is not None:
         (folder/'build.py').write_text('from pathlib import Path\nimport sys\nsys.path.insert(0,'+repr(str(ROOT/'tools'))+')\nfrom sdk_build import build\nif __name__ == "__main__":\n    build(Path(__file__).resolve().parent)\n')

@@ -5,8 +5,8 @@ does not install a backend or change firmware. Run it only after a matching
 original-player service has been separately prepared and approved for the device.
 An absent service returns an error; the example never starts one.
 
-Select startup and player-client in a native-services app.json, pin the version
-from sdk/VERSION and use main.c as the sole local source in build.json. See
+Select `startup` and `player-client` in a native-services `app.json` and use
+`main.c` as the sole local source in `build.json`. See
 docs/sdk/SERVICES.md and docs/sdk/PLAYER_CLIENT.md. The maintained
 tools/test_sdk_player_service.py builds this example with the actual SDK compiler
 and executes its --help path with the original Sony loader/libc under ARM926.

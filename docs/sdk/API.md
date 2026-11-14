@@ -25,7 +25,7 @@ event/draw presentation stops the loop; there is no automatic success fallback.
 | xw_redraw(app) | Mark the canvas dirty; next loop calls draw and present |
 | xw_is_stopping(app) | Check normal exit or the native signal token immediately, including inside callbacks |
 | xw_is_preview(app) | Informational PC flag; never an ownership proof |
-| xw_sdk_version() | Build's pinned SDK version |
+| xw_sdk_version() | SDK release used to build the application |
 
 xw_event contains type, x/y, elapsed_ms and stop reason. Types: TICK,
 TOUCH_DOWN/MOVE/UP and STOP. Coordinates are logical240x432; out-of-bounds touch
@@ -112,7 +112,7 @@ recovery. A stop observed after rename still reports UNCERTAIN.
 
 ## Build modules
 
-build.json pins the exact SDK version and selects app/canvas with optional
+`build.json` declares callback API 1 and selects app/canvas with optional
 storage. Omitting storage excludes its implementation and private filesystem/
 volume dependencies from both host and ARM builds. Calling a storage function
 then fails at link time; include the module when such a function is required.
@@ -121,10 +121,11 @@ profiles so a developer can make this choice without replacing the runtime.
 
 ## Compatibility policy
 
-Source API1 and exact SDK version are recorded separately from app and firmware
-versions. Static adaptation avoids a player-wide shared-library upgrade. Future
-facade breaks require an SDK major version; experimental fixes still require an
-explicit SDK pin update. Existing app.ini API1 and package formats are preserved.
+The compiler checks the requested callback API against `app.h` and records the
+exact SDK release separately from app and firmware versions. A recipe can also
+set `sdk` to require an exact release. Static adaptation avoids a player-wide
+shared-library upgrade. Future facade breaks require a new callback API version.
+Existing `app.ini` API 1 and package formats are preserved.
 The callback facade above does not expose network/PCM/FM entry points. SDK0.2
 adds separate [native services](SERVICES.md) for existing custom-main apps,
 preserving their own buffers, policies and interface semantics. Raw flash,

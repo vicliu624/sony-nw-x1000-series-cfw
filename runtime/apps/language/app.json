@@ -17,7 +17,6 @@
     "package": "work/external-language-app-build/HOMEBREW/apps/language"
   },
   "sdk": {
-    "version": "0.2.0-alpha.13",
     "profile": "native-services",
     "modules": [
       "startup",

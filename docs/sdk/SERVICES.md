@@ -59,15 +59,21 @@ Set this `sdk` field in `app.json`:
 
 ```json
 "sdk": {
-  "version": "0.2.0-alpha.13",
   "profile": "native-services",
   "modules": ["startup", "display", "signals-libc", "abi", "hash"]
 }
 ```
 
-Pin the exact value from `sdk/VERSION`. This example targets current source
-alpha.13; an extracted alpha.8 SDK needs its own pin. The app's `VERSION` is
-independent.
+Each listed module defaults to API 1. Declare a different required API with
+`"module_api": {"display": 2}` when the module advertises it in
+`sdk/services.json`. A module with dependencies can declare their required APIs
+in `requires_api`; each dependency also defaults to 1. Increase the affected
+module's API only for an incompatible interface change. Source changes that
+preserve its interface keep the same API.
+
+Compiler receipts record the exact `sdk/VERSION`, resolved module APIs and
+input hashes. Apps can also set `sdk.version` to require an exact SDK release.
+The published alpha.8 SDK requires that field. App `VERSION` remains separate.
 
 Use this declarative `build.json` and keep the generated `build.py`:
 

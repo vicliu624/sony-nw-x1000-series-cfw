@@ -4,9 +4,10 @@ Experimental native C development kit for Japanese Sony NW-X1050/NW-X1060,
 JP1.11. Start with the [quick start](../docs/sdk/README.md),
 [API reference](../docs/sdk/API.md) and [validation scope](../docs/sdk/VALIDATION.md).
 
-SDK VERSION is independent of firmware VERSION and each application's VERSION.
-Read VERSION for the current development identity: source API1 plus native services. Pin its exact
-version in the app contract. No cross-model/shared-library binary ABI is promised.
+SDK `VERSION` identifies the source release. App definitions select callback or
+native module APIs, and build reports record the exact SDK release and inputs.
+Firmware and apps retain their own versions. Consumers build against the SDK
+for the Japanese X1000 target.
 
 Public headers are in include/x1000. Implementation remains shared under
 runtime/platform/sdk and reuses native/store adapters. Templates are under

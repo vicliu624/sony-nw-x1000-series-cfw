@@ -16,14 +16,28 @@ def manifest():
     if data.get('schema')!=1 or data.get('target')!='sony-nw-x1000-jp':raise ValueError('Unsupported SDK services')
     return data['modules']
 
-def resolve(modules):
-    available=manifest();ordered=[];visiting=set()
+def resolve(modules, available=None):
+    if available is None:available=manifest()
+    ordered=[];visiting=set()
     def visit(name):
         if name in visiting:raise ValueError('SDK module dependency cycle')
         if name in ordered:return
         if name not in available:raise ValueError('Unknown SDK service: '+str(name))
         visiting.add(name)
-        for dependency in available[name].get('requires',[]):visit(dependency)
+        item=available[name]
+        api=item.get('api',1)
+        if type(api) is not int or api<1:
+            raise ValueError(f'Invalid API for SDK module {name}')
+        dependencies=item.get('requires',[])
+        required_apis=item.get('requires_api',{})
+        if (not isinstance(required_apis,dict) or set(required_apis)-set(dependencies) or
+                any(type(api) is not int or api<1 for api in required_apis.values())):
+            raise ValueError(f'Invalid dependency APIs for SDK module {name}')
+        for dependency in dependencies:
+            visit(dependency)
+            required=required_apis.get(dependency,1)
+            if available[dependency].get('api',1)!=required:
+                raise ValueError(f'SDK module {name} requires {dependency} API {required}')
         visiting.remove(name);ordered.append(name)
     if not isinstance(modules,list) or not modules or any(not isinstance(n,str) for n in modules) or len(modules)!=len(set(modules)):raise ValueError('SDK services must be a nonempty unique string list')
     for name in modules:visit(name)
@@ -32,25 +46,38 @@ def resolve(modules):
 def definition_contract(definition):
     definition=Path(definition).resolve()
     info=json.loads((definition/'app.json').read_text());contract=info.get('sdk')
-    if not contract or contract.get('profile')!='native-services':raise ValueError('Application has no SDK native-services contract')
-    if contract.get('version')!=(ROOT/'sdk/VERSION').read_text().strip():raise ValueError('Application SDK version pin differs from sdk/VERSION')
+    if not isinstance(contract,dict) or contract.get('profile')!='native-services':raise ValueError('Application has no SDK native-services contract')
     if info.get('id')!=definition.name or info.get('target')!='sony-nw-x1000-jp':raise ValueError('Wrong application/SDK target')
-    contract=dict(contract,id=info['id'],resolved_modules=resolve(contract['modules']))
-    return contract
+    version=(ROOT/'sdk/VERSION').read_text().strip()
+    if 'version' in contract and contract['version']!=version:
+        raise ValueError('Application SDK version pin differs from sdk/VERSION')
+    available=manifest()
+    selected=contract.get('modules')
+    resolved=resolve(selected,available)
+    module_api={name:available[name].get('api',1) for name in resolved}
+    requested=contract.get('module_api',{})
+    if (not isinstance(requested,dict) or set(requested)-set(selected) or
+            any(type(api) is not int or api<1 for api in requested.values())):
+        raise ValueError('module_api must name selected modules and positive integer APIs')
+    for name in selected:
+        required=requested.get(name,1)
+        if module_api[name]!=required:
+            raise ValueError(f'SDK module {name} requires API {required}; available API is {module_api[name]}')
+    return dict(contract,id=info['id'],version=version,resolved_modules=resolved,resolved_module_api=module_api)
 
 def service_files(modules):
-    result=[]
-    for name in resolve(modules):
-        for path in manifest()[name]['sources']:
+    available=manifest();result=[]
+    for name in resolve(modules,available):
+        for path in available[name]['sources']:
             if path not in result:result.append(path)
     return result
 
 def prepare_modules(modules):
     """Build generated host-side inputs for explicitly selected services only."""
     import sys
-    completed=set()
-    for name in resolve(modules):
-        for relative in manifest()[name].get('prepare',[]):
+    available=manifest();completed=set()
+    for name in resolve(modules,available):
+        for relative in available[name].get('prepare',[]):
             path=(ROOT/relative).resolve()
             if not path.is_relative_to(ROOT/'runtime/platform') or path.suffix!='.py' or not path.is_file():
                 raise ValueError('Invalid SDK service preparation script')
@@ -90,7 +117,8 @@ def compiler(definition):
     owned={p for item in modules.values() for p in item['sources']}
     receipt=ROOT/'work/sdk-services'/contract['id']/'compiler.jsonl'
     receipt.parent.mkdir(parents=True,exist_ok=True)
-    source_hashes={str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in inputs(contract)}
+    source_hashes={str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest()
+                   for p in [*inputs(contract),definition/'app.json']}
     generated_hashes={}
     for name in contract['resolved_modules']:
         for relative in modules[name].get('generated',[]):
@@ -129,7 +157,8 @@ def compiler(definition):
                 dependencies[path.relative_to(ROOT).as_posix()]=digest
         result=subprocess.run(command,*args,**kwargs)
         row={'sdk_version':contract['version'],'id':contract['id'],'profile':contract['profile'],
-             'modules':contract['resolved_modules'],'sdk_sources':used,'exit':result.returncode,
+             'modules':contract['resolved_modules'],'module_api':contract['resolved_module_api'],
+             'sdk_sources':used,'exit':result.returncode,
              'ordered_command_sha256':hashlib.sha256(json.dumps(list(map(str,command)),separators=(',',':')).encode()).hexdigest(),
              'source_hashes':source_hashes,'generated_input_hashes':generated_hashes,'linked_dependency_hashes':dependencies,
              'hardware_accessed':False}
@@ -189,7 +218,7 @@ def compile_native(definition,output):
         run=subprocess.run(['qemu-arm','-cpu','arm926',str(lib/'ld-linux.so.3'),'--library-path',str(lib)+':'+str(ROOT/'work/stock-resolver-probe'),str(artifact),*arguments],cwd=ROOT,env=env,capture_output=True,text=True,timeout=20)
         if run.returncode:raise RuntimeError(run.stderr+run.stdout)
         checks.append({'args':arguments,'exit':run.returncode,'stdout':run.stdout})
-    out.with_suffix('.sdk-report.json').write_text(json.dumps({'sdk':contract,'checks':checks,'hardware_accessed':False,'source_hashes':{str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in inputs(contract)}},indent=2)+'\n')
+    out.with_suffix('.sdk-report.json').write_text(json.dumps({'sdk':contract,'checks':checks,'hardware_accessed':False,'source_hashes':{str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in [*inputs(contract),definition/'app.json']}},indent=2)+'\n')
     import shutil
     notices=out/'LICENSES';notices.mkdir()
     shutil.copyfile(ROOT/'sdk/LICENSE',notices/'X1000-SDK-MIT.txt')

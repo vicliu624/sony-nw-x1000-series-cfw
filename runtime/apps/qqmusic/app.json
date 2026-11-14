@@ -61,7 +61,6 @@
     }
   ],
   "sdk": {
-    "version": "0.2.0-alpha.13",
     "profile": "native-services",
     "modules": [
       "startup",

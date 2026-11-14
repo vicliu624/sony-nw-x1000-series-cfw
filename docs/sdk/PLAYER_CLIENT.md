@@ -29,8 +29,7 @@ controls, bounded change polling and one-page track/playlist/member/queue reads.
 It contains no radio protocol, state persistence or backend installer. The SDK
 test builds it through the native-services compiler and runs --help with the
 original Sony loader/libc; real endpoint behavior remains a separate check.
-Use the SDK version recorded in sdk/VERSION for the application pin. Add
-startup and player-client to sdk.modules in the native-services app.json;
+Add `startup` and `player-client` to `sdk.modules` in the native-services `app.json`;
 use the existing custom-main build recipe described in SERVICES.md. Its source
 set links only client.c, rpc_wire.c, rpc_posix.c and the original libc clock
 adapter. SDK setup --services supplies pinned original librt/pthread locally.

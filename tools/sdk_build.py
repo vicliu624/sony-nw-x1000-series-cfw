@@ -1,4 +1,4 @@
-"""Version-pinned SDK compiler. PC-only; host previews never ship to the player."""
+"""Build callback or native-service applications using the source SDK."""
 import argparse
 import hashlib
 import json
@@ -40,7 +40,16 @@ def compile_app(definition, output, host=False):
         from sdk_services import compile_native
         return compile_native(definition,output)
     sdk_version=(ROOT/'sdk/VERSION').read_text().strip()
-    if recipe.get('sdk')!=sdk_version: raise ValueError('SDK version mismatch; review and pin sdk/VERSION')
+    if 'sdk' in recipe and recipe['sdk']!=sdk_version:
+        raise ValueError('Application SDK version pin differs from sdk/VERSION')
+    header=(ROOT/'sdk/include/x1000/app.h').read_text(encoding='utf-8')
+    declaration=re.search(r'^#define XW_API_VERSION ([1-9][0-9]*)$',header,re.MULTILINE)
+    if declaration is None:
+        raise ValueError('Missing SDK callback API in app.h')
+    callback_api=int(declaration[1])
+    requested_api=recipe.get('api',1 if 'sdk' in recipe else None)
+    if type(requested_api) is not int or requested_api!=callback_api:
+        raise ValueError(f'Application callback API {requested_api} does not match SDK API {callback_api}')
     modules=recipe.get('modules')
     if not isinstance(modules,list) or any(not isinstance(m,str) for m in modules) or len(modules)!=len(set(modules)) or not {'app','canvas'}<=set(modules) or set(modules)-{'app','canvas','storage'}:
         raise ValueError('SDK v1 requires app/canvas; storage is optional; unknown/duplicate modules are rejected')
@@ -120,7 +129,7 @@ def compile_app(definition, output, host=False):
     inputs=list(inputs)
     inputs += [ROOT/'sdk/VERSION',ROOT/'sdk/LICENSE',ROOT/'third_party/qqmusic-stb/Noto-OFL.txt',ROOT/'runtime/native/ui_font.h',definition/'build.json',definition/'app.json',definition/'VERSION',Path(__file__)]
     inputs += [p for directory in ('assets','resources') for p in (definition/directory).rglob('*') if p.is_file()]
-    report={'sdk_version':sdk_version,'modules':modules,'app_version':version,'host':host,'safe_checks':checks,'stock_library_hashes':{} if host else LIBRARIES,
+    report={'sdk_version':sdk_version,'callback_api':callback_api,'modules':modules,'app_version':version,'host':host,'safe_checks':checks,'stock_library_hashes':{} if host else LIBRARIES,
             'hardware_accessed':False,'firmware_created':False,'artifact_sha256':hashlib.sha256(artifact.read_bytes()).hexdigest(),
             'source_hashes':{str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in inputs}}
     output.with_suffix('.build-report.json').write_text(json.dumps(report,indent=2)+'\n')
