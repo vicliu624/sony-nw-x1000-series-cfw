@@ -193,6 +193,8 @@ def main():
     parser.add_argument("--plan", action="store_true", help="Print selected checks without executing or creating output")
     parser.add_argument("--host-review", type=Path,
                         help="Explicit immutable analysis-library receipt for the artifact suite")
+    parser.add_argument("--radio-reviews", type=Path, help="Use these four existing radio builds in the integration replay")
+    parser.add_argument("--sdk-review", type=Path, help="Use this existing native SDK build in the integration replay")
     args = parser.parse_args()
     suites = args.suite or [name for name in SUITES if name not in ("artifact", "host")]
     if "artifact" in suites and args.host_review is None:
@@ -200,6 +202,15 @@ def main():
     if args.host_review is not None and "artifact" not in suites:
         parser.error("--host-review requires --suite artifact")
     planned, duplicates = plan_checks(suites, args.host_review)
+    radio_inputs = [(flag, value) for flag, value in
+                    (("--radio-reviews", args.radio_reviews), ("--sdk-review", args.sdk_review)) if value is not None]
+    if radio_inputs:
+        commands = [command for _, command in planned if command[0] == "test_radio_profiles.py"]
+        if not commands:
+            parser.error("--radio-reviews and --sdk-review require the integration replay")
+        for command in commands:
+            for flag, value in radio_inputs:
+                command.extend((flag, str(value)))
     if args.plan:
         print(json.dumps({"suites": suites, "checks": [dict(suite=s, command=c) for s, c in planned],
                           "duplicate_checks_omitted": duplicates}, indent=2))

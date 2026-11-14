@@ -66,6 +66,10 @@ Within the firmware regression runner, the radio check validates and references
 the parent run's source ZIP. Its report records that shared path and hash, so
 keep the parent ZIP with the reports. A standalone radio run creates its own ZIP
 unless given a matching archive via `--source-snapshot`.
+The firmware runner also accepts `--radio-reviews` and `--sdk-review` when
+selecting `integration`. Both inputs appear in `--plan` and are verified by the
+radio runner before it replays them. Other integration checks keep their own
+build requirements.
 
 `test_shared_owner_retirement.py` combines the actual Root stop wrapper and
 full controller. It checks delayed drain, both native connection states,

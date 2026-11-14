@@ -91,6 +91,8 @@ class RegressionSnapshotTests(unittest.TestCase):
             def radio_replay(command, **kwargs):
                 report_dir = Path(command[command.index("--output") + 1])
                 self.assertEqual(report_dir, output / "radio-profiles")
+                self.assertEqual(command[command.index("--radio-reviews") + 1], str(root / 'work/radio'))
+                self.assertEqual(command[command.index("--sdk-review") + 1], str(root / 'work/sdk/build.json'))
                 snapshot = Path(command[command.index("--source-snapshot") + 1])
                 self.assertEqual(snapshot, output / "checked-source.zip")
                 self.assertEqual(verify_source_snapshot(source_inventory(root), snapshot),
@@ -101,7 +103,9 @@ class RegressionSnapshotTests(unittest.TestCase):
 
             with mock.patch.object(regression, "ROOT", root), \
                     mock.patch.object(regression, "SUITES", {"integration": [["test_radio_profiles.py"]]}), \
-                    mock.patch.object(sys, "argv", ["regressions", "--suite", "integration", "--output", str(output)]), \
+                    mock.patch.object(sys, "argv", ["regressions", "--suite", "integration", "--output", str(output),
+                                                     "--radio-reviews", str(root / 'work/radio'),
+                                                     "--sdk-review", str(root / 'work/sdk/build.json')]), \
                     mock.patch.object(regression.subprocess, "run", side_effect=radio_replay), \
                     contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(regression.main(), 0)
