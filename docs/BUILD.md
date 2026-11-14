@@ -74,11 +74,12 @@ BSOD Pet uses a locally supplied sprite sheet. See [Pet](apps/PET.md) for asset
 conversion, `tools/build_pet.py` and `tools/package_pet.py`. Its artwork is not
 downloaded by CI and the local manual-test package is not a public release input.
 
-Large data builders and application builders are separate. EBook/dictionary use
-their explicit app VERSION files; project builders use root VERSION. Tool scripts
-remain at stable tools paths while native sources are grouped by app.
-The legacy app-collection version is retained at config/app-collection/VERSION,
-outside ignored generated-package directories.
+Large data builders and application builders are separate. EBook and Dictionary
+use their own VERSION files. Assemble current app packages with
+`tools/build_app.py` and use `tools/sdk.py package` when a ZIP is needed. The
+old collection and per-app ZIP recipes depended on a pinned candidate launcher;
+their scripts remain available in Git history. The former collection's version
+is retained at `config/app-collection/VERSION`.
 
 QQ Music requires an explicit non-account profile and a fresh output directory:
 

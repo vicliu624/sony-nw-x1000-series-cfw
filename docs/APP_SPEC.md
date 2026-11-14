@@ -157,9 +157,11 @@ wrappers. Application-specific CLI options are forwarded to the local builder.
 Use a new output directory; packaging does not overwrite a previous candidate.
 
 The --package-from option skips compilation and packages an explicitly selected
-fresh build tree. It is useful during migration, but does not establish build
-provenance or runtime qualification by itself. Do not feed old release artifacts
-to a clean-source release workflow.
+fresh build tree. The package assembly report identifies the output through its
+`files.sha256` digest and records the metadata, artwork, mapped resources and
+tooling used for assembly. Compiler inputs belong in the app builder's own
+report. Retain that report to substantiate build provenance. Clean-source release
+workflows build their own app inputs.
 
 ## Declarative native builds
 

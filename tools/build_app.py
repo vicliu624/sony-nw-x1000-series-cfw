@@ -1,5 +1,5 @@
 """Build and package one app using its local definition. PC only; no deployment."""
-import argparse,hashlib,json,os,shutil,subprocess,sys
+import argparse,hashlib,json,shutil,subprocess,sys
 from pathlib import Path
 from app_registry import ROOT,applications,application_root
 from app_presentation import install_presentation
@@ -58,9 +58,23 @@ def main():
     elif extra:parser.error('Unexpected packaging arguments')
     output=args.output or ROOT/'work/app-packages'/args.id/(definition/'VERSION').read_text().strip()
     result=package(args.id,source,output)
-    inputs=[p for directory in ('runtime','tools') for p in (ROOT/directory).rglob('*') if p.is_file() and p.suffix in ('.c','.h','.S','.inc','.py','.json') and '__pycache__' not in p.parts]
-    inputs += [ROOT/'VERSION',definition/'VERSION',*[p for p in (definition/'assets').rglob('*') if p.is_file()]]
-    report={'id':args.id,'builder_invoked':args.package_from is None,'package':str(result.relative_to(ROOT)),'hardware_accessed':False,'firmware_created':False,'source_hashes':{str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in inputs}}
+    # The app builder owns compilation evidence. Here the inventory identifies
+    # the copied payload, while source hashes cover only package assembly inputs.
+    inputs = [Path(__file__).resolve(), definition / 'VERSION', definition / 'app.json']
+    inputs.extend(ROOT / 'tools' / name for name in ('app_registry.py', 'app_presentation.py', 'market_metadata.py'))
+    inputs.extend(path for path in (definition / 'assets/icon.png', definition / 'assets/icon.svg') if path.is_file())
+    inputs.extend(ROOT / row['source'] for row in info.get('package_files', []))
+    report = {
+        'scope': 'package-assembly',
+        'id': args.id,
+        'builder_invoked': args.package_from is None,
+        'package': result.relative_to(ROOT).as_posix(),
+        'package_inventory_sha256': hashlib.sha256((result / 'files.sha256').read_bytes()).hexdigest(),
+        'hardware_accessed': False,
+        'firmware_created': False,
+        'source_hashes': {path.relative_to(ROOT).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+                          for path in sorted(set(inputs))},
+    }
     result.with_name(result.name+'.build-report.json').write_text(json.dumps(report,indent=2)+'\n')
     print(result)
 if __name__=='__main__':main()
