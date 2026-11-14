@@ -153,6 +153,8 @@ The tool creates only new ordinary image files under `work/`, runs the verified
 Sony formatter under ARM user emulation and uses host debugfs/read-only e2fsck.
 It never mounts an image or accesses a device. Full contents and inode metadata
 are read back; inputs and tool sources must remain unchanged during measurement.
+The report and command logs are retained. Temporary images and file copies are
+cleaned after each profile, including on verification failure.
 The report distinguishes modeled nonreserved margin from physical qualification.
 See [system footprint](SYSTEM_FOOTPRINT.md).
 

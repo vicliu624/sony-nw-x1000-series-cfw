@@ -27,7 +27,10 @@ emulation, populates the whole tree with host debugfs, allocates zero-filled
 regular-file blocks and runs read-only e2fsck. It independently reads back every
 regular file, inode mode/owner/mtime and symlink target. This model
 verified 1,079 original and 1,089 candidate regular files. No image is mounted.
-Reports, images, commands and hashes remain in ignored `work/`.
+The report, command logs and measured image hashes remain in ignored `work/`.
+Each profile uses a temporary image and deletes it, its payload copies and its
+readback files when that profile exits. A failed measurement retains the logs
+written up to the point of failure.
 
 This is a reproducible PC capacity result, not a physical free-space measurement
 or permission to flash. Host debugfs substitutes for Sony's kernel/tar extraction;

@@ -172,7 +172,12 @@ def run(command, log, timeout=180):
 
 
 def populate(area, profile, rows, data, times, root_metadata, sysroot):
-    image = area / (profile + '.img')
+    with tempfile.TemporaryDirectory(prefix=profile + '-', dir=area) as folder:
+        return populate_image(Path(folder), area, profile, rows, data, times, root_metadata, sysroot)
+
+
+def populate_image(scratch, area, profile, rows, data, times, root_metadata, sysroot):
+    image = scratch / 'root.img'
     with image.open('xb') as stream:
         stream.truncate(IMAGE_BYTES)
     if image.is_symlink() or not stat.S_ISREG(image.stat().st_mode):
@@ -180,7 +185,7 @@ def populate(area, profile, rows, data, times, root_metadata, sysroot):
     mkfs = ['qemu-arm', '-cpu', 'arm926', '-L', str(sysroot), str(sysroot / 'bin/busybox'),
             'mke2fs', '-F', '-b', str(BLOCK_BYTES), str(image)]
     run(mkfs, area / (profile + '-mkfs.log'))
-    payloads = area / (profile + '-payloads')
+    payloads = scratch / 'payloads'
     payloads.mkdir()
     commands, regular = [], []
     for name in sorted((name for name, row in rows.items() if row['kind'] == 'directory'),
@@ -209,16 +214,16 @@ def populate(area, profile, rows, data, times, root_metadata, sysroot):
                              ('uid', row['uid']), ('gid', row['gid']),
                              ('mtime', '0x' + format(stamp, 'x'))):
             commands.append('set_inode_field ' + quote('/' + name) + ' ' + field + ' ' + str(value))
-    script = area / (profile + '-populate.commands')
+    script = scratch / 'populate.commands'
     script.write_text('\n'.join(commands) + '\n', encoding='utf-8')
     run(['/usr/sbin/debugfs', '-w', '-f', str(script), str(image)], area / (profile + '-populate.log'))
     run(['/usr/sbin/e2fsck', '-f', '-n', str(image)], area / (profile + '-fsck.log'))
-    verify = area / (profile + '-readback')
+    verify = scratch / 'readback'
     verify.mkdir()
     checks = ['dump ' + quote('/' + name) + ' ' + quote(verify / str(index))
               for index, name in enumerate(regular)]
     checks.extend('stat ' + quote('/' + name) for name in sorted(metadata))
-    script = area / (profile + '-verify.commands')
+    script = scratch / 'verify.commands'
     script.write_text('\n'.join(checks) + '\n', encoding='utf-8')
     output = run(['/usr/sbin/debugfs', '-f', str(script), str(image)], area / (profile + '-verify.log'))
     for index, name in enumerate(regular):
@@ -235,7 +240,9 @@ def populate(area, profile, rows, data, times, root_metadata, sysroot):
     with image.open('rb') as stream:
         stream.seek(1024)
         result = superblock_stats(stream.read(1024), image.stat().st_size)
-    result.update(profile=profile, image=image.relative_to(ROOT).as_posix(), image_sha256=digest(image),
+        stream.seek(0)
+        image_sha256 = hashlib.file_digest(stream, 'sha256').hexdigest()
+    result.update(profile=profile, image_sha256=image_sha256,
                   image_bytes=image.stat().st_size, verified_regular_files=len(regular),
                   verified_inodes=len(metadata), dense_regular_file_blocks=True,
                   readonly_fsck_exit=0, formatter_command=mkfs)
@@ -266,8 +273,9 @@ def main():
     base, data, times, root_metadata = archive_inputs(localized_root)
     candidate = compose_root_inventory(base, layout['files'])
     validate_tree(candidate)
-    inputs = {path.relative_to(ROOT).as_posix(): digest(path)
-              for path in (capacity_path, layout_path, stock_path, localization)}
+    inputs = {path.relative_to(ROOT).as_posix(): digest(path) for path in (capacity_path, layout_path)}
+    inputs[stock_path.relative_to(ROOT).as_posix()] = STOCK_ROOT_SHA256
+    inputs[localization.relative_to(ROOT).as_posix()] = localization_sha
     for name, row in layout['files'].items():
         path = private(layout_path.parent / 'root-overlay' / name)
         raw = path.read_bytes()

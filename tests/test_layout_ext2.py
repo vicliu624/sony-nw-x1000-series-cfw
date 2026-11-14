@@ -2,10 +2,12 @@
 from pathlib import Path
 import struct
 import sys
+import tempfile
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
-from measure_layout_ext2 import IMAGE_BYTES, quote, superblock_stats, validate_tree, verify_inode
+from measure_layout_ext2 import IMAGE_BYTES, populate, quote, superblock_stats, validate_tree, verify_inode
 
 
 def superblock():
@@ -63,6 +65,20 @@ class CapacityAccountingTests(unittest.TestCase):
 
 
 class PopulationBoundaryTests(unittest.TestCase):
+    def test_failed_population_removes_partial_image_and_keeps_log(self):
+        with tempfile.TemporaryDirectory() as folder:
+            area = Path(folder)
+
+            def fail_formatter(command, log):
+                self.assertTrue(Path(command[-1]).is_file())
+                log.write_text('formatter failed\n', encoding='utf-8')
+                raise ValueError('formatter failed')
+
+            with patch('measure_layout_ext2.run', side_effect=fail_formatter):
+                with self.assertRaisesRegex(ValueError, 'formatter failed'):
+                    populate(area, 'stock', {}, {}, {}, None, area)
+            self.assertEqual([path.name for path in area.iterdir()], ['stock-mkfs.log'])
+
     def test_parent_link_cannot_redirect_population(self):
         rows = {'usr': LINK, 'usr/app': dict(kind='file')}
         with self.assertRaisesRegex(ValueError, 'ancestor'):
