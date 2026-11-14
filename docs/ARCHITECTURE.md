@@ -11,6 +11,7 @@ applications use the SDK and store their code/data on verified user storage.
 | --- | --- | --- | --- |
 | Application | `runtime/apps/<id>/` | App behavior, UI, metadata, icon, version and app state | Global radio policy, stock memory addresses, another app's lifecycle |
 | Public SDK | `sdk/include/x1000/`, `runtime/platform/sdk/` | App-facing contracts, capability checks, lifecycle and portable adapters | Sony menu business rules or application-specific radio packets |
+| Service lifecycle | `runtime/platform/services/` | Capability descriptors, generations, request/event correlation and verified closure | Radio frame formats, Sony addresses or application UI policy |
 | Player integration | `runtime/platform/player/` | Verified stock bindings, owner-loop dispatch, player service and stock lifecycle adapters | ESP-NOW packet semantics or remote UI |
 | Private Sony Settings | `runtime/platform/sony-settings/` | Stock menu callbacks, verified view layout and wording access | Public SDK exports, pairing policy or radio ownership |
 | Wireless platform | `runtime/platform/wireless/`, `runtime/platform/espnow/` | Radio policy, driver adaptation, permissions and verified retirement | Playback policy, album UI or an app-created global authority |
@@ -35,6 +36,71 @@ The existing player/radio integration contains private cross-layer adapters.
 These are not public SDK promises. Before extracting another interface, identify
 its owner, actual callers, state transitions and failure/cleanup behavior.
 A forwarding wrapper alone does not establish a useful abstraction.
+
+## Current coupling and required boundaries
+
+Directory separation does not establish independent contracts. The current
+implementation has the following confirmed coupling points:
+
+| Coupling | Current evidence | Required boundary |
+| --- | --- | --- |
+| Global SDK version pin | `tools/sdk_services.py:definition_contract` and `tools/sdk_build.py:compile_app` reject every different package version, including apps whose selected module API is unchanged | Distinguish module API compatibility from the exact SDK source identity recorded by a build. An unrelated module change must not require editing every app definition |
+| Executable tests used as build libraries | `tools/build_player_host.py` executes `test_builtin_player_composition.py` through `runpy`; radio tests also execute other tests to obtain fixtures | Product construction belongs to import-safe builder functions. Tests consume those functions and pure fixtures, with no build or test execution on import |
+| Compiled component identity cascade | The owner/service hashes enter the supervisor, then its identity enters the player library and startup wrapper | Package composition owns component identities. A compatible child implementation change should regenerate package metadata without changing unrelated parent logic |
+| Incomplete startup error contract | `rf_owner.c:owner_prepare` reduces backend setup errors to `-1`; service startup reports a numeric result and a post-cleanup flag | Retain component, operation, result domain and original error. Readiness, failure and resource retirement are separate observations |
+| Diagnostic records lack attempt identity | `parent_trace_store.c` fills a preallocated slot only once; `read_remote_pairing_trace.py` has no firmware/build or boot identity to validate | Use bounded, versioned records correlated to a build, boot and start request. Reading diagnostics must not depend on manually copying an empty file before each attempt |
+| Historical local paths in supported tooling | The script audit found fixed review/candidate paths in maintained scripts and separate local orchestration files | Maintained entry points accept current input descriptors. Historical negative controls are explicit test inputs; ignored scripts and prior candidate directories are outside the normal build graph |
+
+The current artifact dependencies explain why one radio change can replace
+several installed files even when much of their functional source is unchanged:
+
+```mermaid
+flowchart LR
+    Radio[Radio image and profile] --> Owner[Radio owner]
+    Owner --> Supervisor[Remote supervisor]
+    Service[Player service] --> Supervisor
+    Supervisor --> Host[Player integration library]
+    Host --> Wrapper[Stock startup wrapper]
+    Radio --> Package[Firmware package]
+    Wrapper --> Package
+    Host --> Package
+```
+
+The target dependency direction is platform adapters, capability services, SDK
+contracts, then consumers. Wireless Remote consumes the radio and player
+capabilities independently. Its Settings policy and remote protocol remain with
+that consumer. Private Sony composition connects these pieces at one integration
+boundary; it does not become another public service API.
+
+The Remote consumer legitimately requires both capabilities. A failed dependency
+must produce a specific startup failure and verified cleanup. A transport
+experiment remains outside the ordinary delivery profile until its actual
+startup, controls and retirement are qualified. Compiler success or an isolated
+packet replay cannot select that profile for a working release.
+
+Player result codes are a separate domain: `XW_PLAYER_IO` is -6 and
+`XW_PLAYER_CLOSED` is -7. A service's post-cleanup flag describes its final
+resource state, not the reason HELLO failed. Record CRC proves byte integrity;
+build/boot/request identity must separately prove which attempt was captured.
+
+Migration is gated and incremental:
+
+1. Establish the current failure's provenance and startup stage. Existing records
+   without build/attempt identity are historical observations, not proof about
+   the latest installation. Runtime changes remain on hold.
+2. Remove build-to-test and test-to-test execution dependencies. Preserve generated
+   bytes and existing component contracts while moving construction into normal
+   maintained functions. No revision-specific replacement scripts are introduced.
+3. Separate compatibility, package identities and startup results at their owning
+   boundaries. Keep one original radio authority and preserve generation/retirement
+   rules. Review each affected caller before changing an interface.
+4. Archive obsolete orchestration only after the supported graph no longer refers
+   to it. Preserve original inputs, usable rollback packages and minimal failure
+   evidence. A directory move alone does not complete a boundary.
+
+This is the architecture contract and migration order. These boundaries have not
+all been implemented, and runtime bug fixing does not resume on the strength of
+this document alone.
 
 Private Sony menu adapters live in `runtime/platform/sony-settings/`. The Remote
 consumer's `native_page_bridge` translates those private requests to its backend;
