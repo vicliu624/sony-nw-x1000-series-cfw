@@ -43,3 +43,24 @@ Target Japanese NW-X1050/NW-X1060 only. Do not edit sibling projects as a side e
 - Update builders, fixtures and includes when moving files. Run
   tools/check_repository_layout.py, syntax checks and applicable offline ARM
   builds/tests. Do not make live account/device actions a side effect of checks.
+
+## Bounded engineering workflow
+
+Follow docs/WORKFLOW.md. Define the current acceptance criteria and affected
+consumers before editing; inspect shared ABI/test adapters before changing them.
+- Use one focused reproducer and the smallest adequate check set per iteration.
+  Stop expanding work once those criteria pass. Repeat only for changed tested
+  inputs, an observed failure or a specific unresolved concern.
+- Inspect expensive aggregate runs with --plan. Full regression is a reviewed
+  checkpoint, not the default for every local edit. Do not follow it with a
+  second complete unittest discovery; the runner's unit group deduplicates it.
+- Documentation, test planning and workflow edits do not justify firmware/app
+  compilation. Build update packages only in the user's authorized package stage.
+- Prefer existing interfaces and local fixes. New abstractions or SDK surface
+  need a current consumer/problem; no speculative features or unrelated cleanup.
+- After two failed attempts at the same hypothesis without new evidence,
+  reassess the cause or measurement instead of producing more variants.
+- Keep durable conclusions in existing guides; scratch experiments stay ignored.
+  Workflow-only changes do not bump firmware, SDK or app versions.
+- Reuse inspected context until its files change, batch independent reads, and
+  retrieve only the output needed for the next decision.

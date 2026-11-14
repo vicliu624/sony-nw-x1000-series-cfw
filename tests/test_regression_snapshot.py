@@ -1,16 +1,83 @@
 """Regression evidence must retain tested bytes, including uncommitted changes."""
 import hashlib
+import contextlib
+import io
+import json
 from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest import mock
 import zipfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
 from test_firmware_regressions import write_source_snapshot
+import test_firmware_regressions as regression
 
 
 class RegressionSnapshotTests(unittest.TestCase):
+    def test_inventory_prunes_generated_subtrees(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "VERSION").write_bytes(b"1\n")
+            for name in ("runtime/live.c", "runtime/managed_components_user/live.h",
+                         "runtime/.pio/build/ignored.c", "runtime/managed_components/ignored.c",
+                         "tools/__pycache__/ignored.py"):
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(name.encode())
+            visited = []
+            real_walk = regression.os.walk
+
+            def walk(*args):
+                for entry in real_walk(*args):
+                    visited.append(Path(entry[0]).relative_to(root).parts)
+                    yield entry
+
+            with mock.patch.object(regression, "ROOT", root), mock.patch.object(regression.os, "walk", walk):
+                inventory = regression.source_inventory()
+            self.assertEqual(set(inventory), {"VERSION", "runtime/live.c", "runtime/managed_components_user/live.h"})
+            self.assertFalse(any(set(parts) & {".pio", "managed_components", "__pycache__"} for parts in visited))
+
+    def test_plan_deduplicates_commands_but_keeps_distinct_arguments(self):
+        suites = {"a": [["one.py"], ["one.py", "--mode"]], "b": [["one.py"], ["two.py"]]}
+        with mock.patch.object(regression, "SUITES", suites):
+            planned, duplicates = regression.plan_checks(["a", "b", "a"])
+        self.assertEqual(planned, [("a", ["one.py"]), ("a", ["one.py", "--mode"]), ("b", ["two.py"])])
+        self.assertEqual(len(duplicates), 3)
+
+    def test_plan_does_not_execute_or_create_output(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "uncreated"
+            arguments = ["regressions", "--suite", "focus", "--plan", "--output", str(output)]
+            with mock.patch.object(regression, "SUITES", {"focus": [["never-run.py"]]}), \
+                    mock.patch.object(sys, "argv", arguments), \
+                    mock.patch.object(regression, "source_inventory", side_effect=AssertionError("scanned")), \
+                    mock.patch.object(regression.subprocess, "run", side_effect=AssertionError("executed")), \
+                    contextlib.redirect_stdout(io.StringIO()) as stdout:
+                self.assertEqual(regression.main(), 0)
+            self.assertEqual(len(json.loads(stdout.getvalue())["checks"]), 1)
+            self.assertFalse(output.exists())
+
+    def test_unit_module_without_main_is_actually_executed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "tests").mkdir()
+            (root / "sdk").mkdir()
+            (root / "VERSION").write_text("0.1.0\n")
+            (root / "sdk/VERSION").write_text("0.2.0\n")
+            (root / "tests/test_fixture.py").write_text(
+                "import unittest\nfrom pathlib import Path\nclass Check(unittest.TestCase):\n"
+                " def test_executed(self): Path('executed').write_text('yes')\n")
+            output = root / "work/check"
+            with mock.patch.object(regression, "ROOT", root), \
+                    mock.patch.object(regression, "SUITES", {"unit": [["tests/test_fixture.py"]]}), \
+                    mock.patch.object(sys, "argv", ["regressions", "--suite", "unit", "--output", str(output)]), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(regression.main(), 0)
+            self.assertEqual((root / "executed").read_text(), "yes")
+            self.assertTrue(json.loads((output / "report.json").read_text())["passed"])
+
     def test_retains_bytes_and_refuses_overwrite(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

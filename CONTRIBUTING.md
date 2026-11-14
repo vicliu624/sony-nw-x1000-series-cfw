@@ -44,6 +44,9 @@ Use [offline regression checks](docs/REGRESSION.md). A fix should exercise the
 failing caller path as well as its lower helper. Prefer a test that fails before
 the fix and checks the externally relevant contract. A passing shallow fixture
 must not be described as complete integration or hardware qualification.
+Select the smallest adequate check set using the [engineering workflow](docs/WORKFLOW.md).
+Inspect expensive runs with `--plan`; full regression includes unit modules and
+does not need another complete unittest discovery afterward.
 
 Update includes, builders, package input lists and fixtures together when moving
 source. Old reports retain their original hashes. Keep immutable evidence under

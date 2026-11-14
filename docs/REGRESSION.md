@@ -23,6 +23,11 @@ and log under `work/firmware-regressions/<run>/`. It continues after a failure s
 one broken group does not hide another. The final result fails if any check
 fails or if checked source changes during the run. A compilation warning is not
 silently converted into a failed or successful hardware result.
+Use `--plan` to inspect scope without executing checks or creating output.
+Identical commands are omitted once per invocation and listed in the report;
+different arguments remain distinct. The default full run includes unit modules,
+so do not follow it with a second complete unittest discovery. See the bounded
+[engineering workflow](WORKFLOW.md) for iteration and stopping rules.
 
 ## Groups
 
@@ -35,6 +40,7 @@ silently converted into a failed or successful hardware result.
 | `integration` | Scalar/BLK1/BLK2/FRM1 radio instruction replay, Root/Core2 encrypted link with actual owner pipes, full service/factory/SDK chains for sleep and shared pairing | `--suite integration` |
 | `layout` | Source layout, relative includes, Python parsing, English docs and links | `--suite layout` |
 | `workers` | Media-client ownership, cleanup failures, validation workers and broker drain | `--suite workers` |
+| `unit` | All unittest modules, including modules without a standalone main | `--suite unit` |
 | `artifact` | Actual reviewed ELF owner/engine binding, paired library identity and native menu composition | `--suite artifact --host-review work/<review>/build.json` |
 
 Repeat `--suite` to select several groups. `--output` accepts only a new directory

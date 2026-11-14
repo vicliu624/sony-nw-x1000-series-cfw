@@ -8,6 +8,7 @@ inventory so a report cannot be reused after editing the checked tree.
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path, PurePosixPath
 import subprocess
 import sys
@@ -165,21 +166,40 @@ SUITES = {
         ["test_remote_binding_menu.py"],
     ],
 }
+SUITES["unit"] = [[path.relative_to(ROOT).as_posix()]
+                  for path in sorted((ROOT / "tests").glob("test_*.py"))]
+
+
+def plan_checks(suites, host_review=None):
+    """Deduplicate only identical commands in this run; never reuse old passes."""
+    planned, duplicates, seen = [], [], {}
+    for suite in suites:
+        for selected in SUITES[suite]:
+            command = list(selected)
+            if suite == "artifact":
+                command += ["--host-review", str(host_review.resolve())]
+            key = tuple(command)
+            if key in seen:
+                duplicates.append({"suite": suite, "command": command, "kept_in": seen[key]})
+                continue
+            seen[key] = suite
+            planned.append((suite, command))
+    return planned, duplicates
 
 
 def source_inventory():
     result = {}
     for name in ("runtime", "sdk", "tools", "config", "scripts", "tests", ".github"):
-        for path in sorted((ROOT / name).rglob("*")):
-            if not path.is_file() or any(
-                part in ("__pycache__", ".pio", "managed_components")
-                for part in path.relative_to(ROOT).parts
-            ):
-                continue
-            if path.suffix not in (".c", ".h", ".cpp", ".hpp", ".S", ".py", ".json",
-                                   ".inc", ".yml", ".yaml", ".ini", ".ps1", ".ld") and path.name != "VERSION":
-                continue
-            result[path.relative_to(ROOT).as_posix()] = hashlib.sha256(path.read_bytes()).hexdigest()
+        for directory, children, files in os.walk(ROOT / name):
+            children[:] = sorted(child for child in children
+                                 if child not in ("__pycache__", ".pio", "managed_components"))
+            for filename in sorted(files):
+                path = Path(directory) / filename
+                if path.suffix not in (".c", ".h", ".cpp", ".hpp", ".S", ".py", ".json",
+                                       ".inc", ".yml", ".yaml", ".ini", ".ps1", ".ld") and path.name != "VERSION":
+                    continue
+                if path.is_file():
+                    result[path.relative_to(ROOT).as_posix()] = hashlib.sha256(path.read_bytes()).hexdigest()
     result["VERSION"] = hashlib.sha256((ROOT / "VERSION").read_bytes()).hexdigest()
     return result
 
@@ -213,6 +233,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--suite", choices=SUITES, action="append")
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--plan", action="store_true", help="Print selected checks without executing or creating output")
     parser.add_argument("--host-review", type=Path,
                         help="Explicit immutable analysis-library receipt for the artifact suite")
     args = parser.parse_args()
@@ -221,6 +242,11 @@ def main():
         parser.error("--suite artifact requires --host-review; no existing artifact is selected implicitly")
     if args.host_review is not None and "artifact" not in suites:
         parser.error("--host-review requires --suite artifact")
+    planned, duplicates = plan_checks(suites, args.host_review)
+    if args.plan:
+        print(json.dumps({"suites": suites, "checks": [dict(suite=s, command=c) for s, c in planned],
+                          "duplicate_checks_omitted": duplicates}, indent=2))
+        return 0
     if sys.flags.optimize:
         raise RuntimeError("Regression assertions must remain enabled")
     output = args.output or ROOT / "work/firmware-regressions" / str(time.time_ns())
@@ -228,6 +254,7 @@ def main():
     if not output.is_relative_to((ROOT / "work").resolve()):
         raise ValueError("Regression output must stay under work/")
     output.mkdir(parents=True, exist_ok=False)
+    began = time.monotonic()
     before = source_inventory()
     snapshot = output / "checked-source.zip"
     snapshot_hash = write_source_snapshot(ROOT, before, snapshot)
@@ -238,37 +265,36 @@ def main():
         "hardware_qualified": False,
         "firmware_created": False,
         "checks": [],
+        "requested_suites": suites,
+        "duplicate_checks_omitted": duplicates,
         "source_hashes": before,
         "source_snapshot": snapshot.relative_to(ROOT).as_posix(),
         "source_snapshot_sha256": snapshot_hash,
     }
-    for suite in suites:
-        for selected in SUITES[suite]:
-            command = list(selected)
-            if suite == "artifact":
-                command += ["--host-review", str(args.host_review.resolve())]
-            index = len(report["checks"]) + 1
-            label = " ".join(command)
-            log = output / f"{index:02d}-{Path(command[0]).stem}.log"
-            print(f"[{suite}] {label}", flush=True)
-            started = time.monotonic()
-            script = ROOT / command[0] if len(Path(command[0]).parts) > 1 else ROOT / "tools" / command[0]
-            if not script.resolve().is_relative_to(ROOT):
-                raise ValueError("Regression script must stay in the checkout")
-            with log.open("wb") as stream:
-                run = subprocess.run(
-                    [sys.executable, str(script), *command[1:]],
-                    cwd=ROOT, stdout=stream, stderr=subprocess.STDOUT,
-                )
-            report["checks"].append({
-                "suite": suite, "command": command, "exit_code": run.returncode,
-                "seconds": round(time.monotonic() - started, 3),
-                "log": log.relative_to(ROOT).as_posix(),
-                "log_sha256": hashlib.sha256(log.read_bytes()).hexdigest(),
-            })
-            (output / "report.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
-            print(f"{'PASS' if run.returncode == 0 else 'FAIL'} {label}", flush=True)
+    for suite, command in planned:
+        index = len(report["checks"]) + 1
+        label = " ".join(command)
+        log = output / f"{index:02d}-{Path(command[0]).stem}.log"
+        print(f"[{suite}] {label}", flush=True)
+        started = time.monotonic()
+        script = ROOT / command[0] if len(Path(command[0]).parts) > 1 else ROOT / "tools" / command[0]
+        if not script.resolve().is_relative_to(ROOT):
+            raise ValueError("Regression script must stay in the checkout")
+        invocation = [sys.executable, str(script), *command[1:]]
+        if command[0].startswith("tests/"):
+            invocation = [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-p", script.name, *command[1:]]
+        with log.open("wb") as stream:
+            run = subprocess.run(invocation, cwd=ROOT, stdout=stream, stderr=subprocess.STDOUT)
+        report["checks"].append({
+            "suite": suite, "command": command, "invocation": invocation, "exit_code": run.returncode,
+            "seconds": round(time.monotonic() - started, 3),
+            "log": log.relative_to(ROOT).as_posix(),
+            "log_sha256": hashlib.sha256(log.read_bytes()).hexdigest(),
+        })
+        (output / "report.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+        print(f"{'PASS' if run.returncode == 0 else 'FAIL'} {label}", flush=True)
     report["source_changed_during_run"] = source_inventory() != before
+    report["total_seconds"] = round(time.monotonic() - began, 3)
     report["passed"] = not report["source_changed_during_run"] and all(
         check["exit_code"] == 0 for check in report["checks"]
     )
