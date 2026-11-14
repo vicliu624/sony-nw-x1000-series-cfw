@@ -65,9 +65,10 @@ The bundle test checks every file against its manifest, prepares dependencies
 from the pinned updater, generates minimal/touch-ui/canvas-game apps, renders
 them on the host, builds ARM packages and exercises the service matrix. Original
 Sony binaries remain local and are not included in the source ZIP.
-Extracted sources, dependencies and fixture binaries are temporary. The run
-directory under `work/sdk-bundle-tests/` keeps the result report or the failure
-log. The input archive is the reusable source artifact.
+Extracted sources, dependencies and fixture binaries use the host's temporary
+directory. Under WSL this normally keeps compilation on the Linux filesystem.
+The run directory under `work/sdk-bundle-tests/` keeps the result report or
+the failure log. The input archive is the reusable source artifact.
 
 The `--player-only` bundle option is a narrower client check. Its report must not
 be described as a full SDK validation. None of these commands flashes firmware,

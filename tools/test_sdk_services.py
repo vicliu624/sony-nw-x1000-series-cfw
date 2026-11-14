@@ -20,7 +20,7 @@ def fixture():
     return 'static const unsigned char rgb_fixture[]={'+','.join(map(str,png))+'};\n'
 
 def check_public_consumer(out):
-    ident=out.name
+    ident='service-check'
     app_root=out/'client-source'
     definition=create(ident,'minimal','SDK Service Check',app_root)
     (definition/'main.c').write_text((ROOT/'sdk/tests/services.c').read_text())

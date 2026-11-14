@@ -104,7 +104,9 @@ def main():
     output = ROOT / 'work/sdk-bundle-tests' / str(time.time_ns())
     output.mkdir(parents=True)
     try:
-        with tempfile.TemporaryDirectory(prefix='source-', dir=output) as directory:
+        # Keep short-lived builds on the host's temporary filesystem. On WSL
+        # this avoids compiling the SDK fixture tree through a Windows mount.
+        with tempfile.TemporaryDirectory(prefix='x1000-sdk-') as directory:
             report_name, report = verify_bundle(args, Path(directory))
     except Exception:
         (output / 'failure.log').write_text(traceback.format_exc(), encoding='utf-8')
