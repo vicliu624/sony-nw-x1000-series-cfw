@@ -7,7 +7,7 @@ out=ROOT/'work/launcher-entry-probe'/str(time.time_ns());out.mkdir(parents=True)
 header=b'X1ENTRYPROBE0001'+secrets.token_bytes(16);assert len(header)==32
 (out/'entry_probe_profile.h').write_text('#define ENTRY_PROBE_HEADER {'+','.join(str(x) for x in header)+'}\n')
 seed=header+bytes(96);(out/'entry-boundary.bin').write_bytes(seed)
-sources=['runtime/apps/diagnostics/launcher_entry_probe.c','runtime/native/entry_start.S','runtime/native/syscalls.S','runtime/native/support.c']
+sources=['tools/device_probes/launcher_entry_probe.c','runtime/native/entry_start.S','runtime/native/syscalls.S','runtime/native/support.c']
 binary=out/'entry-probe.arm'
 subprocess.run(['arm-linux-gnueabi-gcc','-std=c99','-Os','-Wall','-Wextra','-Werror','-Wno-misleading-indentation','-march=armv5te','-marm','-mfloat-abi=soft','-ffreestanding','-fno-builtin','-fno-pie','-fno-stack-protector','-nostdlib','-static','-no-pie','-Wl,--build-id=none,-Ttext-segment=0x10000,-e,_start','-I',str(out),*sources,'-lgcc','-o',str(binary)],cwd=ROOT,check=True)
 with binary.open('rb') as f:

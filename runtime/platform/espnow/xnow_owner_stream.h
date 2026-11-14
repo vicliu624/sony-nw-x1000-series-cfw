@@ -20,6 +20,9 @@ int xnow_owner_stream_open(struct xnow_owner_stream *,struct xnow_owner_commands
  * including HUP with unread data. Bad framing, EOF, reused FDs or I/O failure
  * wipe staged keys/data and request controller STOP, never claim restoration. */
 int xnow_owner_stream_step(struct xnow_owner_stream *);
+/* Same identity/HUP checks and bounded output progress, without reading or
+ * dispatching a new application request. Partial input remains staged. */
+int xnow_owner_stream_flush(struct xnow_owner_stream *);
 /* Output slot must be empty before consuming an endpoint event. PENDING means
  * no bytes copied; caller retains event. Frames have magic+total:u32LE.
  * XNT1:32 bytes, token:u32,result:i32,MAC6,reserved2,status:u32,raw:u32.

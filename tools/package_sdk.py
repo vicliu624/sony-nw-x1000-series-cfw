@@ -2,30 +2,65 @@
 import argparse
 import hashlib
 import json
+import re
 from pathlib import Path
 import zipfile
+from urllib.parse import unquote, urlsplit
 from app_registry import ROOT
 from sdk_build import COMMON,NATIVE
 
 TOOLS=['sdk.py','sdk_build.py','sdk_bootstrap.py','sdk_services.py','native_app_build.py','package_sdk.py','test_sdk.py','test_sdk_services.py','test_sdk_bundle.py',
-       'app_registry.py','app_presentation.py','build_app.py','verify_app_package.py','market_metadata.py','test_sdk_espnow.py','test_sdk_espnow_full.py','test_sdk_espnow_owner.py','test_sdk_player_service.py']
+       'app_registry.py','app_presentation.py','build_app.py','verify_app_package.py','market_metadata.py','test_sdk_espnow.py','test_sdk_espnow_full.py','test_sdk_espnow_owner.py','test_sdk_player_service.py','test_sdk_text.py','test_sdk_storage_stop.py']
 HEADERS=['runtime/native/linux_devices.h','runtime/native/linux_device_io.h','runtime/native/frontend.h','runtime/native/ui_font.h',
          'runtime/store/termination.h','runtime/store/deadline.h','runtime/store/stock_fs_bridge.h',
          'runtime/store/stock_stat64.h','runtime/store/target_abi.h',
-         'runtime/apps/qqmusic/qqmusic_volume.h','runtime/apps/qqmusic/qqmusic_storage.h']
+         'runtime/platform/storage/qqmusic_volume.h','runtime/platform/storage/qqmusic_storage.h']
+
+def documentation_inputs(paths):
+    """Retain local documentation dependencies of the exported SDK guides.
+
+    Follow only documentation/SDK files inside the checkout. Private work,
+    binaries and unrelated source trees cannot enter through a Markdown link.
+    The normal source filter still validates every collected file.
+    """
+    found = set(paths)
+    pending = [path for path in found if path.suffix == '.md']
+    while pending:
+        path = pending.pop()
+        for raw in re.findall(r'\[[^\]]*\]\(([^)]+)\)', path.read_text(encoding='utf-8-sig')):
+            link = urlsplit(raw.strip('<>'))
+            if link.scheme or link.netloc or not link.path:
+                continue
+            target = (path.parent / unquote(link.path)).resolve()
+            if not target.is_relative_to(ROOT):
+                raise ValueError('SDK documentation link escapes checkout: ' + raw)
+            relative = target.relative_to(ROOT)
+            if not relative.parts or not target.is_file():
+                continue
+            public_document = (relative.parts[0] in ('docs', 'sdk') or
+                               (relative.parts[0] == 'runtime' and target.suffix == '.md'))
+            if not public_document:
+                continue
+            if target.suffix.lower() not in ('.md', '.png', '.jpg', '.jpeg', '.svg'):
+                continue
+            if target not in found:
+                found.add(target)
+                if target.suffix == '.md':
+                    pending.append(target)
+    return found
 def source_files():
     paths=[ROOT/p for p in sorted(set(COMMON+NATIVE+HEADERS+['runtime/platform/sdk/internal.h','runtime/platform/sdk/host.c',
         'runtime/native/app_catalog.c','runtime/native/app_catalog.h','runtime/native/linux_files.c','runtime/native/linux_files.h',
         'runtime/native/sha256.c','runtime/native/sha256.h']))]
     paths += [ROOT/'tools'/n for n in TOOLS]
-    paths += [ROOT/'VERSION',ROOT/'scripts/upg.py',ROOT/'sources/downloads.json',ROOT/'third_party/qqmusic-stb/Noto-OFL.txt']
+    paths += [ROOT/'VERSION',ROOT/'scripts/upg.py',ROOT/'scripts/upg_crypto.py',ROOT/'sources/downloads.json',ROOT/'third_party/qqmusic-stb/Noto-OFL.txt']
     paths += [p for d in ('sdk','docs/sdk','runtime/apps/sdk-counter','runtime/apps/sdk-canvas') for p in (ROOT/d).rglob('*') if p.is_file() and '__pycache__' not in p.parts]
     from sdk_services import inputs,manifest
     # Export every service implementation and transitive header, not only the
     # small callback-profile subset. External clients never need private checkout paths.
     for name in manifest():
         paths += inputs({'resolved_modules':[name]})
-    return sorted(set(paths))
+    return sorted(documentation_inputs(paths))
 
 def package(output):
     version=(ROOT/'sdk/VERSION').read_text().strip()

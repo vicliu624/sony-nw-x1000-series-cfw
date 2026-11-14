@@ -19,11 +19,12 @@ static int same_path(int fd,const char *path) {
     if(n<0||(unsigned)n>=sizeof(actual))return -1;
     actual[n]=0;return strcmp(actual,path)?-1:0;
 }
-int xnow_file_check(const char *path,uint64_t expected_device,unsigned bytes,const unsigned char expected[32]) {
+static int check_or_read(const char *path,uint64_t expected_device,unsigned bytes,
+                         const unsigned char expected[32],unsigned char *output) {
     struct stat before,after;struct hb_sha256 hash;unsigned char buffer[1024],digest[32];
     char component[256],relative[320],prefix[513];size_t length,start,end;
     int directory=-1,fd=-1,result=-1;unsigned used=0;
-    if(!path||!expected||!bytes||bytes>1048576||path[0]!='/')return -1;
+    if(!path||(!expected&&!output)||!bytes||bytes>1048576||path[0]!='/')return -1;
     length=strlen(path);if(length<2||length>512||path[length-1]=='/')return -1;
     directory=open("/",O_RDONLY|O_DIRECTORY|O_NOFOLLOW);if(directory<0)return -1;
     start=1;
@@ -48,16 +49,29 @@ int xnow_file_check(const char *path,uint64_t expected_device,unsigned bytes,con
         unsigned amount=bytes-used;ssize_t n;if(amount>sizeof(buffer))amount=sizeof(buffer);
         n=read(fd,buffer,amount);if(n<0&&errno==EINTR)continue;
         if(n<=0||(unsigned)n>amount)goto done;
-        hb_sha256_update(&hash,buffer,(unsigned)n);used+=(unsigned)n;
+        if(expected)hb_sha256_update(&hash,buffer,(unsigned)n);
+        if(output)memcpy(output+used,buffer,(unsigned)n);
+        used+=(unsigned)n;
     }
     for(;;){ssize_t n=read(fd,buffer,1);if(n<0&&errno==EINTR)continue;if(n)goto done;break;}
-    hb_sha256_final(&hash,digest);
-    if(memcmp(digest,expected,32)||fstat(fd,&after)||after.st_dev!=before.st_dev||
+    if(expected)hb_sha256_final(&hash,digest);
+    if((expected&&memcmp(digest,expected,32))||fstat(fd,&after)||after.st_dev!=before.st_dev||
        after.st_ino!=before.st_ino||after.st_size!=before.st_size||
        after.st_mode!=before.st_mode||after.st_nlink!=1||same_path(fd,path))goto done;
     result=0;
 done:
     if(fd>=0&&close(fd))result=-1;
     if(directory>=0&&close(directory))result=-1;
+    if(output){
+        volatile unsigned char *p=buffer;
+        for(size_t i=0;i<sizeof buffer;i++)p[i]=0;
+        if(result){p=output;for(unsigned i=0;i<bytes;i++)p[i]=0;}
+    }
     return result;
+}
+int xnow_file_check(const char *path,uint64_t device,unsigned bytes,const unsigned char expected[32]){
+    return expected?check_or_read(path,device,bytes,expected,0):-1;
+}
+int xnow_file_read_exact(const char *path,uint64_t device,unsigned bytes,unsigned char *out){
+    return out?check_or_read(path,device,bytes,0,out):-1;
 }

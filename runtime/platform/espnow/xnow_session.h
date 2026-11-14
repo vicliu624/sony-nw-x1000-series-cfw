@@ -17,10 +17,12 @@ enum xnow_session_phase {
     XNOW_SESSION_STARTING, XNOW_SESSION_READY, XNOW_SESSION_STOPPING,
     XNOW_SESSION_DONE, XNOW_SESSION_REPAIR_REQUIRED
 };
+/* Controller-certified manager state 2 with the stock modules absent. */
+enum {XNOW_SESSION_INSPECT_OFF_VERIFIED=0x10002,XNOW_SESSION_INSPECT_SHARED=0x10004};
 struct xnow_session {
     enum xnow_session_action next, pending;
     enum xnow_session_phase phase;
-    unsigned allow_disconnect, cancelled, lease, changed, was_connected;
+    unsigned allow_disconnect, cancelled, lease, changed, was_connected, started_off;
     int failure, restore_failure;
 };
 #ifdef __cplusplus
@@ -30,7 +32,7 @@ void xnow_session_init(struct xnow_session *,unsigned allow_disconnect);
 /* Returns an action once; further calls return NONE until complete(). */
 enum xnow_session_action xnow_session_take(struct xnow_session *);
 /* All actions: zero success, negative failure. INSPECT alone returns original
- * public cnmgr state 3 (ready) or 4 (connected). Other states are refused.
+ * public cnmgr state 3 (ready), 4 (connected), or OFF_VERIFIED.
  * Existing connected Wi-Fi may only be disrupted with allow_disconnect.
  */
 int xnow_session_complete(struct xnow_session *,enum xnow_session_action,int);

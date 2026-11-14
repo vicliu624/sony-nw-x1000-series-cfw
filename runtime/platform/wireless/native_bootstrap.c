@@ -21,6 +21,9 @@ static int boot_consumed;
 int xw_native_rf_gui_owner(void){
  return prepared&&gui_pid==(int)getpid()&&gui_thread==(unsigned long)pthread_self();
 }
+int xw_native_rf_gui_notice_fd(void){
+ return xw_native_rf_gui_owner()?pair[0]:-1;
+}
 int xw_native_rf_bootstrap_gui(void){
  if(prepared)return gui_pid==(int)getpid()&&gui_thread==(unsigned long)pthread_self()?0:XW_MODE_WRONG_OWNER;
  int local[2];if(socketpair(AF_UNIX,SOCK_DGRAM,0,local))return XW_MODE_FAULT;

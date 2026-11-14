@@ -11,7 +11,12 @@ binary=out/'handoff.arm'
 subprocess.run(['arm-linux-gnueabi-gcc','-std=c99','-Os','-Wall','-Wextra','-Werror','-Wno-misleading-indentation','-march=armv5te','-marm','-mfloat-abi=soft','-ffreestanding','-fno-builtin','-fno-stack-protector','-fno-pie','-no-pie','-nostdlib','-Wl,--build-id=none,-Ttext=0x50000000,-e,_start',*sources,'-lgcc','-o',str(binary)],cwd=ROOT,check=True)
 helper=ELFFile(io.BytesIO(binary.read_bytes()));symbols={s.name:s['st_value'] for s in helper.get_section_by_name('.symtab').iter_symbols()}
 callbacks=(0x16b74,0x143c0,0xf32c,0x3b498,0x37f08,0x49d6c,0x4492c,0x499f8,0x4f3dc);rows=[]
-for case in ('ready','radio-wait','sdk-wait','root-changed','code-changed','radio-failed','sdk-failed','wrong-owner','duplicate','resume-ok','resume-pending','resume-failed','resume-ack-error','resume-no-entry','resume-stale-sequence','resume-foreign','resume-wrong-client','resume-code'):
+revocation_cases = (
+ 'radio-wait-root-changed', 'sdk-wait-root-changed', 'sdk-return-root-changed',
+ 'radio-wait-code-changed', 'radio-wait-native-error', 'sdk-wait-cleanup-error',
+ 'radio-wait-foreign-owner',
+)
+for case in ('ready','radio-wait','sdk-wait','root-changed','code-changed','radio-failed','sdk-failed','wrong-owner','duplicate','resume-ok','resume-pending','resume-failed','resume-ack-error','resume-no-entry','resume-stale-sequence','resume-foreign','resume-wrong-client','resume-code',*revocation_cases):
  u=Uc(UC_ARCH_ARM,UC_MODE_ARM)
  segments=[seg for elf in (ELFFile(io.BytesIO(base)),helper) for seg in elf.iter_segments() if seg['p_type']=='PT_LOAD']
  merged=[]
@@ -41,8 +46,54 @@ for case in ('ready','radio-wait','sdk-wait','root-changed','code-changed','radi
   u.emu_start(symbols[name],done,count=2000000);assert u.reg_read(UC_ARM_REG_PC)==done
   return u.reg_read(UC_ARM_REG_R0)
  assert call('test_other')==0
+ assert call('xw_player_handoff_needs_progress')==0
  if case=='wrong-owner':put(symbols['xw_test_thread'],18)
  assert call('test_start')==0x58575052 and not entered
+ assert call('xw_player_handoff_needs_progress')==int(case!='wrong-owner')
+ if case in revocation_cases:
+  if case.startswith('radio-wait'):
+   put(symbols['test_radio_wait'],2)
+  else:
+   put(symbols['test_sdk_wait'],2)
+  if case=='sdk-return-root-changed':
+   put(symbols['test_sdk_change_root'],1)
+  call('xw_player_handoff_tick')
+  if case=='radio-wait-code-changed':
+   put(0x10d80,get(0x10d80)^1)
+  else:
+   put(0x613e68,1)
+  if case=='radio-wait-native-error':
+   put(symbols['test_radio_result'],-4)
+  if case=='sdk-wait-cleanup-error':
+   put(symbols['test_sdk_result'],-2)
+  if case=='radio-wait-foreign-owner':
+   polls=get(symbols['test_radio_calls'])
+   put(symbols['xw_test_thread'],18)
+   call('xw_player_handoff_tick')
+   assert get(symbols['test_radio_calls'])==polls and not entered
+   put(symbols['xw_test_thread'],17)
+  for _ in range(8):
+   call('xw_player_handoff_tick')
+  assert not entered and not completed and not components
+  radio_polls=get(symbols['test_radio_calls'])
+  sdk_polls=get(symbols['test_sdk_calls'])
+  expected_sdk=0 if case=='radio-wait-native-error' else 1 if case.startswith('radio-wait') else 3
+  assert sdk_polls==expected_sdk,(case,radio_polls,sdk_polls,expected_sdk)
+  assert radio_polls>=3,(case,radio_polls)
+  assert call('xw_player_handoff_needs_progress')==0
+  if case=='radio-wait-code-changed':
+   put(0x10d80,get(0x10d80)^1)
+  put(0x613e68,0)
+  assert call('test_start')==0x58575052
+  assert call('test_resume_begin')==0x58575052
+  for _ in range(3):
+   call('xw_player_handoff_tick')
+  assert not entered and not get(symbols['test_resume_calls'])
+  assert get(symbols['test_radio_calls'])==radio_polls
+  assert get(symbols['test_sdk_calls'])==sdk_polls
+  rows.append(dict(case=case,original_calls=0,radio_polls=radio_polls,sdk_polls=sdk_polls,
+                   cancelled_native_request_not_resumed=True))
+  continue
  if case=='radio-wait':put(symbols['test_radio_wait'],2)
  if case=='sdk-wait':put(symbols['test_sdk_wait'],2)
  if case=='root-changed':put(0x613e68,1)
@@ -55,6 +106,7 @@ for case in ('ready','radio-wait','sdk-wait','root-changed','code-changed','radi
  for i in range(6):call('xw_player_handoff_tick')
  success=case in ('ready','radio-wait','sdk-wait','duplicate') or case.startswith('resume-')
  assert len(entered)==int(success) and len(completed)==int(success) and components==(list(callbacks) if success else [])
+ assert call('xw_player_handoff_needs_progress')==0
  if case.startswith('resume-'):
   client=0x820f68;put(client+4,1);put(client+20,7)
   if case=='resume-code':put(0x265510,get(0x265510)^1)
@@ -79,4 +131,10 @@ for case in ('ready','radio-wait','sdk-wait','root-changed','code-changed','radi
  for i in range(3):call('xw_player_handoff_tick')
  assert len(entered)==int(success)
  rows.append(dict(case=case,original_calls=len(entered),radio_polls=get(symbols['test_radio_calls']),sdk_polls=get(symbols['test_sdk_calls'])))
-print(json.dumps(dict(passed=True,device_accessed=False,firmware_created=False,cases=rows,source_hashes={name:hashlib.sha256((ROOT/name).read_bytes()).hexdigest() for name in [*sources,'tools/test_player_handoff_bridge.py','runtime/platform/player/host_handoff_bridge.h','runtime/platform/player/stock_prepare_view.h']},limits=['Production C wait/view and original command6 coordinator execute; radio/SDK stop and component/finalizer effects are fixtures.','No native callsite binding, command7 completion/rearm, original OS scheduling, hardware sleep/USB or flash qualification.']),indent=2))
+report=dict(passed=True,device_accessed=False,firmware_created=False,cases=rows,
+ source_hashes={name:hashlib.sha256((ROOT/name).read_bytes()).hexdigest() for name in [*sources,'tools/test_player_handoff_bridge.py','runtime/platform/player/host_handoff_bridge.h','runtime/platform/player/stock_prepare_view.h']},
+ limits=['Production C wait/view and original command6 coordinator execute; radio/SDK stop and component/finalizer effects are fixtures.',
+         'Command7 activation/rearm uses supplied native client/sequence values; no complete APF transport or original OS scheduling.',
+         'No physical RF, sleep/USB or flash qualification.'])
+(out/'report.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')
+print(json.dumps(report,indent=2))

@@ -2,7 +2,7 @@
 #define HB_FM_STATE_H
 #include <stddef.h>
 #include <stdint.h>
-#include "fm_radio.h"
+#include "../../../sdk/include/x1000/services/fm_model.h"
 #define FM_STATE_MAX_BYTES (48u+112u*FM_MAX_STATIONS)
 struct fm_state {
  struct fm_band band;int frequency,threshold;uint32_t generation;

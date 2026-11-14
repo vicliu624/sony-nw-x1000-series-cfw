@@ -32,7 +32,8 @@ static void trace_stock_task(int pid){
    if(!(value&3)&&((value>=0x8000&&value<0x4d6000)||(value>=0x40000000&&value<0x42000000)))printf(" %08x",value);
   }
   puts("");
-  static const unsigned controls[]={0x613e60,0x613e64,0x613e68,0x613eac,0x66efe8,0x6833dc,0x820f6c};
+  static const unsigned controls[]={0x613e60,0x613e64,0x613e68,0x613eac,0x66efe8,0x6833dc,0x820f6c,
+                                    0x683328,0x68332c,0x683330};
   printf("GUEST_TASK_NATIVE_CONTROLS pid=%d",pid);
   for(unsigned i=0;i<sizeof controls/sizeof controls[0];i++){
    errno=0;unsigned v=(unsigned)guest_ptrace(2,pid,(void *)(unsigned long)controls[i],0);

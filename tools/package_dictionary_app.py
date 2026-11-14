@@ -11,7 +11,7 @@ shutil.copytree(w/'package',out/'PLAYER/HOMEBREW/apps/dictionary')
 for p in (ROOT/'work/dictionary-preview').glob('*.png'):shutil.copyfile(p,out/'PREVIEW'/p.name)
 shutil.copyfile(ROOT/'docs/apps/DICTIONARY.md',out/'README.md');shutil.copytree(ROOT/'third_party/dictionary-data',out/'LICENSES')
 (out/'REVIEW').mkdir();shutil.copyfile(w/'build.json',out/'REVIEW/build.json');shutil.copyfile(ROOT/'work/dictionary-tests/report.json',out/'REVIEW/tests.json')
-for folder in ['runtime/apps/dictionary','runtime/native']:
+for folder in ['runtime/apps/dictionary','runtime/platform/text','runtime/native','sdk/include']:
  shutil.copytree(ROOT/folder,out/'SOURCE'/folder,ignore=shutil.ignore_patterns('*.o','__pycache__'))
 for n in ['platform.c','platform.h']:
  p=out/'SOURCE/runtime/apps/emulators'/n;p.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(ROOT/'runtime/apps/emulators'/n,p)

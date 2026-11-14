@@ -81,8 +81,9 @@ OS sandbox; a native C program can bypass the facade if its author chooses.
 Checks include the pinned vfat user mount source, separate root device,
 directory descriptor/path identity, symlinks, hardlinks, regular files,
 cancellation, bounded sizes and a1MiB free reserve for writes. The initial
-volume observer is reused from the maintained QQ storage implementation as a
-private source dependency, not a public QQ API. Existing source layout is kept.
+volume observer lives in `runtime/platform/storage/`, shared with native-service
+clients. Its legacy C names remain compatible; callback apps use the facade above
+and do not need QQ account, network or import code.
 
 | Result | Meaning |
 | --- | --- |
@@ -102,6 +103,12 @@ cleanup writes and may leave that temporary file; inspect/recover it explicitly
 under established exclusive ownership. UNCERTAIN must not be treated as a safe
 automatic retry. Settings should be written during a live event, not in finish,
 because stop state prohibits new persistent operations.
+
+Storage checks the backend stop probe before and after the ownership callback.
+Cancellation wins even if that callback returns 1. Changing the provider or its
+context invalidates the current ownership observation. A stop before rename
+leaves the previous file intact; the temporary file may remain for explicit
+recovery. A stop observed after rename still reports UNCERTAIN.
 
 ## Build modules
 

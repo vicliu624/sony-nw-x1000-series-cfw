@@ -9,6 +9,14 @@ Local ARM review candidate for Japanese X1060/JP1.11. Build with
 `python runtime/apps/espnow-test/build.py`. No player action is part of building.
 This is an explicit CLI execution engine, not an installed graphical application.
 
+This entry and the separate Wireless Remote RF owner use the private
+`runtime/platform/espnow/native_environment` module. Their composition supplies
+reviewed manifests; the module qualifies original files/mounts, opens existing
+user-data directories and prepares the retained key/PN workspace. Diagnostic
+logging, peer selection and the finite test loop remain here. No executable is
+included to obtain shared helpers. This separation does not qualify global
+USB/APF/radio ownership or change the experimental hardware limits below.
+
 The detached worker does not depend on WiFi Terminal after launch. It gives a
 three-second start delay, captures the original network configuration in RAM,
 disconnects through Sony's manager, loads the exact full-radio RAM candidate,

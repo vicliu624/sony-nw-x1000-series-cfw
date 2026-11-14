@@ -1,18 +1,20 @@
 #ifndef X1000_DICTIONARY_UI_H
 #define X1000_DICTIONARY_UI_H
-#include "../../../sdk/include/x1000/services/unicode_font.h"
+#include "input.h"
+#include "../../../sdk/include/x1000/services/bitmap_font.h"
+#include "../../../sdk/include/x1000/services/lexicon.h"
 struct dx_line {
-  unsigned first, last;
+    unsigned first, last;
 };
 struct dx_ui {
-  struct dx dict;
-  struct dx_font font;
-  struct dx_input input;
-  int mode, quit, pressed, result_count, can_next;
-  uint32_t lower, start;
-  char words[3][64], snippets[3][160], article[65536], error[80];
-  struct dx_line lines[8192];
-  unsigned line_count, page;
+    struct dx dict;
+    struct dx_font font;
+    struct dx_input input;
+    int mode, quit, pressed, result_count, can_next;
+    uint32_t lower, start;
+    char words[3][64], snippets[3][160], article[65536], error[80];
+    struct dx_line lines[8192];
+    unsigned line_count, page;
 };
 enum { DX_SEARCH, DX_ARTICLE, DX_ERROR };
 int dx_ui_open(struct dx_ui *, const char *, const char *);

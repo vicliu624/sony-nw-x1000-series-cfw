@@ -1,6 +1,6 @@
 #include <assert.h>
 #include <string.h>
-#include "../../runtime/apps/fm-radio/fm_audio.h"
+#include "../../runtime/platform/audio/fm_audio.h"
 struct audio_fake {int32_t values[5],original[5];int writes,fail_at,fail_get,always_fail_source,analog_volume,silent_at,powerdown,power_read_failed;};
 static int audio_control(void *context,uint32_t command,int32_t *value){
  struct audio_fake *f=context;
@@ -15,7 +15,7 @@ static int audio_control(void *context,uint32_t command,int32_t *value){
 }
 static void audio_reset(struct audio_fake *f){memset(f,0,sizeof(*f));int32_t values[]={0,0,1,0x3232,0x2020};memcpy(f->values,values,sizeof(values));memcpy(f->original,values,sizeof(values));f->analog_volume=0x1414;}
 
-#include "../../runtime/apps/fm-radio/fm_session.h"
+#include "../../runtime/platform/fm/fm_session.h"
 #include "../../runtime/apps/fm-radio/fm_radio_ui.h"
 struct tuner_fake {uint32_t frequency,fail;int wrong_name,wrong_unit,short_band,mismatch,bad_signal,valid,sets,not_done,wrong_channel,config,read_error,waits,cancel,read_error_index,config_writes,drop_write,fail_applied;};
 static int tuner_control(void *context,uint32_t request,void *arg){
@@ -41,7 +41,7 @@ static int tuner_control(void *context,uint32_t request,void *arg){
 #include <unistd.h>
 #include <sys/stat.h>
 #include "../../runtime/apps/fm-radio/fm_storage.h"
-#include "../../runtime/apps/fm-radio/fm_posix.h"
+#include "../../runtime/platform/fm/fm_posix.h"
 #include "../../runtime/native/linux_devices.h"
 int hb_fm_native_review(void);
 int hb_fm_main(int,char **);

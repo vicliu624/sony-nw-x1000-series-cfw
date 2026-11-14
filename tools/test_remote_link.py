@@ -13,12 +13,23 @@ sources = ['tools/test_remote_link.c',
            'runtime/apps/wireless-remote/link.c',
            'runtime/apps/wireless-remote/player_status.c',
            'runtime/apps/wireless-remote/status_auth.c',
+           'runtime/apps/wireless-remote/pairing_proof.c',
            'runtime/apps/wireless-remote/receiver.c',
            'runtime/apps/wireless-remote/session_wire.c',
            'runtime/apps/wireless-remote/control.c',
            'runtime/apps/wireless-remote/mode_wire.c',
            'runtime/native/sha256.c']
 flags = ['-std=c99', '-Wall', '-Wextra', '-Werror', '-Wno-misleading-indentation']
+subprocess.run(['g++', '-std=c++20', '-Wall', '-Wextra', '-Werror', '-I.',
+                '-x', 'c++', '-fsyntax-only', '-'], input='''
+#include "runtime/apps/wireless-remote/transport_goal.h"
+int main() {
+    wr_transport_goal goal{};
+    wr_status status{};
+    wr_transport_goal_begin(&goal, &status, 1, XW_OP_PAUSE, 100);
+    return wr_transport_goal_needs_link_check(&goal) ? 0 : 1;
+}
+''', text=True, cwd=ROOT, check=True)
 host = out / 'test.host'
 subprocess.run(['gcc-12', *flags, '-fsanitize=address,undefined', *sources,
                 '-o', str(host)], cwd=ROOT, check=True)
@@ -42,9 +53,12 @@ inputs = sources + ['tools/test_remote_link.py',
                     'runtime/apps/wireless-remote/player_status.h',
                     'runtime/platform/player/player.h',
                     'runtime/apps/wireless-remote/status_auth.h',
+                    'runtime/apps/wireless-remote/pairing_proof.h',
                     'runtime/apps/wireless-remote/receiver.h','runtime/apps/wireless-remote/mode_wire.h','runtime/apps/wireless-remote/session_wire.h',
-                    'runtime/native/sha256.h','runtime/apps/wireless-remote/control.h']
-report = dict(passed=True, host_sanitizers=True, original_libc_arm926=True,
+                    'runtime/native/sha256.h','runtime/apps/wireless-remote/control.h',
+                    'runtime/apps/wireless-remote/transport_goal.h',
+                    'runtime/apps/wireless-remote/playback_icon.h']
+report = dict(passed=True, host_sanitizers=True, original_libc_arm926=True, cpp_controller_header_syntax=True,
               device_accessed=False, rf_qualified=False, stdout=run.stdout,
               source_hashes={p: hashlib.sha256((ROOT / p).read_bytes()).hexdigest() for p in inputs})
 (out / 'report.json').write_text(json.dumps(report, indent=2) + '\n', encoding='utf-8')

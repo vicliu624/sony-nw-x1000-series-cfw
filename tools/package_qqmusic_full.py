@@ -81,7 +81,7 @@ changed=sorted(p for p,h in build['sources'].items() if baseline.get(p)!=h)
 source=out/'SOURCE';source.mkdir()
 for name in build['sources'].keys()|helper_build['sources'].keys():
     assert not name.startswith('tools/fixtures/');target=source/name;target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(ROOT/name,target)
-for folder in ('runtime/apps/qqmusic','runtime/native','runtime/store'):
+for folder in ('runtime/apps/qqmusic','runtime/platform/storage','runtime/platform/images','runtime/native','runtime/store'):
     for path in (ROOT/folder).glob('*.h'):
         target=source/path.relative_to(ROOT);target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(path,target)
 for folder in ('third_party/qqmusic-codecs','third_party/qqmusic-stb'):

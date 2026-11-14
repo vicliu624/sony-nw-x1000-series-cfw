@@ -4,22 +4,39 @@ Build a touch application without changing the firmware, launcher or official
 release composition. Target: Japanese NW-X1050/NW-X1060, JP1.11 only. This is an
 experimental source SDK. Computer tests are not device qualification.
 
-System-service evolution follows the proposed [lifecycle design](LIFECYCLE.md).
+System-service ownership follows the [lifecycle contract](LIFECYCLE.md).
 Keep [wireless modes and consumers](WIRELESS.md) separate: ESP-NOW is a system
 capability; remote player control is one consumer.
-Its managed sessions/tasks are not yet implemented in the published SDK.
+The general background-task manager is not a published SDK capability. The
+unreleased managed player client and private native factory have separate scopes.
 
-SDK0.2 also provides [native services](SERVICES.md) for the16 existing apps and
+SDK 0.2 also provides [native services](SERVICES.md) for the 16 existing apps and
 custom C main programs. These retain their own renderers, loops, file formats
 and storage policies. The small settings/resource limits below apply to the
 callback profile, not to the existing readers, emulators or music workflows.
 
-Current source development version: **0.2.0-alpha.9**, adding the experimental
-player-managed-client module. It has not been published. The previous alpha.8
+Current source development version: **0.2.0-alpha.10**, with storage cancellation
+and ownership-observation fixes. The managed player client remains experimental.
+This version has not been published. The previous alpha.8
 source archive remains available from
 [SDK releases](https://github.com/vicliu624/sony-nw-x1000-series-cfw/releases/tag/sdk-v0.2.0-alpha.8).
 For wireless applications, read [ESP-NOW services](ESPNOW.md), including the
 explicit encrypted profile and durable user-storage counter requirements.
+
+## Choose the supported development path
+
+| Need | Current path | Limit to account for before development |
+| --- | --- | --- |
+| Small foreground touch/canvas app | Callback templates below | Device persistence is denied until platform storage ownership is qualified; host persistence is separate |
+| Existing custom C main, codecs or networking | [Native services](SERVICES.md) | The app still owns its loop, acquisition and cleanup; imports do not add lifecycle management |
+| Original-player client | [Player client](PLAYER_CLIENT.md) | Experimental, requires a separately supplied service and authorized session |
+| System background task or original Settings entry | Private platform integration | No public generic task-registration API; do not copy Wireless Remote's Sony callbacks into an app |
+
+The SDK is not yet a complete managed application platform. Its 36 public service
+modules are independent of application source; private Sony integration and
+task composition retain the [delivery gaps](../ARCHITECTURE.md#developer-delivery-gaps). Use the foreground
+templates for the smallest supported entry point. A successful host preview or
+ARM build does not establish that every requested device capability is available.
 
 ## 1. Prepare a Linux/WSL development environment
 
@@ -27,7 +44,7 @@ Supported baseline: Ubuntu24.04, Python3.12, Node is not needed for native apps.
 
 ```sh
 sudo apt-get update
-sudo apt-get install gcc gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi libc6-dev-armel-cross qemu-user p7zip-full libsdl2-dev python3-venv
+sudo apt-get install gcc gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi libc6-dev-armel-cross qemu-user p7zip-full openssl libsdl2-dev python3-venv
 python3 -m venv .venv
 . .venv/bin/activate
 python -m pip install -r sdk/requirements.txt
@@ -38,7 +55,9 @@ python tools/sdk.py doctor
 Run all commands from the checkout or extracted SDK root. setup downloads the
 exact Japanese updater recorded in sources/downloads.json if missing, validates
 its hash, decrypts the pinned container and extracts only libc/loader locally.
-It never executes Sony's updater or writes a device. If the recorded server is
+The container reader uses OpenSSL 3 with its legacy DES provider; it does not
+silently substitute another codec. Setup never executes Sony's updater or writes
+a device. If the recorded server is
 unavailable, obtain the exact original independently and use
 `python tools/sdk.py setup --stock-exe /path/to/NW-X1000_V1_11.exe`.
 No other model's libraries or arbitrary sysroot is a substitute. Existing

@@ -1,10 +1,10 @@
 """ARM client -> private stock provider -> original AudioC integration, PC only."""
 from pathlib import Path
-import hashlib, io, json, struct, subprocess
+import hashlib, io, json, struct, subprocess, time
 from elftools.elf.elffile import ELFFile
 from unicorn import Uc, UC_ARCH_ARM, UC_MODE_ARM, UC_HOOK_CODE
 from unicorn.arm_const import UC_ARM_REG_R0, UC_ARM_REG_R1, UC_ARM_REG_R2, UC_ARM_REG_R3, UC_ARM_REG_SP, UC_ARM_REG_LR, UC_ARM_REG_PC
-ROOT=Path(__file__).resolve().parents[1];work=ROOT/'work/stock-provider';work.mkdir(exist_ok=True)
+ROOT=Path(__file__).resolve().parents[1];work=ROOT/'work/stock-provider'/str(time.time_ns());work.mkdir(parents=True)
 sources=['runtime/platform/player/client.c','runtime/platform/player/stock_provider.c','runtime/platform/player/stock_info.c','runtime/platform/player/local_identity.c','runtime/platform/player/stock_gui.c','runtime/platform/player/stock_volume.c','runtime/platform/player/stock_image.c','runtime/native/sha256.c','tools/fixtures/stock_provider_host.c']
 artifact=work/'consumer.arm'
 subprocess.run(['arm-linux-gnueabi-gcc','-std=c99','-Os','-Wall','-Wextra','-Werror','-Wno-misleading-indentation','-march=armv5te','-marm','-mfloat-abi=soft','-ffreestanding','-fno-builtin','-fno-pie','-fno-stack-protector','-nostdlib','-no-pie','-Wl,--build-id=none,-Ttext=0x50000000,-e,_start',*sources,'-lgcc','-o',str(artifact)],cwd=ROOT,check=True)
@@ -129,4 +129,6 @@ report=dict(passed=True,device_accessed=False,actual_client_core=True,actual_sto
          'Transport GUI adapters are covered by test_stock_gui_host.py; this integration fixture exercises native volume, CtrlInfo/local-media identity and observation lifecycle.',
          'Control snapshots, actor states and output mode are synthetic fixture inputs; no audio output or device sleep/USB qualification is established.',
          'No process transport, service bootstrap or metadata/media backend is installed.'])
+report['source_hashes']['runtime/platform/player/stock_controller_binding.h']=hashlib.sha256((ROOT/'runtime/platform/player/stock_controller_binding.h').read_bytes()).hexdigest()
+report['report_path']=(work/'report.json').relative_to(ROOT).as_posix()
 (work/'report.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))

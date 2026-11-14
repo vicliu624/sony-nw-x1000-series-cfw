@@ -49,7 +49,7 @@ if GUARD:
  from generate_espnow_full_profile import render
  (OUT/'full_radio_profile.h').write_text(render(candidate.parent.parent));sources.append('runtime/platform/espnow/xnow_full_guard.c');extra=['-DXNOW_CHAIN_GUARD','-I',str(OUT),'-I',str(ROOT/'runtime/platform/espnow')]
 if DRIVER:
- sources.append('runtime/platform/espnow/xnow_sd8686_full.c');extra+=['-DXNOW_CHAIN_DRIVER','-Wl,--wrap=fopen','-Wl,--wrap=fopen64','-Wl,--wrap=socket','-Wl,--wrap=close','-Wl,--wrap=ioctl']
+ sources+=['runtime/platform/espnow/xnow_sd8686_full.c','runtime/platform/espnow/xnow_shared_session.c'];extra+=['-DXNOW_CHAIN_DRIVER','-Wl,--wrap=fopen','-Wl,--wrap=fopen64','-Wl,--wrap=socket','-Wl,--wrap=close','-Wl,--wrap=ioctl']
  (OUT/'driver-info.txt').write_text('sd8686-9.70.3.p32-26409.p51-(FP4)\n')
 exe=OUT/('chain.arm' if ARM else 'chain.host')
 if ARM:

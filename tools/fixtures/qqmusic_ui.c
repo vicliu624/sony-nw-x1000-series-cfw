@@ -1,6 +1,6 @@
 #include "../../runtime/apps/qqmusic/qqmusic_font.h"
 #include "../../runtime/apps/qqmusic/qqmusic_ui.h"
-#include "../../runtime/apps/qqmusic/qqmusic_image.h"
+#include "../../runtime/platform/images/qqmusic_image.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>

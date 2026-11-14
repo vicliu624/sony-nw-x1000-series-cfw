@@ -108,6 +108,14 @@ int main(void){
  puts("NATIVE_PAGE_GENERATION_STALE_PASS");
 #endif
  assert(wr_native_page_bridge_request(&page,WR_NATIVE_PAGE_CANCEL,0)==reply(0));view_phase=0;
+ unsigned saved_phase=backend.phase;int saved_error=backend.error;
+ backend.phase=WR_SETTINGS_FAULT;backend.error=XW_PLAYER_UNCERTAIN;
+ assert(wr_remote_page_open()==0xc201&&page.open&&page.preview==1&&view_phase==1);
+ assert(!wr_remote_page_select(0,0,0));
+ assert(wr_remote_page_confirm(0,0,0xff0000)==0xc202&&!backend.pending_enabled);
+ assert(wr_remote_page_back(0,0,0)==0x0201&&!page.open&&view_phase==2);view_phase=0;
+ backend.phase=saved_phase;backend.error=saved_error;
+ puts("NATIVE_PAGE_FAULT_READ_ONLY_PASS");
  assert(!wr_native_page_bridge_unbind(&page)&&!page.view_begin&&!page.view_context);
  assert(!wr_settings_backend_unbind(&backend));
  pthread_mutex_lock((void *)&counters);assert(opened==closed&&!live);pthread_mutex_unlock((void *)&counters);

@@ -35,18 +35,20 @@ uint32_t wr_native_page_bridge_request(struct wr_native_page_bridge *p,uint32_t 
  struct wr_settings_view view;int rc=wr_settings_backend_query(p->backend,&view);if(rc)return status(rc);
  if(operation==WR_NATIVE_PAGE_OPEN){
   if(!p->view_begin||!p->view_end)return status(XW_PLAYER_UNAVAILABLE);
-  if(view.requested_enabled<0)return status(XW_PLAYER_UNCERTAIN);
+  /* Backend failure disables activation, not access to status, pairing or Back.
+   * The backend still refuses unsafe start until retirement is known. */
   uint64_t generation=p->backend->generation;if(!generation)return status(XW_PLAYER_UNAVAILABLE);
   rc=p->view_begin(p->view_context);if(rc)return status(rc);
   p->generation=generation;
-  p->preview=view.requested_enabled?0:1;p->open=1;
+  p->preview=view.requested_enabled>0?0:1;p->open=1;
   return WR_NATIVE_PAGE_ROW_TAG|p->preview;
  }
  if(p->generation!=p->backend->generation)return status(XW_PLAYER_STALE);
  if(operation==WR_NATIVE_PAGE_QUERY)return WR_NATIVE_PAGE_ROW_TAG|p->preview;
  if(operation==WR_NATIVE_PAGE_PREVIEW){
-  if(row>1)return status(XW_PLAYER_INVALID);
+  if(row>=WR_NATIVE_PAGE_CHOICES)return status(XW_PLAYER_INVALID);
   p->preview=row;return status(0);
  }
+ if(p->preview>=2)return status(XW_PLAYER_UNSUPPORTED);
  return status(wr_settings_backend_request_enabled(p->backend,p->preview==0));
 }

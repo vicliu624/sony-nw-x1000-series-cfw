@@ -1,6 +1,6 @@
 #include <assert.h>
 #include <string.h>
-#include "../../runtime/apps/fm-radio/fm_audio.h"
+#include "../../runtime/platform/audio/fm_audio.h"
 struct fake {int32_t values[5],original[5];int writes,fail_at,fail_get,always_fail_source,analog_volume,silent_at,powerdown,power_read_failed;};
 static int control(void *context,uint32_t command,int32_t *value){
  struct fake *f=context;

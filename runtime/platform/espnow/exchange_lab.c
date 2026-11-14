@@ -13,6 +13,11 @@ static int candidate_guard(void *p,enum xnow_session_action action){
     struct stat root,volume;FILE *file;char line[1024],dev[256],mount[256],type[64],opts[256];
     unsigned found=0;int bad=0;
     if(root_guard(p,action))return -1;
+#ifdef XNOW_REMOTE_MANAGED
+    /* The shared path attaches to the authenticated root image. A request
+     * to load a user candidate on that path is a controller error. */
+    if(shared_root_radio&&action==XNOW_SESSION_LOAD_CANDIDATE&&!managed_root_cold)return -1;
+#endif
     /* Loss of user candidate files must never block loading root-stock files. */
     if(action!=XNOW_SESSION_PREFLIGHT&&action!=XNOW_SESSION_LOAD_CANDIDATE&&
        action!=XNOW_SESSION_VERIFY_CANDIDATE&&action!=XNOW_SESSION_CONFIGURE)return 0;
@@ -28,6 +33,9 @@ static int candidate_guard(void *p,enum xnow_session_action action){
     if(fclose(file))bad=1;
     if(bad||found!=1||lstat("/",&root)||lstat("/contents",&volume)||
        !S_ISDIR(volume.st_mode)||volume.st_dev==root.st_dev)return -1;
+#ifdef XNOW_REMOTE_MANAGED
+    if(shared_root_radio)return 0;
+#endif
     for(unsigned i=0;i<sizeof(exchange_inputs)/sizeof(exchange_inputs[0]);i++){
         const struct stock_input *input=&exchange_inputs[i];
         if(xnow_file_check(input->path,(uint64_t)volume.st_dev,input->bytes,input->sha))return -1;

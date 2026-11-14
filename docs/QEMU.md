@@ -1,6 +1,6 @@
 # Original Sony interface in QEMU
 
-The PC viewer runs the unmodified Japanese 1.11 SpiderApp, original libraries,
+The default PC viewer runs the unmodified Japanese 1.11 SpiderApp, original libraries,
 sysmgrd, appproxy and AppList in an isolated ARM926 system guest. Its screen comes
 from the guest framebuffer. The browser displays those pixels and sends touch
 coordinates; it does not recreate Sony menus.
@@ -136,6 +136,131 @@ The Python viewer also exposes explicit diagnostic profiles:
 All such profiles require a new `--output`. Their observations qualify only the
 reported guest paths and binaries. Startup-error and incomplete Homebrew paths
 remain explicit limitations of this generic machine.
+
+## Source-layout investigation without an installer
+
+`--layout-review work/<layout>/report.json` loads a fresh source-bound system
+overlay instead of requiring a generated UPG. The layout records its existing
+localization input; the guest verifies that input, the host/library identities
+and every overlay file. The original installation components remain unchanged
+and no updater is run. `--layout-review` and `--firmware-review` are exclusive.
+
+Use a new session with `--ram-user-volume --homebrew-roundtrip-fixture` to
+investigate the actual composed entry and original manager/proxy return with a
+two-second synthetic child. It is not the installed launcher, a media decoder
+or a hardware release test. Display/input, Wi-Fi, audio and USB conclusions must
+retain those model boundaries. Modified source invalidates prepared adapters;
+create a new layout/session rather than relabeling earlier results.
+
+For a repeatable entry/return check, use a verified Home screenshot from the
+same menu composition as an explicit reference:
+
+```sh
+.venv/bin/python tools/test_stock_homebrew_system.py \
+  --layout-review work/<layout>/report.json \
+  --home-reference work/<reference>/home.png \
+  --output work/<new-run>
+```
+
+The check waits for the rendered Home screen before tapping the Homebrew icon,
+requires the fixture child's console entry and exit records, then requires Home
+again. It records timing, image comparisons and failures, checks that source
+has not changed, and closes its own viewer. It does not count a click, a live
+process or a black screen as success. The fixture writes to the guest console
+because Sony may redirect a child application's standard error.
+
+The current warm-handoff composition reaches Home and requests original
+playback-state capture. The capture object is in mode1/state7, where the
+original state table selects a no-op and emits no completion. The same path
+occurs when selecting the original browser with unmodified Sony userspace in
+this GUI-only profile, without the CFW host library. This observation does not
+identify a CFW-specific failure and cannot qualify a successful application
+handoff. Do not skip capture or synthesize its completion to make the test pass.
+
+Captures with different idle durations cannot isolate a regression: automatic
+screen blanking and the incomplete power/wake model must be separated from
+startup and application-transition failures.
+
+## Native NCAN shutdown
+
+The original exit path stops GctlSys and joins its background worker. That
+worker retries a failed NCAN wait ioctl before checking its stopping state.
+An adapter that rejects both wait and break can therefore keep original
+finalization waiting, even without any CFW library.
+
+`--ncan-wait-model` adds the idle non-Digipod wait/break contract to the existing
+virtual NCAN control profile. Wait `0xc0046308` blocks until break `0x6309`
+produces event word `0x200`. A new wait clears an older break in this selected
+variant; the original Digipod comparison variant has different ordering.
+No NC engine, sensor changes or physical timing are supplied. Unknown requests
+remain refused. The original worker and application-manager code still decide
+when to exit; no native completion is inserted.
+
+```sh
+work/wireless-debug-venv/bin/python tools/test_stock_ncan_wait.py
+work/wireless-debug-venv/bin/python tools/run_stock_gui.py \
+  --output work/usb-ncan-observation --ram-user-volume \
+  --usb-transition-model --ncan-wait-model
+```
+
+With this explicit model, original Sony userspace and the source-bound CFW
+composition have reached actual Responder entry. Responder then fails because
+`/dev/mgscsi` is absent. This establishes neither gadget initialization nor
+physical storage access. Do not turn missing SCSI requests into success.
+
+## USB connection observation
+
+The default peripheral profile always reports USB disconnected. It cannot
+exercise the application's response to plugging in a cable. An optional
+`--usb-transition-model` supplies controlled connection notifications through
+a third guest UART. It preserves the original manager, player and AppList:
+
+```sh
+work/wireless-debug-venv/bin/python tools/test_stock_usb_connection.py
+work/wireless-debug-venv/bin/python tools/run_stock_gui.py \
+  --output work/usb-observation --ram-user-volume --usb-transition-model
+```
+
+The contract check executes the pinned original `icx1087_usbconn.ko` status,
+access and poll instructions in Unicorn, comparing each operation with the C
+model. It also checks the GPL header's ARM ioctl values, host sanitizers and
+original-libc ARM execution. Kernel scheduling, wait queues and copy-to-user
+effects are fixtures; the module is never installed or loaded into a kernel.
+
+Connection statuses 0 (disconnected), 4 (start-connect) and 1 (connected) are
+supported. Status queries do not consume a notification; poll consumes it once.
+Changes coalesce while pending. Prohibited access masks a connected status as
+disconnected. Firmware-update and MTP states are refused.
+
+When enabled, the token-authenticated local viewer endpoint `POST /usb` accepts
+`{"status": 0}`, `{"status": 4}` or `{"status": 1}`. The request-correlated reply
+confirms only receipt of a test input. `handoff_acknowledged` remains false:
+input acceptance does not prove player retirement, Responder startup or storage
+ownership. Without this profile, USB input is refused. The transport has one
+notification observer per process and covers the original manager's poll path.
+Generic select observers, multiple observers and USB-gadget operation are not
+qualified by this transport.
+
+Add `--task-trace` only for diagnosis. It briefly pauses original tasks and
+records registers, possible return addresses and selected Root/APF words after
+a connection change. A possible return address is not an unwound stack frame.
+The pinned 2.6.32 guest uses `/proc/<pid>/stat` when per-task `comm` is absent.
+These observations change scheduling and do not qualify timing.
+
+This diagnostic profile also observes the existing read-only player-library
+exports on the GUI display owner. `GUEST_PLAYER_BINDING` reports whether the
+queries are available, whether the owner anchor bound, and whether original PID
+delegation resolved. It calls no service or native event. Binding success is
+distinct from radio readiness, a client grant and physical acceptance.
+
+Without the NCAN wait model, USB notifications have been observed reaching original command3 with both
+unmodified Sony userspace and a source-bound CFW library. The captured Root
+state and relative library wait position match in these no-active-Remote cases;
+this is not an active Remote/SDK drain test. Complete original finalization,
+Responder startup, host enumeration and physical USB ownership remain unqualified. With the wait model,
+Responder entry is observed, while its SCSI setup remains unsupported. A black screen
+alone cannot distinguish display blanking, preparation or a blocked application.
+Do not bypass native completion to manufacture a successful handoff.
 
 ## Model verification
 

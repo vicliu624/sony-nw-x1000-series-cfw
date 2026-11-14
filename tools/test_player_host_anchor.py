@@ -1,23 +1,51 @@
 """Pinned main-loop instruction -> PID shim -> actual provider owner binding."""
 from pathlib import Path
-import hashlib,io,json,struct,subprocess,sys
+import argparse,hashlib,io,json,struct,subprocess,time
 from elftools.elf.elffile import ELFFile
 from unicorn import Uc,UC_ARCH_ARM,UC_MODE_ARM,UC_HOOK_CODE,UC_HOOK_INTR
 from unicorn.arm_const import UC_ARM_REG_R0,UC_ARM_REG_R1,UC_ARM_REG_R2,UC_ARM_REG_R4,UC_ARM_REG_R5,UC_ARM_REG_R6,UC_ARM_REG_R7,UC_ARM_REG_SP,UC_ARM_REG_LR,UC_ARM_REG_PC
 from build_player_host import ROOT,CORE_SOURCES,ENGINE_SOURCES,PREPARE_SOURCES,build
-engine_provider='--engine-provider' in sys.argv
-native_prepare='--native-prepare' in sys.argv
-native_settings='--native-settings' in sys.argv
-native_wireless='--native-wireless-settings' in sys.argv
-native_rf='--native-rf-gate' in sys.argv
-native_sleep='--native-sleep-analysis' in sys.argv
+parser=argparse.ArgumentParser(description=__doc__)
+for flag in ('engine-provider','native-prepare','native-settings','native-wireless-settings',
+             'native-rf-gate','native-sleep-analysis','sleep-routing-only','cold-routing-only'):
+ parser.add_argument('--'+flag,action='store_true')
+parser.add_argument('--remote-profile',type=Path)
+parser.add_argument('--host-review',type=Path,help='Check the actual reviewed composed ELF without rebuilding a different input')
+args=parser.parse_args()
+engine_provider=args.engine_provider
+native_prepare=args.native_prepare
+native_settings=args.native_settings
+native_wireless=args.native_wireless_settings
+native_rf=args.native_rf_gate
+native_sleep=args.native_sleep_analysis
 if native_sleep:native_rf=True
-remote_profile=Path(sys.argv[sys.argv.index('--remote-profile')+1]) if '--remote-profile' in sys.argv else None
+remote_profile=args.remote_profile
 if native_rf:native_wireless=True
 if native_wireless:native_settings=True
 if native_settings:native_prepare=engine_provider=True
 SOURCES=CORE_SOURCES+(ENGINE_SOURCES if engine_provider else [])+(PREPARE_SOURCES if native_prepare else [])
-_,candidate,build_report=build(engine_provider=engine_provider,native_prepare=native_prepare,builtin_localization=native_settings,native_remote_settings=native_settings,native_wireless_settings=native_wireless,native_rf_gate=native_rf,remote_profile=remote_profile,native_sleep_analysis=native_sleep);work=candidate.parent;artifact=work/'anchor-consumer.arm'
+if remote_profile is not None:SOURCES+=['runtime/platform/player/owner_wait.c']
+composed_input=None
+if args.host_review:
+ if not engine_provider or any((native_prepare,native_settings,native_wireless,native_rf,native_sleep,remote_profile,args.sleep_routing_only,args.cold_routing_only)):
+  parser.error('--host-review requires --engine-provider and selects only core owner/engine binding cases')
+ from review_managed_remote_profile import receipt,private,artifact as reviewed_artifact
+ reviewed,build_report=receipt(args.host_review)
+ if not build_report.get('passed') or not build_report.get('analysis_only') or not build_report.get('engine_provider'):
+  raise ValueError('Expected a current engine-provider analysis review')
+ reviewed_artifact(reviewed.parent/'libx1000-player-analysis.so',build_report['library_sha256'],build_report['library_bytes'])
+ selected=private(reviewed.parent/'SpiderApp.player-prepare.analysis-only.elf')
+ raw=selected.read_bytes()
+ if hashlib.sha256(raw).hexdigest()!=build_report['candidate_sha256']:
+  raise ValueError('Composed ELF differs from its reviewed identity')
+ work=ROOT/'work/player-host-composed-anchor'/str(time.time_ns());work.mkdir(parents=True)
+ candidate=work/'SpiderApp.composed.elf';candidate.write_bytes(raw)
+ composed_input=dict(review=reviewed.relative_to(ROOT).as_posix(),review_sha256=hashlib.sha256(reviewed.read_bytes()).hexdigest(),
+                     artifact=selected.relative_to(ROOT).as_posix(),sha256=build_report['candidate_sha256'])
+else:
+ _,candidate,build_report=build(engine_provider=engine_provider,native_prepare=native_prepare,builtin_localization=native_settings,native_remote_settings=native_settings,native_wireless_settings=native_wireless,native_rf_gate=native_rf,remote_profile=remote_profile,native_sleep_analysis=native_sleep)
+ work=candidate.parent
+artifact=work/'anchor-consumer.arm'
 if native_wireless:SOURCES+=['runtime/platform/wireless/mode_policy.c','runtime/platform/wireless/native_setting.c']
 if native_rf:SOURCES+=['runtime/platform/wireless/native_rf_dispatch.c','runtime/platform/wireless/native_rf_guard.c','runtime/platform/player/host_handoff_bridge.c']
 fixture='tools/fixtures/player_host_anchor.c'
@@ -35,10 +63,10 @@ if native_rf:scenarios+=('rf-off','rf-off-changed-code','rf-off-denied','rf-off-
 if native_rf:scenarios+=('rf-dispatch','rf-dispatch-nonstop','rf-dispatch-changed-code')
 if native_rf:scenarios+=('handoff','handoff-changed-site','handoff-wrong-owner','handoff-activation-failed')
 if native_sleep:scenarios+=('sleep','sleep-code','sleep-foreign','sleep-early','sleep-unbound-idle','sleep-unbound-busy','sleep-restore-entry','sleep-restore-complete','sleep-inactive-idle','sleep-inactive-busy','sleep-state-seven','sleep-initial-main')
-if '--sleep-routing-only' in sys.argv:
+if args.sleep_routing_only:
  assert native_sleep
  scenarios=tuple(name for name in scenarios if name.startswith('sleep'))
-if '--cold-routing-only' in sys.argv:
+if args.cold_routing_only:
  assert native_rf
  scenarios=('handoff-cold-idle','handoff-cold-unbound','handoff-cold-busy','handoff-cold-resume-unbound','handoff-cold-resume-idle')
 for scenario in scenarios:
@@ -392,10 +420,14 @@ report=dict(passed=True,remote_factory_tick_route=bool(remote_profile),factory_t
          'The patched ARM call, guarded shim, actual native provider binding and client snapshot call execute; stock AudioC is intentionally uninitialized.',
          'No endpoint, worker, device execution, flash package or sleep/USB validation is provided.'])
 report['engine_provider']=engine_provider
+report['source_hashes']['runtime/platform/player/stock_controller_binding.h']=hashlib.sha256((ROOT/'runtime/platform/player/stock_controller_binding.h').read_bytes()).hexdigest()
 report['native_prepare']=native_prepare
 report['native_settings_bridge']=native_settings
 report['native_wireless_bridge']=native_wireless
 report['native_rf_gate']=native_rf
 report['native_sleep_analysis']=native_sleep
+report['composed_input']=composed_input
+if composed_input:
+ report['limits'].append('The fully composed ELF is checked with the actual core owner/engine binding path; RF and native callback implementations are not exercised by this subset.')
 if native_prepare:report['limits'].append('Native-prepare helper runs production PID/glue routing with no-resource policy/notification fixtures; original prepare body is intercepted. Full DSO links the production managed policy but is not booted here.')
 (work/'anchor-test.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))

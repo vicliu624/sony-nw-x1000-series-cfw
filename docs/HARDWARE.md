@@ -103,4 +103,8 @@ are here; device identifiers, connection secrets and account traces are not.
 
 ## RF capabilities
 
-See [RF hardware and modulation](RF_HARDWARE.md) for the Si470x FM family, Marvell8686 Wi-Fi evidence, unresolved1seg silicon identity and the distinction between protocol modulation and a raw-IQ receiver. No new physical RF commands were performed for that review.
+See [RF hardware and interfaces](RF_HARDWARE.md) for the Si470x FM family,
+Marvell Wi-Fi evidence and unresolved 1seg silicon identity. Exact original
+bindings are in the [DTV HAL](reference/DTV_HAL.md) and
+[SD8686](reference/SD8686.md) references. Protocol modulation, internal I/Q
+blocks and a host sample-export interface are separate capabilities.

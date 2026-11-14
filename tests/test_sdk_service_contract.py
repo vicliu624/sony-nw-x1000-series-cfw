@@ -12,7 +12,7 @@ class SDKServiceContract(unittest.TestCase):
     def test_modules_resolve_to_real_sources_and_reject_invalid_requests(self):
         self.assertIn('runtime/store/tls_socket_step.c',service_files(['network']))
         self.assertIn('runtime/platform/pcm_output.c',service_files(['pcm']))
-        self.assertIn('runtime/apps/dictionary/dictionary.c',service_files(['unicode-font']))
+        self.assertIn('runtime/platform/text/bitmap_font.c',service_files(['unicode-font']))
         for modules in ([],['missing'],['display','display'],[42]):
             with self.assertRaises(ValueError):resolve(modules)
 
@@ -34,6 +34,11 @@ class SDKServiceContract(unittest.TestCase):
         for ident in policy['apps']:
             contract=definition_contract(ROOT/'runtime/apps'/ident)
             self.assertEqual(contract['profile'],'native-services')
-        self.assertEqual(len(json.loads((ROOT/'config/release.json').read_text())['apps']),14)
+        published = json.loads((ROOT/'config/release.json').read_text())['apps']
+        self.assertEqual(published, [
+            'device-info', 'diagnostics', 'dictionary', 'ebook', 'fm-radio',
+            'gbc', 'graphics-demo', 'hello', 'key-check', 'qqmusic', 'store',
+            'tamagotchi-id', 'terminal',
+        ])
 
 if __name__=='__main__':unittest.main()

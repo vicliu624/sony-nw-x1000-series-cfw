@@ -3,14 +3,44 @@ from pathlib import Path
 import hashlib,json,subprocess,sys,time
 power_off='--power-off' in sys.argv
 mode_admission='--mode-admission' in sys.argv
+pairing_policy='--pairing-policy' in sys.argv
+stop_boundaries='--stop-boundaries' in sys.argv
 assert not mode_admission or power_off
-ROOT=Path(__file__).resolve().parents[1];OUT=ROOT/'work/espnow-full-owner-runtime' if not power_off else ROOT/'work/remote-power-off-runtime'/str(time.time_ns());OUT.mkdir(parents=True,exist_ok=True)
+ROOT=Path(__file__).resolve().parents[1];OUT=ROOT/('work/espnow-full-owner-runtime' if not power_off else 'work/remote-power-off-runtime')/str(time.time_ns());OUT.mkdir(parents=True)
+if pairing_policy:
+ OUT=ROOT/'work/pairing-owner-policy-tests'/str(time.time_ns());OUT.mkdir(parents=True)
 namespace='-DXNOW_OWNER_GATE_NAMESPACE="x1000-xnow-full-owner-runtime-test-v1"'
 sources=['tools/fixtures/full_owner_runtime.c','tools/fixtures/xnow_control_platform.c']+['runtime/platform/espnow/'+n+'.c' for n in ['xnow_owner_runtime','xnow_owner_gate','xnow_handoff_owner','xnow_owner_stream','xnow_owner_commands','xnow_owner_commands_control','xnow_full_control','xnow_session','xnow_manager','xnow_endpoint','xnow_peer','xnow_wire','xnow_full']]+['runtime/store/stock_fs_bridge.c','runtime/store/stock_stat64.c']
 host=OUT/'runtime.host'
 defines=['-DXNOW_TEST_POWER_OFF'] if power_off else []
+if stop_boundaries:defines+=['-DXNOW_TEST_STOP_BOUNDARIES']
 if power_off:sources+=['runtime/apps/wireless-remote/radio_stop.c','runtime/platform/wireless/radio_release.c','runtime/platform/espnow/xnow_power_off.c','runtime/platform/wireless/radio_modules.c']
 extra=[];pthread=[]
+if stop_boundaries:extra+=['-Wl,--wrap=xnow_owner_stream_step','-Wl,--wrap=xnow_owner_commands_poll','-Wl,--wrap=xnow_owner_commands_receive']
+if pairing_policy:
+ owner_source=(ROOT/'runtime/apps/wireless-remote/rf_owner.c').read_text()
+ init_at=owner_source.index(' if(xnow_owner_runtime_init(')
+ begin=owner_source.index(' if(pairing_listener){',init_at)
+ end=owner_source.index(' volatile uint8_t *secret=cookie;',begin)
+ policy=owner_source[begin:end].replace('owner_commands','commands')
+ fixture=(ROOT/'tools/fixtures/full_owner_runtime.c').read_text()
+ initializer=' assert(!xnow_owner_runtime_init(&runtime,&controller,&gate,&stream,&commands,handoff[1],cookie,&data,cause>=3?prepare_mark:0,close_data));'
+ assert fixture.count(initializer)==1
+ fixture=fixture.replace(initializer,
+  ' commands.restricted=1;\n'+initializer+'\n assert(!commands.restricted);\n'+
+  ' const unsigned pairing_listener=1;\n'+policy+
+  ' assert(commands.restricted==1&&commands.allow_send==pairing_send&&commands.allow_receive==pairing_receive&&commands.private_request==pairing_storage);\n'+
+  ' assert(!xnow_owner_commands_control(&commands,&controller));\n')
+ prefix='''#define XNOW_REMOTE_MANAGED
+#include "runtime/platform/espnow/xnow_owner_commands.h"
+static int pairing_send(const uint8_t *a,const uint8_t *p,size_t n){(void)a;(void)p;(void)n;return 1;}
+static int pairing_receive(const struct xnow_full_received *r,const uint8_t *p,size_t n){(void)r;(void)p;(void)n;return 1;}
+static int pairing_storage(unsigned op,const uint8_t *p,size_t n){(void)op;(void)p;(void)n;return 0;}
+'''
+ fixture=fixture.replace('"../../runtime/','"'+str(ROOT/'runtime')+'/')
+ generated=OUT/'actual-caller-policy.c';generated.write_text(prefix+fixture)
+ sources[0]=str(generated.relative_to(ROOT))
+ extra+=['-I'+str(ROOT),'-I'+str(ROOT/'tools/fixtures')]
 if mode_admission:
  defines+=['-DXNOW_TEST_MODE_ADMISSION'];extra+=['-Wno-misleading-indentation','-pthread']
  sources+=['runtime/apps/wireless-remote/owner_admission.c','runtime/platform/wireless/mode_client.c','runtime/platform/wireless/mode_channel.c','runtime/platform/wireless/mode_policy.c']
@@ -28,6 +58,16 @@ if target.returncode:print(target.stdout,target.stderr);target.check_returncode(
 dependencies=[*sources,'tools/fixtures/full_owner_ipc.c','tools/test_xnow_full.c','runtime/platform/espnow/xnow_owner_runtime.h','runtime/platform/espnow/xnow_owner_gate.h','runtime/platform/espnow/xnow_owner_stream.h','runtime/platform/espnow/xnow_owner_commands.h','runtime/platform/espnow/xnow_full_control.h','tools/fixtures/xnow_control_platform.h']
 report={'passed':True,'host_asan_ubsan':native.stdout,'arm926_stock_libc':target.stdout,'source_hashes':{p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in dependencies},'arm_sha256':hashlib.sha256(arm.read_bytes()).hexdigest(),'real_pipes_and_gate_socket':True,'real_controller_endpoint_backend':True,'stock_driver_actions_mocked':True,'radio_transport_synthetic':True,'over_air_tested':False,'device_accessed':False,'installed':False}
 report['power_off_policy']=power_off
+report['stop_boundaries']=stop_boundaries
+if stop_boundaries:
+ for token in ('3','4','5','6','7','8'):
+  assert 'OWNER_STOP_BOUNDARY_PASS '+token in native.stdout and 'OWNER_STOP_BOUNDARY_PASS '+token in target.stdout
+ report['stop_boundary_cases']=['prepare-stop','storage-stop','stream-stop','completion-poll-stop',
+                                'encrypted-prepare-cancel','prepare-error-with-stop']
+report['pairing_policy_after_actual_runtime_init']=pairing_policy
+if pairing_policy:
+ report['source_hashes']['runtime/apps/wireless-remote/rf_owner.c']=hashlib.sha256((ROOT/'runtime/apps/wireless-remote/rf_owner.c').read_bytes()).hexdigest()
+ report['limits']=['Actual owner policy block and runtime initialization execute; RF remains synthetic.']
 report['mode_admission_retirement']=mode_admission
 if mode_admission:
  assert 'MODE_REVOKE_RETIREMENT_PASS' in native.stdout and 'MODE_REVOKE_RETIREMENT_PASS' in target.stdout

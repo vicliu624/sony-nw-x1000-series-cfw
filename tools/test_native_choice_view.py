@@ -8,7 +8,9 @@ from elftools.elf.elffile import ELFFile
 from unicorn import Uc,UC_ARCH_ARM,UC_MODE_ARM,UC_HOOK_CODE
 from unicorn.arm_const import UC_ARM_REG_R0,UC_ARM_REG_R1,UC_ARM_REG_R2,UC_ARM_REG_R3,UC_ARM_REG_SP,UC_ARM_REG_LR,UC_ARM_REG_PC
 from app_registry import ROOT
-parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--ports-review');args=parser.parse_args()
+parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--ports-review');parser.add_argument('--two-choice',action='store_true');args=parser.parse_args()
+if args.two_choice and not args.ports_review:parser.error('--two-choice requires the composed image review')
+wireless_choices=2 if args.two_choice else 3
 ports=None
 if args.ports_review:
  from review_managed_remote_profile import receipt,private,digest
@@ -47,11 +49,12 @@ SECTIONS { . = 0x50000000; .text : { *(.text*) *(.rodata*) } .data : { *(.data*)
  /DISCARD/ : { *(.ARM.exidx*) *(.ARM.extab*) *(.comment*) *(.note*) } }
 wr_view_sid_word = 0x4e692c + 29 * 132 + 26 * 4;
 ''')
-source='runtime/apps/wireless-remote/native_choice_view.c';binary=out/'view.arm'
+source='runtime/platform/sony-settings/native_choice_view.c';binary=out/'view.arm'
 sources=[source];extra=[]
 if ports:
  sources+=['runtime/platform/player/remote_page_ports.c','runtime/platform/player/remote_page_guard.c','runtime/platform/player/stock_image.c','runtime/native/sha256.c','runtime/store/stock_fs_bridge.c','runtime/store/stock_stat64.c']
  libs=stock_libraries();extra=['-U_FORTIFY_SOURCE','-D_FORTIFY_SOURCE=0','-Wno-misleading-indentation','-I'+str(header.parent),str(libs['libc.so.6']),str(libs['ld-linux.so.3']),'-lgcc']
+if args.two_choice:extra+=['-DXW_PLAYER_SHARED_WIFI_ANALYSIS']
 subprocess.run(['arm-linux-gnueabi-gcc','-std=c99','-Os','-Wall','-Wextra','-Werror','-march=armv5te','-marm','-mfloat-abi=soft','-ffreestanding','-fno-builtin','-fno-stack-protector','-fno-pie','-nostdlib','-no-pie','-Wl,--build-id=none,-T,'+str(linker),*sources,str(fixture),*extra,'-o',str(binary)],cwd=ROOT,check=True)
 helper=ELFFile(io.BytesIO(binary.read_bytes()));symbols={s.name:s['st_value'] for s in helper.get_section_by_name('.symtab').iter_symbols()}
 path=ROOT/'work/player-mode-refresh-fix-20261105-1/SpiderApp.player-prepare.analysis-only.elf';raw=path.read_bytes()
@@ -100,10 +103,11 @@ def menu(group,state):assert call(0x17ca34,[menu_context,group,state])==((group<
 menu(2,2)
 sid=symbols['wr_view_sid_word'];before=bytes(u.mem_read(view,0xac));root_before=bytes(u.mem_read(root,0xea50))
 template=sid-26*4;template_before=bytes(u.mem_read(template,132))
+assert [word(template+i*4) for i in (21,22,32)]==[wireless_choices,3,wireless_choices]
 for layer in layers:
  previous=word(layer)
  put(layer,29);assert call('wr_native_choice_view_begin',[scope,17])==-4
- assert word(view+0x4c)==3 and word(sid)==13900
+ assert word(view+0x4c)==wireless_choices and word(sid)==13900
  put(layer,previous)
 put(root+8,1);assert call('wr_native_choice_view_begin',[scope,17])==-4;put(root+8,0)
 put(symbols['test_resource'],0);assert call('wr_native_choice_view_begin',[scope,17])==-2;put(symbols['test_resource'],1)
@@ -163,7 +167,7 @@ report=dict(passed=True,input_player_sha256=hashlib.sha256(raw).hexdigest(),nati
  completion_required=True,stale_completion_refused=True,native_menu_ready_transition_executed=True,
  scene_layer_and_event_order_are_fixtures=True,
  device_accessed=False,firmware_created=False,
- source_hashes={p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in sources+['runtime/apps/wireless-remote/native_choice_view.h','tools/test_native_choice_view.py']},
+ source_hashes={p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in sources+['runtime/platform/sony-settings/native_choice_view.h','runtime/platform/sony-settings/native_page.h','runtime/platform/sony-settings/bindings.h','tools/test_native_choice_view.py']},
  limits=['Active IDs/flags/draw counts and code/resource/owner ports are supplied fixtures.',
          'Original active-layer query, Pcs constructor and property helpers execute; asynchronous renderer/close ordering remains unqualified.'])
 (out/'report.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))

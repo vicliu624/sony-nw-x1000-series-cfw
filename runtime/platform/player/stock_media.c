@@ -48,34 +48,241 @@ static int begin_read(struct xw_stock_media *s){
  int rc=xw_stock_media_adopt(s);if(rc)return rc;s->busy=1;return 0;
 }
 static int copy_identity(uint32_t object,struct xw_media_id *out);
-int xw_stock_media_fetch(struct xw_stock_media *s,const struct xw_media_id *identity,struct xw_media_item *out){
- int rc=begin_read(s);if(rc)return rc;
- uint32_t domain=0,number=0,parts[2]={0,0},id=0,object=0;struct xw_media_item value={0};struct xw_media_id requested;
- if(!out){rc=XW_PLAYER_INVALID;goto done;}
- rc=xw_local_media_id_parse(identity,&domain,&number);if(rc)goto done;
- if(!number){rc=XW_PLAYER_UNAVAILABLE;goto done;}parts[0]=number;
- rc=xw_local_media_id_format(domain,number,&requested);if(rc)goto done;
- uint32_t keys[3]={9u,0x0bu,0x0cu};struct {const uint32_t *values;uint32_t count;} mask={keys,3};
- id=((uint32_t (*)(uint32_t,uint32_t,const uint32_t *))(uintptr_t)0x28d704u)(domain,0,parts);if(!id){rc=XW_PLAYER_UNAVAILABLE;goto done;}
- rc=((int (*)(uint32_t,uint32_t,uint32_t,const void *,uint32_t *))(uintptr_t)0x295ce8u)(s->client,0,id,&mask,&object);
- if(rc||!object){rc=rc==0x106?XW_PLAYER_BUSY:rc==0x2202||rc==0x210d||rc==0x2214||(!rc&&!object)?XW_PLAYER_UNAVAILABLE:XW_PLAYER_IO;goto done;}
- rc=copy_identity(object,&value.id);if(rc)goto done;
- for(unsigned i=0;i<sizeof requested.value;i++)if(value.id.value[i]!=requested.value[i]){rc=XW_PLAYER_STALE;goto done;}
- uint32_t metadata=((uint32_t (*)(uint32_t))(uintptr_t)0x298238u)(object);if(!metadata){rc=XW_PLAYER_UNAVAILABLE;goto done;}
- if((rc=read_text(metadata,keys[0],value.title,&value.flags,1))||(rc=read_text(metadata,keys[1],value.artist,&value.flags,2))||(rc=read_text(metadata,keys[2],value.album,&value.flags,4)))goto done;
-done:
- if(object)((void (*)(uint32_t))(uintptr_t)0x2981f0u)(object);
- if(id)((void (*)(uint32_t))(uintptr_t)0x2995e8u)(id);
- s->busy=0;if(!rc)*out=value;return rc;
+enum native_artwork_key { ART_THUMBNAIL = 16, ART_COVER = 17, ART_ALBUM_COVER = 18 };
+enum native_artwork_status {
+    ART_WRONG_TYPE = 0x2203,
+    ART_ABSENT = 0x2204,
+    ART_EMPTY = 0x2209,
+    ART_EOF = 0x220f
+};
+enum artwork_read_result { ART_IMAGE, ART_UNSUPPORTED, ART_IO, ART_INVALID_READ, ART_TOO_LARGE };
+enum { ART_READ_CHUNK = 4096, ART_READ_LIMIT = 1024 };
+
+/* Borrowed cloned blob. Read failures belong to this candidate; malformed
+ * backend counts and limits remain terminal. Caller owns blob disposal. */
+static enum artwork_read_result read_artwork_candidate(uint32_t blob, struct xw_artwork_blob *out,
+                                                       unsigned *bytes) {
+    unsigned used = 0, reads = 0;
+    for (;;) {
+        unsigned char excess;
+        uint32_t count = 0;
+        unsigned remaining = XW_ARTWORK_MAX - used;
+        unsigned capacity = remaining > ART_READ_CHUNK ? ART_READ_CHUNK : remaining ? remaining : 1;
+        void *target = remaining ? out->data + used : &excess;
+        int result = ((int (*)(uint32_t, uint32_t, void *, uint32_t, uint32_t *))(
+            uintptr_t)0x299200u)(blob, 0, target, capacity, &count);
+        if (count > capacity || ++reads > ART_READ_LIMIT)
+            return ART_INVALID_READ;
+        if (result && result != ART_EOF)
+            return ART_IO;
+        if (count) {
+            if (!remaining)
+                return ART_TOO_LARGE;
+            used += count;
+        }
+        if (result == ART_EOF || !count)
+            break;
+    }
+    if (used > 6 && (!memcmp(out->data, "JPG", 3) || !memcmp(out->data, "PNG", 3))) {
+        unsigned prefix = 3;
+        /* Accept only the known Sony type/terminator envelope. */
+        if (used >= 7 && !memcmp(out->data, "JPG\0\377\330\377", 7))
+            prefix = 4;
+        else if (used >= 12 && !memcmp(out->data, "PNG\0\211PNG\r\n\032\n", 12))
+            prefix = 4;
+        for (unsigned i = prefix; i < used; i++)
+            out->data[i - prefix] = out->data[i];
+        used -= prefix;
+    }
+    if (!((used >= 3 && out->data[0] == 0xff && out->data[1] == 0xd8 && out->data[2] == 0xff) ||
+          (used >= 8 && !memcmp(out->data, "\211PNG\r\n\032\n", 8))))
+        return ART_UNSUPPORTED;
+    *bytes = used;
+    return ART_IMAGE;
 }
-static int copy_identity(uint32_t object,struct xw_media_id *out){
- uint32_t native=((uint32_t (*)(uint32_t))(uintptr_t)0x298218u)(object);
- if(!native||(native&3u))return XW_PLAYER_PROTOCOL;
- const uint32_t *id=(const uint32_t *)(uintptr_t)native;
- if(id[0]!=0x60fc60u||!id[1]||(id[1]&3u))return XW_PLAYER_UNSUPPORTED;
- const uint32_t *impl=(const uint32_t *)(uintptr_t)id[1];
- if(impl[0]>1||impl[1]!=0)return XW_PLAYER_UNSUPPORTED;
- return xw_local_media_id_format(impl[0],impl[2],out);
+
+int xw_stock_media_artwork(struct xw_stock_media *s, const struct xw_media_id *identity,
+                           struct xw_artwork_blob *out) {
+    int rc = begin_read(s);
+    if (rc)
+        return rc;
+    uint32_t domain = 0, number = 0, parts[2] = {0}, id = 0, object = 0, blob = 0;
+    struct xw_media_id requested, actual;
+    if (!out) {
+        rc = XW_PLAYER_INVALID;
+        goto done;
+    }
+    rc = xw_local_media_id_parse(identity, &domain, &number);
+    if (rc)
+        goto done;
+    if (!number) {
+        rc = XW_PLAYER_UNAVAILABLE;
+        goto done;
+    }
+    rc = xw_local_media_id_format(domain, number, &requested);
+    if (rc)
+        goto done;
+    parts[0] = number;
+    uint32_t keys[] = {ART_THUMBNAIL, ART_COVER, ART_ALBUM_COVER};
+    struct {
+        const uint32_t *values;
+        uint32_t count;
+    } mask = {keys, 3};
+    id =
+        ((uint32_t(*)(uint32_t, uint32_t, const uint32_t *))(uintptr_t)0x28d704u)(domain, 0, parts);
+    if (!id) {
+        rc = XW_PLAYER_UNAVAILABLE;
+        goto done;
+    }
+    rc = ((int (*)(uint32_t, uint32_t, uint32_t, const void *, uint32_t *))(uintptr_t)0x295ce8u)(
+        s->client, 0, id, &mask, &object);
+    if (rc || !object) {
+        rc = rc == 0x106 ? XW_PLAYER_BUSY : XW_PLAYER_UNAVAILABLE;
+        goto done;
+    }
+    rc = copy_identity(object, &actual);
+    if (rc)
+        goto done;
+    if (memcmp(&actual, &requested, sizeof actual)) {
+        rc = XW_PLAYER_STALE;
+        goto done;
+    }
+    uint32_t metadata = ((uint32_t(*)(uint32_t))(uintptr_t)0x298238u)(object);
+    if (!metadata) {
+        rc = XW_PLAYER_UNAVAILABLE;
+        goto done;
+    }
+    int candidate_error = XW_PLAYER_UNAVAILABLE;
+    for (unsigned i = 0; i < sizeof keys / sizeof *keys; i++) {
+        int found = ((int (*)(uint32_t, uint32_t, uint32_t *))(uintptr_t)0x299064u)(metadata,
+                                                                                    keys[i], &blob);
+        if (found == ART_ABSENT || found == ART_EMPTY)
+            continue;
+        if (found == ART_WRONG_TYPE) {
+            if (candidate_error != XW_PLAYER_IO)
+                candidate_error = XW_PLAYER_UNSUPPORTED;
+            continue;
+        }
+        /* Clone allocation/other getter failures are not missing artwork. */
+        if (found || !blob) {
+            rc = XW_PLAYER_IO;
+            goto done;
+        }
+        unsigned bytes = 0;
+        enum artwork_read_result result = read_artwork_candidate(blob, out, &bytes);
+        if (result == ART_IMAGE) {
+            out->id = actual;
+            out->bytes = bytes;
+            rc = 0;
+            goto done;
+        }
+        ((void (*)(uint32_t))(uintptr_t)0x2991bcu)(blob);
+        blob = 0;
+        if (result == ART_INVALID_READ) {
+            rc = XW_PLAYER_PROTOCOL;
+            goto done;
+        }
+        if (result == ART_TOO_LARGE) {
+            rc = XW_PLAYER_UNSUPPORTED;
+            goto done;
+        }
+        if (result == ART_IO)
+            candidate_error = XW_PLAYER_IO;
+        else if (candidate_error != XW_PLAYER_IO)
+            candidate_error = XW_PLAYER_UNSUPPORTED;
+    }
+    rc = candidate_error;
+done:
+    if (blob)
+        ((void (*)(uint32_t))(uintptr_t)0x2991bcu)(blob);
+    if (object)
+        ((void (*)(uint32_t))(uintptr_t)0x2981f0u)(object);
+    if (id)
+        ((void (*)(uint32_t))(uintptr_t)0x2995e8u)(id);
+    s->busy = 0;
+    return rc;
+}
+int xw_stock_media_fetch(struct xw_stock_media *s, const struct xw_media_id *identity,
+                         struct xw_media_item *out) {
+    int rc = begin_read(s);
+    if (rc)
+        return rc;
+    uint32_t domain = 0, number = 0, parts[2] = {0, 0}, id = 0, object = 0;
+    struct xw_media_item value = {0};
+    struct xw_media_id requested;
+    if (!out) {
+        rc = XW_PLAYER_INVALID;
+        goto done;
+    }
+    rc = xw_local_media_id_parse(identity, &domain, &number);
+    if (rc)
+        goto done;
+    if (!number) {
+        rc = XW_PLAYER_UNAVAILABLE;
+        goto done;
+    }
+    parts[0] = number;
+    rc = xw_local_media_id_format(domain, number, &requested);
+    if (rc)
+        goto done;
+    uint32_t keys[3] = {9u, 0x0bu, 0x0cu};
+    struct {
+        const uint32_t *values;
+        uint32_t count;
+    } mask = {keys, 3};
+    id =
+        ((uint32_t(*)(uint32_t, uint32_t, const uint32_t *))(uintptr_t)0x28d704u)(domain, 0, parts);
+    if (!id) {
+        rc = XW_PLAYER_UNAVAILABLE;
+        goto done;
+    }
+    rc = ((int (*)(uint32_t, uint32_t, uint32_t, const void *, uint32_t *))(uintptr_t)0x295ce8u)(
+        s->client, 0, id, &mask, &object);
+    if (rc || !object) {
+        rc = rc == 0x106 ? XW_PLAYER_BUSY
+             : rc == 0x2202 || rc == 0x210d || rc == 0x2214 || (!rc && !object)
+                 ? XW_PLAYER_UNAVAILABLE
+                 : XW_PLAYER_IO;
+        goto done;
+    }
+    rc = copy_identity(object, &value.id);
+    if (rc)
+        goto done;
+    for (unsigned i = 0; i < sizeof requested.value; i++)
+        if (value.id.value[i] != requested.value[i]) {
+            rc = XW_PLAYER_STALE;
+            goto done;
+        }
+    uint32_t metadata = ((uint32_t(*)(uint32_t))(uintptr_t)0x298238u)(object);
+    if (!metadata) {
+        rc = XW_PLAYER_UNAVAILABLE;
+        goto done;
+    }
+    if ((rc = read_text(metadata, keys[0], value.title, &value.flags, 1)) ||
+        (rc = read_text(metadata, keys[1], value.artist, &value.flags, 2)) ||
+        (rc = read_text(metadata, keys[2], value.album, &value.flags, 4)))
+        goto done;
+done:
+    if (object)
+        ((void (*)(uint32_t))(uintptr_t)0x2981f0u)(object);
+    if (id)
+        ((void (*)(uint32_t))(uintptr_t)0x2995e8u)(id);
+    s->busy = 0;
+    if (!rc)
+        *out = value;
+    return rc;
+}
+static int copy_identity(uint32_t object, struct xw_media_id *out) {
+    uint32_t native = ((uint32_t(*)(uint32_t))(uintptr_t)0x298218u)(object);
+    if (!native || (native & 3u))
+        return XW_PLAYER_PROTOCOL;
+    const uint32_t *id = (const uint32_t *)(uintptr_t)native;
+    if (id[0] != 0x60fc60u || !id[1] || (id[1] & 3u))
+        return XW_PLAYER_UNSUPPORTED;
+    const uint32_t *impl = (const uint32_t *)(uintptr_t)id[1];
+    if (impl[0] > 1 || impl[1] != 0)
+        return XW_PLAYER_UNSUPPORTED;
+    return xw_local_media_id_format(impl[0], impl[2], out);
 }
 static int copy_child(uint32_t object,struct xw_media_item *out){
  int rc=copy_identity(object,&out->id);if(rc)return rc;

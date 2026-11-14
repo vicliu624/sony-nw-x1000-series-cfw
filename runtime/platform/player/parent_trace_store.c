@@ -28,7 +28,10 @@ static void normalize(const struct stat *s,struct hb_target_stat *o){o->st_dev=s
 static int trace_lstat(const char *p,struct hb_target_stat *o){struct stat s;int rc=lstat(p,&s);if(!rc)normalize(&s,o);return rc;}
 static int trace_fstat(int fd,struct hb_target_stat *o){struct stat s;int rc=fstat(fd,&s);if(!rc)normalize(&s,o);return rc;}
 #endif
-static const char trace_path[]="/contents/HOMEBREW/data/diagnostics/parent-boundary.bin";
+#ifndef XW_TRACE_STORE_PATH
+#define XW_TRACE_STORE_PATH "/contents/HOMEBREW/data/diagnostics/parent-boundary.bin"
+#endif
+static const char trace_path[]=XW_TRACE_STORE_PATH;
 static int mounted(void){
  FILE *f=fopen("/proc/mounts","r");if(!f)return 0;
  char line[1024],source[256],point[256],type[64],options[256];unsigned found=0,lines=0;int bad=0;
@@ -41,18 +44,25 @@ static int mounted(void){
  }
  if(ferror(f))bad=1;if(fclose(f))bad=1;return !bad&&found==1;
 }
-static int open_slot(struct xw_parent_trace_store *s,unsigned stage){
+static int open_trace(struct xw_parent_trace_store *s){
  static const char *dirs[]={"/contents","/contents/HOMEBREW","/contents/HOMEBREW/data","/contents/HOMEBREW/data/diagnostics"};
  struct hb_target_stat volume,root,node,opened;
  if(s->owned(s->context)!=1||!mounted()||trace_lstat("/",&root)||trace_lstat("/contents",&volume)||root.st_dev==volume.st_dev)return -1;
  for(unsigned i=0;i<sizeof dirs/sizeof *dirs;i++)if(trace_lstat(dirs[i],&node)||(node.st_mode&0170000)!=0040000||node.st_dev!=volume.st_dev)return -1;
  if(trace_lstat(trace_path,&node)||(node.st_mode&0170000)!=0100000||node.st_dev!=volume.st_dev||node.st_size!=XW_PARENT_TRACE_FILE_BYTES||node.st_nlink!=1)return -1;
  int fd=open(trace_path,O_RDWR|O_NONBLOCK|O_NOFOLLOW);if(fd<0)return -1;
- unsigned char header[32],slot[64];long long offset=32+(stage-1)*64;
+ unsigned char header[32];
  if(trace_fcntl(fd,F_SETFD,FD_CLOEXEC)<0||trace_fstat(fd,&opened)||
     opened.st_dev!=node.st_dev||opened.st_ino!=node.st_ino||opened.st_size!=XW_PARENT_TRACE_FILE_BYTES||
     (opened.st_mode&0170000)!=0100000||opened.st_nlink!=1||
-    read(fd,header,32)!=32||memcmp(header,s->header,32)||trace_seek(fd,offset,SEEK_SET)!=offset||read(fd,slot,64)!=64)goto refused;
+    read(fd,header,32)!=32||memcmp(header,s->header,32))goto refused;
+ return fd;
+refused:
+ (void)close(fd);return -1;
+}
+static int open_slot(struct xw_parent_trace_store *s,unsigned stage){
+ int fd=open_trace(s);if(fd<0)return -1;unsigned char slot[64];long long offset=32+(stage-1)*64;
+ if(trace_seek(fd,offset,SEEK_SET)!=offset||read(fd,slot,64)!=64)goto refused;
  for(unsigned i=0;i<64;i++)if(slot[i])goto refused;
  if(trace_seek(fd,offset,SEEK_SET)!=offset||s->owned(s->context)!=1)goto refused;
  return fd;
@@ -94,5 +104,33 @@ done:
 int xw_parent_trace_store_destroy(struct xw_parent_trace_store *s){
  int saved=errno,rc=XW_TRACE_INVALID;
  if(s&&s->initialized){rc=trace_mutex_destroy(s->lock.bytes)?XW_TRACE_LOCK:0;if(!rc)s->initialized=0;}
+ errno=saved;return rc;
+}
+int xw_parent_trace_store_snapshot(struct xw_parent_trace_store *s,uint32_t mask,
+ const uint32_t payload[XW_PARENT_TRACE_SLOTS][12],const uint32_t sequence[XW_PARENT_TRACE_SLOTS]){
+ int saved=errno,rc=XW_TRACE_INVALID,fd=-1;
+ if(!s||!s->initialized||!payload||!sequence||!mask||(mask&0x80000000u))goto done;
+ for(unsigned i=0;i<XW_PARENT_TRACE_SLOTS;i++)if(mask&(1u<<i))if(!sequence[i]||sequence[i]>XW_PARENT_TRACE_SLOTS)goto done;
+ if(trace_mutex_trylock(s->lock.bytes)){rc=XW_TRACE_SKIPPED;goto done;}
+ if(mask&1u)s->armed=1;
+ mask&=~s->attempted;if(!s->armed||!mask){rc=XW_TRACE_SKIPPED;goto unlock;}
+ s->attempted|=mask;
+ fd=open_trace(s);if(fd<0){rc=XW_TRACE_STORAGE;goto unlock;}
+ unsigned char file[XW_PARENT_TRACE_FILE_BYTES];memcpy(file,s->header,32);
+ if(read(fd,file+32,sizeof file-32)!=(ssize_t)(sizeof file-32)){rc=XW_TRACE_STORAGE;goto unlock;}
+ for(unsigned i=32+64*XW_PARENT_TRACE_SLOTS;i<sizeof file;i++)if(file[i]){rc=XW_TRACE_STORAGE;goto unlock;}
+ unsigned changed=0;
+ for(unsigned i=0;i<XW_PARENT_TRACE_SLOTS;i++)if(mask&(1u<<i)){
+  unsigned char *record=file+32+i*64;unsigned occupied=0;for(unsigned j=0;j<64;j++)occupied|=record[j];if(occupied)continue;
+  memcpy(record,"HBP1",4);put32(record+4,i+1);put32(record+8,sequence[i]);
+  for(unsigned j=0;j<12;j++)put32(record+12+4*j,payload[i][j]);put32(record+60,crc32(record,60));changed++;
+ }
+ if(!changed){rc=XW_TRACE_SKIPPED;goto unlock;}
+ if(s->owned(s->context)!=1||trace_seek(fd,0,SEEK_SET)!=0){rc=XW_TRACE_STORAGE;goto unlock;}
+ rc=write(fd,file,sizeof file)==(ssize_t)sizeof file&&fsync(fd)==0?XW_TRACE_OK:XW_TRACE_STORAGE;
+unlock:
+ if(fd>=0&&close(fd))rc=XW_TRACE_STORAGE;
+ if(trace_mutex_unlock(s->lock.bytes))rc=XW_TRACE_LOCK;
+done:
  errno=saved;return rc;
 }

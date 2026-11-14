@@ -12,6 +12,10 @@ extern ssize_t lab_readlink(const char *,char *,size_t) __asm__("readlink");
 static volatile sig_atomic_t retry_requested;
 static void retry_signal(int value){(void)value;retry_requested=1;}
 #endif
+#ifdef XNOW_REMOTE_MANAGED
+static const struct stock_input *shared_root_radio;
+static unsigned managed_root_cold;
+#endif
 static int root_guard(void *context,enum xnow_session_action action){
     struct stat root,node;char line[1024],dev[256],mount[256],type[64],opts[256];
     unsigned found=0;int bad=0;FILE *file;(void)context;
@@ -29,6 +33,9 @@ static int root_guard(void *context,enum xnow_session_action action){
     if(bad||found!=1)return -1;
     for(unsigned i=0;i<sizeof(stock_inputs)/sizeof(stock_inputs[0]);i++){
         const struct stock_input *p=&stock_inputs[i];
+#ifdef XNOW_REMOTE_MANAGED
+        if(shared_root_radio&&!strcmp(p->path,shared_root_radio->path))p=shared_root_radio;
+#endif
         if(xnow_file_check(p->path,(uint64_t)root.st_dev,p->bytes,p->sha))return -1;
     }
     for(unsigned i=0;i<sizeof(stock_links)/sizeof(stock_links[0]);i++){
@@ -39,6 +46,11 @@ static int root_guard(void *context,enum xnow_session_action action){
     }
     /* The original script optionally sources this file; absent in this image. */
     errno=0;if(!lstat("/usr/local/bin/wlanapi.inc",&node)||errno!=ENOENT)return -1;
+#ifdef XNOW_REMOTE_MANAGED
+    /* The controller verifies the live candidate before configuring either
+     * an already loaded shared radio or a freshly loaded cold radio. */
+    if(shared_root_radio&&action==XNOW_SESSION_PREFLIGHT)return 0;
+#endif
     if(action==XNOW_SESSION_PREFLIGHT)return xnow_sd8686_stock_verify();
     return 0;
 }

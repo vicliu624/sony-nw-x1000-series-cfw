@@ -2,29 +2,43 @@
 #ifndef XW_PLAYER_METADATA_ASYNC_H
 #define XW_PLAYER_METADATA_ASYNC_H
 #include "stock_media.h"
-union xw_pthread_storage {uint64_t alignment;unsigned char bytes[64];};
+union xw_pthread_storage {
+    uint64_t alignment;
+    unsigned char bytes[64];
+};
 struct xw_children_async;
+struct xw_artwork_async;
 struct xw_metadata_async {
     struct xw_children_async *children;
-    int (*read_item)(struct xw_stock_media *,const struct xw_media_id *,struct xw_media_item *); /* immutable before worker start */
-    union xw_pthread_storage mutex,condition;
-    unsigned initialized,started,closing,exited,phase;
-    unsigned long owner,thread;
-    uint32_t generation,job_generation,result_generation;
-    uint64_t revision,job_revision;
-    unsigned long long last,next_attempt;
-    struct xw_media_id desired,job_id;
+    struct xw_artwork_async *artwork;
+    int (*read_item)(struct xw_stock_media *, const struct xw_media_id *,
+                     struct xw_media_item *); /* immutable before worker start; borrowed client */
+    union xw_pthread_storage mutex, condition;
+    unsigned initialized, started, closing, exited, phase;
+    unsigned long owner, thread;
+    uint32_t generation, job_generation, result_generation;
+    uint64_t revision, job_revision;
+    unsigned long long last, next_attempt;
+    struct xw_media_id desired, job_id;
     struct xw_stock_media job_media;
-    struct xw_media_item result,cache;
-    int result_code,status; /* status is GUI-owned; result_code is mutex-protected */
+    struct xw_media_item result, cache;
+    int result_code, status;    /* status is GUI-owned; result_code is mutex-protected */
+    int cleanup_error;          /* mutex-protected; a failed close retains job_media */
+    unsigned cleanup_requested; /* owner asks the adopting worker to retry close */
     unsigned cache_valid;
 };
 int xw_metadata_async_init(struct xw_metadata_async *);
 /* Owner only, nonblocking on its own mutex. NULL ID revokes the cache and
  * pending intent. Results are merged only for the current ID/revision epoch.
  * A supported source must be ready before requesting/using cached metadata. */
-int xw_metadata_async_observe(struct xw_metadata_async *,const struct xw_media_id *,uint64_t revision,unsigned long long now_ms,struct xw_media_item *);
+int xw_metadata_async_observe(struct xw_metadata_async *, const struct xw_media_id *,
+                              uint64_t revision, unsigned long long now_ms, struct xw_media_item *);
+/* The task establishes worker adoption before any callback. Domain readers
+ * may refuse without a native call and must not dispose their borrowed client.
+ * Stop requests cleanup; failed closes retain ownership and block new work.
+ * Repeated owner stop calls request a close retry on the adopting worker. */
 int xw_metadata_async_stop(struct xw_metadata_async *);
+/* True only after stop, thread exit and confirmed media-client release. */
 int xw_metadata_async_drained(struct xw_metadata_async *);
 int xw_metadata_async_destroy(struct xw_metadata_async *);
 /* Dedicated instance, sharing the worker/lifecycle implementation. The caller
@@ -32,11 +46,25 @@ int xw_metadata_async_destroy(struct xw_metadata_async *);
  * query revokes pending intent/results. No original handles are cached. */
 struct xw_children_async {
     struct xw_metadata_async worker;
-    struct xw_stock_children_query desired,job;
-    struct xw_stock_children_page result,cache;
+    struct xw_stock_children_query desired, job;
+    struct xw_stock_children_page result, cache;
     unsigned desired_valid;
     int status;
 };
 int xw_children_async_init(struct xw_children_async *);
-int xw_children_async_observe(struct xw_children_async *,const struct xw_stock_children_query *,uint64_t revision,unsigned long long now_ms,struct xw_stock_children_page *);
+int xw_children_async_observe(struct xw_children_async *, const struct xw_stock_children_query *,
+                              uint64_t revision, unsigned long long now_ms,
+                              struct xw_stock_children_page *);
+struct xw_artwork_async {
+    struct xw_metadata_async worker;
+    struct xw_artwork_blob result;
+    unsigned attempted;
+};
+int xw_artwork_async_init(struct xw_artwork_async *);
+/* Cache one completed image per identity/revision. BUSY and zero-offset IO
+ * retry on explicit demand after backoff; absence/unsupported/protocol stay cached.
+ * No file cache or periodic source scan. NULL ID revokes pending output; close
+ * uses the existing worker drain APIs. */
+int xw_artwork_async_read(struct xw_artwork_async *, const struct xw_media_id *, uint64_t revision,
+                          uint64_t now, uint32_t offset, struct xw_artwork_chunk *);
 #endif

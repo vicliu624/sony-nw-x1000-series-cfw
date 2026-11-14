@@ -6,7 +6,7 @@ from catalog import scan
 def app(root,id,name="Demo"):
     p=root/id;p.mkdir();b=bytearray(96);b[:7]=b"\x7fELF\x01\x01\x01";struct.pack_into("<HH",b,16,2,40);(p/"app").write_bytes(b)
     fields={"api":"1","id":id,"name":name,"version":"0.1.0","target":"sony-nw-x1000-jp","exec":"app","bytes":str(len(b)),"sha256":hashlib.sha256(b).hexdigest()}
-    (p/"app.ini").write_text("\n".join(k+"="+v for k,v in fields.items())+"\n");return p
+    (p/"app.ini").write_bytes(("\n".join(k+"="+v for k,v in fields.items())+"\n").encode('utf-8'));return p
 class CatalogTests(unittest.TestCase):
     def setUp(self):self.tmp=tempfile.TemporaryDirectory();self.root=Path(self.tmp.name)
     def tearDown(self):self.tmp.cleanup()

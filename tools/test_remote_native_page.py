@@ -9,7 +9,7 @@ from unicorn.arm_const import UC_ARM_REG_R0,UC_ARM_REG_R1,UC_ARM_REG_R2,UC_ARM_R
 from app_registry import ROOT
 
 out=ROOT/'work/remote-native-page'/str(time.time_ns());out.mkdir(parents=True)
-source='runtime/apps/wireless-remote/native_page.c'
+source='runtime/platform/sony-settings/native_page.c'
 linker=out/'page.ld'
 linker.write_text('''ENTRY(wr_remote_page_open)
 SECTIONS { . = 0x50000000; .text : { *(.text*) *(.rodata*) }
@@ -98,7 +98,7 @@ for case in ('open-refused','cancel','playback','home','apply-on','apply-off','a
  rows.append(dict(case=case,final_state=list(u.mem_read(context,2)),operations=operations,apply_rows=applications,page_requests=posts))
 report=dict(passed=True,cases=rows,original_fsm_and_choice_event_map=True,actual_native_c_callbacks=True,
  device_accessed=False,firmware_created=False,
- source_hashes={p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in (source,'runtime/apps/wireless-remote/native_page.h','tools/test_remote_native_page.py')},
+ source_hashes={p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in (source,'runtime/platform/sony-settings/native_page.h','runtime/platform/sony-settings/bindings.h','tools/test_remote_native_page.py')},
  limits=['Registration table/count are supplied to original constructor; production startup is not patched.',
          'GUI/resource loader, category leaves and owner request bridge are modeled; no physical display/RF acceptance.',
          'Playback shortcut executes original73608 and group56 initializer; its playback service leaf is modeled.'])

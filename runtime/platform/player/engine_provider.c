@@ -14,7 +14,10 @@ static int command(void *context,const struct xw_player_command *c){
  if(c->operation>=XW_OP_PLAY&&c->operation<=XW_OP_PREVIOUS&&
     (c->value||c->item.value[0]||c->container.value[0]||c->expected_revision))return XW_PLAYER_INVALID;
  p->busy=1;
- if(c->operation>=XW_OP_PLAY&&c->operation<=XW_OP_PREVIOUS)
+ /* Play/pause must advance Sony's AudioC FSM as well as its engine. Direct
+  * engine requests leave that FSM unchanged, invalidating subsequent state
+  * observations and turning a second remote press into the wrong operation. */
+ if(c->operation==XW_OP_NEXT||c->operation==XW_OP_PREVIOUS)
   rc=xw_stock_engine_control_command(&p->engine,c->operation);
  else rc=xw_player_command(p->original,c);
  p->busy=0;return rc;
@@ -35,7 +38,7 @@ int xw_engine_player_bind(struct xw_player *player,struct xw_engine_provider *p,
  if(player->initialized||p->bound||p->engine.bound)return XW_PLAYER_BUSY;
  int rc=xw_stock_engine_control_bind(&p->engine);if(rc)return rc;
  p->original=original;p->owner=pthread_self();p->busy=0;p->bound=1;
- uint32_t transport=(1u<<XW_OP_PLAY)|(1u<<XW_OP_PAUSE)|(1u<<XW_OP_NEXT)|(1u<<XW_OP_PREVIOUS);
+ uint32_t transport=(1u<<XW_OP_NEXT)|(1u<<XW_OP_PREVIOUS);
  struct xw_player_provider provider={XW_PLAYER_API,original->provider.commands|transport,p,snapshot,command,original->provider.browse?browse:0,close_provider};
  rc=xw_player_bind(player,&provider);if(rc)close_provider(p);return rc;
 }

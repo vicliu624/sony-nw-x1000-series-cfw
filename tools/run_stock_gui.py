@@ -3,6 +3,8 @@ import argparse,atexit,hashlib,io,json,os,secrets,signal,socket,struct,subproces
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 from pathlib import Path
 from PIL import Image
+from qemu_monitor import read_prompt
+from stock_usb_input import command as usb_command, receipt as usb_receipt, FRAME_BYTES as USB_FRAME_BYTES
 ROOT=Path(__file__).resolve().parents[1]
 PROFILE=['--normal-boot-fixture','--ram-state-fixture','--stock-home-fixture','--omf-ram-fixture',
  '--japanese-model-fixture','--empty-serial-fixture','--empty-media-registry',
@@ -25,32 +27,43 @@ async function refresh(){if(stopped)return;try{let response=await fetch('/frame.
 
 def main():
  p=argparse.ArgumentParser(description=__doc__);p.add_argument('--output');p.add_argument('--session');p.add_argument('--port',type=int,default=0);p.add_argument('--firmware-review');p.add_argument('--settings-layout',choices=['primary','secondary'],default='primary')
+ p.add_argument('--layout-review',help='Fresh source layout; no generated UPG is required')
  p.add_argument('--homebrew-roundtrip-fixture',action='store_true',help='Use a short guest-only external child to test native Homebrew return')
  p.add_argument('--catalog-trace',action='store_true',help='Observe delegated SQLite filenames/errors in a new isolated guest')
  p.add_argument('--ram-user-volume',action='store_true',help='Supply a volatile FAT32 block for stock /contents mounting in a new isolated guest')
  p.add_argument('--remote-runtime-review',help='Stage reviewed Remote binaries and synthetic config in a new volatile guest')
  p.add_argument('--mg-constructor-model',action='store_true',help='Guest-only empty MG constructor; no crypto/key operations')
+ p.add_argument('--usb-transition-model',action='store_true',help='Guest-only USB connection event input; no gadget, storage or physical USB qualification')
+ p.add_argument('--task-trace',action='store_true',help='Read original guest task registers; pauses scheduling and does not qualify timing')
+ p.add_argument('--ncan-wait-model',action='store_true',help='Guest-only idle NCAN wait/break for native exit investigation; no NC engine')
  args=p.parse_args();assert bool(args.output)!=bool(args.session),'Choose a new output or a prepared session'
+ if args.layout_review and (not args.output or args.firmware_review):p.error('--layout-review requires a new output and excludes --firmware-review')
  if args.homebrew_roundtrip_fixture and not args.output:p.error('--homebrew-roundtrip-fixture requires a new --output')
  if args.catalog_trace and not args.output:p.error('--catalog-trace requires a new --output')
  if args.mg_constructor_model and not args.output:p.error('--mg-constructor-model requires a new --output')
+ if args.usb_transition_model and not args.output:p.error('--usb-transition-model requires a new --output')
+ if args.task_trace and not args.output:p.error('--task-trace requires a new --output')
+ if args.ncan_wait_model and not args.output:p.error('--ncan-wait-model requires a new --output')
  if args.ram_user_volume and not args.output:p.error('--ram-user-volume requires a new --output')
  if args.remote_runtime_review and (not args.output or not args.ram_user_volume or not args.firmware_review):p.error('--remote-runtime-review requires new output, RAM user volume and firmware review')
  session=(ROOT/(args.output or args.session)).resolve();assert session.is_relative_to(ROOT/'work')
  if args.output:
   profile=[('--stock-env-fallback-fixture' if item=='--japanese-model-fixture' and args.settings_layout=='secondary' else item) for item in PROFILE]
-  subprocess.run([sys.executable,str(ROOT/'tools/probe_stock_manager_system.py'),'--output',args.output,*profile,*(['--firmware-review',args.firmware_review] if args.firmware_review else []),*(['--homebrew-roundtrip-fixture'] if args.homebrew_roundtrip_fixture else []),*(['--catalog-trace'] if args.catalog_trace else []),*(['--ram-user-volume'] if args.ram_user_volume else []),*(['--remote-runtime-review',args.remote_runtime_review] if args.remote_runtime_review else []),*(['--mg-constructor-model'] if args.mg_constructor_model else [])],cwd=ROOT,check=True)
+  subprocess.run([sys.executable,str(ROOT/'tools/probe_stock_manager_system.py'),'--output',args.output,*profile,*(['--firmware-review',args.firmware_review] if args.firmware_review else []),*(['--layout-review',args.layout_review] if args.layout_review else []),*(['--homebrew-roundtrip-fixture'] if args.homebrew_roundtrip_fixture else []),*(['--catalog-trace'] if args.catalog_trace else []),*(['--ram-user-volume'] if args.ram_user_volume else []),*(['--remote-runtime-review',args.remote_runtime_review] if args.remote_runtime_review else []),*(['--mg-constructor-model'] if args.mg_constructor_model else []),*(['--usb-transition-model'] if args.usb_transition_model else []),*(['--task-trace'] if args.task_trace else []),*(['--ncan-wait-model'] if args.ncan_wait_model else [])],cwd=ROOT,check=True)
  elif args.firmware_review:p.error('--firmware-review requires a new --output')
  prepared=json.loads((session/'prepared.json').read_text());assert prepared['physical_device_access'] is False and prepared['interactive_guest']
- for name,digest in prepared['binary_hashes'].items():assert hashlib.sha256((ROOT/name).read_bytes()).hexdigest()==digest,name
+ for name,digest in prepared['binary_hashes'].items():
+  actual=hashlib.sha256((ROOT/name).read_bytes()).hexdigest()
+  if actual!=digest:raise ValueError(f'Guest input changed: {name}; expected {digest}, read {actual}')
  for name,digest in prepared['compiled_source_hashes'].items():assert hashlib.sha256((ROOT/name).read_bytes()).hexdigest()==digest,'Prepared sources changed; use a new --output'
  assert prepared['command'][prepared['command'].index('-M')+1]=='versatilepb'
  env=dict(os.environ,LD_LIBRARY_PATH=prepared['runtime_library_path'],QEMU_AUDIO_DRV='none')
- monitor_lock=threading.Lock();touch_lock=threading.Lock();token=secrets.token_hex(24);control=None;last=(120,216)
+ monitor_lock=threading.Lock();touch_lock=threading.Lock();usb_lock=threading.Lock();token=secrets.token_hex(24);control=None;usb_control=None;usb_request=0;last=(120,216)
  serial=(session/'serial.log').open('wb');errors=(session/'qemu.log').open('wb')
  process=subprocess.Popen(prepared['command'],env=env,stdout=serial,stderr=errors,cwd=ROOT)
  def cleanup():
   if control is not None:control.close()
+  if usb_control is not None:usb_control.close()
   if process.poll() is None:
    process.terminate()
    try:process.wait(timeout=5)
@@ -65,12 +78,7 @@ def main():
  def live():
   if process.poll() is not None:raise RuntimeError('QEMU has stopped; read serial.log and qemu.log')
  def prompt(monitor):
-  data=b''
-  while b'(qemu)' not in data:
-   chunk=monitor.recv(4096)
-   if not chunk:raise EOFError('QEMU monitor closed')
-   data+=chunk
-  return data
+  return read_prompt(monitor)
  def frame():
   live();target=session/'viewer-clcd.ppm'
   with monitor_lock:
@@ -88,6 +96,25 @@ def main():
   with touch_lock:
    if control is None:control=socket.create_connection(('127.0.0.1',prepared['touch_port']),timeout=3)
    control.sendall(struct.pack('<4sHHB',b'XWT1',x,y,down));last=(x,y)
+ def usb(status):
+  nonlocal usb_control,usb_request
+  live()
+  if not prepared.get('usb_transition_model') or not prepared.get('usb_port'):
+   raise ValueError('USB transition model is not enabled')
+  with usb_lock:
+   usb_request+=1;packet=usb_command(status,usb_request)
+   try:
+    if usb_control is None:usb_control=socket.create_connection(('127.0.0.1',prepared['usb_port']),timeout=3)
+    usb_control.sendall(packet);reply=b''
+    while len(reply)<USB_FRAME_BYTES:
+     part=usb_control.recv(USB_FRAME_BYTES-len(reply))
+     if not part:raise RuntimeError('Guest USB input closed')
+     reply+=part
+    return usb_receipt(reply,usb_request)
+   except (OSError,RuntimeError,ValueError):
+    if usb_control is not None:usb_control.close()
+    usb_control=None
+    raise
  class Handler(BaseHTTPRequestHandler):
   def log_message(self,*args):pass
   def reply(self,status,body,kind='application/json'):
@@ -113,6 +140,7 @@ def main():
     size=int(self.headers.get('Content-Length','0'));assert 0<size<=512
     value=json.loads(self.rfile.read(size))
     if self.path=='/touch':touch(value['x'],value['y'],value['down'])
+    elif self.path=='/usb':return self.reply(200,json.dumps(usb(value['status'])).encode())
     elif self.path=='/release':touch(*last,0)
     elif self.path=='/stop':threading.Thread(target=server.shutdown,daemon=True).start()
     else:return self.reply(404,b'{}')

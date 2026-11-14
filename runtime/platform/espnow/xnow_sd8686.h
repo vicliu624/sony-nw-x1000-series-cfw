@@ -25,6 +25,10 @@ int xnow_sd8686_channel_set(struct xnow_sd8686 *,const struct xnow_session *,uns
  * Does not claim to exit every radio power-save mode. No app invokes this yet.
  */
 int xnow_sd8686_wake(const struct xnow_session *);
+/* Internal driver operation. A shared owner must hold its native borrow
+ * throughout query/set and verify the current manager state before restoring. */
+int xnow_sd8686_deep_sleep_get(int *);
+int xnow_sd8686_deep_sleep_set(int);
 /* Read-only postcondition for stock unload: all four wireless modules absent.
  * Does not prevent a stock service from subsequently reloading them.
  */

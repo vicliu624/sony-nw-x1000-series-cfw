@@ -26,14 +26,32 @@ else:assert 'PUBLIC_MANAGED_ARM_CHANNEL_PASS' in run.stdout
 if host_mode:assert 'PUBLIC_MANAGED_HOST_SERVER_PASS' in run.stdout
 example_checks=[]
 if example_mode:
- cases=[(['watch','2'],'title=Channel song',False),(['tracks','0'],'model:42',False),(['playlists','0'],'model:playlist',False),(['members','model:playlist','0'],'model:42',False),(['queue','0'],'model:42',False),(['pause'],'ACCEPTED:',True)]
+ cases=[(['watch','2'],'title=Channel song',False),(['tracks','0'],'model:42',False),(['playlists','0'],'model:playlist',False),(['members','model:playlist','0'],'model:42',False),(['queue','0'],'model:42',False)]
+ cases += [([operation],'ACCEPTED:',True) for operation in
+           ('play','pause','next','previous','volume-up','volume-down')]
  for arguments,expected,control in cases:
   invocation=command[:-1]+arguments
   invocation[1]='--example-watch' if arguments[0]=='watch' else '--example-control' if control else '--example-read'
   checked=subprocess.run(invocation,cwd=ROOT,env=dict(os.environ,QEMU_UNSET_ENV='LD_LIBRARY_PATH,LD_PRELOAD'),capture_output=True,text=True,timeout=20)
   assert checked.returncode==0 and expected in checked.stdout and 'PUBLIC_MANAGED_HOST_SERVER_PASS' in checked.stdout,checked.stdout+checked.stderr
   if arguments[0]=='watch':assert 'state=2' in checked.stdout and checked.stdout.count('title=Channel song')==2,checked.stdout
+  if control:assert 'PUBLIC_MANAGED_EXAMPLE_CONTROL_PASS' in checked.stdout,checked.stdout
   example_checks.append(dict(arguments=arguments,passed=True,stdout=checked.stdout))
+ # Invalid arguments must exit before adopting a descriptor or starting IPC.
+ prefix=['--fd','3','--generation','23']
+ invalid_cases=[prefix+['watch','0'],prefix+['watch','1001'],prefix+['watch'],
+                prefix+['tracks','-1'],prefix+['tracks'],prefix+['members'],
+                prefix+['unknown'],prefix+['pause','extra'],
+                ['--fd','65536','--generation','23','snapshot'],
+                ['--fd','3','--generation','0','snapshot'],
+                ['--fd','3','--generation','18446744073709551616','snapshot']]
+ qemu=command[2:command.index(str(binary))+1]
+ for arguments in invalid_cases:
+  checked=subprocess.run(qemu+arguments,cwd=ROOT,
+    env=dict(os.environ,QEMU_UNSET_ENV='LD_LIBRARY_PATH,LD_PRELOAD'),
+    capture_output=True,text=True,timeout=10)
+  assert checked.returncode==2 and 'bind result=' not in checked.stderr,checked.stdout+checked.stderr
+  example_checks.append(dict(arguments=arguments,expected_exit=2,passed=True))
 report=dict(passed=True,sdk_version=version,external_public_sdk_arm_client=True,separate_host_server=True,original_client_loader_libc=True,host_server_sanitizers=True,cpp_consumer=True,managed_backend_modeled=True,device_accessed=False,firmware_created=False,stdout=run.stdout,client_sha256=hashlib.sha256(binary.read_bytes()).hexdigest(),server_sha256=hashlib.sha256(server.read_bytes()).hexdigest(),source_hashes={p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in sources+[str(consumer.relative_to(ROOT)),'tools/test_sdk_managed_channel.py']})
 report['managed_host']=host_mode
 report['managed_example']=example_mode
@@ -41,3 +59,4 @@ report['managed_example_checks']=example_checks
 report['limits']=['Server runs on the host, client under qemu-arm with original loader/libraries; Sony kernel and hardware are not executed.','Playback state, media rows and broker-close effects are modeled; no installed provider or original-manager authorization.']
 if host_mode:report['limits'].append('Trusted launch shim receives SCM_RIGHTS and explicitly preserves only the approved child descriptor across exec; it is not a production app-manager policy.')
 (out/'report.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))
+print('Report:',out/'report.json')

@@ -4,9 +4,109 @@
 #include "../runtime/apps/wireless-remote/control.h"
 #include "../runtime/apps/wireless-remote/mode_wire.h"
 #include "../runtime/apps/wireless-remote/session_wire.h"
+#include "../runtime/apps/wireless-remote/pairing_proof.h"
+#include "../runtime/apps/wireless-remote/transport_goal.h"
+#include "../runtime/apps/wireless-remote/playback_icon.h"
 #include <assert.h>
 #include <string.h>
 #include <stdio.h>
+static void compact_tests(void){
+ struct wr_status s={0},decoded,before;uint8_t key[32]={1},wire[WR_SIGNED_STATUS_BYTES],copy[WR_SIGNED_STATUS_BYTES];
+ s.session=17;s.sequence=3;s.state=XW_PLAY_PAUSED;s.valid=1;
+ strcpy(s.id,"0123456789abcdef");
+ int n=wr_status_pack(wire,sizeof wire,&s,key);assert(n==84&&!memcmp(wire,"WRS2",4));
+ assert(wr_status_frame(wire,n)&&!wr_status_verify(&decoded,wire,n,key)&&!memcmp(&decoded,&s,sizeof s));
+ before=decoded;
+ for(int i=0;i<n;i++){memcpy(copy,wire,n);copy[i]^=1;assert(wr_status_verify(&decoded,copy,n,key)&&!memcmp(&decoded,&before,sizeof before));}
+ for(int i=0;i<n;i++)assert(wr_status_verify(&decoded,wire,i,key));
+ /* Authenticated but structurally invalid lengths, NUL and UTF-8. */
+ memcpy(copy,wire,n);copy[44]=65;assert(!wr_auth_tag(copy+n-16,copy,n-16,key)&&wr_status_verify(&decoded,copy,n,key));
+ memcpy(copy,wire,n);copy[52]=0;assert(!wr_auth_tag(copy+n-16,copy,n-16,key)&&wr_status_verify(&decoded,copy,n,key));
+ memcpy(copy,wire,n);copy[52]=0xff;assert(!wr_auth_tag(copy+n-16,copy,n-16,key)&&wr_status_verify(&decoded,copy,n,key));
+ strcpy(s.title,"歌曲 / Song");strcpy(s.artist,"Artist");strcpy(s.album,"Album");
+ n=wr_status_pack(wire,sizeof wire,&s,key);assert(n>84&&n<128&&!wr_status_verify(&decoded,wire,n,key)&&!memcmp(&decoded,&s,sizeof s));
+ assert(wr_status_pack(copy,n-1,&s,key)<0);
+ memset(s.id,'x',64);s.id[64]=0;memset(s.title,'y',255);s.title[255]=0;
+ memset(s.artist,'z',255);s.artist[255]=0;memset(s.album,'a',255);s.album[255]=0;
+ n=wr_status_pack(wire,sizeof wire,&s,key);assert(n==WR_SIGNED_STATUS_BYTES&&!memcmp(wire,"WRS1",4));
+ assert(!wr_status_verify(&decoded,wire,n,key)&&!memcmp(&decoded,&s,sizeof s));
+ puts("compact status: authenticated exact lengths, 84-byte pairing-size collision, UTF-8, mutation and legacy fallback passed");
+}
+static void heartbeat_goal_tests(void){
+ struct wr_status indicator={0};indicator.valid=XW_PF_STATE;
+ indicator.state=XW_PLAY_PLAYING;assert(wr_playback_icon_for(&indicator,1)==WR_ICON_PLAYING);
+ indicator.state=XW_PLAY_PAUSED;assert(wr_playback_icon_for(&indicator,1)==WR_ICON_PAUSED);
+ indicator.state=XW_PLAY_STOPPED;assert(wr_playback_icon_for(&indicator,1)==WR_ICON_STOPPED);
+ assert(wr_playback_icon_for(&indicator,0)==WR_ICON_UNKNOWN);
+ indicator.valid=0;assert(wr_playback_icon_for(&indicator,1)==WR_ICON_UNKNOWN);
+ struct wr_receiver r={0};uint8_t peer[6]={2,1,2,3,4,5},key[32]={1},wire[WR_SIGNED_STATUS_BYTES];
+ assert(!wr_receiver_pair(&r,peer,key,17));
+ assert(!wr_heartbeat_sign(wire,sizeof wire,17,1,1,key));
+ assert(wr_receiver_accept(&r,peer,wire,WR_HEARTBEAT_BYTES));
+ struct wr_status s={0};s.session=17;s.sequence=2;s.valid=1;s.state=XW_PLAY_PLAYING;
+ int n=wr_status_pack(wire,sizeof wire,&s,key);assert(n>0&&!wr_receiver_accept(&r,peer,wire,n));
+ assert(!wr_heartbeat_sign(wire,sizeof wire,17,3,2,key));
+ assert(!wr_receiver_accept(&r,peer,wire,WR_HEARTBEAT_BYTES)&&r.sequence==3&&r.status.state==XW_PLAY_PLAYING);
+ assert(wr_receiver_accept(&r,peer,wire,WR_HEARTBEAT_BYTES));
+ for(unsigned i=0;i<WR_HEARTBEAT_BYTES;i++){wire[i]^=1;assert(wr_receiver_accept(&r,peer,wire,WR_HEARTBEAT_BYTES));wire[i]^=1;}
+ assert(!wr_heartbeat_sign(wire,sizeof wire,17,5,4,key));
+ assert(wr_receiver_accept(&r,peer,wire,WR_HEARTBEAT_BYTES)==WR_RECEIVER_RESYNC&&r.sequence==3);
+ struct wr_transport_goal g={0};wr_transport_goal_begin(&g,&r.status,1,XW_OP_PAUSE,100);
+ struct wr_control_receipt receipt={17,1,XW_PLAYER_ACCEPTED};wr_transport_goal_receipt(&g,&receipt);assert(g.request==1);
+ assert(!wr_transport_goal_observe(&g,&r.status)&&g.request);
+ s.sequence=4;s.state=XW_PLAY_UNKNOWN;s.valid=0;assert(!wr_transport_goal_observe(&g,&s)&&g.request);
+ s.valid=1;s.state=XW_PLAY_PAUSED;assert(wr_transport_goal_observe(&g,&s)&&!g.request);
+ wr_transport_goal_begin(&g,&s,2,XW_OP_PLAY,100);assert(!wr_transport_goal_expire(&g,5099)&&g.request);
+ assert(wr_transport_goal_expire(&g,5100)&&!g.request);
+ puts("heartbeat/transport goal: authenticated liveness, replay rejection, receipt != completed state, bounded no-retry timeout passed");
+}
+static void command_response_tests(void){
+ struct wr_status initial={0},received;
+ initial.session=17;initial.sequence=20;initial.valid=XW_PF_STATE;initial.state=XW_PLAY_PLAYING;
+ struct wr_transport_goal goal={0};
+ struct wr_control_receipt receipt={17,1,XW_PLAYER_ACCEPTED};
+ /* A real receipt proves a response, not the requested playback transition. */
+ wr_transport_goal_begin(&goal,&initial,1,XW_OP_PAUSE,100);
+ assert(wr_transport_goal_needs_link_check(&goal));
+ wr_transport_goal_receipt(&goal,&receipt);
+ assert(goal.request&&!wr_transport_goal_needs_link_check(&goal));
+ assert(wr_transport_goal_expire(&goal,5100)&&!goal.request);
+ assert(!wr_transport_goal_needs_link_check(&goal));
+ /* Lost receipt, but a newer matching-session state reaches the target. The
+  * frontend may show uncertainty for the receipt without dropping this state. */
+ wr_transport_goal_begin(&goal,&initial,2,XW_OP_PAUSE,6000);
+ received=initial;received.sequence++;received.state=XW_PLAY_PAUSED;
+ assert(wr_transport_goal_observe(&goal,&received)&&!goal.request);
+ assert(!wr_transport_goal_needs_link_check(&goal));
+ /* A current non-target state also proves a response, without confirming the
+  * desired transition. Foreign or stale traffic supplies no such evidence. */
+ wr_transport_goal_begin(&goal,&initial,3,XW_OP_PAUSE,7000);
+ received=initial;received.session++;
+ assert(!wr_transport_goal_observe(&goal,&received)&&wr_transport_goal_needs_link_check(&goal));
+ received=initial;
+ assert(!wr_transport_goal_observe(&goal,&received)&&wr_transport_goal_needs_link_check(&goal));
+ receipt.request=2;wr_transport_goal_receipt(&goal,&receipt);
+ assert(wr_transport_goal_needs_link_check(&goal));
+ received.sequence++;
+ assert(!wr_transport_goal_observe(&goal,&received)&&!wr_transport_goal_needs_link_check(&goal));
+ assert(wr_transport_goal_expire(&goal,12000)&&!wr_transport_goal_needs_link_check(&goal));
+ /* Volume/skip have receipt deadlines too, even though they have no PLAY/PAUSE
+  * target. A rejected operation is still a real peer response. */
+ wr_transport_goal_begin(&goal,&initial,4,XW_OP_STEP_VOLUME,13000);
+ assert(!goal.request&&wr_transport_goal_needs_link_check(&goal));
+ receipt.request=4;receipt.result=XW_PLAYER_IO;wr_transport_goal_receipt(&goal,&receipt);
+ assert(!wr_transport_goal_needs_link_check(&goal));
+ wr_transport_goal_begin(&goal,&initial,5,XW_OP_PAUSE,14000);
+ assert(wr_transport_goal_expire(&goal,19000)&&wr_transport_goal_needs_link_check(&goal));
+ wr_transport_goal_clear(&goal);assert(!wr_transport_goal_needs_link_check(&goal));
+ wr_transport_goal_begin(&goal,&initial,6,XW_OP_PAUSE,20000);
+ wr_transport_goal_peer_response(&goal,initial.session+1);
+ assert(wr_transport_goal_needs_link_check(&goal));
+ wr_transport_goal_peer_response(&goal,initial.session);
+ assert(!wr_transport_goal_needs_link_check(&goal)&&goal.request==6);
+ assert(wr_transport_goal_expire(&goal,25000)&&!wr_transport_goal_needs_link_check(&goal));
+ puts("COMMAND_RESPONSE_PASS: receipt, observed state and missing peer response have distinct outcomes; no control replay");
+}
 static void session_tests(void){
  uint8_t key[32]={1},peer[6]={2,1,2,3,4,5},challenge[16]={1},request[64],reply[64],copy[64],decoded[16];
  struct wr_receiver r={0};assert(!wr_receiver_pair(&r,peer,key,7));r.sequence=99;r.have_status=1;
@@ -37,10 +137,106 @@ static void session_tests(void){
  uint64_t value=42;memset(challenge,0,16);
  assert(wr_session_request(request,64,challenge,key)==-1&&wr_session_reply(reply,64,challenge,0,key)==-1);
  assert(wr_session_reply_read(&value,reply,63,challenge,key)==-1&&value==42);
+ challenge[0]=5;
+ assert(!wr_session_resume_request(request,64,challenge,key));
+ assert(!wr_session_resume_request_read(decoded,request,64,key)&&!memcmp(decoded,challenge,16));
+ assert(wr_session_request_read(decoded,request,64,key)==-1);
+ struct wr_session_progress progress={300,123,456},received={0};
+ assert(!wr_session_resume_reply(reply,64,challenge,0x100000009ULL,&progress,key));
+ assert(!wr_session_resume_reply_read(&value,&received,reply,64,challenge,key));
+ assert(value==0x100000009ULL&&received.status==300&&received.control==123&&received.library==456);
+ challenge[0]=6;
+ assert(wr_session_resume_reply_read(&value,&received,reply,64,challenge,key)==-1&&received.control==123);
+ challenge[0]=5;
+ reply[36]^=1;
+ assert(wr_session_resume_reply_read(&value,&received,reply,64,challenge,key)==-1&&received.control==123);
+ assert(!wr_receiver_resume_challenge(&r,challenge,request,64));
+ before=r;
+ assert(wr_receiver_resume_reply(&r,peer,reply,64,&received)==-1&&!memcmp(&r,&before,sizeof r));
+ assert(!wr_session_resume_reply(reply,64,challenge,r.session,&progress,key));
+ assert(!wr_receiver_resume_reply(&r,peer,reply,64,&received));
+ assert(r.sequence==300&&!r.have_status&&!r.challenge_pending);
+ assert(wr_receiver_resume_reply(&r,peer,reply,64,&received)==-1);
  wr_receiver_clear(&r);
 }
+static void pairing_tests(void){
+ uint8_t secret[16],walkman[16],controller[16];
+ struct wr_pairing_transcript t={{2,1,2,3,4,5},{2,6,7,8,9,10},{0},{0}};
+ for(unsigned i=0;i<16;i++){secret[i]=i+1;t.walkman_nonce[i]=i+16;t.controller_nonce[i]=i+32;}
+ const char hex[]="0102030405060708090a0B0c0D0e0F10";
+ uint16_t text[32];for(unsigned i=0;i<32;i++)text[i]=(uint16_t)hex[i];
+ uint8_t decoded_code[16];
+ assert(!wr_pairing_parse_code(decoded_code,text,32)&&!memcmp(decoded_code,secret,16));
+ assert(wr_pairing_parse_code(decoded_code,text,31)==-1);
+ text[0]=0xff10;
+ assert(wr_pairing_parse_code(decoded_code,text,32)==-1&&!memcmp(decoded_code,secret,16));
+ uint8_t invitation[WR_PAIRING_INVITE_BYTES],nonce[16];unsigned channel=0;
+ assert(!wr_pairing_invite(invitation,11,t.controller_nonce));
+ assert(!wr_pairing_invite_read(&channel,nonce,invitation)&&channel==11&&!memcmp(nonce,t.controller_nonce,16));
+ invitation[5]=1;
+ assert(wr_pairing_invite_read(&channel,nonce,invitation)==-1&&channel==11);
+ assert(!wr_pairing_prove(walkman,secret,&t,WR_PAIRING_WALKMAN));
+ assert(!wr_pairing_prove(controller,secret,&t,WR_PAIRING_CONTROLLER));
+ assert(!memcmp(walkman,"\x15\xc8\x6e\x1c\xea\x82\x1a\x01\x49\x18\xcd\xc4\x2f\xe4\xaa\xf2",16));
+ struct wr_pairing_keys a,b;
+ assert(!wr_pairing_finish(&a,controller,secret,&t,WR_PAIRING_WALKMAN));
+ assert(!wr_pairing_finish(&b,walkman,secret,&t,WR_PAIRING_CONTROLLER));
+ assert(!memcmp(a.auth,b.auth,32)&&!memcmp(a.pmk,b.pmk,16)&&!memcmp(a.lmk,b.lmk,16));
+ assert(a.session==UINT64_C(0xbb98684df2173a4e)&&b.session==a.session);
+ uint8_t confirmation[WR_PAIRING_CONFIRM_BYTES];
+ assert(!wr_pairing_confirmation(confirmation,secret,&t,WR_PAIRING_WALKMAN));
+ assert(!wr_pairing_confirmation_read(&a,confirmation,secret,&t,WR_PAIRING_CONTROLLER));
+ assert(wr_pairing_confirmation_read(&a,confirmation,secret,&t,WR_PAIRING_WALKMAN)==-1);
+ assert(!wr_pairing_confirmation(confirmation,secret,&t,WR_PAIRING_CONTROLLER));
+ assert(!wr_pairing_confirmation_read(&a,confirmation,secret,&t,WR_PAIRING_WALKMAN));
+ confirmation[20]^=1;
+ assert(wr_pairing_confirmation_read(&a,confirmation,secret,&t,WR_PAIRING_WALKMAN)==-1);
+ assert(memcmp(a.pmk,a.lmk,16)&&memcmp(a.auth,a.pmk,16));
+ assert(wr_pairing_finish(&a,walkman,secret,&t,WR_PAIRING_WALKMAN)==-1);
+ t.controller_nonce[0]++;
+ assert(wr_pairing_finish(&a,controller,secret,&t,WR_PAIRING_WALKMAN)==-1);
+ t.controller_nonce[0]--;
+ t.controller[1]++;
+ assert(wr_pairing_finish(&a,controller,secret,&t,WR_PAIRING_WALKMAN)==-1);
+ t.controller[1]--;
+ secret[0]++;
+ assert(wr_pairing_finish(&a,controller,secret,&t,WR_PAIRING_WALKMAN)==-1);
+ assert(a.session==b.session&&!memcmp(a.auth,b.auth,32));
+ secret[0]--;
+ struct wr_walkman_pairing walkman_pairing={0};
+ assert(!wr_walkman_pairing_open(&walkman_pairing,t.walkman,11,1000));
+ assert(!wr_pairing_invite(invitation,8,t.controller_nonce));
+ assert(wr_walkman_pairing_observe(&walkman_pairing,t.controller,invitation,sizeof invitation,1100)==-1);
+ assert(!wr_pairing_invite(invitation,11,t.controller_nonce));
+ assert(!wr_walkman_pairing_observe(&walkman_pairing,t.controller,invitation,sizeof invitation,1200));
+ assert(wr_walkman_pairing_offer(&walkman_pairing,secret,t.walkman_nonce,confirmation,4200)==-1);
+ assert(!wr_walkman_pairing_observe(&walkman_pairing,t.controller,invitation,sizeof invitation,4300));
+ assert(!wr_walkman_pairing_offer(&walkman_pairing,secret,t.walkman_nonce,confirmation,4400));
+ assert(!wr_pairing_confirmation_read(&b,confirmation,secret,&t,WR_PAIRING_CONTROLLER));
+ assert(!wr_pairing_confirmation(confirmation,secret,&t,WR_PAIRING_CONTROLLER));
+ assert(wr_walkman_pairing_confirm(&walkman_pairing,t.walkman,confirmation,sizeof confirmation,&a,4500)==-1);
+ assert(!wr_walkman_pairing_confirm(&walkman_pairing,t.controller,confirmation,sizeof confirmation,&a,4500));
+ assert(a.session==b.session&&walkman_pairing.phase==WR_PAIRING_VERIFIED);
+ assert(!wr_pairing_commit_encode(confirmation,&a,&t,WR_PAIRING_WALKMAN));
+ assert(!wr_pairing_commit_check(confirmation,&b,&t,WR_PAIRING_WALKMAN));
+ assert(wr_pairing_commit_check(confirmation,&b,&t,WR_PAIRING_CONTROLLER)==-1);
+ assert(!wr_pairing_commit_encode(confirmation,&b,&t,WR_PAIRING_CONTROLLER));
+ assert(!wr_pairing_commit_check(confirmation,&a,&t,WR_PAIRING_CONTROLLER));
+ confirmation[51]^=1;
+ assert(wr_pairing_commit_check(confirmation,&a,&t,WR_PAIRING_CONTROLLER)==-1);
+ assert(!memcmp(walkman_pairing.secret,(uint8_t[16]){0},16));
+ assert(wr_walkman_pairing_confirm(&walkman_pairing,t.controller,confirmation,sizeof confirmation,&a,4500)==-1);
+ wr_walkman_pairing_close(&walkman_pairing);
+ assert(!wr_walkman_pairing_open(&walkman_pairing,t.walkman,11,1000));
+ assert(wr_walkman_pairing_observe(&walkman_pairing,t.controller,invitation,sizeof invitation,121000)==-1);
+ assert(walkman_pairing.phase==WR_PAIRING_CLOSED);
+}
 int main(void){
+ compact_tests();
+ heartbeat_goal_tests();
+ command_response_tests();
  session_tests();
+ pairing_tests();
  struct wr_status s={0},out,old;uint8_t wire[WR_STATUS_BYTES];
  s.session=0x123456789abcdefULL;s.sequence=1;s.valid=39;s.commands=63;s.state=3;
  s.volume=9;s.maximum=30;s.metadata_flags=7;

@@ -23,13 +23,13 @@ static uint64_t get64(const unsigned char *p){uint64_t n=0;for(unsigned i=0;i<8;
 int xw_mode_reply_decode(struct xw_mode_reply *out,const unsigned char *raw,unsigned length,uint32_t op,uint64_t serial){
  if(!out||!raw||length!=80||!serial||op<XW_MODE_QUERY||op>XW_MODE_RELEASE||memcmp(raw,"WMS1",4))return XW_MODE_INVALID;
  if(get32(raw+4)!=op||get64(raw+8)!=serial)return XW_MODE_STALE;
- for(unsigned i=72;i<80;i++)if(raw[i])return XW_MODE_INVALID;
  struct xw_mode_reply r;memset(&r,0,sizeof r);
  r.operation=op;r.serial=serial;r.result=(int32_t)get32(raw+16);r.phase=get32(raw+20);
  r.selected=(int32_t)get32(raw+24);r.requested=(int32_t)get32(raw+28);
  r.active=get32(raw+32);r.off_verified=get32(raw+36);r.generation=get64(raw+40);
  r.lease.generation=r.generation;r.lease.serial=get64(raw+48);r.lease.consumer=get64(raw+56);
- r.lease.mode=(int32_t)get32(raw+64);r.owned=get32(raw+68);
+ r.lease.mode=(int32_t)get32(raw+64);r.owned=get32(raw+68);r.wifi_borrowed=get32(raw+72);
+ r.cold_remote=get32(raw+76);
  if(r.result<XW_MODE_WRONG_OWNER||r.result>XW_MODE_PENDING||r.phase<XW_MODE_UNVERIFIED||r.phase>XW_MODE_FAILED||
     r.selected<XW_WIRELESS_MODE_UNKNOWN||r.selected>XW_WIRELESS_MODE_ESPNOW||
     r.requested<XW_WIRELESS_MODE_UNKNOWN||r.requested>XW_WIRELESS_MODE_ESPNOW||
@@ -39,13 +39,17 @@ int xw_mode_reply_decode(struct xw_mode_reply *out,const unsigned char *raw,unsi
   if(!r.active||!r.lease.serial||!r.lease.consumer||
      (r.lease.mode!=XW_WIRELESS_MODE_WIFI&&r.lease.mode!=XW_WIRELESS_MODE_ESPNOW))return XW_MODE_INVALID;
  }else if(r.lease.serial||r.lease.consumer||r.lease.mode!=XW_WIRELESS_MODE_UNKNOWN)return XW_MODE_INVALID;
+ if(r.wifi_borrowed!=0&&(r.wifi_borrowed!=1||!r.owned||r.lease.mode!=XW_WIRELESS_MODE_WIFI))return XW_MODE_INVALID;
+ if(r.cold_remote&&(r.cold_remote!=1||!r.owned||r.wifi_borrowed||
+    r.selected!=XW_WIRELESS_MODE_WIFI||r.lease.mode!=XW_WIRELESS_MODE_ESPNOW))return XW_MODE_INVALID;
  *out=r;return 0;
 }
 int xw_mode_reply_data_allowed(const struct xw_mode_reply *r){
  return r&&r->operation==XW_MODE_QUERY&&!r->result&&r->phase==XW_MODE_STABLE&&r->active==1&&r->owned==1&&
         !r->off_verified&&r->generation&&r->lease.generation==r->generation&&r->lease.serial&&r->lease.consumer&&
         (r->selected==XW_WIRELESS_MODE_WIFI||r->selected==XW_WIRELESS_MODE_ESPNOW)&&
-        r->selected==r->requested&&r->selected==r->lease.mode?0:XW_MODE_DENIED;
+        r->selected==r->requested&&(r->selected==r->lease.mode||
+         (r->cold_remote==1&&r->selected==XW_WIRELESS_MODE_WIFI&&r->lease.mode==XW_WIRELESS_MODE_ESPNOW))?0:XW_MODE_DENIED;
 }
 static int request_valid(uint32_t op,uint64_t serial,int mode){
  if(!serial||op<XW_MODE_QUERY||op>XW_MODE_RELEASE)return 0;
@@ -88,6 +92,8 @@ static void reply(struct xw_mode_channel *c,uint32_t op,uint64_t serial,int resu
  put32(c->reply+64,(uint32_t)XW_WIRELESS_MODE_UNKNOWN);
  if((c->held||c->observing)&&!xw_mode_policy_owns(c->policy,&c->lease)){
   put64(c->reply+48,c->lease.serial);put64(c->reply+56,c->lease.consumer);put32(c->reply+64,(uint32_t)c->lease.mode);put32(c->reply+68,1);
+  if(c->lease.mode==XW_WIRELESS_MODE_WIFI&&c->policy->wifi_borrowed)put32(c->reply+72,1);
+  if(c->lease.mode==XW_WIRELESS_MODE_ESPNOW&&c->policy->cold_remote)put32(c->reply+76,1);
  }
  c->pending=1;
 }

@@ -4,6 +4,17 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 FIELDS={'title':48,'summary':96,'description':640,'changes':384,'channel':16}
 
+def application_root(path=None):
+    if path is None:
+        return ROOT/'runtime/apps'
+    candidate=Path(path)
+    resolved=candidate.resolve()
+    if not resolved.is_relative_to(ROOT/'work') or resolved==ROOT/'work':
+        raise ValueError('Isolated app sources must be below project work/')
+    if candidate.is_symlink() or any(parent.is_symlink() for parent in candidate.parents):
+        raise ValueError('Linked isolated app root')
+    return resolved
+
 def applications(root=None):
     root=Path(root) if root is not None else ROOT/'runtime/apps'
     result={}

@@ -90,6 +90,18 @@ def main():
    assert without_page[at:at+len(new)]==new and len(old)==len(new)
    without_page[at:at+len(old)]=old
   assert hashlib.sha256(without_page).hexdigest()==page['base_sha256']
+  warm=host.get('warm_homebrew_analysis')
+  if warm:
+   # Count composition precedes the optional switch-mode composition. Verify
+   # and undo that exact layer before checking the earlier count receipt.
+   from homebrew_handoff import compose as compose_warm,MODE_INSTRUCTION,RETAIN_PROCESS,QUIT_RELAUNCH
+   assert hashlib.sha256(without_page).hexdigest()==warm['candidate_sha256']
+   restored=bytearray(without_page);mode_at=offset(restored,MODE_INSTRUCTION,4)
+   assert struct.unpack_from('<I',restored,mode_at)[0]==RETAIN_PROCESS
+   struct.pack_into('<I',restored,mode_at,QUIT_RELAUNCH)
+   assert hashlib.sha256(restored).hexdigest()==warm['base_sha256']
+   assert compose_warm(bytes(restored))[0]==bytes(without_page)
+   without_page=restored
   revert(bytes(without_page),integrated)
   negative=bytearray(candidate)
   for edit in integrated['edits']:
@@ -129,6 +141,8 @@ def main():
   limits=['Japanese classification is supplied; original Home selection/list lookup generates the request and control ID.',
    'Original Pcs registration, manager/pool init, pool allocation and widget record construction execute; only standard memcpy/memset and queue transport are modeled.',
    'Selection category2 is supplied; original list state setter/index lookup execute. Page activation, full startup, touch/scroll, live Homebrew and hardware are not qualified.'])
+ if host.get('warm_homebrew_analysis'):
+  report['source_hashes']['tools/homebrew_handoff.py']=digest(ROOT/'tools/homebrew_handoff.py')
  (out/'report.json').write_text(json.dumps(report,indent=2)+'\n')
  print(json.dumps(dict(passed=True,directory=out.relative_to(ROOT).as_posix(),constructor_cases=report['constructor_cases'],baseline_count=10,corrected_count=composition['target_count'],failed_candidate_reproduced=bool(failed),firmware_created=False),indent=2))
 

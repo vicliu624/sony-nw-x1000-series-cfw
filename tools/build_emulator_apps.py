@@ -10,7 +10,7 @@ for name,digest in {'libc.so.6':'5afbf3074dfa9ba0478d6670f220ef4d7ec065a255ee856
 all_reports=[]
 for name,title in [('gbc','Game Boy Color'),('tamagotchi-id','Tamagotchi iD')]:
  out=work/name;out.mkdir(exist_ok=True);folder=out/'package';folder.mkdir(exist_ok=True);objects=[]
- extra=['runtime/platform/pcm_output.c','runtime/platform/pcm_posix.c','runtime/apps/fm-radio/fm_audio.c','runtime/apps/emulators/gbc_core.c','runtime/native/sha256.c']+['third_party/gnuboy/'+n+'.c'for n in ['lcd','refresh','lcdc','palette','cpu','mem','rtc','hw','sound']] if name=='gbc' else ['runtime/apps/emulators/tama_platform.c','third_party/tama-id/color.c','third_party/tama-id/core/tc_all.c']
+ extra=['runtime/platform/pcm_output.c','runtime/platform/pcm_posix.c','runtime/platform/audio/fm_audio.c','runtime/apps/emulators/gbc_core.c','runtime/native/sha256.c']+['third_party/gnuboy/'+n+'.c'for n in ['lcd','refresh','lcdc','palette','cpu','mem','rtc','hw','sound']] if name=='gbc' else ['runtime/apps/emulators/tama_platform.c','third_party/tama-id/color.c','third_party/tama-id/core/tc_all.c']
  flags=base+([] if name=='gbc' else ['-DHB_TAMA_ID','-DTC_HOST','-DA918_COLOR_MENU','-DA918_COLOR_PERF','-DA918_EXTERNAL'])
  for i,source in enumerate(common+extra):
   obj=out/(str(i)+'-'+Path(source).stem+'.o');subprocess.run(['arm-linux-gnueabi-gcc',*flags,'-c',source,'-o',str(obj)],cwd=ROOT,check=True);objects.append(str(obj))
@@ -23,6 +23,6 @@ for name,title in [('gbc','Game Boy Color'),('tamagotchi-id','Tamagotchi iD')]:
  files={p.name:p.read_bytes() for p in [app,folder/'app.ini']};(folder/'files.sha256').write_text('HBFILES1\n'+''.join(f'{hashlib.sha256(b).hexdigest()} {len(b)} {n}\n'for n,b in sorted(files.items())))
  report={'id':name,'app_version':version,'artifact':str(app.relative_to(ROOT)),'bytes':len(data),'sha256':digest,'needed':needed,'checks':results,'hardware_tested':False,'ROM_included':False,'builder_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),'source_hashes':{n:hashlib.sha256((ROOT/n).read_bytes()).hexdigest()for n in common+extra+[str(p.relative_to(ROOT)) for p in (ROOT/'runtime/apps/emulators').glob('*.h')]+['runtime/apps/emulators/VERSION','runtime/platform/pcm_output.h']}}
  report['source_hashes'].update({str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for folder in ['third_party/gnuboy','third_party/tama-id'] for p in (ROOT/folder).rglob('*') if p.is_file()})
- report['source_hashes']['runtime/apps/fm-radio/fm_audio.h']=hashlib.sha256((ROOT/'runtime/apps/fm-radio/fm_audio.h').read_bytes()).hexdigest()
+ report['source_hashes']['runtime/platform/audio/fm_audio.h']=hashlib.sha256((ROOT/'runtime/platform/audio/fm_audio.h').read_bytes()).hexdigest()
  (out/'build.json').write_text(json.dumps(report,indent=2)+'\n');all_reports.append(report)
 (work/'build.json').write_text(json.dumps(all_reports,indent=2)+'\n');print([(r['id'],r['bytes'],r['sha256'])for r in all_reports])

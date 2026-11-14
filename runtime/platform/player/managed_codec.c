@@ -11,7 +11,7 @@ static int header(const unsigned char *p,size_t n,uint32_t op,uint64_t correlati
  if(rc>0||rc<XW_PLAYER_UNCERTAIN||(rc&&n!=24))return XW_PLAYER_PROTOCOL;return rc;
 }
 int xw_control_request_encode(uint32_t op,uint64_t correlation,uint64_t generation,uint64_t after,uint32_t limit,unsigned char *out,size_t capacity){
- if(!out||capacity<40||!correlation||!generation||op<1||op>XW_CONTROL_PLAY_MODE||(op==XW_CONTROL_EVENTS?(!limit||limit>XW_EVENT_SLOTS):(after||limit)))return XW_PLAYER_INVALID;
+ if(!out||capacity<40||!correlation||!generation||op<1||op>XW_CONTROL_ARTWORK||(op==XW_CONTROL_EVENTS?(!limit||limit>XW_EVENT_SLOTS):op==XW_CONTROL_ARTWORK?(after>XW_ARTWORK_MAX||limit!=XW_ARTWORK_CHUNK):(after||limit)))return XW_PLAYER_INVALID;
  unsigned char frame[40]={0};memcpy(frame,"XLC1",4);put32(frame+4,op);put64(frame+8,correlation);put64(frame+16,generation);put64(frame+24,after);put32(frame+32,limit);memcpy(out,frame,40);return 0;
 }
 int xw_control_status_decode(const unsigned char *p,size_t n,uint32_t op,uint64_t correlation,uint64_t generation,struct xw_session_snapshot *out){
@@ -29,6 +29,14 @@ int xw_control_mode_decode(const unsigned char *p,size_t n,uint64_t correlation,
  uint32_t raw=u32(p+24),menu=u32(p+28);
  if(!((raw<=3&&menu==raw)||(raw==5&&menu==4)))return XW_PLAYER_PROTOCOL;
  *native=raw;*index=menu;return 0;
+}
+int xw_control_artwork_decode(const unsigned char *p,size_t n,uint64_t correlation,uint64_t generation,uint32_t offset,struct xw_artwork_chunk *out){
+ if(!out||!generation||offset>XW_ARTWORK_MAX)return XW_PLAYER_INVALID;
+ int rc=header(p,n,XW_CONTROL_ARTWORK,correlation);if(rc)return rc;
+ if(n<109||u64(p+24)!=generation||!p[32]||!memchr(p+32,0,65))return XW_PLAYER_PROTOCOL;
+ struct xw_artwork_chunk value={0};memcpy(value.id.value,p+32,65);value.total=u32(p+97);value.offset=u32(p+101);value.bytes=u32(p+105);
+ if(!value.total||value.total>XW_ARTWORK_MAX||value.offset!=offset||offset>=value.total||value.bytes>XW_ARTWORK_CHUNK||n!=109+value.bytes||value.bytes!=((value.total-offset)>XW_ARTWORK_CHUNK?XW_ARTWORK_CHUNK:value.total-offset))return XW_PLAYER_PROTOCOL;
+ memcpy(value.data,p+109,value.bytes);*out=value;return 0;
 }
 int xw_control_events_decode(const unsigned char *p,size_t n,uint64_t correlation,uint64_t after,uint32_t limit,struct xw_service_event *out,uint32_t capacity,uint32_t *count,uint64_t *next){
  if(!out||!count||!next||!limit||limit>XW_EVENT_SLOTS||capacity<limit)return XW_PLAYER_INVALID;

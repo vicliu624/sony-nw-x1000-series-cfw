@@ -44,9 +44,9 @@ marks report 23 as unused; its packet capacity alone establishes no signal path.
 names `AN264SW.zip` as the software/firmware/source package. It describes
 Si4701 analog audio being digitized by the C8051F321 ADC. That stream is decoded
 audio, not direct tuner IQ. This is an older-family comparison, not a Si4703
-stepping match. The ZIP has not been acquired: the tested Silicon Labs endpoint
-returned Access Denied HTML, and a candidate Skyworks migration path returned
-HTML. Neither response was treated as usable software or executed.
+stepping match. The [archived vendor ZIP](https://web.archive.org/web/20140722174009id_/http://www.silabs.com/Support%20Documents/Software/AN264SW.zip)
+was recovered and inspected statically. See the [MCU evidence](FM_USB_MCU_REVERSE_ENGINEERING.md#recovered-silicon-labs-an264-software)
+for archive hashes, page verification and the flasher source.
 
 An additional [community attachment lead](https://whycan.com/t_2221.html)
 identifies `AN264SW.rar`. The file URL returns a download landing page; its
@@ -130,11 +130,148 @@ product-page copy, rather than inferred from modern URL conventions:
 - `https://www.silabs.com/Support%20Documents/Software/AN264SW.zip`
 - `https://www.silabs.com/Support%20Documents/Software/USBRadio.zip`
 
-Both legacy endpoints returned HTTP 403 HTML during acquisition. A successful
-connection or a `.zip` suffix must not be counted as a recovered software pack.
-An Internet Archive item search returned manuals and unrelated material, not
-an identified software release. The archive-index request did not yield a
-usable package; this is not proof that no historical copy exists.
+The direct legacy endpoints returned HTTP 403 HTML. Archived captures
+provided both ZIPs. The [2012 USBRadio capture](https://web.archive.org/web/20120905181717id_/http://www.silabs.com/Support%20Documents/Software/USBRadio.zip)
+passed ZIP integrity testing and contains exactly one member, USBRadio.exe.
+Its SHA-256 is `1ce9698a98bb0c906bda95610e0aefe457c1014e07a470fb184011186774927a`,
+and it matches the AN264 GUI executable byte for byte. The standalone
+distribution therefore adds no MCU address coverage. The ZIP SHA-256 is
+`e6c634ad803d4a3ccb5ef9a38ab7f5358db7ad0162d211753b6ae9b8bd8468d5`.
+
+The [July 2012 USBRadio capture](https://web.archive.org/web/20120723141526id_/http://www.silabs.com/Support%20Documents/Software/USBRadio.zip)
+has the same ZIP hash as the September capture. Availability queries
+targeting 2006, 2008 and 2010 returned that July 2012 capture for
+USBRadio and the same July 2014 capture for AN264SW. The queried dates
+did not yield an older payload. The [ADS RDX-155-EF mirror listing](https://www.driverguide.com/driver/detail.php?driverid=1024841)
+names `InstantFMSetup.EXE`, but its file link is CAPTCHA-gated. No OEM
+executable was obtained from this listing.
+
+An Internet Archive software-title search found two
+[RDX150_121.ISO catalog entries](https://archive.org/details/rdx-150-121),
+both listing a 135,630,848-byte image. Their uploader descriptions
+identify the media as ADS Instant Music RDX-150, with Spin It Again
+and Nero software. This identifies a different model from the
+RDX-155 FM receiver. One image was acquired and its SHA-1 matched the Archive file
+metadata. SHA-256:
+`3aa1785cbb5031d6e62d02437dd131f6ea27d01a36efdc5f4eefe8d242140372`.
+Its ISO9660 directory inventory has 39 records. The launcher identifies
+`RDX150_121.dbd` and DemoShield; the software directories contain
+Acoustic, PhotoShow and Acrobat Reader installers. No standalone
+radio, MCU HEX or firmware file appears in this directory inventory.
+Static 7-Zip inspection identifies the Acoustic installer as
+Acoustica Spin It Again with an embedded Wise installer payload.
+The PhotoShow setup uses NSIS; its archive listing contains no
+Si470x, Silicon Labs, firmware, HEX or driver filename match in
+the inspected listing. The Wise payload was not decompressed by
+7-Zip, so its internal files remain unexamined. Executables were
+not run. Local listings and PE resources remain under
+`work/fm-driver-comparison/rdx150-*`.
+Searches restricted to Si47xx/Si4700/Si4703
+titles returned manuals and case designs, with no EVB software
+image in those results.
+
+A broader Archive software search found
+[Snap Music V1.01](https://archive.org/details/snap-music-v-1.01).
+The uploader identifies a bundled KWorld SnapMusic700 Mobile disc.
+The catalog lists `SnapMusic_V1.01.iso`, 281,247,744 bytes, SHA-1
+`6efd1db8f807fe8f413165e7450bd020b1478b8f`.
+The full ISO was acquired and its SHA-1 matched that metadata.
+SHA-256 is `4efb3dbad6ee818c1e1faef13023df8e7fe78afcb04d36181f0fd67017f9e3e8`.
+The autorun configuration names SnapMusic Mobile 700. The disc also
+contains Studio 715 manuals and a C-Media audio driver, so each
+component needs its own target identification.
+
+Static extraction of the Snaptune bootstrapper found an MSI container
+and two embedded CABs. The main CAB yielded 47 files. Its
+`SnapRec.exe` imports HidD_SetFeature and HidD_GetFeature and contains
+the device identifier `vid_1b80&pid_d700`, matching the Linux Si470x
+driver's KWorld FM700 identity. SnapRec SHA-256:
+`4ca9947dd138357add2a69c773c9348bfa21972bebbcdfc351df08cd734baae4`.
+The previously recovered encoded and decoded MCU images do not occur
+as complete contiguous byte arrays in this file. Its HID request
+builders and any independently encoded images still require analysis.
+The located direct calls through SnapRec's HidD_SetFeature import thunk
+join a helper at VA `0x439960`. In the first inspected request builder,
+the 64-byte report begins with ID 4 and a big-endian word with bit
+`0x8000` set. The following poll asks for report 11 and tests mask
+`0x4000`, with a 3000-unit timeout argument. The caller then clears
+the high command byte and resends the report. This matches the ordinary
+CHANNEL/TUNE and STATUSRSSI/STC report layout. Equivalent direct call
+sites occur in two other located regions. This is static request
+formation evidence. Branch reachability, indirect calls and the
+timeout unit have not been qualified. No TEST or bridge boot command
+has been established from the located direct calls.
+
+The separate SnapMusic InstallShield cabinets were subsequently
+extracted with unshield 1.5.1, yielding 74 files. The application
+directory includes both `FM5767DLL.dll` and `FM700ExtDLL.dll`.
+The FM700 library SHA-256 is
+`6085571f3a360b4954da60f9495ef8e5f928eb2f6f65811b8bf5fdc1bae2399c`.
+It exports tune, seek, band, spacing, de-emphasis, RSSI, RDS and mute
+functions. Imports include HID feature operations and Windows waveIn/
+waveOut audio APIs. Its device-name strings include the Silicon Labs
+reference radio, USB FM Stick and ADS InstantFM Music. These provide
+another concrete host implementation to inspect beyond Snaptune.
+The FM700 library's device matcher at VA `0x100029d9–0x10002a43`
+accepts `10c4:818a`, `1b80:d700`, and `06e1:a155`, covering the
+reference board, KWorld FM700 and ADS RDX-155. The generic register
+writer's whitelist includes feature report IDs 8, 9 and 10, matching
+TEST1, TEST2 and BOOTCONFIG in the reference protocol. Another sender
+requires report ID 19. Those helpers establish serialization capability.
+Direct callers now identify report 19 command `0x35` with a
+caller-supplied state and trailing `0xff`, matching reference LED
+control. The general register sender at VA `0x1000435d` has direct
+callers for reports 3 and 4 plus a wrapper at `0x10004294`.
+The wrapper's located callers select reports 5, 6 and 3 during
+initialization. No located direct caller selects TEST reports 8–10.
+A second report-19 sender has no direct call reference in the scanned
+code section. The scan covers immediate x86 calls and leaves indirect
+calls unresolved. It has not established a boot command or a tuner
+test sequence.
+
+A scan of all 74 extracted files found neither the known 7,725-byte
+encoded application records nor the 7,680-byte decoded image as a
+complete contiguous array. Independently encoded firmware remains
+unexcluded. A startup helper at VA `0x10002e14` is a strict version gate.
+It returns true only when the object has a device handle and the
+parsed MCU software/hardware version bytes are 7 and 1. The entire
+function through `0x10002e50` contains comparisons and returns,
+with no calls or USB operation. Its caller at `0x10001d66` first
+loads scratch report 20, checks this gate, then proceeds to radio
+initialization. The scratch parser copies the stored version bytes
+from scratch offsets 1 and 2 into the compared fields. This
+start-up path enforces an existing bridge version and supplies no
+firmware upgrade when the comparison fails. Those versions describe
+the USB bridge and board, not the FM silicon stepping.
+
+The FM700 library initializes its WAVEFORMATEX at object offset
+`0x24c` to PCM format 1, two channels, 96,000 samples/s, 16 bits
+per channel, four-byte block alignment and 384,000 bytes/s
+(VA `0x10001bb6–0x10001bf3`). `waveInOpen` receives that structure
+and the enumerated input-device index at `0x1000209b` and
+`0x10002103`. `waveOutOpen` uses the same format at `0x10002313`.
+This establishes a Windows audio input/playback path at the advertised
+reference-board format. The library's audio format does not identify
+the analog signal as tuner IQ or establish the Sony capture path.
+The FM700 library's sole PE resource is a 908-byte version resource,
+identifying KWorld Inc., version 1.0.0.1 and description
+`ADS+KWorld+Silicon ID`. There is no separate firmware resource in
+the resource tree. The `.rdata` and `.data` virtual sizes are
+2,577 and 1,052 bytes. A scan for full absolute pointers to the two
+report-19 sender addresses found none in the PE sections, in addition
+to the earlier immediate-call scan. Runtime-computed dispatch is still
+outside that scan. These facts reduce the evidence for an updater in
+this library without excluding code-embedded or transformed data.
+The other library's filename alone does not identify its target tuner.
+No installer or extracted program was run.
+
+Local inputs and listings are retained under
+`work/fm-driver-comparison/snapmusic-*` and `snaptune-*`.
+
+Wayback availability lookups under the same legacy directory returned no
+capture for the candidate filenames `Si47XXGui.msi`, `SilabsAudioGui.msi`,
+`Si470XFMTunerGUI.zip`, or `AN235SW.zip`. These lookups test specific
+guessed paths and do not establish how the EVB packages were distributed.
 
 The [vendor Si4700/01/02/03 EVB guide](https://www.skyworksinc.com/-/media/Skyworks/SL/documents/public/user-guides/Si4700-01-02-03EVB.pdf)
 provides more precise package and target-identification evidence:

@@ -1,5 +1,5 @@
 #define _XOPEN_SOURCE 700
-#include "../../runtime/apps/qqmusic/qqmusic_volume.h"
+#include "../../runtime/platform/storage/qqmusic_volume.h"
 #include "../../runtime/apps/qqmusic/qqmusic_asset.h"
 #include "../../runtime/apps/qqmusic/qqmusic_source.h"
 #include "../../runtime/apps/qqmusic/qqmusic_output.h"

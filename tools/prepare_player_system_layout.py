@@ -14,6 +14,7 @@ from build_player_host import build
 from builtin_language import SETTINGS_SHA
 from player_arm_guest import stock_libraries
 from remote_choice_resource import SOURCE as REMOTE_TEMPLATE, TARGET as REMOTE_RESOURCE
+from remote_choice_resource import BOUND_TARGET,CONFIRM_TARGET,CONFIRM_SOURCE,PAIR_TARGET
 sys.path.insert(0, str(ROOT/'scripts'))
 from upg import unpack
 
@@ -47,18 +48,23 @@ def main():
     replacement=app_list
     out=ROOT/'work/player-system-layout'/str(time.time_ns());out.mkdir(parents=True)
     supervisor=None
+    runtime_source_hashes={}
     new_ownership={}
     page_review=None
     if args.host_review:
         from review_managed_remote_profile import receipt,artifact
         host_path,host=receipt(args.host_review)
+        runtime_source_hashes.update(host['source_hashes'])
+        runtime_source_hashes[host_path.relative_to(ROOT).as_posix()]=hashlib.sha256(host_path.read_bytes()).hexdigest()
         if not host.get('passed') or not host.get('analysis_only') or not host.get('remote_factory_automatic'):
             raise ValueError('Expected composed automatic analysis host')
         library=host_path.parent/'libx1000-player-analysis.so'
         payload=host_path.parent/'SpiderApp.player-prepare.analysis-only.elf'
         artifact(library,host['library_sha256'],host['library_bytes'])
         if hashlib.sha256(payload.read_bytes()).hexdigest()!=host['candidate_sha256']:raise ValueError('Player identity mismatch')
-        _,supervisor_review=receipt(host['remote_factory_profile']['review'])
+        supervisor_path,supervisor_review=receipt(host['remote_factory_profile']['review'])
+        runtime_source_hashes.update(supervisor_review['source_hashes'])
+        runtime_source_hashes[supervisor_path.relative_to(ROOT).as_posix()]=hashlib.sha256(supervisor_path.read_bytes()).hexdigest()
         supervisor=ROOT/supervisor_review['artifact']
         artifact(supervisor,supervisor_review['sha256'],supervisor_review['bytes'])
     else:
@@ -87,6 +93,17 @@ def main():
         paths=re.findall(r'"(/usr/local/[^"\n]+)"',header.read_text())
         if len(paths)!=1:raise ValueError('Expected one compiled system supervisor path')
         entries[paths[0].lstrip('/')]=(supervisor.read_bytes(),0o755)
+        if supervisor_review.get('embedded_runtime'):
+            from review_managed_remote_profile import input_artifact
+            for kind,leaf in [('owner','remote-rf-owner.arm'),('service','wireless-remote-service.arm')]:
+                path,_=input_artifact(supervisor_review,kind,leaf)
+                code_path,code_review=receipt(path.parent/'build.json')
+                runtime_source_hashes.update(code_review['source_hashes'])
+                runtime_source_hashes[code_path.relative_to(ROOT).as_posix()]=hashlib.sha256(code_path.read_bytes()).hexdigest()
+                destination=supervisor_review['inputs'][kind]['path']
+                if destination!='/usr/local/libexec/x1000-remote-'+kind+'.arm' or destination.lstrip('/') in archive_names:
+                    raise ValueError('Unexpected embedded remote runtime path')
+                entries[destination.lstrip('/')]=(path.read_bytes(),0o755)
         composition=json.loads((ROOT/host['source_composition_report']).read_text())
         resource_review=composition.get('settings_resource_review')
         if not resource_review:raise ValueError('Host composition lacks paired menu resource provenance')
@@ -99,21 +116,38 @@ def main():
             entries[name]=(resource.read_bytes(),resource_modes[name])
         if host.get('native_remote_page_analysis'):
             page_path,page=receipt(host['native_remote_page_analysis'])
-            if (page['sha256']!=host['candidate_sha256'] or
-                set(page['resource_overlay'])!={REMOTE_RESOURCE} or
-                REMOTE_RESOURCE in archive_names or REMOTE_RESOURCE in entries):
+            templates={REMOTE_RESOURCE:REMOTE_TEMPLATE}
+            if page.get('pairing_row'):templates.update({BOUND_TARGET:REMOTE_TEMPLATE,CONFIRM_TARGET:CONFIRM_SOURCE,PAIR_TARGET:CONFIRM_SOURCE})
+            if (page['sha256']!=host['candidate_sha256'] or set(page['resource_overlay'])!=set(templates) or
+                any(name in archive_names or name in entries for name in templates)):
                 raise ValueError('Remote page resource does not match the player layout')
-            row=page['resource_overlay'][REMOTE_RESOURCE]
-            if row['template']!=REMOTE_TEMPLATE:
-                raise ValueError('Unexpected Remote page resource template')
-            resource=page_path.parent/'root-overlay'/REMOTE_RESOURCE
-            artifact(resource,row['sha256'],row['bytes'])
-            if host['source_hashes'].get(resource.relative_to(ROOT).as_posix())!=row['sha256']:
-                raise ValueError('Remote page resource is not pinned by the paired host')
-            entries[REMOTE_RESOURCE]=(resource.read_bytes(),row['mode'])
-            new_ownership[REMOTE_RESOURCE]=(row['uid'],row['gid'])
+            for name,template in templates.items():
+                row=page['resource_overlay'][name]
+                if row['template']!=template:raise ValueError('Unexpected Remote page resource template')
+                resource=page_path.parent/'root-overlay'/name
+                artifact(resource,row['sha256'],row['bytes'])
+                if host['source_hashes'].get(resource.relative_to(ROOT).as_posix())!=row['sha256']:
+                    raise ValueError('Remote page resource is not pinned by the paired host')
+                entries[name]=(resource.read_bytes(),row['mode'])
+                new_ownership[name]=(row['uid'],row['gid'])
             page_review=page_path
     manifest={}
+    if host.get('shared_wifi_review'):
+        radio_path='lib/modules/sd8686.bin'
+        image_path=ROOT/host['shared_wifi_review']
+        image=json.loads(image_path.read_text())
+        row=image['overlay'][radio_path]
+        candidate=ROOT/row['artifact']
+        artifact(candidate,row['sha256'],row['bytes'])
+        with tarfile.open(fileobj=io.BytesIO(parts[3]),mode='r:gz') as archive:
+            original=archive.getmember('./'+radio_path)
+            if (not original.isfile() or hashlib.sha256(archive.extractfile(original).read()).hexdigest()!=row['original_sha256'] or
+                (original.mode,original.uid,original.gid)!=(row['mode'],row['uid'],row['gid'])):
+                raise ValueError('Shared Wi-Fi image requires the pinned stock radio file')
+            for name,sha in image['unchanged'].items():
+                if hashlib.sha256(archive.extractfile('./'+name).read()).hexdigest()!=sha:
+                    raise ValueError('Stock radio dependency changed: '+name)
+        entries[radio_path]=(candidate.read_bytes(),row['mode'])
     for name,(data,mode) in entries.items():
         target=out/'root-overlay'/name;target.parent.mkdir(parents=True,exist_ok=True)
         target.write_bytes(data);target.chmod(mode)
@@ -133,7 +167,7 @@ def main():
             if old and not old.isfile():raise ValueError('Overlay would replace non-file: '+name)
             accounting.append(dict(path=name,original_bytes=old.size if old else 0,candidate_bytes=len(data),delta_bytes=len(data)-(old.size if old else 0)))
     report=dict(prepared=True,analysis_only=True,ready_to_flash=False,firmware_created=False,
-                device_accessed=False,localization_input_sha256=hashlib.sha256(source.read_bytes()).hexdigest(),
+                device_accessed=False,localization_input=source.relative_to(ROOT).as_posix(),localization_input_sha256=hashlib.sha256(source.read_bytes()).hexdigest(),
                 host_build=host,files=manifest,player_copies_in_final_layout=1,
                 native_remote_page_review=page_review.relative_to(ROOT).as_posix() if page_review else None,
                 regular_file_growth_over_localization_bytes=growth,
@@ -154,6 +188,12 @@ def main():
                         'Original sysmgr registration and full SpiderApp startup require hardware qualification.',
                         'Overlay accounting excludes other localization/menu resource changes and filesystem allocation.',
                         'Native Settings, RF power-off, persistent sessions and sleep require physical acceptance.'])
+    report['source_hashes'].update(runtime_source_hashes)
+    if args.host_review:
+        report['source_hashes']['tools/review_managed_remote_profile.py']=hashlib.sha256((ROOT/'tools/review_managed_remote_profile.py').read_bytes()).hexdigest()
+    for name,expected in report['source_hashes'].items():
+        if hashlib.sha256((ROOT/name).read_bytes()).hexdigest()!=expected:
+            raise ValueError('Layout source/input changed: '+name)
     (out/'report.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')
     print(json.dumps(dict(output=out.relative_to(ROOT).as_posix(),growth_bytes=growth,
                           player_copies=1,firmware_created=False),indent=2))

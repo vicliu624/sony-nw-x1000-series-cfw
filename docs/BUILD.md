@@ -119,8 +119,53 @@ KNOWLEDGE.md. Verify original roundtrip before considering modified output.
 
 The original installer formats mtdblock/1 with ext2 before unpacking. A valid
 container/hash, small increment or 148MiB model does not establish safe flashing.
-Firmware candidates stay local and experimental; this reorganization neither
-builds nor installs a new UPG.
+Firmware candidates stay local and experimental. Routine checks do not generate
+an update package or install firmware; those are separate explicit operations.
+
+For a complete root allocation model without producing firmware, use matching
+capacity/layout receipts and a prepared original Sony sysroot:
+
+```sh
+.venv/bin/python tools/measure_layout_ext2.py \
+  --capacity-review work/example/review.json \
+  --sysroot work/example/sony-root
+```
+
+The tool creates only new ordinary image files under `work/`, runs the verified
+Sony formatter under ARM user emulation and uses host debugfs/read-only e2fsck.
+It never mounts an image or accesses a device. Full contents and inode metadata
+are read back; inputs and tool sources must remain unchanged during measurement.
+The report distinguishes modeled nonreserved margin from physical qualification.
+See [system footprint](SYSTEM_FOOTPRINT.md).
+
+For an explicitly requested local diagnostic, freeze an already reviewed UPG
+and its matching allocation/regression evidence with:
+
+```sh
+.venv/bin/python tools/prepare_diagnostic_materials.py \
+  --firmware-review work/example/firmware/review.json \
+  --allocation-review work/example/allocation/report.json \
+  --regression-review work/example/regressions/report.json \
+  --controller-review work/example/core2/build.json \
+  --output dist/diagnostics/example
+```
+
+The firmware review must already have an independent Rockbox extraction under
+its `rockbox-check/` directory. The tool checks all original installation
+components, the complete root inventory, allocation inputs and original updater
+identities. Product runtime/SDK/config sources must still match the passing
+regression snapshot; subsequent PC-only changes are listed explicitly.
+It preserves an original Sony package, adds only reviewed immutable external
+RF inputs and a fresh bounded diagnostic record, and verifies the resulting ZIP.
+No pairing keys, configuration or PN journals are supplied. Copying external
+files and running the unchanged updater remain manual device operations.
+
+Negotiated-link firmware requires `--controller-review`. The packer verifies
+the controller image, the native archive linked by Root and identical link
+protocol source/header hashes. It includes only the Core2 application image
+and build receipt under `04_CORE2`; no bootloader, partition table or NVS is
+supplied or written. Instructions use the selected version and allocation
+model. Omit this argument only for a legacy transport profile.
 
 ## Output policy
 
@@ -128,3 +173,33 @@ Use work for reusable evidence, dist for local delivery packages, and .tmp for
 scratch/previews/private notes. All are ignored. Do not write artifacts into docs
 or another project. A source package must include required notices but must not
 bundle original Sony files, private identities, session codes, ROMs or music.
+
+## Shared Wi-Fi candidate
+
+The two-choice Wireless Mode menu is composed only when
+`build_player_host.py --shared-wifi-review` is supplied with a matching
+native Remote page and shared-owner supervisor profile. The ordinary release
+build does not select this private profile. Use the verified radio overlay
+receipt from `prepare_shared_wifi_image.py` and pin the matching owner and
+supervisor artifacts together. Existing pairing state and packet-number
+journals belong on the player volume and must carry forward for the same keys.
+
+Before qualifying the candidate, replay the final Wireless Mode page with
+`test_wireless_mode_refresh.py` and the deferred Off action with
+`test_shared_wifi_auto_off.py`. Use independent Rockbox extraction to compare
+the updater script, kernel and initrd against the baseline. Run the root
+capacity review separately.
+
+For the first hardware check, enable Wi-Fi without joining a router and use a
+matching Core2 on the observed radio channel. Confirm state and controls, then
+turn Remote off and test USB. Router association is a separate coexistence case.
+
+For that coexistence case, keep the X1060 in the native player and establish
+ordinary network traffic with Wireless Remote off. Use a Core2 on the router's
+current 2.4 GHz channel. Confirm the Core2 receives playback state and a
+play/pause command takes effect while network traffic still works. Then turn
+Wireless Remote off and confirm network traffic continues. Finally, with the
+remote active again, select Wireless Mode Off once and confirm both the remote
+and ordinary Wi-Fi stop. `Watch-SharedWifiTrial.ps1` can correlate Core2 receive
+counters and IP reachability. Reachability is meaningful only after a working
+baseline with verified player identity, and does not measure RF power.

@@ -1,6 +1,6 @@
 #ifndef HB_EMU_PCM_OUTPUT_H
 #define HB_EMU_PCM_OUTPUT_H
-#include "../apps/fm-radio/fm_audio.h"
+#include "audio/fm_audio.h"
 #include <stdint.h>
 #define HB_PCM_RESET 0x00005000u
 #define HB_PCM_SPEED 0xc0045002u

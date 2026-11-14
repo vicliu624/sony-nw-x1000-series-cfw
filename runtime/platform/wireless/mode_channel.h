@@ -17,7 +17,7 @@ struct xw_mode_channel {
 };
 struct xw_mode_reply {
  uint32_t operation;uint64_t serial,generation;
- int result,phase,selected,requested,active,off_verified,owned;
+ int result,phase,selected,requested,active,off_verified,owned,wifi_borrowed,cold_remote;
  struct xw_wireless_lease lease;
 };
 #ifdef __cplusplus

@@ -5,15 +5,15 @@
 extern "C" {
 #endif
 enum xw_storage_result {
-  XW_STORAGE_OK = 0,
-  XW_STORAGE_MISSING = 1,
-  XW_STORAGE_INVALID = -1,
-  XW_STORAGE_OWNERSHIP = -2,
-  XW_STORAGE_BOUNDARY = -3,
-  XW_STORAGE_SPACE = -4,
-  XW_STORAGE_IO = -5,
-  XW_STORAGE_UNCERTAIN = -6,
-  XW_STORAGE_STOPPED = -7
+    XW_STORAGE_OK = 0,
+    XW_STORAGE_MISSING = 1,
+    XW_STORAGE_INVALID = -1,
+    XW_STORAGE_OWNERSHIP = -2,
+    XW_STORAGE_BOUNDARY = -3,
+    XW_STORAGE_SPACE = -4,
+    XW_STORAGE_IO = -5,
+    XW_STORAGE_UNCERTAIN = -6,
+    XW_STORAGE_STOPPED = -7
 };
 /* Returns 1 only while original-platform coordination establishes exclusive
  * player ownership. 0/negative is unknown/busy. An ioctl zero, a lock, or a
@@ -22,17 +22,18 @@ enum xw_storage_result {
  * permission. */
 typedef int (*xw_storage_owner)(void *);
 int xw_storage_set_owner(xw_app *, xw_storage_owner, void *);
+/* Cancellation is checked before/after observing ownership. A callback that
+ * requests stop cannot authorize further IO. Replacing the provider/context
+ * invalidates its in-flight observation; a fresh operation must recheck it. */
 /* Fixed /contents/HOMEBREW/data/<id>, pre-provisioned by the computer. Flat
  * safe names, <=64KiB/file, 1MiB free reserve. No fallback, links, or system
  * writes. Atomic temp+fsync+rename; UNCERTAIN means rename happened but
  * durability or post-operation ownership cannot be established. Never retry
  * blindly. */
-int xw_data_read(xw_app *, const char *name, void *, size_t capacity,
-                 size_t *size);
+int xw_data_read(xw_app *, const char *name, void *, size_t capacity, size_t *size);
 int xw_data_write(xw_app *, const char *name, const void *, size_t size);
 /* Read-only packaged assets/<name>, flat safe names, <=1MiB. */
-int xw_resource_read(xw_app *, const char *name, void *, size_t capacity,
-                     size_t *size);
+int xw_resource_read(xw_app *, const char *name, void *, size_t capacity, size_t *size);
 #ifdef __cplusplus
 }
 #endif

@@ -1,6 +1,6 @@
 #ifndef WR_NATIVE_PAGE_BRIDGE_H
 #define WR_NATIVE_PAGE_BRIDGE_H
-#include "native_page.h"
+#include "../../platform/sony-settings/native_page.h"
 #include "settings_backend.h"
 /* Owned by the GUI/factory until unbound. No FDs, storage or RF ownership.
  * The backend must outlive this object; bind/unbind run on its owner thread. */

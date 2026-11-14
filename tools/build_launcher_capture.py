@@ -8,7 +8,7 @@ out=ROOT/'work/launcher-capture'/str(time.time_ns());out.mkdir(parents=True)
 header=b'X1CAPTURE0000001'+secrets.token_bytes(16);assert len(header)==32
 seed=out/'launcher-capture.bin';seed.write_bytes(header+bytes(4096-32))
 (out/'launcher_capture_profile.h').write_text('#define LAUNCHER_CAPTURE_HEADER {'+','.join(str(x) for x in header)+'}\n')
-sources=['runtime/apps/diagnostics/launcher_capture.c','runtime/store/stock_fs_bridge.c','runtime/store/stock_stat64.c','runtime/store/start.c','runtime/store/start.S']
+sources=['tools/device_probes/launcher_capture.c','runtime/store/stock_fs_bridge.c','runtime/store/stock_stat64.c','runtime/store/start.c','runtime/store/start.S']
 libs=stock_libraries();binary=out/'launcher-capture.arm'
 flags=['-D_DEFAULT_SOURCE','-U_FORTIFY_SOURCE','-D_FORTIFY_SOURCE=0','-std=c99','-Os','-Wall','-Wextra','-Werror','-Wno-misleading-indentation','-march=armv5te','-marm','-mfloat-abi=soft','-fno-pie','-no-pie','-fno-stack-protector','-nostdlib','-Wl,--hash-style=sysv,--build-id=none','-I'+str(out)]
 subprocess.run(['arm-linux-gnueabi-gcc',*flags,*sources,str(libs['libc.so.6']),str(libs['ld-linux.so.3']),'-lgcc','-o',str(binary)],cwd=ROOT,check=True)

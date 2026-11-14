@@ -37,6 +37,7 @@ int __wrap_ioctl(int fd,unsigned long number,...){
         assert(request->u.data.length==128);
         for(unsigned i=1;i<128;i++)assert(!p[i]);
         if(p[0]=='0'){wake_requests++;if(!keep_sleeping)sleeping=0;return 0;}
+        if(p[0]=='1'){sleeping=1;return 0;}
         assert(p[0]=='2');
         if(bad_sleep_reply){memcpy(p,"bad",3);request->u.data.length=3;return 0;}
         memcpy(p,sleeping?"on ":"off ",sleeping?3:4);request->u.data.length=sleeping?3:4;return 0;
@@ -83,6 +84,11 @@ int main(void){
     assert(xnow_sd8686_wake(&session)==XNOW_IDENTITY&&!wake_requests);
     session.lease=1;session.phase=XNOW_SESSION_STARTING;session.pending=XNOW_SESSION_WAKE;
     assert(!xnow_sd8686_wake(&session)&&wake_requests==1&&!sleeping);
+    int observed_sleep=-1;
+    assert(!xnow_sd8686_deep_sleep_get(&observed_sleep)&&observed_sleep==0);
+    assert(!xnow_sd8686_deep_sleep_set(1)&&sleeping);
+    assert(!xnow_sd8686_deep_sleep_get(&observed_sleep)&&observed_sleep==1);
+    assert(xnow_sd8686_deep_sleep_set(2)==XNOW_ARGUMENT);
     sleeping=1;keep_sleeping=1;assert(xnow_sd8686_wake(&session)==XNOW_UNCERTAIN);
     keep_sleeping=0;bad_sleep_reply=1;assert(xnow_sd8686_wake(&session)==XNOW_UNCERTAIN);
     bad_sleep_reply=0;session.phase=XNOW_SESSION_STOPPING;session.pending=XNOW_SESSION_RESTORE_WAKE;

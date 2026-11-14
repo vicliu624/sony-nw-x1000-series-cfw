@@ -7,21 +7,22 @@ import os
 from pathlib import Path
 import re
 import shutil
+import shlex
 import struct
 import subprocess
 import sys
 import time
 import zipfile
 import zlib
-from app_registry import ROOT, applications
+from app_registry import ROOT, applications, application_root
 from sdk_build import LIBRARIES, compile_app, fresh_work
 
-def create(ident,template,title=None):
+def create(ident,template,title=None,app_root=None):
     if not re.fullmatch('[a-z0-9][a-z0-9-]{0,31}',ident):raise ValueError('Invalid app ID')
     if template not in ('minimal','touch-ui','canvas-game'):raise ValueError('Unknown template')
     title=title or ident.replace('-',' ').title()
     if not 1<=len(title)<=48 or any(ord(c)<32 or ord(c)>126 for c in title):raise ValueError('Title must be 1..48 printable ASCII characters')
-    folder=ROOT/'runtime/apps'/ident
+    folder=application_root(app_root)/ident
     if folder.exists() or folder.is_symlink():raise ValueError('Application already exists')
     if folder.parent.is_symlink():raise ValueError('Linked app root')
     folder.mkdir(parents=True);(folder/'assets').mkdir()
@@ -38,6 +39,8 @@ def create(ident,template,title=None):
     modules=['app','canvas']+(['storage'] if template=='touch-ui' else [])
     (folder/'build.json').write_text(json.dumps({'sdk':version,'modules':modules,'sources':['main.c']},indent=2)+'\n')
     (folder/'build.py').write_text('from pathlib import Path\nimport sys\nsys.path.insert(0,str(Path(__file__).resolve().parents[3]/"tools"))\nfrom sdk_build import build\nif __name__ == "__main__":\n    build(Path(__file__).resolve().parent)\n')
+    if app_root is not None:
+        (folder/'build.py').write_text('from pathlib import Path\nimport sys\nsys.path.insert(0,'+repr(str(ROOT/'tools'))+')\nfrom sdk_build import build\nif __name__ == "__main__":\n    build(Path(__file__).resolve().parent)\n')
     # Original, deliberately neutral placeholder artwork, generated without dependencies.
     rows=b''.join(b'\0'+b''.join(bytes((54,135,119,255 if 5<=x<59 and 5<=y<59 else 0)) for x in range(64)) for y in range(64))
     def chunk(kind,data):return struct.pack('>I',len(data))+kind+data+struct.pack('>I',zlib.crc32(kind+data)&0xffffffff)
@@ -48,6 +51,11 @@ def create(ident,template,title=None):
         ('State: HOMEBREW/data/'+ident+'/counter.bin, outside the replaceable package.\nDevice storage fails closed until an independently qualified ownership provider is supplied.\n' if template=='touch-ui' else 'No persistent state or networking.\n')+
         'Offline entry checks: --help, --version, --selftest. Preview is not hardware qualification.\n')
     print('Created '+str(folder.relative_to(ROOT))+' (not added to the public release allowlist)')
+    if app_root is not None:
+        readme=folder/'README.md'
+        guide=Path(os.path.relpath(ROOT/'docs/sdk/README.md',folder)).as_posix()
+        prefix='python tools/sdk.py --apps-root '+shlex.quote(application_root(app_root).relative_to(ROOT).as_posix())+' '
+        readme.write_text(readme.read_text().replace('../../../docs/sdk/README.md',guide).replace('python tools/sdk.py ',prefix))
     return folder
 
 def doctor():
@@ -79,7 +87,9 @@ def bundle(ident,package,output):
     print(json.dumps({'archive':str(output.relative_to(ROOT)),'sha256':digest,'package':report,'installed':False},indent=2))
 
 def main():
-    p=argparse.ArgumentParser(description=__doc__);sub=p.add_subparsers(dest='command',required=True)
+    p=argparse.ArgumentParser(description=__doc__)
+    p.add_argument('--apps-root',type=Path,help='Isolated declarative SDK source tree below work/; default: runtime/apps')
+    sub=p.add_subparsers(dest='command',required=True)
     sub.add_parser('doctor');setup=sub.add_parser('setup');setup.add_argument('--stock-exe',type=Path);setup.add_argument('--services',action='store_true',help='Also prepare pinned network/audio service dependencies')
     new=sub.add_parser('new');new.add_argument('id');new.add_argument('--template',choices=['minimal','touch-ui','canvas-game'],default='touch-ui');new.add_argument('--title')
     for command in ('build','preview','render','package'):
@@ -90,25 +100,27 @@ def main():
         if command in ('preview','render'):s.add_argument('--events',type=Path);s.add_argument('--data',action='store_true',help='Use isolated PC data under the preview output; never player storage')
         if command=='package':s.add_argument('--from-package',type=Path,required=True)
     args=p.parse_args()
-    if args.command=='new':create(args.id,args.template,args.title);return 0
+    if args.command=='new':create(args.id,args.template,args.title,args.apps_root);return 0
     if args.command=='doctor':return doctor()
     if args.command=='setup':
         from sdk_bootstrap import setup
         setup(args.stock_exe,services=args.services);return 0
-    if args.id not in applications():p.error('Unknown app; create it with new or use build_app.py --list')
-    definition=ROOT/'runtime/apps'/args.id
+    root=application_root(args.apps_root);apps=applications(root)
+    if args.id not in apps:p.error('Unknown app; create it with new or use build_app.py --list')
+    definition=root/args.id
     if args.command=='package':
         version=(definition/'VERSION').read_text().strip();bundle(args.id,args.from_package,args.output or ROOT/'dist/sdk-apps'/(args.id+'-'+version+'.zip'));return 0
-    if applications()[args.id].get('sdk',{}).get('profile')=='native-services' and args.command in ('preview','render'):
+    if apps[args.id].get('sdk',{}).get('profile')=='native-services' and args.command in ('preview','render'):
         p.error('Custom-main apps keep their existing ARM render/fixture entry points; see docs/sdk/SERVICES.md. SDL preview uses callback templates.')
     output=args.output or ROOT/'work/sdk'/args.id/(args.command+'-'+str(time.time_ns()))
     if args.command=='build':
         from build_app import package
         from verify_app_package import verify
         output=fresh_work(output)
-        info=applications()[args.id]
+        info=apps[args.id]
         recipe=json.loads((definition/'build.json').read_text()) if (definition/'build.json').is_file() else {}
         if info.get('sdk',{}).get('profile')=='native-services' and recipe.get('profile')!='native-services':
+            if args.apps_root is not None:p.error('Isolated source roots require a declarative SDK build.json')
             command=[sys.executable,'tools/build_app.py',args.id,'--output',str(output/'package')]
             if 'output_suffix' in info['build']:command+=['--build-output',str(output/'builder')]
             for key in ('profile','sprites'):
@@ -121,7 +133,7 @@ def main():
         if any(getattr(args,key) for key in ('profile','sprites','device_full','public_installation','audio_preview')):
             p.error('These options belong to existing application builders; declare native-service inputs in build.json for a new client')
         compile_app(definition,output/'build')
-        finished=package(args.id,output/'build',output/'package')
+        finished=package(args.id,output/'build',output/'package',args.apps_root)
         print(json.dumps(verify(finished),indent=2));print(str(finished.relative_to(ROOT)));return 0
     # Both render and preview execute a host binary with the same app source.
     output=fresh_work(output);artifact=compile_app(definition,output/'host',host=True)

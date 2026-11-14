@@ -27,7 +27,16 @@ def input_artifact(supervisor,name,leaf):
  if local['sha256']!=item['sha256'] or local['bytes']!=item['bytes']:raise ValueError('Input receipts differ: '+name)
  path=private(local['local'])
  if path.name!=leaf:raise ValueError('Expected reviewed '+name+' artifact name')
- return path,artifact(path,item['sha256'],item['bytes'])
+ result=artifact(path,item['sha256'],item['bytes'])
+ if name in ('owner','service'):
+  # Parent identity does not prove that a cached child still represents current
+  # source. Configuration is mutable data and deliberately has no code receipt.
+  _,built=receipt(path.parent/'build.json')
+  if (built.get('built') is not True or not isinstance(built.get('artifact'),str) or
+      private(built['artifact'])!=path or built.get('sha256')!=item['sha256'] or
+      built.get('bytes')!=item['bytes']):
+   raise ValueError('Component build receipt differs: '+name)
+ return path,result
 
 def radio_dependencies(owner):
  """Inventory compiled immutable inputs without reading pairing keys or journals."""

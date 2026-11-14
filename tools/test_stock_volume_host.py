@@ -1,10 +1,10 @@
 """Run the native volume binding against original AudioC instructions, PC only."""
 from pathlib import Path
-import hashlib,io,json,struct,subprocess
+import hashlib,io,json,struct,subprocess,time
 from elftools.elf.elffile import ELFFile
 from unicorn import Uc,UC_ARCH_ARM,UC_MODE_ARM,UC_HOOK_CODE
 from unicorn.arm_const import UC_ARM_REG_R0,UC_ARM_REG_R1,UC_ARM_REG_R2,UC_ARM_REG_R3,UC_ARM_REG_SP,UC_ARM_REG_LR,UC_ARM_REG_PC
-ROOT=Path(__file__).resolve().parents[1];work=ROOT/'work/stock-volume-host';work.mkdir(exist_ok=True)
+ROOT=Path(__file__).resolve().parents[1];work=ROOT/'work/stock-volume-host'/str(time.time_ns());work.mkdir(parents=True)
 sources=['runtime/platform/player/stock_image.c','runtime/platform/player/stock_volume.c','runtime/native/sha256.c','tools/fixtures/stock_host_image.c'];artifact=work/'profile.arm'
 subprocess.run(['arm-linux-gnueabi-gcc','-std=c99','-Os','-Wall','-Wextra','-Werror','-Wno-misleading-indentation','-march=armv5te','-marm','-mfloat-abi=soft','-ffreestanding','-fno-builtin','-fno-pie','-fno-stack-protector','-nostdlib','-no-pie','-Wl,--build-id=none,-Ttext=0x50000000,-e,_start',*sources,'-lgcc','-o',str(artifact)],cwd=ROOT,check=True)
 stock=(ROOT/'work/targets-jp/SpiderApp').read_bytes();assert hashlib.sha256(stock).hexdigest()=='80b8870b02189443c41f62e8960124820ae999de21ba002e24fe17e9376cea85'
@@ -58,4 +58,5 @@ for scenario,volume,mode,direction,enabled in [('up',12,0,1,1),('down',12,0,-1,1
   if scenario=='preset':assert get(0xe17318)==2
  results.append(dict(case=scenario,result=rc,native_manual=get(0xe17314),hardware_apply=calls))
 report=dict(passed=True,native_binding=True,original_audioc_instructions=True,physical_device_accessed=False,cases=results,source_hashes={name:hashlib.sha256((ROOT/name).read_bytes()).hexdigest() for name in sources+['runtime/platform/player/stock_image.h','runtime/platform/player/stock_volume.h','tools/test_stock_volume_host.py']},limits=['Loader identity, selected output mode, mutexes and hardware application are modeled.','Original guarded binding and AudioC step/get/mode instructions execute.','An installed in-process host service is still required; no independent SDK-client endpoint or hardware acceptance is established.'])
+report['report_path']=(work/'report.json').relative_to(ROOT).as_posix()
 (work/'report.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))

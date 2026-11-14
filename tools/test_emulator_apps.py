@@ -12,7 +12,7 @@ for pid,fd,target,exe in [(100,3,'/dev/sound/dsp','/usr/local/bin/SpiderApp'),(1
   p=folder/name
   if not p.is_symlink():p.symlink_to(destination)
 flags=['-std=c99','-O2','-U_FORTIFY_SOURCE','-D_FORTIFY_SOURCE=0','-fno-stack-protector','-D_DEFAULT_SOURCE','-DIS_LITTLE_ENDIAN','-DTC_HOST','-DA918_COLOR_MENU','-DA918_COLOR_PERF','-ffunction-sections','-fdata-sections','-Ithird_party/gnuboy','-Ithird_party/tama-id','-Ithird_party/tama-id/core']
-for name,src in [('schedule',['tools/test_gbc_schedule.c']),('owners',['tools/test_pcm_owner.c','runtime/apps/diagnostics/pcm_owner.c']),('gbc',['tools/test_emulator_cores.c']+core),('touch',touch),('volume',['tools/test_gbc_volume.c','runtime/apps/emulators/platform.c','runtime/native/frontend.c']),('tama',tama),('pcm',['tools/test_gbc_pcm.c','runtime/platform/pcm_output.c','runtime/apps/fm-radio/fm_audio.c'])]:
+for name,src in [('schedule',['tools/test_gbc_schedule.c']),('owners',['tools/test_pcm_owner.c','runtime/apps/diagnostics/pcm_owner.c']),('gbc',['tools/test_emulator_cores.c']+core),('touch',touch),('volume',['tools/test_gbc_volume.c','runtime/apps/emulators/platform.c','runtime/native/frontend.c']),('tama',tama),('pcm',['tools/test_gbc_pcm.c','runtime/platform/pcm_output.c','runtime/platform/audio/fm_audio.c'])]:
  for arm in [False,True]:
   out=w/(name+('-arm'if arm else '-host'));cmd=['arm-linux-gnueabi-gcc'if arm else'gcc',*flags,*src,'-Wl,--gc-sections','-o',str(out)]
   if arm:cmd+=['-march=armv5te','-marm','-mfloat-abi=soft','-nostdlib','-no-pie','-Wl,--hash-style=sysv','runtime/store/start.c','runtime/store/start.S',str(lib/'libc.so.6'),str(lib/'ld-linux.so.3'),'-lgcc']
@@ -21,7 +21,7 @@ for name,src in [('schedule',['tools/test_gbc_schedule.c']),('owners',['tools/te
 # Actual application renderer: native viewport, never nearest-neighbour expansion.
 for tama in [False,True]:
  out=w/('render-tama'if tama else'render-gbc')
- subprocess.run(['gcc',*flags,*(['-DHB_TAMA_ID']if tama else[]),'-ffunction-sections','-fdata-sections','tools/test_emulator_render.c','runtime/apps/emulators/platform.c',*(['runtime/platform/pcm_output.c','runtime/apps/fm-radio/fm_audio.c']if not tama else[]),'-Wl,--gc-sections','-o',str(out)],cwd=ROOT,check=True)
+ subprocess.run(['gcc',*flags,*(['-DHB_TAMA_ID']if tama else[]),'-ffunction-sections','-fdata-sections','tools/test_emulator_render.c','runtime/apps/emulators/platform.c',*(['runtime/platform/pcm_output.c','runtime/platform/audio/fm_audio.c']if not tama else[]),'-Wl,--gc-sections','-o',str(out)],cwd=ROOT,check=True)
  run=subprocess.run([str(out)],cwd=ROOT,capture_output=True,text=True,check=True);rows.append({'case':'actual-render-tama'if tama else'actual-render-gbc','stdout':run.stdout,'exit':run.returncode})
 # Actual production apps: reject unverified storage, display error, touch-return releases devices.
 src=(ROOT/'tools/fixtures/device_preload.c').read_text().replace('assert(touch&&timeout==50&&event<max_events())','assert(touch&&timeout==0&&event<max_events())');(w/'devices.c').write_text(src)

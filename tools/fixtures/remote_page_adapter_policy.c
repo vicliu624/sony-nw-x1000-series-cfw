@@ -2,7 +2,7 @@
 #include "../../runtime/platform/player/remote_page_guard.h"
 #include "../../runtime/platform/player/player.h"
 #include "../../runtime/apps/wireless-remote/native_page_bridge.h"
-#include "../../runtime/apps/wireless-remote/native_choice_view.h"
+#include "../../runtime/platform/sony-settings/native_choice_view.h"
 #include <assert.h>
 #include <stdio.h>
 static unsigned long thread=17;

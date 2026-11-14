@@ -1,11 +1,20 @@
 """Strict stock GUI query binding executing the original FSM and receivers."""
 from pathlib import Path
-import hashlib,io,json,struct,subprocess,sys
+import argparse,hashlib,io,json,struct,subprocess,time
 from elftools.elf.elffile import ELFFile
 from unicorn import Uc,UC_ARCH_ARM,UC_MODE_ARM,UC_HOOK_CODE
 from unicorn.arm_const import UC_ARM_REG_R0,UC_ARM_REG_R1,UC_ARM_REG_R2,UC_ARM_REG_R3,UC_ARM_REG_SP,UC_ARM_REG_LR,UC_ARM_REG_PC
-ROOT=Path(__file__).resolve().parents[1];work=ROOT/'work/stock-gui-host';work.mkdir(exist_ok=True)
+parser=argparse.ArgumentParser(description=__doc__)
+profiles=parser.add_mutually_exclusive_group()
+profiles.add_argument('--engine-provider',action='store_true',help='Provider PLAY/PAUSE routing subset only')
+profiles.add_argument('--direct-only',action='store_true',help='Direct/GUI transport comparison subset only')
+options=parser.parse_args()
+ROOT=Path(__file__).resolve().parents[1];work=ROOT/'work/stock-gui-host'/str(time.time_ns());work.mkdir(parents=True)
 sources=['runtime/platform/player/client.c','runtime/platform/player/stock_provider.c','runtime/platform/player/stock_info.c','runtime/platform/player/local_identity.c','runtime/platform/player/stock_volume.c','runtime/platform/player/stock_gui.c','runtime/platform/player/stock_image.c','runtime/native/sha256.c','tools/fixtures/stock_provider_host.c'];artifact=work/'profile.arm'
+engine_provider=options.engine_provider
+if engine_provider:
+ sources+=['runtime/platform/player/engine_provider.c','runtime/platform/player/stock_engine_control.c']
+ sources+=['-DXW_ENGINE_PROVIDER_FIXTURE'];artifact=work/'engine-profile.arm'
 subprocess.run(['arm-linux-gnueabi-gcc','-std=c99','-Os','-Wall','-Wextra','-Werror','-Wno-misleading-indentation','-march=armv5te','-marm','-mfloat-abi=soft','-ffreestanding','-fno-builtin','-fno-pie','-fno-stack-protector','-nostdlib','-no-pie','-Wl,--build-id=none,-Ttext=0x50000000,-e,_start',*sources,'-lgcc','-o',str(artifact)],cwd=ROOT,check=True)
 stock=(ROOT/'work/targets-jp/SpiderApp').read_bytes();assert hashlib.sha256(stock).hexdigest()=='80b8870b02189443c41f62e8960124820ae999de21ba002e24fe17e9376cea85'
 stock_elf=ELFFile(io.BytesIO(stock));ticket_cancel=next(s['st_value'] for section in stock_elf.iter_sections() if section['sh_type'] in ('SHT_SYMTAB','SHT_DYNSYM') for s in section.iter_symbols() if s.name=='PltTicket_cancel')
@@ -20,8 +29,10 @@ scenarios += [('skip-next-m1-provider',1,5),('skip-previous-m2-provider',2,2),('
 scenarios += [('view-active',1,5),('view-paused',2,2),('view-inactive',1,1),('view-shifted-state',1,5),('view-switched-actor',1,5)]
 scenarios += [('direct-play',2,2),('direct-pause',1,5),('direct-next',1,5),('direct-previous',2,2)]
 captured_arguments={}
-direct_only='--direct-only' in sys.argv
+direct_only=options.direct_only
 if direct_only:scenarios=[row for row in scenarios if row[0] in ('transport-play-m2-accepted','transport-pause-m1-accepted','skip-next-m1-accepted','skip-previous-m2-accepted') or row[0].startswith('direct-')]
+if engine_provider:scenarios=[row for row in scenarios if row[0].startswith('transport-') and row[0].endswith('-provider')]
+if not scenarios:raise RuntimeError('The selected GUI profile has no cases')
 for scenario,mode,state in scenarios:
  is_direct=scenario.startswith('direct-');is_transport=scenario.startswith('transport-') or scenario in ('direct-play','direct-pause');is_skip=scenario.startswith('skip-') or is_transport or is_direct;direction=1 if '-next' in scenario else -1
  u=Uc(UC_ARCH_ARM,UC_MODE_ARM)
@@ -87,7 +98,7 @@ for scenario,mode,state in scenarios:
   u.reg_write(UC_ARM_REG_SP,call_stack);u.reg_write(UC_ARM_REG_LR,done)
   for reg,value in zip((UC_ARM_REG_R0,UC_ARM_REG_R1,UC_ARM_REG_R2,UC_ARM_REG_R3),arguments):u.reg_write(reg,value&0xffffffff)
   u.emu_start(address,done+4,count=20000000);assert u.reg_read(UC_ARM_REG_PC)==done;result=u.reg_read(UC_ARM_REG_R0);return result if result<0x80000000 else result-0x100000000
- bound=call(symbols['test_bind']) if scenario.endswith('-provider') else call(symbols['xw_stock_gui_bind'],context)
+ bound=call(symbols['test_adapter_bind' if engine_provider else 'test_bind']) if scenario.endswith('-provider') else call(symbols['xw_stock_gui_bind'],context)
  if scenario in ('wrong-image','changed-code'):assert bound==-3 and not receiver;cases.append(dict(case=scenario,bind=bound));continue
  assert bound==0
  if is_direct:
@@ -154,6 +165,9 @@ for scenario,mode,state in scenarios:
  raw_value=None
  if scenario in ('no-actor','unwritten'):raw_value=call(0x18150,0);assert raw_value==0
  cases.append(dict(case=scenario,result=rc,receiver_calls=len(receiver),stock_wrapper_value=raw_value))
-report=dict(passed=True,original_dispatch_and_filter=True,stock_receiver_modeled=False,native_player_play_state=False,physical_device_accessed=False,cases=cases,source_hashes={name:hashlib.sha256((ROOT/name).read_bytes()).hexdigest() for name in sources+['runtime/platform/player/stock_gui.h','runtime/platform/player/stock_image.h','tools/test_stock_gui_host.py']},limits=['Loaded-image identity and the negative filtered case are modeled; final receiver instructions execute.','Skip tests model UI entry/exit, logging, track-selector validation, allocator and mutex/ticket/wakeup primitives. Original stable-state handlers, controller request construction and queue admission execute.','The active component flag is not PLAYING/PAUSED.','The binding requires an installed in-process owner-thread service; it is not an independent client endpoint.'])
-report['complete_matrix_run']=not direct_only
-(work/('report-direct.json' if direct_only else 'report.json')).write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))
+report=dict(passed=True,engine_provider=engine_provider,original_dispatch_and_filter=True,stock_receiver_modeled=False,native_player_play_state=False,physical_device_accessed=False,cases=cases,source_hashes={name:hashlib.sha256((ROOT/name).read_bytes()).hexdigest() for name in sources+['runtime/platform/player/stock_gui.h','runtime/platform/player/stock_image.h','tools/test_stock_gui_host.py'] if not name.startswith('-D')},limits=['Loaded-image identity and the negative filtered case are modeled; final receiver instructions execute.','Skip tests model UI entry/exit, logging, track-selector validation, allocator and mutex/ticket/wakeup primitives. Original stable-state handlers, controller request construction and queue admission execute.','The active component flag is not PLAYING/PAUSED.','The binding requires an installed in-process owner-thread service; it is not an independent client endpoint.'])
+report['complete_matrix_run']=not (direct_only or engine_provider)
+report['selected_profile']='engine-provider' if engine_provider else 'direct-only' if direct_only else 'full-gui'
+report['source_hashes']['runtime/platform/player/stock_controller_binding.h']=hashlib.sha256((ROOT/'runtime/platform/player/stock_controller_binding.h').read_bytes()).hexdigest()
+report['report_path']=(work/('report-engine-provider.json' if engine_provider else 'report-direct.json' if direct_only else 'report.json')).relative_to(ROOT).as_posix()
+(work/('report-engine-provider.json' if engine_provider else 'report-direct.json' if direct_only else 'report.json')).write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))

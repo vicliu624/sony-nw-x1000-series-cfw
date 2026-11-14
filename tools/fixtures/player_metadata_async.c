@@ -15,6 +15,12 @@ static pthread_cond_t condition=PTHREAD_COND_INITIALIZER;
 static unsigned opens,closes,fetches,live,block_fetch,fail_fetch;
 static struct xw_metadata_async worker;
 int xw_stock_media_source_ready(void){return 1;}
+int xw_stock_media_adopt(struct xw_stock_media *media){
+ if(!media||!media->bound)return XW_PLAYER_CLOSED;
+ unsigned long current=pthread_self();
+ if(media->busy||current==media->gui_owner||(media->worker_set&&media->worker!=current))return XW_PLAYER_BUSY;
+ media->worker=current;media->worker_set=1;return 0;
+}
 int xw_stock_media_open(struct xw_stock_media *s){pthread_mutex_lock(&gate);opens++;live++;pthread_mutex_unlock(&gate);memset(s,0,sizeof *s);s->client=1;s->bound=1;s->gui_owner=pthread_self();return 0;}
 int xw_stock_media_fetch(struct xw_stock_media *s,const struct xw_media_id *id,struct xw_media_item *out){
  assert(s->client&&s->gui_owner!=pthread_self());s->worker=pthread_self();s->worker_set=1;

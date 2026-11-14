@@ -44,6 +44,9 @@ class InitReplay:
             raise RuntimeError(('uncovered code read', hex(addr), hex(self.pc)))
         return self.code[addr]
 
+    def read_xram(self, addr):
+        return self.xram[addr]
+
     def register(self, n):
         return (self.mem[0xd0] & 0x18)+n
 
@@ -155,15 +158,33 @@ class InitReplay:
             elif op == 0x90:
                 self.write(0x83, x); self.write(0x82, y); step = 3
             elif op == 0x93:
-                self.write(0xe0, self.read_code(((self.read(0x83) << 8) | self.read(0x82))+a))
+                self.write(0xe0, self.read_code(((self.read(0x83) << 8) | self.read(0x82))+a & 0xffff))
             elif op == 0xa3:
                 pointer = ((self.read(0x83) << 8) | self.read(0x82))+1
                 self.write(0x83, pointer >> 8); self.write(0x82, pointer)
+            elif 0xb8 <= op <= 0xbf:
+                lhs = self.read(self.register(op-0xb8))
+                self.carry = int(lhs < x)
+                step = 3
+                if lhs != x:
+                    branch = pc+3+(y if y < 128 else y-256)
             elif op in (0xb4, 0xb5):
                 rhs = x if op == 0xb4 else self.read(x)
                 self.carry = int(a < rhs); step = 3
                 if a != rhs:
                     branch = pc+3+(y if y < 128 else y-256)
+            elif op in (0x86, 0x87):
+                self.write(x, self.indirect_read(self.read(self.register(op-0x86))))
+                step = 2
+            elif op in (0x26, 0x36):
+                total = a+self.indirect_read(self.read(self.register(0)))
+                if op == 0x36:
+                    total += self.carry
+                self.write(0xe0, total)
+                self.carry = int(total > 255)
+            elif op == 0x45:
+                self.write(0xe0, a | self.read(x))
+                step = 2
             elif op == 0x66:
                 self.write(0xe0, a ^ self.indirect_read(self.read(self.register(0))))
             elif op == 0x46:
@@ -180,8 +201,11 @@ class InitReplay:
                 self.write(0xe0, total); self.carry = int(total > 255)
             elif op in (0xf2, 0xf3):
                 self.xram[(self.read(0xaa) << 8) | self.read(self.register(op-0xf2))] = a
+            elif op in (0xe2, 0xe3):
+                self.write(0xe0, self.read_xram(
+                    (self.read(0xaa) << 8) | self.read(self.register(op-0xe2))))
             elif op == 0xe0:
-                self.write(0xe0, self.xram[(self.read(0x83) << 8) | self.read(0x82)])
+                self.write(0xe0, self.read_xram((self.read(0x83) << 8) | self.read(0x82)))
             elif 0x68 <= op <= 0x6f:
                 self.write(0xe0, a ^ self.read(self.register(op-0x68)))
             elif 0x18 <= op <= 0x1f:
@@ -236,9 +260,11 @@ class InitReplay:
             elif op in (0x24, 0x25):
                 total = a+(x if op == 0x24 else self.read(x))
                 self.write(0xe0, total); self.carry = int(total > 255); step = 2
-            elif op == 0x94:
-                total = a-x-self.carry
-                self.write(0xe0, total); self.carry = int(total < 0); step = 2
+            elif op in (0x94, 0x95, 0x96):
+                rhs = x if op == 0x94 else (self.read(x) if op == 0x95 else
+                                             self.indirect_read(self.read(self.register(0))))
+                total = a-rhs-self.carry
+                self.write(0xe0, total); self.carry = int(total < 0); step = 1 if op == 0x96 else 2
             elif op == 0xc4:
                 self.write(0xe0, (a >> 4) | (a << 4))
             elif op in (0x13, 0x33):

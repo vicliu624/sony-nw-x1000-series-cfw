@@ -13,7 +13,7 @@
     "@/runtime/store/start.S",
     "@/runtime/platform/pcm_output.c",
     "@/runtime/platform/pcm_posix.c",
-    "@/runtime/apps/fm-radio/fm_audio.c",
+    "@/runtime/platform/audio/fm_audio.c",
     "@/runtime/apps/emulators/gbc_core.c",
     "@/runtime/native/sha256.c",
     "@/third_party/gnuboy/lcd.c",

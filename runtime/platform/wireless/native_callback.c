@@ -28,10 +28,9 @@ uint32_t xw_wireless_native_confirm(uint32_t first,uint32_t second,uint32_t even
  xw_native_selected_row=row==0?0u:1u;
  uint32_t result=xw_native_stock_confirm(first,second,event);
  xw_native_selected_row=row;
- /* The binary stock completion returns to its two-choice parent. Re-enter
-  * this custom three-choice initializer instead, just as reopening the page
-  * does, so its final queued selection comes from the committed SDK mode.
-  * Keep asynchronous progress/error transitions exactly as returned. */
+#ifndef XW_WIFI_STOCK_RETURN
+ /* The legacy three-choice UI refreshes its SDK-only third selection. */
  if(result==0x5a01u)return 0x9a01u;
+#endif
  return result;
 }

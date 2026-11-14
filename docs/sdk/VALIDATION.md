@@ -1,104 +1,96 @@
 # SDK validation and capability limits
 
-Current SDK source: **0.2.0-alpha.9**. The validation results below retain their
-recorded alpha.8 scope; they are not a new published alpha.9 acceptance run.
-All 16 installed SDK consumers were rebuilt during local maintenance. A later
-startup correction to the player host now reaches the original main menu in a
-user-reported NW-X1060 test. This does not qualify external app entry/return,
-sleep/wake, USB or managed wireless; those physical checks remain pending.
+Generated validation projects belong under `work/`, including source and failure
+evidence. `sdk.py --apps-root work/<sources>` selects an isolated source catalog
+for declarative SDK templates and native-service recipes. It does not change
+the maintained `runtime/apps` catalog, release allowlist or device storage:
 
-At alpha.8, public ESP-NOW core/message/device/full/security/
-full-device/owner consumers pass original-libc ARM926 checks; owner headers also
-pass C++ syntax checks. These are offline SDK integration checks. Separate X1060
-hardware experiments establish encrypted TX/RX through1470 bytes and same-key
-native-process counter continuation. They do not qualify all applications,
-over-air replay rejection, power-loss behavior, USB or sleep/wake transitions.
-See [ESP-NOW services](ESPNOW.md) for the API and required caller storage policy.
+```sh
+python tools/sdk.py --apps-root work/sdk-examples new sample --template minimal
+python tools/sdk.py --apps-root work/sdk-examples build sample --output work/sample-build
+```
 
-The historical validation scope below records the original callback/native
-service migration and its tests; those results are not new alpha.8 device tests.
+Build output must also be fresh and below `work/`. Explicit source roots reject
+symlinks and paths outside `work/`; an unknown app never falls back to the formal
+catalog. Nondeclarative application builders retain their regular build path.
 
+Current SDK source is **0.2.0-alpha.10**. The published source SDK is
+**0.2.0-alpha.8**. Build and validation receipts identify the exact source or
+archive they checked; publication, offline validation and device acceptance
+are separate results.
 
-SDK0.2.0-alpha.1 targets the Japanese1.11 platform only. NW-X1060 has earlier
-selected terminal/device evidence; this SDK has not been installed or tested on
-a physical player as a new acceptance run. The user reports the16 previous
-local app builds passed on their unit; exact personal package identities were
-not supplied. NW-X1050 has no equivalent device report. Existing sleep,
-USB, recovery and application-specific hardware questions remain open.
+The SDK supports foreground callback applications and explicit native-service
+clients on the Japanese 1.11 platform. It does not provide a general persistent
+task manager or automatically grant access to Sony's player or radio.
 
-The validation entry is `python tools/test_sdk.py` on Linux/WSL after setup.
-Host and ARM fixtures exercise lifecycle success, partial-open failure, failed
-init, input failure, present failure, close failure, cancellation and finish.
-They test clipping, invalid text/image inputs, button drag/release behavior and
-storage denial after cancellation. ARM fixtures run under the pinned original
-loader and libc, with synthetic display callbacks; no native driver is opened.
-They also deliver actual SIGTERM through the original libc from inside an
-application callback and verify immediate xw_is_stopping visibility.
+## Offline coverage
 
-Host storage tests use a dedicated work/ directory: bounded save/load, missing
-settings, ownership denial, symlink/hardlink/FIFO rejection, stale-temp rejection,
-ownership loss before publication and explicit uncertainty after publication.
-The SDL2 backend is also exercised with a dummy video driver: real window/texture
-creation, present, synthetic mouse events and shutdown, without a desktop/device.
-The maintained counter and canvas apps are compiled for host rendering and ARM;
-their real packages are verified and changed executables are rejected. The
-counter's scripted tap creates its four-byte settings on the computer.
+| Area | Executed checks | Scope |
+| --- | --- | --- |
+| Callback lifecycle | Success, partial open, failed init/input/present/close, cancellation, finish and SIGTERM observed inside a callback | Host and ARM with the original loader/libc and synthetic display ports |
+| Graphics and input | Clipping, invalid text/image inputs, button drag/release, SDL window/texture/present and synthetic mouse events | Host renderer and dummy SDL video driver |
+| Storage | Bounded save/load, missing state, ownership loss, symlink/hardlink/FIFO rejection, stale temporary files and uncertain publication | Dedicated PC directories; device persistence remains denied without qualified ownership |
+| Storage cancellation | Stop during ownership callback, pending backend stop, provider/context replacement and real SIGTERM | Host file publication and original-libc ARM admission; no device writes |
+| Native services | Aggregate external client and an independent link for every selected module | ARM926 with original libc; missing dependencies cannot hide behind another module's link inputs |
+| Text modules | Font-only, lexicon-only, legacy aggregate, include-order and C/C++ consumers | Separate font/query links and compatible public declarations |
+| Player client | Explicit descriptor adoption, grants, generation, bounded requests, events, close and refusal paths | Supplied service fixtures; no automatic authorization or reconnect |
+| ESP-NOW | Core/message/device/full/owner clients, malformed frame rejection, following valid traffic, encryption and bounded handoff/STOP | Host sanitizers and original-libc ARM clients; RF is modeled |
+| Clean source bundle | Manifest/path/hash checks, original-input setup, three generated templates, previews, ARM builds, packages and public service clients | Fresh extracted project without copied local build outputs or installed apps |
 
-The SDK source bundle is additionally tested after extraction into a new work/
-checkout: all source hashes are checked, no proprietary inputs are included,
-setup prepares inputs from the pinned updater, all three templates are generated,
-host/ARM builds and package checks run without old work files or installed apps.
-The bundle contains no host or ARM application executable, ROM, save, account
-state or original Sony libc. CI uploads only the explicit source SDK archive.
+Device tests remain necessary for display/touch restoration, physical radio,
+audio, power consumption, USB ownership and suspend/wake. The current physical
+acceptance state belongs in [project status](../STATUS.md), not in an SDK test
+count. Earlier component-level RF exchanges do not qualify the complete current
+firmware or every SDK consumer.
 
-The16 existing apps additionally adopt native services. Their source logic and
-effective include graphs are audited against the frozen pre-SDK commit. A clean
-same-path build compares runtime/resources/inventories, normalizing only proven
-GCC temporary STT_FILE names outside program load ranges in memory. Raw hashes
-and normalization records remain separate. See [service migration](SERVICES.md).
-An independent native-service client also builds/runs from the extracted SDK.
+## Reproducing the checks
 
-These checks establish software behavior for exact checked source inputs. They
-do not establish physical display/touch restoration, USB exclusion, suspend/wake,
-FM reception, audio output, installation safety or recovery. The device storage
-provider deliberately remains unknown by default. No toolkit operation flashes
-firmware or contacts a real account. Do not turn a passing preview or QEMU result
-into a hardware-qualified badge.
+On Linux/WSL, prepare the pinned original inputs with `python tools/sdk.py setup
+--services`, then run:
 
-## Optional ESP-NOW services in0.2.0-alpha.2
+```sh
+python tools/test_firmware_regressions.py --suite sdk
+```
 
-The original16-app migration excluded ESP-NOW. It is now an independent optional
-SDK addition: generic binary transport, an optional message helper and the
-explicit device backend. See ESPNOW.md. Public-header ARM tests are offline.
-The identified native XNOW0.1.0-dev.8 library separately passed physical
-bidirectional96-byte exchange with application ACKs and stock restoration.
-That component result does not qualify every new SDK application or UI lifecycle.
+For a source delivery, create a new archive under `dist/` and test that archive:
 
-##0.2.0-alpha.6 malformed datagram handling
+```sh
+python tools/package_sdk.py --output dist/sdk/review-source.zip
+python tools/test_sdk_bundle.py dist/sdk/review-source.zip \
+  --stock-exe firmware/original/NW-X1000_V1_11.exe
+```
 
-The full-runtime fixture reproduced a malformed plaintext IE causing application
-failure-1 despite an unfaulted backend. Wire-error normalization fixes this
-collision with IO/UNCERTAIN. Host ASan/UBSan and ARM926/original libc now discard
-malformed IE/version inputs, accept following valid unknown plaintext, continue
-encrypted1470-byte traffic, and still stop on an injected actual read failure.
-No installed app or physical radio behavior is implied. Alpha.5 artifacts are
-retained; the source/API implementation identity advances independently.
+Use a fresh output name; the packager refuses to overwrite an existing archive.
+The bundle test checks every file against its manifest, prepares dependencies
+from the pinned updater, generates minimal/touch-ui/canvas-game apps, renders
+them on the host, builds ARM packages and exercises the service matrix. Original
+Sony binaries remain local and are not included in the source ZIP.
 
-##0.2.0-alpha.5 managed owner source service
+The `--player-only` bundle option is a narrower client check. Its report must not
+be described as a full SDK validation. None of these commands flashes firmware,
+connects to a player or accesses a real account.
 
-Adds explicit espnow-owner selection and seven public forwarding headers. The
-public ARM926/original-libc consumer performs bounded command checks, STOP and
-RAM-only anonymous-pipe handoff; C++ header syntax is checked independently.
-No radio/volume acquisition or device installation occurs. Existing application
-SDK dependency pins advance without new installed-app acceptance. Full owner
-hardware/APF/USB/sleep and encrypted Espressif interoperability remain pending.
+## Application compatibility
 
-##0.2.0-alpha.4 full service delivery
+Current application builds and historical equivalence answer different questions.
+The current-build matrix checks the declared SDK modules, safe entry points and
+package inventory. It does not prove an unchanged application or installed-device
+behavior.
 
-Clean extraction of the source-only SDK passes manifest/hash/path checks, pinned
-original-input setup, minimal/touch-ui/canvas-game build/package checks, existing
-native-service regression and old/full ESP-NOW public ARM926 consumers. Host
-C++11 syntax checks pass for full public headers. XNOWdev.10 minimal/whole-archive
-original-libc linking passes. These are offline delivery checks: no installed
-app, driver, radio image or firmware is changed and no physical full ESP-NOW
-qualification is implied. See ESPNOW.md for module selection and platform guards.
+Historical comparisons use an immutable pre-SDK source baseline and the same
+build path. Only independently identified nonloaded GCC temporary file markers
+may be normalized; raw hashes and normalization records remain separate. Source
+splits require their own caller/ABI and output comparisons rather than a claim
+that the original file remained unchanged. See [native services](SERVICES.md).
+
+## Runtime limits
+
+- The callback device storage provider defaults to unknown ownership. Apps must
+  not bypass that denial with an always-successful ownership callback.
+- A managed player client consumes an authorized session; it cannot grant one
+  to itself. Closing its socket is not proof of server or hardware retirement.
+- ESP-NOW and player control have independent lifetimes. Private Remote Settings
+  integration is not a public registration or background-task API.
+- A successful preview or generic QEMU run establishes software behavior for its
+  supplied ports. It does not establish native driver compatibility, installation
+  safety or recovery.

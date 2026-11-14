@@ -136,6 +136,7 @@ report=dict(passed=True,device_accessed=False,original_controller_lookup=True,or
  limits=['Pool allocation/free, mutex operations, memcpy and error logging are modeled; session lookup and release, CtrlInfo clone/dispose and track/chapter reference counts execute original code.',
          'Fields remain raw; no public state mapping, metadata extraction, timing units or installed service is claimed.'])
 report['engine_control_with_original_info_reader']=engine_mode
+report['source_hashes']['runtime/platform/player/stock_controller_binding.h']=hashlib.sha256((ROOT/'runtime/platform/player/stock_controller_binding.h').read_bytes()).hexdigest()
 for name in ['runtime/platform/player/stock_engine_control.h','tools/fixtures/stock_host_image.c']:report['source_hashes'][name]=hashlib.sha256((ROOT/name).read_bytes()).hexdigest()
 if engine_mode:report['limits'].append('Original engine binding and request construction execute after original CtrlInfo lookup/clone/release; request allocation, preflight, ticket/mutex primitives remain models; no installed host or post-handoff/hardware qualification.')
 (work/'report.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))

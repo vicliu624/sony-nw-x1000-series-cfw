@@ -16,6 +16,10 @@ extern "C" {
  * original RF initialization, then opens full backend after channel setup. */
 int xnow_sd8686_full_probe(struct xnow_sd8686_full *,const struct xnow_full_profile *,void *,int (*lease_valid)(void *),struct xnow_word_io *,uint8_t local_mac[6]);
 int xnow_sd8686_full_channel_set(struct xnow_sd8686_full *,const struct xnow_session *,unsigned);
+/* Read the current channel through the qualified driver without retuning. */
+int xnow_sd8686_full_channel_get(struct xnow_sd8686_full *,unsigned *);
+/* Read only the four RF tuner registers 0x67 through 0x6a. */
+int xnow_sd8686_full_tuner_get(struct xnow_sd8686_full *,uint8_t[4]);
 int xnow_sd8686_full_open(struct xnow_sd8686_full *,const struct xnow_full_profile *,void *,int (*lease_valid)(void *),struct xnow_full *,uint8_t local_mac[6]);
 int xnow_sd8686_full_enable_spans(struct xnow_sd8686_full *,struct xnow_full *);
 /* Closes socket only; does NOT imply queues drained, owner released or stock

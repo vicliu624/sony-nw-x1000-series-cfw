@@ -17,6 +17,12 @@ static struct xw_media_id a,b,video;
 static uint64_t now=100;
 static unsigned long gui;
 int xw_stock_media_source_ready(void){assert(pthread_self()==gui);return atomic_load(&available);}
+int xw_stock_media_adopt(struct xw_stock_media *media){
+ if(!media||!media->bound)return XW_PLAYER_CLOSED;
+ unsigned long current=pthread_self();
+ if(media->busy||current==media->gui_owner||(media->worker_set&&media->worker!=current))return XW_PLAYER_BUSY;
+ media->worker=current;media->worker_set=1;return 0;
+}
 int xw_stock_media_open(struct xw_stock_media *m){memset(m,0,sizeof *m);m->bound=1;m->gui_owner=pthread_self();atomic_fetch_add(&opened,1);return 0;}
 int xw_stock_media_validate_audio(struct xw_stock_media *m,const struct xw_media_id *id,struct xw_stock_audio_identity *out){
  assert(m->bound&&m->gui_owner!=pthread_self());struct xw_stock_audio_identity ignored;assert(xw_audio_check_async_observe(&check,id,99,0,&ignored)==XW_PLAYER_BUSY);m->worker_set=1;m->worker=pthread_self();atomic_fetch_add(&entered,1);while(!atomic_load(&release_read))usleep(1000);

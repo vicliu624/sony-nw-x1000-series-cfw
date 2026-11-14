@@ -4,7 +4,7 @@ from app_registry import ROOT
 from player_arm_guest import stock_libraries
 out=ROOT/'work/remote-service-build'/str(time.time_ns());out.mkdir(parents=True)
 sources=['runtime/apps/wireless-remote/'+n+'.c' for n in
-         ('service','worker','radio_retirement','status_sender','session_wire','player_status','link','status_auth','control','control_player','mode_wire','library_wire','library_player')]
+         ('service','worker','radio_retirement','status_sender','session_wire','player_status','link','status_auth','control','control_player','mode_wire','library_wire','library_player','artwork_wire')]
 sources+=['runtime/platform/player/'+n+'.c' for n in
           ('client','managed_remote','managed_client','managed_codec','managed_clock','rpc_wire')]
 sources+=['runtime/platform/espnow/xnow_client.c','runtime/platform/espnow/xnow_handoff.c',
@@ -32,6 +32,7 @@ inputs+=['runtime/platform/espnow/xnow_handoff.h','runtime/platform/espnow/xnow_
          'runtime/platform/services/types.h','runtime/store/target_abi.h',
          'runtime/store/stock_fs_bridge.h','runtime/store/stock_stat64.h','runtime/native/sha256.h']
 inputs += [p.relative_to(ROOT).as_posix() for p in (ROOT/'runtime/apps/wireless-remote').glob('*.h')]
+inputs += ['runtime/platform/player/artwork.h','runtime/platform/player/managed_wire.h']
 report=dict(built=True,artifact=str(artifact.relative_to(ROOT)),bytes=artifact.stat().st_size,
             sha256=hashlib.sha256(artifact.read_bytes()).hexdigest(),original_libc_arm_entry_checks=True,
             device_accessed=False,radio_started=False,live_capability_run_verified=False,

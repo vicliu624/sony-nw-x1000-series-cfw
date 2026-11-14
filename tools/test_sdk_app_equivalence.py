@@ -3,6 +3,7 @@
 CI-only source substitution is always restored in finally. Work output is an
 isolated ephemeral volume. No player, personal package, account or ROM is used.
 """
+import argparse
 import hashlib
 import json
 import os
@@ -18,31 +19,57 @@ BASELINE=POLICY['baseline_commit']
 def git(*args):return subprocess.check_output(['git',*args],cwd=ROOT)
 
 def main():
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--current',action='store_true',help='Build/verify current apps without substituting old source or claiming byte equivalence')
+    args=parser.parse_args()
     if not os.environ.get('GITHUB_ACTIONS'):raise RuntimeError('Run in clean Linux CI; do not substitute source in an active user checkout')
     if sys.flags.optimize:raise RuntimeError('Assertions must remain enabled')
     if subprocess.check_output(['git','status','--porcelain'],cwd=ROOT):raise RuntimeError('CI source must start clean')
+    pet=ROOT/'work/pet-build/HOMEBREW/apps/pet'
+    identity=ROOT/'work/terminal-review/private-identity'
+    if ((pet/'sprites.bin').exists() or (pet/'sprites.bin').is_symlink()
+            or identity.exists() or identity.is_symlink()):
+        raise RuntimeError('CI fixtures require fresh work storage; existing identities/artwork are preserved')
+    for path in (pet, identity):
+        if not path.resolve().is_relative_to((ROOT/'work').resolve()):
+            raise RuntimeError('CI fixture destination escapes work storage')
     from ci_bootstrap import fetch
     font_manifest=json.loads((ROOT/'sources/qqmusic-font-source.json').read_text())
     for name,row in font_manifest['files'].items():fetch(row['url'],'work/qqmusic-font/'+name,row['sha256'])
     root=ROOT/'work/sdk-migration'/('ci-'+str(time.time_ns()));root.mkdir(parents=True)
     apps=POLICY['apps']
-    info={'commit':git('rev-parse',BASELINE).decode().strip(),'apps':apps,
-          'app_baselines':POLICY.get('app_baselines',{}),
-          'versions':{a:git('show',baseline_commit('runtime/apps/'+a+'/VERSION')+':runtime/apps/'+a+'/VERSION').decode().strip() for a in apps},
-          'source_hashes':{},'user_report':'User reports all prior apps passed on their unit using local builds; exact personal packages are not available to CI.',
-          'ci_inputs':'Pinned public sources, synthetic pet artwork and ephemeral test-only terminal identity; no user state.'}
-    (root/'baseline.json').write_text(json.dumps(info,indent=2)+'\n')
+    if args.current:
+        info={'commit':git('rev-parse','HEAD').decode().strip(),'apps':apps,
+              'versions':{a:(ROOT/'runtime/apps'/a/'VERSION').read_text().strip() for a in apps},
+              'historical_equivalence_checked':False,
+              'ci_inputs':'Pinned public data, synthetic sprites and a fresh test-only TLS identity.'}
+    else:
+        info={'commit':git('rev-parse',BASELINE).decode().strip(),'apps':apps,
+              'app_baselines':POLICY.get('app_baselines',{}),
+              'versions':{a:git('show',baseline_commit('runtime/apps/'+a+'/VERSION')+':runtime/apps/'+a+'/VERSION').decode().strip() for a in apps},
+              'source_hashes':{},'user_report':'User reports prior local app builds passed; exact personal packages are not available to CI.',
+              'ci_inputs':'Pinned public sources, synthetic pet artwork and ephemeral test-only terminal identity; no user state.'}
+    (root/('current-inputs.json' if args.current else 'baseline.json')).write_text(json.dumps(info,indent=2)+'\n')
     # The pet accepts fixed RGB565LE+alpha records; every pose/direction is unique.
-    pet=ROOT/'work/pet-build/HOMEBREW/apps/pet';pet.mkdir(parents=True,exist_ok=True)
+    pet.mkdir(parents=True,exist_ok=True)
     sprites=bytearray()
     for frame in range(72):
         color=((frame*7%31)<<11)|((frame*13%63)<<5)|(frame*17%31)
         for y in range(104):
             for x in range(96):sprites.extend((color&255,color>>8,255 if 8<=x<88 and 8<=y<96 else 0))
     (pet/'sprites.bin').write_bytes(sprites)
-    identity=ROOT/'work/terminal-review/private-identity';identity.mkdir(parents=True,exist_ok=True)
+    identity.mkdir(parents=True,exist_ok=False)
     subprocess.run(['openssl','ecparam','-name','prime256v1','-genkey','-noout','-out',str(identity/'server-key.pem')],check=True)
     subprocess.run(['openssl','req','-new','-x509','-sha256','-days','2','-key',str(identity/'server-key.pem'),'-subj','/CN=SDK CI fixture only/','-out',str(identity/'server-cert.pem')],check=True)
+    if args.current:
+        log=root/'current-driver.log'
+        with log.open('wb') as stream:
+            for helper in ('tools/subset_qqmusic_font.py','tools/build_qqmusic_wifi_helper.py'):
+                subprocess.run([sys.executable,helper],cwd=ROOT,stdout=stream,stderr=subprocess.STDOUT,check=True)
+            subprocess.run([sys.executable,'tools/sdk_migration.py','current','--output',str(root)],
+                           cwd=ROOT,stdout=stream,stderr=subprocess.STDOUT,check=True)
+        print('Current app package checks: '+str(root/'current/report.json'),flush=True)
+        return
     changed=git('diff','--name-only',BASELINE,'--','runtime/apps','tools/native_app_build.py','tools/build_app.py','tools/build_qqmusic_codec.py','tools/build_qqmusic_wifi_helper.py').decode().splitlines()
     changed=set(changed)
     for ident,row in POLICY.get('app_baselines',{}).items():
@@ -53,7 +80,9 @@ def main():
     for name in changed:
         old=subprocess.run(['git','show',baseline_commit(name)+':'+name],cwd=ROOT,capture_output=True)
         path=ROOT/name
-        if old.returncode==0 and path.is_file():originals[name]=old.stdout;saved[name]=path.read_bytes()
+        if old.returncode==0:
+            originals[name]=old.stdout
+            saved[name]=path.read_bytes() if path.is_file() else None
     env=dict(os.environ,QEMU_UNSET_ENV='LD_LIBRARY_PATH,LD_PRELOAD',PYTHONDONTWRITEBYTECODE='1',
              SOURCE_DATE_EPOCH=git('show','-s','--format=%ct',BASELINE).decode().strip())
     def phase(name):
@@ -69,10 +98,18 @@ def main():
             # Only the public fixture log is in this CI checkout; no local identity is uploaded.
             print(log.read_text(errors='replace')[-8000:],flush=True);raise RuntimeError(name+' application build failed')
     try:
-        for name,data in originals.items():(ROOT/name).write_bytes(data)
+        for name,data in originals.items():
+            path=ROOT/name
+            path.parent.mkdir(parents=True,exist_ok=True)
+            path.write_bytes(data)
         phase('baseline')
     finally:
-        for name,data in saved.items():(ROOT/name).write_bytes(data)
+        for name,data in saved.items():
+            path=ROOT/name
+            if data is None:
+                path.unlink(missing_ok=True)
+            else:
+                path.write_bytes(data)
     phase('verify')
     report=json.loads((root/'migrated/report.json').read_text())
     assert set(report['apps'])==set(apps)

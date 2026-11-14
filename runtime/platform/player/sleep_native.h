@@ -4,9 +4,12 @@
 /* JP1.11 private analysis binding for the four Main acknowledgement callsites.
  * Does not patch ELF or install a hook. Qualified GUI glue must hold the original
  * call, invoke begin once and poll on the same owner loop. Restore observers
- * require a separately qualified command15 entry and post-action callback. */
+ * require a separately qualified command15 entry and post-action callback.
+ * A transient admission flag does not discard those observations. Reopening
+ * resources still requires the original flag clear and a fresh stable view. */
 int xw_player_sleep_native_begin(uint32_t callsite,unsigned long owner);
 int xw_player_sleep_native_poll(void);
+int xw_player_sleep_native_needs_progress(void);
 /* Read-only proof of the original inactive Main/APF branch; not RF-off proof. */
 int xw_player_sleep_native_inactive(void);
 int xw_player_sleep_native_restore_begin(uint32_t root,unsigned long owner);

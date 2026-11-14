@@ -11,7 +11,7 @@
 #include "../../runtime/apps/qqmusic/qqmusic_preview_device_posix.h"
 #include "../../runtime/apps/qqmusic/qqmusic_preview_source_job.h"
 #include "../../runtime/apps/qqmusic/qqmusic_preview_service.h"
-#include "../../runtime/apps/fm-radio/fm_audio.h"
+#include "../../runtime/platform/audio/fm_audio.h"
 #include "../../runtime/native/linux_process.h"
 #include <arpa/inet.h>
 #include <sys/mman.h>

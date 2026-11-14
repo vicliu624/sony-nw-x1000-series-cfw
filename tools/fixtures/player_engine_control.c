@@ -24,7 +24,7 @@ static int base_command(void *c,const struct xw_player_command *op){(void)c;(voi
 static int base_browse(void *c,const struct xw_media_query *q,struct xw_media_item *items,struct xw_media_page *page){(void)c;(void)items;test_base_browses++;memset(page,0,sizeof *page);page->offset=q->offset;return 0;}
 static int base_close(void *c){(void)c;test_base_closes++;return 0;}
 int test_provider_bind(void){
- struct xw_player_provider p={XW_PLAYER_API,1u<<XW_OP_STEP_VOLUME,0,base_snapshot,base_command,base_browse,base_close};
+ struct xw_player_provider p={XW_PLAYER_API,(1u<<XW_OP_STEP_VOLUME)|(1u<<XW_OP_PLAY)|(1u<<XW_OP_PAUSE),0,base_snapshot,base_command,base_browse,base_close};
  int rc=xw_player_bind(&base_player,&p);if(rc)return rc;
  return xw_engine_player_bind(&adapter_player,&adapter,&base_player);
 }

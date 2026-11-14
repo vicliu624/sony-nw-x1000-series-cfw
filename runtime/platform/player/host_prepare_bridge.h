@@ -10,4 +10,5 @@
  */
 int xw_player_prepare_intercept(uint32_t root,uint32_t command,uint32_t output_value,unsigned long original_owner);
 void xw_player_prepare_tick(void);
+int xw_player_prepare_needs_progress(void);
 #endif

@@ -1,9 +1,9 @@
 """Offline REA/Ghidra review of exact stock RX software ingress; no device IO."""
 from pathlib import Path
 import argparse,hashlib,json,os,subprocess
-parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--profile',choices=['rx-dispatch','mac-control','security-state'],default='rx-dispatch');args=parser.parse_args()
+parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--profile',choices=['rx-dispatch','mac-control','security-state','rx-hardware-state'],default='rx-dispatch');args=parser.parse_args()
 ROOT=Path(__file__).resolve().parents[1];OUT=ROOT/('work/espnow-'+args.profile+'-rea');OUT.mkdir(parents=True,exist_ok=True)
-procedures={'rx-dispatch':['0xc0003188','0xe164','0xa314'],'mac-control':['0x54c0','0x6b6c','0xa674','0xa698'],'security-state':['0xc00048c8','0xc0004cd8','0xc0003c8c','0xc0006144']}[args.profile]
+procedures={'rx-dispatch':['0xc0003188','0xe164','0xa314'],'mac-control':['0x54c0','0x6b6c','0xa674','0xa698'],'security-state':['0xc00048c8','0xc0004cd8','0xc0003c8c','0xc0006144'],'rx-hardware-state':['0xcba0','0xde60','0xd87c','0xed3c','0x5ed8','0xdcfc']}[args.profile]
 image=ROOT/'work/espnow-audit/analysis-io.elf';stock=ROOT/'work/targets-jp/sd8686.bin'
 assert hashlib.sha256(image.read_bytes()).hexdigest()=='094457f71d272cae14e42b90e58fc78c6299f0894170a45b092eff9f14d993ff'
 assert hashlib.sha256(stock.read_bytes()).hexdigest()=='08f1a0ba5ce3895324899c88a2b0c05b7c1b843ac61e6a6eec530c2463395f3a'

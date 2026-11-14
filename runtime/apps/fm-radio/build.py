@@ -17,7 +17,7 @@ flags=['-DHB_STORE_SONY_LIBC','-DHB_FM_VERSION="'+(ROOT/'runtime/apps/fm-radio/V
 startup=['runtime/store/start.c','runtime/store/start.S']
 library=[str(lib/'libc.so.6'),str(lib/'ld-linux.so.3'),'-lgcc']
 base=['qemu-arm','-cpu','arm926',str(lib/'ld-linux.so.3'),'--library-path',str(lib)]
-tracked=set(startup+['docs/apps/FM_RADIO.md','tools/test_fm_storage.py','tools/fixtures/fm_storage.c','VERSION','runtime/apps/fm-radio/fm_storage.h','runtime/apps/fm-radio/fm_preferences.h','runtime/store/target_abi.h','runtime/store/stock_fs_bridge.h','runtime/store/stock_stat64.h','runtime/apps/fm-radio/fm_state.h','runtime/apps/fm-radio/fm_radio_skin.inc','runtime/native/linux_devices.h','runtime/native/linux_signals.h','runtime/native/frontend.h','runtime/native/linux_device_io.h','runtime/apps/fm-radio/fm_posix.h','runtime/apps/fm-radio/fm_session.h','runtime/apps/fm-radio/fm_audio.h','runtime/apps/fm-radio/fm_radio_ui.h','runtime/apps/fm-radio/fm_si470x.h','runtime/apps/fm-radio/fm_radio.h','runtime/native/font.inc'])
+tracked=set(startup+['docs/apps/FM_RADIO.md','tools/test_fm_storage.py','tools/fixtures/fm_storage.c','VERSION','runtime/apps/fm-radio/fm_storage.h','runtime/apps/fm-radio/fm_preferences.h','runtime/store/target_abi.h','runtime/store/stock_fs_bridge.h','runtime/store/stock_stat64.h','runtime/apps/fm-radio/fm_state.h','runtime/apps/fm-radio/fm_radio_skin.inc','runtime/native/linux_devices.h','runtime/native/linux_signals.h','runtime/native/frontend.h','runtime/native/linux_device_io.h','runtime/platform/fm/fm_posix.h','runtime/platform/fm/fm_session.h','runtime/platform/audio/fm_audio.h','runtime/apps/fm-radio/fm_radio_ui.h','runtime/platform/fm/fm_si470x.h','runtime/platform/fm/fm_radio.h','runtime/native/font.inc'])
 def build(name,sources,extra=()):
     tracked.update(sources);out=work/name
     sdk_run(['arm-linux-gnueabi-gcc',*flags,*extra,*sources,*startup,*library,'-o',str(out)],cwd=ROOT,check=True)
@@ -26,18 +26,18 @@ def run(path,args=(),code=0):
     p=sdk_run(base+[str(path),*args],cwd=ROOT,capture_output=True,text=True,timeout=15)
     assert p.returncode==code,(p.returncode,p.stdout,p.stderr)
     return p
-core=['runtime/apps/fm-radio/fm_radio.c','runtime/apps/fm-radio/fm_radio_ui.c']
+core=['runtime/platform/fm/fm_radio.c','runtime/apps/fm-radio/fm_radio_ui.c']
 state=build('state-tests.arm',core+['runtime/apps/fm-radio/fm_state.c','tools/fixtures/fm_state.c']);run(state)
 persistence=['runtime/apps/fm-radio/fm_state.c','runtime/apps/fm-radio/fm_storage.c','runtime/apps/fm-radio/fm_storage_native.c','runtime/apps/fm-radio/fm_preferences.c','runtime/store/stock_fs_bridge.c','runtime/store/stock_stat64.c']
 wide=build('wideband-tests.arm',core+['runtime/apps/fm-radio/fm_state.c','tools/fixtures/fm_wideband.c']);run(wide)
-native=['runtime/apps/fm-radio/fm_si470x.c','runtime/apps/fm-radio/fm_audio.c','runtime/apps/fm-radio/fm_session.c','runtime/apps/fm-radio/fm_posix.c']
-session=build('session-tests.arm',core+['runtime/apps/fm-radio/fm_si470x.c','runtime/apps/fm-radio/fm_audio.c','runtime/apps/fm-radio/fm_session.c','tools/fixtures/fm_session.c']);run(session)
-audio=build('audio-tests.arm',['runtime/apps/fm-radio/fm_audio.c','tools/fixtures/fm_audio.c']);run(audio)
-tuner=build('tuner-tests.arm',core+['runtime/apps/fm-radio/fm_si470x.c','tools/fixtures/fm_si470x.c']);run(tuner)
+native=['runtime/platform/fm/fm_si470x.c','runtime/platform/audio/fm_audio.c','runtime/platform/fm/fm_session.c','runtime/platform/fm/fm_posix.c']
+session=build('session-tests.arm',core+['runtime/platform/fm/fm_si470x.c','runtime/platform/audio/fm_audio.c','runtime/platform/fm/fm_session.c','tools/fixtures/fm_session.c']);run(session)
+audio=build('audio-tests.arm',['runtime/platform/audio/fm_audio.c','tools/fixtures/fm_audio.c']);run(audio)
+tuner=build('tuner-tests.arm',core+['runtime/platform/fm/fm_si470x.c','tools/fixtures/fm_si470x.c']);run(tuner)
 controller=build('controller-tests.arm',core+['tools/fixtures/fm_radio_ui.c']);run(controller)
 model=build('model-tests.arm',core+['tools/fixtures/fm_radio.c']);run(model)
 native_app=build('native-app-tests.arm',core+native+persistence+['runtime/apps/fm-radio/fm_radio_app.c','runtime/native/frontend.c','tools/fixtures/fm_native_app.c'],['-DHB_FM_APP_TEST','-Wl,--wrap=fm_storage_open']);run(native_app)
-ui=build('ui-tests.arm',core+native+persistence+['runtime/apps/fm-radio/fm_posix_io.c']+['runtime/apps/fm-radio/fm_radio_app.c','runtime/native/frontend.c','tools/fixtures/fm_radio_app.c'],['-DHB_FM_APP_TEST']);run(ui)
+ui=build('ui-tests.arm',core+native+persistence+['runtime/platform/fm/fm_posix_io.c']+['runtime/apps/fm-radio/fm_radio_app.c','runtime/native/frontend.c','tools/fixtures/fm_radio_app.c'],['-DHB_FM_APP_TEST']);run(ui)
 # Render the actual C framebuffer captured by the virtual UI fixture.
 def chunk(kind,payload):
     return struct.pack('>I',len(payload))+kind+payload+struct.pack('>I',zlib.crc32(kind+payload))
@@ -50,7 +50,7 @@ for name in ['main','tuning','favorites','results','keypad','pressed','error','n
             pixel=struct.unpack_from('<H',raw,(y*240+x)*2)[0]
             rgb.extend((((pixel>>11)&31)*255//31,((pixel>>5)&63)*255//63,(pixel&31)*255//31))
     (work/(name+'.png')).write_bytes(b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',struct.pack('>IIBBBBB',240,432,8,2,0,0,0))+chunk(b'IDAT',zlib.compress(rgb))+chunk(b'IEND',b''))
-app=build('fm-radio.arm',core+native+persistence+['runtime/apps/fm-radio/fm_posix_io.c']+['runtime/apps/fm-radio/fm_radio_app.c','runtime/native/frontend.c','runtime/native/linux_devices.c','runtime/native/linux_device_io_posix.c','runtime/native/linux_signals_posix.c'])
+app=build('fm-radio.arm',core+native+persistence+['runtime/platform/fm/fm_posix_io.c']+['runtime/apps/fm-radio/fm_radio_app.c','runtime/native/frontend.c','runtime/native/linux_devices.c','runtime/native/linux_device_io_posix.c','runtime/native/linux_signals_posix.c'])
 undefined=subprocess.check_output(['arm-linux-gnueabi-nm','-u',str(app)],text=True)
 assert '__ioctl_time64' not in undefined and ' ioctl' in undefined
 assert 'simulated' in run(app,['--help']).stdout

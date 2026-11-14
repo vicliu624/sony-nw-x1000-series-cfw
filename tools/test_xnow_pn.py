@@ -26,6 +26,16 @@ file_test=OUT/'pn-file.host'
 subprocess.run(['gcc','-std=c99','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-I',str(crypto/'inc'),*file_sources,str(host_archive),'-Wl,--wrap=fsync','-o',str(file_test)],cwd=ROOT,check=True)
 file_result=subprocess.run([str(file_test),str(OUT)],capture_output=True,text=True,check=True,timeout=30)
 report['host_filesystem']=file_result.stdout
+arm_file=OUT/'pn-file.arm';arm_crypto=ROOT/'work/external-tls-probe/arm-build/libbearssl.a'
+subprocess.run(['arm-linux-gnueabi-gcc','-std=c99','-Os','-Wall','-Wextra','-Werror',
+ '-DHB_STORE_SONY_LIBC','-D_DEFAULT_SOURCE','-U_FORTIFY_SOURCE','-D_FORTIFY_SOURCE=0',
+ '-march=armv5te','-marm','-mfloat-abi=soft','-fno-builtin','-fno-pie','-fno-stack-protector',
+ '-nostdlib','-no-pie','-Wl,--hash-style=sysv,--wrap=fsync','-I',str(crypto/'inc'),
+ *file_sources,'runtime/store/stock_fs_bridge.c','runtime/store/stock_stat64.c','runtime/store/start.c','runtime/store/start.S',str(arm_crypto),
+ str(LIB/'libc.so.6'),str(LIB/'ld-linux.so.3'),'-lgcc','-o',str(arm_file)],cwd=ROOT,check=True)
+arm_filesystem=subprocess.run(['qemu-arm','-cpu','arm926',str(LIB/'ld-linux.so.3'),
+ '--library-path',str(LIB),str(arm_file),str(OUT)],capture_output=True,text=True,check=True,timeout=30)
+report['arm926_stock_libc_filesystem']=arm_filesystem.stdout
 report['filesystem_device_qualified']=False
 report['host_security_journal_integration']=True
 report['source_hashes'].update({p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in [*file_sources,'runtime/platform/espnow/xnow_pn_file.h','tools/test_xnow_pn.py']})

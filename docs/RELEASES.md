@@ -5,6 +5,12 @@ GitHub Actions publishes with its scoped GITHUB_TOKEN, not a committed SSH key.
 
 ## Build contract
 
+Routine pushes, tags and pull requests run source checks only. Firmware packaging
+is paused by default. An explicit `workflow_dispatch` run must select
+`build_firmware` to enable the package job; publishing additionally requires
+`publish` and the matching version tag. Neither a normal main push nor a tag push
+builds or publishes firmware. Keep these options off during source maintenance.
+
 `tools/ci_bootstrap.py` obtains the pinned Japanese updater and public source/data
 inputs, verifies hashes, extracts original libraries and builds the external TLS
 library. It does not use an old dist package as an input. Public TLS roots come

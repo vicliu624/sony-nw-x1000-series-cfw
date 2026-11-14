@@ -1,6 +1,6 @@
 #include <assert.h>
 #include <string.h>
-#include "../../runtime/apps/fm-radio/fm_si470x.h"
+#include "../../runtime/platform/fm/fm_si470x.h"
 struct fake {uint32_t frequency,fail;int wrong_name,wrong_unit,short_band,mismatch,bad_signal,valid,sets,not_done,wrong_channel,config,read_error,waits,cancel,read_error_index,config_writes,drop_write,fail_applied;};
 static int control(void *context,uint32_t request,void *arg){
  struct fake *f=context;if(f->fail==request)return -1;

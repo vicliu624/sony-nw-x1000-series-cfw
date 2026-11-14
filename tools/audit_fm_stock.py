@@ -211,16 +211,38 @@ def main():
         checks.append(replay(name))
     for sense in (6, 11, 23):
         checks.append(replay('fmSenseSet', (sense,)))
-    # Exercise the original write-prefix mechanism with a property command image.
-    # This verifies bytes only: the synthetic chip does NOT implement commands.
-    def command_setup(cpu, syms):
-        image = bytes.fromhex('000100000084126f100000000000000000000000000000000c000000')
-        assert len(image) == 28
-        cpu.mem_write(syms['si47RegBufferWrite'], image)
-    case = replay('si470x_write', (15, 8), setup=command_setup)
-    assert case['events'][0]['bytes'].endswith('000000000c000008')
-    case['scope'] = 'Command-shaped bytes only; no command processor or property response modeled'
-    checks.append(case)
+    # Exercise the original transport only. The bus fixture does not implement
+    # a tuner command processor and each response below is an explicit input.
+    lower_words = (0x0001, 0x0000, 0x0084, 0x126f, 0x1000, 0, 0, 0, 0, 0)
+    for property_id, fixture_value in ((0x0c00, 0x0013), (0x0700, 0xabcd)):
+        def command_setup(cpu, syms):
+            image = struct.pack('>14H', *lower_words, 0, 0, property_id, 0)
+            cpu.mem_write(syms['si47RegBufferWrite'], image)
+
+        case = replay('si470x_write', (0x0f, 0x0008), setup=command_setup)
+        expected = struct.pack('>14H', *lower_words, 0, 0, property_id, 0x0008)
+        assert case['events'] == [dict(kind='i2c', address=0x10, flags=0,
+                                      length=28, bytes=expected.hex())]
+        case.update(property_id=property_id, scope='Synthetic cache; command bytes only')
+        checks.append(case)
+
+        for status in (0x08, 0x00):
+            registers = [0] * 16
+            registers[0x0a:0x10] = [0x4025, 0x004a, fixture_value, 0xaaaa,
+                                    0xbbbb, 0xcc00 | status]
+            case = replay('si470x_read', (0x0f,), regs=registers)
+            assert case['result'] == 0xcc00 | status
+            event, = case['events']
+            raw = bytes.fromhex(event['bytes'])
+            assert event['address'] == 0x10 and event['flags'] == 1
+            assert event['length'] == len(raw) == 12
+            assert raw[11] == status
+            value = int.from_bytes(raw[4:6], 'big') if status == 0 else None
+            assert value == (fixture_value if status == 0 else None)
+            case.update(property_id=property_id, synthetic_status=status,
+                        synthetic_value_when_ready=value,
+                        scope='Value decoded from the captured synthetic bus message; helper returns only the final word')
+            checks.append(case)
     report = dict(module_sha256=PIN, tool_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(), hardware_access=False,
                   scope='Original relocated ARM; synthetic I2C, mapped inert MMIO and mocked kernel services',
                   initial_table_hex=data[0x38c:0x3a8].hex(),

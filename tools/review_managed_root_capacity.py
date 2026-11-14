@@ -1,5 +1,5 @@
 """Compare a complete proposed root file inventory; never creates an image or UPG."""
-import argparse,hashlib,io,json,posixpath,sys,tarfile,time
+import argparse,copy,hashlib,io,json,posixpath,sys,tarfile,time
 from pathlib import Path
 from app_registry import ROOT
 from review_managed_remote_profile import private,receipt,digest
@@ -21,6 +21,34 @@ def inventory(raw):
    result[name]=row
  return result
 
+def compose_root_inventory(base, overlay):
+    """Declare the same complete tree the packer will create, without file IO."""
+    result = copy.deepcopy(base)
+    for name in sorted(overlay):
+        if (not isinstance(name, str) or not name or name in ('.', '..') or
+                name.startswith('/') or name.startswith('../') or '\\' in name or
+                posixpath.normpath(name) != name):
+            raise ValueError('Noncanonical overlay path: ' + repr(name))
+        row = overlay[name]
+        old = result.get(name)
+        if old and old['kind'] != 'file':
+            raise ValueError('Overlay replaces non-file: ' + name)
+        parents = []
+        parent = posixpath.dirname(name)
+        while parent:
+            parents.append(parent)
+            parent = posixpath.dirname(parent)
+        for parent in reversed(parents):
+            if parent in result:
+                if result[parent]['kind'] != 'directory':
+                    raise ValueError('Overlay ancestor is not a directory: ' + parent)
+            else:
+                result[parent] = dict(kind='directory', bytes=0, mode=0o755, uid=0, gid=0)
+        result[name] = dict(kind='file', bytes=row['bytes'], sha256=row['sha256'],
+                            mode=int(row['mode'], 8), uid=old['uid'] if old else row.get('uid', 0),
+                            gid=old['gid'] if old else row.get('gid', 0))
+    return result
+
 def main():
  parser=argparse.ArgumentParser(description=__doc__)
  parser.add_argument('--layout-review',type=Path,required=True)
@@ -33,15 +61,11 @@ def main():
  original=private('work/upg-jp/verified-3.bin')
  if digest(original)!='c6307dba718f1faae821e0330b64532f13fe6ef98ff330a5919d7fb10525adf5':raise ValueError('Original root mismatch')
  _,parts=unpack(source.read_bytes(),require_stock=False)
- stock=inventory(original.read_bytes());candidate=inventory(parts[3])
+ stock=inventory(original.read_bytes());base=inventory(parts[3])
  for name,row in layout['files'].items():
   path=private(layout_path.parent/'root-overlay'/name)
   if digest(path)!=row['sha256'] or path.stat().st_size!=row['bytes']:raise ValueError('Overlay input mismatch: '+name)
-  old=candidate.get(name)
-  if old and old['kind']!='file':raise ValueError('Overlay replaces non-file')
-  # The installation layout retains original ownership for replacements.
-  candidate[name]=dict(kind='file',bytes=row['bytes'],sha256=row['sha256'],mode=int(row['mode'],8),
-                       uid=old['uid'] if old else row.get('uid',0),gid=old['gid'] if old else row.get('gid',0))
+ candidate=compose_root_inventory(base,layout['files'])
  changes=[]
  for name in sorted(stock.keys()|candidate.keys()):
   a=stock.get(name);b=candidate.get(name)
@@ -52,7 +76,9 @@ def main():
   original_regular_bytes=total(stock),candidate_regular_bytes=total(candidate),regular_file_delta_bytes=total(candidate)-total(stock),
   regular_file_allocation_models=[dict(block_bytes=block,delta_bytes=rounded(candidate,block)-rounded(stock,block)) for block in (1024,4096)],
   changed_paths=changes,layout_review=layout_path.relative_to(ROOT).as_posix(),layout_review_sha256=digest(layout_path),
+  new_directories=sorted(name for name,row in candidate.items() if name not in base and row['kind']=='directory'),
   localization_sha256=digest(source),original_root_sha256=digest(original),
+  source_hashes={name:digest(ROOT/name) for name in ('tools/review_managed_root_capacity.py','tools/review_managed_remote_profile.py','scripts/upg.py','scripts/upg_crypto.py')},
   capacity_margin_verified=False,limitations=['Complete proposed file inventory, not an allocated filesystem image.',
    'Block models omit inode/directory/indirect blocks, reserved space and flash translation/bad blocks.',
    'No current physical free-space measurement or partition-write qualification.',

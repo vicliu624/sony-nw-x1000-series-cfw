@@ -19,7 +19,7 @@ def offset(raw,address,count):
 editable=bytearray(home);at=offset(home,symbols['hb_error_descriptor'],48)
 struct.pack_into('<I',editable,at+4,99999);struct.pack_into('<I',editable,at+20,0)
 base=enable_settings(bytes(editable));assert hashlib.sha256(base).hexdigest()==SETTINGS_SHA
-source='runtime/apps/wireless-remote/native_settings.c';entry=0x4d8040
+source='runtime/platform/sony-settings/native_settings.c';entry=0x4d8040
 linker=out/'settings.ld'
 linker.write_text('''ENTRY(wr_native_settings_select)
 SECTIONS {
@@ -149,4 +149,5 @@ report=dict(prepared=True,analysis_only=True,ready_to_flash=False,firmware_creat
             limits=['Request boundary is modeled here; paired native-remote-settings host build supplies the guarded bridge separately.',
                     'No complete on/off UI, native RF admission or actual original GUI execution.'])
 report['source_hashes']['tools/wireless_resources.py']=hashlib.sha256((ROOT/'tools/wireless_resources.py').read_bytes()).hexdigest()
+report['source_hashes']['runtime/platform/sony-settings/bindings.h']=hashlib.sha256((ROOT/'runtime/platform/sony-settings/bindings.h').read_bytes()).hexdigest()
 (out/'report.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8');print(json.dumps(report,indent=2))

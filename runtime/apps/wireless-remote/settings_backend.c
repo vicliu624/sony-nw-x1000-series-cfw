@@ -10,10 +10,14 @@ static int poll_process(struct wr_settings_backend *b){
  if(b->process.reaped&&b->last_start.serial){
   b->last_start.child_reaped=1;
   b->last_start.child_wait_status=b->process.status;
-  if(b->last_start.stage==WR_START_OFFERED&&!b->process.stop_sent){
+  if((b->last_start.stage==WR_START_OFFERED||b->last_start.stage==WR_START_READY)&&!b->process.stop_sent){
    b->last_start.stage=WR_START_CHILD_EXIT;
    b->last_start.result=rc?rc:XW_PLAYER_UNAVAILABLE;
   }
+ }else if(rc==XW_PLAYER_BUSY&&b->phase==WR_SETTINGS_STARTING&&
+          b->last_start.stage==WR_START_OFFERED&&b->process.service_ready&&b->process.radio_ready){
+  b->last_start.stage=WR_START_READY;
+  b->last_start.result=0;
  }
  return rc;
 }
@@ -32,8 +36,8 @@ static int stop_retired(void *context,uint64_t generation){
 static int native_retired(void *context,uint64_t epoch){
  struct wr_settings_backend *b=context;
  if(!epoch||!original_owner(b))return XW_PLAYER_INVALID;
- /* The host separately validates its native epoch/context before/after this
-  * callback. Our process/generation stays fixed through this retirement. */
+ /* This process/generation remains owned until retirement completes, even if
+  * the host has revoked its separate permission to resume native preparation. */
  return retired(b);
 }
 static int start_result(struct wr_settings_backend *b,enum wr_settings_start_stage stage,int result){

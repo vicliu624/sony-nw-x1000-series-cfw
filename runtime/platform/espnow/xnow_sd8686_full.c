@@ -54,15 +54,46 @@ int xnow_sd8686_full_enable_spans(struct xnow_sd8686_full *r,struct xnow_full *b
  struct xnow_full_span_io ops={&r->boundary,xnow_full_guard_read_span,xnow_full_guard_write_span};
  return xnow_full_set_spans(backend,&ops);
 }
-int xnow_sd8686_full_channel_set(struct xnow_sd8686_full *r,const struct xnow_session *session,unsigned channel){
- if(!r||r->fd<0||!session||!session->lease||session->phase!=XNOW_SESSION_STARTING||session->pending!=XNOW_SESSION_CONFIGURE||channel<1||channel>13||!r->boundary.verified||r->boundary.fault)return XNOW_IDENTITY;
+static int channel_request(struct xnow_sd8686_full *r,unsigned set,unsigned channel,unsigned *observed){
+ if(!r||r->fd<0||!r->boundary.verified||r->boundary.fault||!r->lease_valid||!observed)return XNOW_IDENTITY;
  uint32_t pool;if(word(r,0xc000d5a8,0,&pool)||pool!=0x0003076c)return XNOW_IDENTITY;
- for(unsigned set=1;;set--){uint8_t command[2048];struct iwreq req;unsigned observed;memset(command,0,sizeof(command));memset(&req,0,sizeof(req));
-  if(!r->lease_valid(r->lease_context)||xnow_channel_command(command,set,set?channel:0))return XNOW_IDENTITY;
-  strcpy(req.ifr_name,"eth0");req.u.data.pointer=command;req.u.data.length=XNOW_CHANNEL_BYTES;
-  if(xnow_full_original_ioctl(r->fd,0x8be4,&req)<0||req.u.data.length!=XNOW_CHANNEL_BYTES||xnow_channel_response(command,XNOW_CHANNEL_BYTES,set,&observed)||observed!=channel)return XNOW_UNCERTAIN;
-  if(!set)break;
- }
+ uint8_t command[2048]={0};struct iwreq req={0};unsigned value;
+ if(!r->lease_valid(r->lease_context)||xnow_channel_command(command,set,channel))return XNOW_IDENTITY;
+ strcpy(req.ifr_name,"eth0");req.u.data.pointer=command;req.u.data.length=XNOW_CHANNEL_BYTES;
+ if(xnow_full_original_ioctl(r->fd,0x8be4,&req)<0||req.u.data.length!=XNOW_CHANNEL_BYTES||
+    xnow_channel_response(command,XNOW_CHANNEL_BYTES,set,&value))return XNOW_UNCERTAIN;
+ if(!r->lease_valid(r->lease_context))return XNOW_IDENTITY;
+ *observed=value;
  return 0;
+}
+int xnow_sd8686_full_channel_get(struct xnow_sd8686_full *r,unsigned *observed){
+ return channel_request(r,0,0,observed);
+}
+int xnow_sd8686_full_tuner_get(struct xnow_sd8686_full *r,uint8_t out[4]){
+ if(!r||r->fd<0||!r->boundary.verified||r->boundary.fault||!r->lease_valid||!out)
+  return XNOW_IDENTITY;
+ uint8_t values[4];
+ for(unsigned i=0;i<sizeof values;i++){
+  uint8_t command[2048]={0};
+  struct iwreq request={0};
+  const unsigned reg=0x67u+i;
+  put16(command,0x001b);put16(command+2,16);put16(command+10,reg);
+  strcpy(request.ifr_name,"eth0");request.u.data.pointer=command;request.u.data.length=16;
+  if(!r->lease_valid(r->lease_context))return XNOW_IDENTITY;
+  if(xnow_full_original_ioctl(r->fd,0x8be4,&request)<0||request.u.data.length!=16||
+     get16(command)!=0x801b||get16(command+2)!=16||get16(command+6)||
+     get16(command+8)||get16(command+10)!=reg)return XNOW_IO;
+  values[i]=command[12];
+ }
+ if(!r->lease_valid(r->lease_context))return XNOW_IDENTITY;
+ memcpy(out,values,sizeof values);
+ return XNOW_OK;
+}
+int xnow_sd8686_full_channel_set(struct xnow_sd8686_full *r,const struct xnow_session *session,unsigned channel){
+ if(!session||!session->lease||session->phase!=XNOW_SESSION_STARTING||session->pending!=XNOW_SESSION_CONFIGURE||channel<1||channel>13)return XNOW_IDENTITY;
+ unsigned observed;int rc=channel_request(r,1,channel,&observed);
+ if(rc||observed!=channel)return rc?rc:XNOW_UNCERTAIN;
+ rc=xnow_sd8686_full_channel_get(r,&observed);
+ return rc?rc:observed==channel?0:XNOW_UNCERTAIN;
 }
 void xnow_sd8686_full_close(struct xnow_sd8686_full *r){if(r){if(r->fd>=0)close(r->fd);r->fd=-1;xnow_full_guard_close(&r->boundary);r->lease_valid=0;r->lease_context=0;}}

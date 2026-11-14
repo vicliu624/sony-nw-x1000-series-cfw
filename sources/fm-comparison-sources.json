@@ -111,6 +111,45 @@
       "revision_scope": "Moving master snapshot pinned by content hash; AN230 revision-dependent initialization comments"
     }
   ],
+  "acquired_vendor_archive": {
+    "name": "Silicon Labs AN264SW",
+    "url": "https://web.archive.org/web/20140722174009id_/http://www.silabs.com/Support%20Documents/Software/AN264SW.zip",
+    "local_input": "work/fm-driver-comparison/an264-wayback.zip",
+    "sha256": "6d95a30d5184cee011467eab5682050742a30027f35c27d87d075cba3223c63d",
+    "scope": "Vendor firmware source, GUI source and executable, PCB files. Embedded application records cover 0x0000-0x1dff."
+  },
+  "acquired_standalone_gui": {
+    "name": "Silicon Labs USBRadio",
+    "url": "https://web.archive.org/web/20120905181717id_/http://www.silabs.com/Support%20Documents/Software/USBRadio.zip",
+    "local_input": "work/fm-driver-comparison/usbradio-wayback.zip",
+    "sha256": "e6c634ad803d4a3ccb5ef9a38ab7f5358db7ad0162d211753b6ae9b8bd8468d5",
+    "scope": "One USBRadio.exe member, byte-identical to the executable in AN264SW."
+  },
+  "acquired_oem_disc": {
+    "acquired_on": "2026-11-07",
+    "url": "https://archive.org/details/snap-music-v-1.01",
+    "archive_member": "SnapMusic_V1.01.iso",
+    "archive_member_sha1": "6efd1db8f807fe8f413165e7450bd020b1478b8f",
+    "provenance": "Community-retained OEM disc; internal device identifiers corroborated, vendor signature not authenticated",
+    "inputs": [
+      {
+        "name": "KWorld SnapMusic V1.01 disc",
+        "local_input": "work/fm-driver-comparison/SnapMusic_V1.01.iso",
+        "sha256": "4efb3dbad6ee818c1e1faef13023df8e7fe78afcb04d36181f0fd67017f9e3e8"
+      },
+      {
+        "name": "Snaptune SnapRec.exe",
+        "local_input": "work/fm-driver-comparison/snaptune-files/SnapRec.exe",
+        "sha256": "4ca9947dd138357add2a69c773c9348bfa21972bebbcdfc351df08cd734baae4"
+      },
+      {
+        "name": "KWorld FM700ExtDLL.dll",
+        "local_input": "work/fm-driver-comparison/snapmusic-files/SMusic/FM700ExtDLL.dll",
+        "sha256": "6085571f3a360b4954da60f9495ef8e5f928eb2f6f65811b8bf5fdc1bae2399c"
+      }
+    ],
+    "scope": "Static extraction only; KWorld FM700, reference USB radio and ADS RDX-155 host support. No player stepping match or complete MCU image recovered."
+  },
   "unacquired_software_candidates": [
     {
       "name": "Historical Silicon Labs software endpoints recovered from product-page copy",
@@ -119,7 +158,7 @@
         "https://www.silabs.com/Support%20Documents/Software/AN264SW.zip",
         "https://www.silabs.com/Support%20Documents/Software/USBRadio.zip"
       ],
-      "observed_result": "Both historical endpoints returned HTTP 403 text/html; no archive acquired"
+      "observed_result": "Both direct historical endpoints returned HTTP 403 text/html. Both archives were recovered from the captured URLs above."
     },
     {
       "name": "EVB GUI installer identities from vendor guide illustrations",

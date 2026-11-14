@@ -1,4 +1,4 @@
-#include "../runtime/apps/device-info/device_info_data.h"
+#include "../runtime/platform/system-info/device_info_data.h"
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>

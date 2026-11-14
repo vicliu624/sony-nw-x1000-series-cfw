@@ -42,7 +42,9 @@ unsigned test_wireless_ticks,test_wireless_bounds;
 int xw_player_host_wireless_prepare_stop(uint64_t epoch){return epoch?0:-1;}
 int xw_player_host_wireless_next_epoch(uint64_t *epoch){static uint64_t serial;if(test_sleep_unbound)return XW_MODE_DENIED;*epoch=++serial;return 0;}
 int xw_player_host_wireless_prepare_handoff(uint64_t epoch){return epoch?0:-1;}
+int xw_player_host_wireless_prepare_application(uint64_t epoch){return epoch?0:-1;}
 int xw_player_host_wireless_resume_handoff(uint64_t epoch){return epoch?0:-1;}
+int xw_player_host_wireless_resume_application(uint64_t epoch){return epoch?0:-1;}
 int xw_player_host_service_stop(void){return 0;}
 int xw_player_host_service_quiesce(void){return 0;}
 int xw_player_host_wireless_bound(struct xw_wireless_mode_policy *p){(void)p;test_wireless_bounds++;return 0;}

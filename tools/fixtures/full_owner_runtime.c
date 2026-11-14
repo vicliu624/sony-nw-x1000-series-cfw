@@ -21,11 +21,37 @@ static int tick(struct xnow_owner_runtime *r){return xnow_owner_runtime_step_wit
 static int tick(struct xnow_owner_runtime *r){return xnow_owner_runtime_step(r);}
 #endif
 struct data_context {struct xnow_full_control *control;int input,output,fail_close;unsigned closed,storage_checks;
+ volatile int *stop_token;unsigned stop_in_prepare,stop_in_storage,prepare_calls;int prepare_result;
 #ifdef XNOW_TEST_MODE_ADMISSION
  struct wr_owner_admission *admission;struct xw_wireless_mode_policy *policy;
 #endif
 };
-static int storage(void *p){struct data_context *d=p;d->storage_checks++;return 0;} /* Mocked PC ownership, not device proof. */
+static int storage(void *p){struct data_context *d=p;d->storage_checks++;if(d->stop_in_storage)*d->stop_token=1;return 0;} /* Mocked PC ownership, not device proof. */
+static int prepare_mark(void *p,struct xnow_endpoint *e,const uint8_t local[6]){
+ struct data_context *d=p;(void)e;(void)local;d->prepare_calls++;if(d->stop_in_prepare)*d->stop_token=1;return d->prepare_result;
+}
+#ifdef XNOW_TEST_STOP_BOUNDARIES
+static volatile int *watch_stop;
+static unsigned watch_stage,watch_active,watch_injected,poll_calls,receive_calls;
+int __real_xnow_owner_stream_step(struct xnow_owner_stream *);
+int __wrap_xnow_owner_stream_step(struct xnow_owner_stream *s){
+ int rc=__real_xnow_owner_stream_step(s);
+ if(watch_active&&watch_stage==5&&!watch_injected&&rc>=0){*watch_stop=1;watch_injected=1;}
+ return rc;
+}
+int __real_xnow_owner_commands_poll(struct xnow_owner_commands *,struct xnow_owner_completion *);
+int __wrap_xnow_owner_commands_poll(struct xnow_owner_commands *c,struct xnow_owner_completion *out){
+ if(watch_active)poll_calls++;
+ int rc=__real_xnow_owner_commands_poll(c,out);
+ if(watch_active&&watch_stage==6&&!watch_injected&&rc>=0){*watch_stop=1;watch_injected=1;}
+ return rc;
+}
+int __real_xnow_owner_commands_receive(struct xnow_owner_commands *,void *,size_t,struct xnow_full_received *);
+int __wrap_xnow_owner_commands_receive(struct xnow_owner_commands *c,void *p,size_t n,struct xnow_full_received *out){
+ if(watch_active)receive_calls++;
+ return __real_xnow_owner_commands_receive(c,p,n,out);
+}
+#endif
 static int close_data(void *p){struct data_context *d=p;assert(xnow_full_control_finished(d->control)&&!clients&&connection==FINAL_CONNECTION);if(d->fail_close)return -1;
 #ifdef XNOW_TEST_MODE_ADMISSION
  assert(d->policy->state.active&&wr_owner_admission_close(d->admission)>=0&&d->policy->state.active);
@@ -39,6 +65,7 @@ static void scenario(int fail_close,unsigned cause){
 #endif
  int in[2],out[2],handoff[2];assert(!pipe(in)&&!pipe(out)&&!pipe(handoff));for(unsigned i=0;i<2;i++){nonblock(in[i]);nonblock(out[i]);}nonblock(handoff[0]);
  struct xnow_owner_gate gate;volatile int stop_requested=0;struct xnow_full_control controller;struct data_context data={.control=&controller,.input=in[0],.output=out[1],.fail_close=fail_close};
+ data.stop_token=&stop_requested;data.stop_in_prepare=cause==3||cause==7||cause==8;data.stop_in_storage=cause==4;data.prepare_result=cause==8?-77:0;
 #ifdef XNOW_TEST_MODE_ADMISSION
  struct xw_wireless_mode_policy policy={0};struct xw_wireless_lease lease;
  struct xw_mode_channel view={0};struct wr_owner_admission admission={0};int mode_pair[2];
@@ -65,9 +92,36 @@ static void scenario(int fail_close,unsigned cause){
  struct xnow_owner_runtime refused;controller.options.encrypted_limit=17;
  assert(xnow_owner_runtime_init(&refused,&controller,&gate,&stream,&commands,handoff[1],cookie,&data,0,close_data)==XNOW_ARGUMENT);controller.options.encrypted_limit=0;
  assert(xnow_owner_runtime_init(&refused,&controller,&gate,&stream,&commands,out[1],cookie,&data,0,close_data)==XNOW_IDENTITY);assert(!clients&&!fixture_jobs);
- assert(!xnow_owner_runtime_init(&runtime,&controller,&gate,&stream,&commands,handoff[1],cookie,&data,0,close_data));
- for(unsigned i=0;!runtime.prepared;i++){assert(i<200&&tick(&runtime)==XNOW_PENDING);}assert(data.storage_checks&&clients&&connection==3);
- uint8_t cmd[XNOW_OWNER_COMMAND_MAX],address[6]={2,1,2,3,4,5};size_t n=request(cmd,XNOW_OWNER_ADD,1,26);memcpy(cmd+16,address,6);cmd[22]=8;cmd[23]=2;command(&stream,in[1],out[0],cmd,n);
+ controller.options.encrypted_limit=cause==7?17:0;
+ assert(!xnow_owner_runtime_init(&runtime,&controller,&gate,&stream,&commands,handoff[1],cookie,&data,cause>=3?prepare_mark:0,close_data));
+ uint8_t cmd[XNOW_OWNER_COMMAND_MAX],address[6]={2,1,2,3,4,5};size_t n;
+#ifdef XNOW_TEST_STOP_BOUNDARIES
+ watch_stage=cause;watch_active=cause==5||cause==6;watch_injected=poll_calls=receive_calls=0;watch_stop=&stop_requested;
+ if(cause>=3){n=request(cmd,XNOW_OWNER_ADD,1,26);memcpy(cmd+16,address,6);cmd[22]=8;cmd[23]=2;assert(write(in[1],cmd,n)==(ssize_t)n);}
+ for(unsigned i=0;;i++){
+  assert(i<200&&tick(&runtime)==XNOW_PENDING);
+  if(((cause==3||cause==7||cause==8)&&data.prepare_calls)||(cause==4&&data.storage_checks)||
+     ((cause==5||cause==6)&&watch_injected)||(cause<3&&runtime.prepared))break;
+ }
+ if(cause>=3){
+  if(cause==3||cause==4||cause==7||cause==8){
+   unsigned peers,encrypted;xnow_peer_count(&controller.endpoint.peers,&peers,&encrypted);
+   printf("OWNER_STOP_BOUNDARY cause=%u staged=%u output=%u peers=%u\n",cause,(unsigned)stream.used,(unsigned)stream.output_bytes,peers);fflush(stdout);
+   assert(!stream.used&&!stream.output_bytes&&!peers);
+   if(cause==4)assert(!data.prepare_calls);
+  }else if(cause==5)assert(!poll_calls&&!receive_calls);
+  else assert(poll_calls==1&&!receive_calls);
+  assert(controller.stop_requested&&!controller.backend.inflight);
+  if(cause==8)assert(runtime.application_failure==-77&&runtime.application_origin==2);
+  else assert(!runtime.application_failure);
+  watch_active=0;
+ }
+#else
+ for(unsigned i=0;!runtime.prepared;i++){assert(i<200&&tick(&runtime)==XNOW_PENDING);}
+#endif
+ assert(data.storage_checks&&clients&&connection==3);
+ if(cause<3){
+ n=request(cmd,XNOW_OWNER_ADD,1,26);memcpy(cmd+16,address,6);cmd[22]=8;cmd[23]=2;command(&stream,in[1],out[0],cmd,n);
  n=request(cmd,XNOW_OWNER_SEND,2,1476);memcpy(cmd+16,address,6);memset(cmd+22,0x57,1470);command(&stream,in[1],out[0],cmd,n);
  assert(tick(&runtime)==XNOW_PENDING&&controller.backend.inflight);
  unsigned jobs=fixture_jobs,closed=closes;
@@ -92,8 +146,10 @@ static void scenario(int fail_close,unsigned cause){
 #endif
  {close(in[1]);in[1]=-1;}
  for(unsigned i=0;i<5;i++)assert(tick(&runtime)==XNOW_PENDING&&controller.stop_requested&&clients&&controller.radio.fd==123&&fixture_jobs==jobs&&closes==closed&&!data.closed);
+ }
  uint8_t record[33];assert(read(handoff[0],record,sizeof record)<0&&errno==EAGAIN);
- done(0);int result=XNOW_PENDING;for(unsigned i=0;result==XNOW_PENDING;i++){assert(i<200);result=tick(&runtime);}
+ if(cause<3)done(0);
+ int result=XNOW_PENDING;for(unsigned i=0;result==XNOW_PENDING;i++){assert(i<200);result=tick(&runtime);}
  assert(xnow_full_control_finished(&controller)&&!clients&&connection==FINAL_CONNECTION&&fixture_radio_kind==0&&fixture_initialized==FINAL_INITIALIZED);
 #ifdef XNOW_TEST_POWER_OFF
  assert(power_off_calls==1);
@@ -116,8 +172,12 @@ static void scenario(int fail_close,unsigned cause){
  assert(!xw_mode_policy_release(&policy,&lease,1));
 #endif
  if(in[1]>=0)close(in[1]);
+ if(cause>=3)printf("OWNER_STOP_BOUNDARY_PASS %u\n",cause);
 }
 int main(void){assert(signal(SIGPIPE,SIG_IGN)!=SIG_ERR);scenario(0,0);scenario(1,0);
+#ifdef XNOW_TEST_STOP_BOUNDARIES
+ scenario(0,3);scenario(0,4);scenario(0,5);scenario(0,6);scenario(0,7);scenario(0,8);
+#endif
 #ifdef XNOW_TEST_MODE_ADMISSION
  scenario(0,1);scenario(1,1);scenario(0,2);puts("MODE_REVOKE_RETIREMENT_PASS");
 #endif

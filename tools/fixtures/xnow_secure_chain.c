@@ -11,6 +11,7 @@
 #endif
 #ifdef XNOW_CHAIN_DRIVER
 #include "../../runtime/platform/espnow/xnow_sd8686_full.h"
+#include "../../runtime/platform/espnow/xnow_shared_session.h"
 #include <sys/socket.h>
 #include <linux/wireless.h>
 #include <stdarg.h>
@@ -87,6 +88,9 @@ int main(int argc,char **argv){
  assert(!io.read(io.context,layout.rx+56,&value)&&value==0);
  struct xnow_session session;memset(&session,0,sizeof(session));session.lease=1;session.phase=XNOW_SESSION_STARTING;session.pending=XNOW_SESSION_CONFIGURE;
  assert(!xnow_sd8686_full_channel_set(&device,&session,8)&&channel_sets==1&&channel_gets==1);
+ unsigned observed_channel=0;
+ assert(!xnow_sd8686_full_channel_get(&device,&observed_channel));
+ assert(observed_channel==8&&channel_sets==1&&channel_gets==2);
  assert(!xnow_full_open(&transport,&io,&layout));
 #else
  assert(!xnow_full_open(&transport,&io,&layout));
@@ -104,13 +108,34 @@ int main(int argc,char **argv){
  inject(encrypted,bytes);assert(xnow_endpoint_receive(&endpoint,decoded,sizeof(decoded),&info)==XNOW_SECURITY_REPLAY);
  assert(!xnow_endpoint_stop_step(&endpoint));
  memset(pmk,0x5a,16);assert(!xnow_keyring_rotate(&vault,pmk));assert(!xnow_keyring_get(&vault,remote,peer.lmk)&&!memcmp(peer.lmk,key,16));
- assert(!xnow_full_open(&transport,&io,&layout));assert(!xnow_endpoint_init(&endpoint,&transport,6,7,0,random_bytes));assert(!xnow_endpoint_security_attach(&endpoint,&workspace,local,1024,&sio));assert(!xnow_endpoint_add(&endpoint,&peer));
- inject(encrypted,bytes);assert(xnow_endpoint_receive(&endpoint,decoded,sizeof(decoded),&info)==XNOW_SECURITY_REPLAY);
- assert(!xnow_endpoint_send(&endpoint,remote,data,sizeof(data)));assert(xnow_endpoint_poll(&endpoint,&event)==XNOW_PENDING);complete();assert(!xnow_endpoint_poll(&endpoint,&event));
- assert(!xnow_security_seal(&sender,1,random,data,250,encrypted,sizeof(encrypted),&bytes));encrypted[bytes-1]^=1;inject(encrypted,bytes);assert(xnow_endpoint_receive(&endpoint,decoded,sizeof(decoded),&info)==XNOW_SECURITY_AUTH);encrypted[bytes-1]^=1;inject(encrypted,bytes);assert(!xnow_endpoint_receive(&endpoint,decoded,sizeof(decoded),&info)&&info.info.payload_bytes==250);
- assert(!xnow_endpoint_send(&endpoint,remote,data,sizeof(data)));assert(xnow_endpoint_poll(&endpoint,&event)==XNOW_PENDING);
- puts("J");fflush(stdout);assert(!reply(0));assert(!xnow_endpoint_poll(&endpoint,&event)&&event.stock_status==XNOW_FULL_TX_PRE_MAC_REJECTED&&event.raw_fields==0);
- assert(!xnow_endpoint_stop_step(&endpoint));for(unsigned i=0;i<sizeof(workspace);i++)assert(((uint8_t *)&workspace)[i]==0);
+ #ifdef XNOW_CHAIN_DRIVER
+ struct xnow_shared_session shared={0};
+ assert(!xnow_shared_session_start(&shared,&device,&io,7,0,random_bytes));
+ assert(shared.endpoint.channel==8&&!xnow_shared_session_check_channel(&shared));
+ struct xnow_endpoint *second=&shared.endpoint;
+ #else
+ assert(!xnow_full_open(&transport,&io,&layout));
+ assert(!xnow_endpoint_init(&endpoint,&transport,6,7,0,random_bytes));
+ struct xnow_endpoint *second=&endpoint;
+ #endif
+ assert(!xnow_endpoint_security_attach(second,&workspace,local,1024,&sio));assert(!xnow_endpoint_add(second,&peer));
+ inject(encrypted,bytes);assert(xnow_endpoint_receive(second,decoded,sizeof(decoded),&info)==XNOW_SECURITY_REPLAY);
+ assert(!xnow_endpoint_send(second,remote,data,sizeof(data)));assert(xnow_endpoint_poll(second,&event)==XNOW_PENDING);complete();assert(!xnow_endpoint_poll(second,&event));
+ assert(!xnow_security_seal(&sender,1,random,data,250,encrypted,sizeof(encrypted),&bytes));encrypted[bytes-1]^=1;inject(encrypted,bytes);assert(xnow_endpoint_receive(second,decoded,sizeof(decoded),&info)==XNOW_SECURITY_AUTH);encrypted[bytes-1]^=1;inject(encrypted,bytes);assert(!xnow_endpoint_receive(second,decoded,sizeof(decoded),&info)&&info.info.payload_bytes==250);
+ assert(!xnow_endpoint_send(second,remote,data,sizeof(data)));assert(xnow_endpoint_poll(second,&event)==XNOW_PENDING);
+ puts("J");fflush(stdout);assert(!reply(0));assert(!xnow_endpoint_poll(second,&event)&&event.stock_status==XNOW_FULL_TX_PRE_MAC_REJECTED&&event.raw_fields==0);
+ #ifdef XNOW_CHAIN_DRIVER
+ driver_channel=11; /* Model the AP changing the station's channel. */
+ assert(xnow_shared_session_check_channel(&shared)==XNOW_ENDPOINT_CHANNEL);
+ assert(shared.endpoint.stopping&&channel_sets==1&&driver_channel==11);
+ assert(!xnow_shared_session_stop_step(&shared)&&!shared.radio&&!driver_closed);
+ assert(!xnow_shared_session_start(&shared,&device,&io,7,0,random_bytes));
+ assert(shared.endpoint.channel==11&&!xnow_shared_session_stop_step(&shared));
+ assert(channel_sets==1&&!driver_closed);
+ #else
+ assert(!xnow_endpoint_stop_step(second));
+ #endif
+ for(unsigned i=0;i<sizeof(workspace);i++)assert(((uint8_t *)&workspace)[i]==0);
  #ifdef XNOW_CHAIN_GUARD
  revoked=1;value=999;assert(io.read(io.context,layout.tx,&value)&&value==999);revoked=0;assert(io.read(io.context,layout.tx,&value)&&value==999);xnow_full_guard_close(&boundary);
 #endif

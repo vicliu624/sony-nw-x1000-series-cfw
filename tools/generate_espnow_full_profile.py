@@ -16,6 +16,8 @@ def render(directory):
  for r in manifest['immutable_segments']:
   text+=' {0x%xu,%du,{'%(r['address'],r['bytes'])+','.join('0x'+r['sha256'][i:i+2] for i in range(0,64,2))+'}},\n'
  text+='};\nstatic const struct xnow_full_profile xnow_full_compiled_profile={{0x%xu,0x%xu,0x%xu},sizeof(xnow_full_ranges)/sizeof(xnow_full_ranges[0]),xnow_full_ranges};\n'%(l['xnow_full_tx']['address'],l['xnow_full_rx']['address'],l['xnow_tx_completion']['address'])
+ if 'xnow_rx_seen' in l:
+  text+='#define XNOW_RADIO_RX_SEEN 0x%xu\n#define XNOW_RADIO_RX_ELIGIBLE 0x%xu\n'%(l['xnow_rx_seen']['address'],l['xnow_rx_eligible']['address'])
  return text
 if __name__=='__main__':
  p=argparse.ArgumentParser(description=__doc__);p.add_argument('build',type=Path);p.add_argument('output',type=Path);a=p.parse_args();out=a.output.resolve()

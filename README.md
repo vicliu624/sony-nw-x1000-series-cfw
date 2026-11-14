@@ -6,6 +6,14 @@ NW-X1050 and NW-X1060**. The physical test unit is an NW-X1060 on the Japanese
 installation packages. Device additions use C/C++ and necessary ARM assembly;
 Python runs only on the development computer.
 
+For app development, start with the [SDK quick start](docs/sdk/README.md).
+For platform changes, read [architecture](docs/ARCHITECTURE.md),
+[platform knowledge](docs/KNOWLEDGE.md) and [contributing](CONTRIBUTING.md).
+The [status table](docs/STATUS.md) distinguishes current source from published
+releases and physical-device results. General release packaging remains on hold
+while lifecycle regressions and developer-facing contracts are reviewed. A local
+candidate for supervised testing is separate from a public release.
+
 [Releases](https://github.com/vicliu624/sony-nw-x1000-series-cfw/releases) ·
 [Build guide](docs/BUILD.md) · [Application guides](#applications) ·
 [Validation status](docs/STATUS.md) · [Developer SDK](docs/sdk/README.md) ·
@@ -64,8 +72,8 @@ output across the extended band; see the [FM guide](docs/apps/FM_RADIO.md).
 <details>
 <summary>Application icon gallery</summary>
 
-All fourteen release applications, BSOD Pet and the QQ startup diagnostic have
-individual artwork. Unknown application IDs receive a generic fallback icon.
+The gallery shows project application artwork. Each foreground app owns its icon;
+unknown application IDs receive a generic fallback icon.
 
 ![All maintained application icons](docs/images/app-icons.png)
 
@@ -81,7 +89,7 @@ material remain excluded.
 The experimental [X1000 SDK](docs/sdk/README.md) provides native C lifecycle,
 touch/canvas, guarded storage, three app templates, SDL2 preview, headless PNG
 rendering and verified ARM packaging. Its [native services](docs/sdk/SERVICES.md)
-also support the16 existing apps while preserving their main/UI/data policies.
+also support the 16 existing apps while preserving their main/UI/data policies.
 SDK versions are independent of firmware and app versions. Start with
 `python tools/sdk.py --help` or the website's
 [developer portal](https://vicliu624.github.io/sony-nw-x1000-series-cfw/#developer).
@@ -89,7 +97,10 @@ Callback-profile state IO fails closed until qualified ownership is supplied;
 existing native-service apps retain their original guards and formats. The user
 reports previous local builds passed on their unit. Migration tests are offline,
 not new hardware qualification. The source-only SDK contains
-no Sony binaries and does not build or install firmware.
+no Sony binaries and does not build or install firmware. This is not yet a
+complete managed app platform: review the [development paths](docs/sdk/README.md#choose-the-supported-development-path)
+and [architecture gaps](docs/ARCHITECTURE.md#developer-delivery-gaps) before
+depending on device persistence or background services.
 
 ## Documentation
 

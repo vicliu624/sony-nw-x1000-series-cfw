@@ -84,15 +84,25 @@ static int deep_sleep_request(int fd,unsigned char action,int *sleeping) {
     }
     return XNOW_OK;
 }
-int xnow_sd8686_wake(const struct xnow_session *session) {
-    int fd,sleeping=1,result;
-    if(!session||!session->lease||!((session->phase==XNOW_SESSION_STARTING&&session->pending==XNOW_SESSION_WAKE)||
-       (session->phase==XNOW_SESSION_STOPPING&&session->pending==XNOW_SESSION_RESTORE_WAKE)))return XNOW_IDENTITY;
-    fd=driver_socket();if(fd<0)return XNOW_IDENTITY;
-    result=deep_sleep_request(fd,'0',0);
+int xnow_sd8686_deep_sleep_get(int *sleeping) {
+    if(!sleeping)return XNOW_ARGUMENT;
+    int fd=driver_socket();if(fd<0)return XNOW_IO;
+    int result=deep_sleep_request(fd,'2',sleeping);
+    close(fd);
+    return result;
+}
+int xnow_sd8686_deep_sleep_set(int requested) {
+    if(requested!=0&&requested!=1)return XNOW_ARGUMENT;
+    int sleeping=-1,fd=driver_socket();if(fd<0)return XNOW_IDENTITY;
+    int result=deep_sleep_request(fd,(unsigned char)('0'+requested),0);
     if(!result)result=deep_sleep_request(fd,'2',&sleeping);
     close(fd);
-    return result||sleeping?XNOW_UNCERTAIN:XNOW_OK;
+    return result||sleeping!=requested?XNOW_UNCERTAIN:XNOW_OK;
+}
+int xnow_sd8686_wake(const struct xnow_session *session) {
+    if(!session||!session->lease||!((session->phase==XNOW_SESSION_STARTING&&session->pending==XNOW_SESSION_WAKE)||
+       (session->phase==XNOW_SESSION_STOPPING&&session->pending==XNOW_SESSION_RESTORE_WAKE)))return XNOW_IDENTITY;
+    return xnow_sd8686_deep_sleep_set(0);
 }
 static int channel_command(int fd,unsigned set,unsigned target,unsigned *observed) {
     unsigned char command[2048];struct iwreq request;

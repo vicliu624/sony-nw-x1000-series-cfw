@@ -11,8 +11,10 @@ from app_registry import ROOT
 from review_managed_remote_profile import receipt,private,digest
 parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--review',required=True);args=parser.parse_args()
 rp,review=receipt(args.review);path=private(review['artifact']);assert digest(path)==review['sha256'];raw=path.read_bytes();rows=[]
-for case in ('entry-unpaired','query-unavailable','entry-and-cancel','stock-selection',
-             'wireless-busy','wireless-restored','wireless-other-row'):
+cases=['entry-unpaired','query-unavailable','entry-and-cancel','startup-wait','stock-selection',
+       'wireless-busy','wireless-restored','wireless-other-row']
+if review.get('pairing_row'):cases+=['pairing-selection','pairing-keyboard-confirm','pairing-keyboard-cancel','pairing-peer-address','pairing-forget-yes','pairing-forget-no','pairing-select-yes','pairing-select-no']
+for case in cases:
  u=Uc(UC_ARCH_ARM,UC_MODE_ARM);u.mem_map(0x8000,0x1000000);u.mem_map(0x70000000,0x10000)
  for s in ELFFile(io.BytesIO(raw)).iter_segments():
   if s['p_type']=='PT_LOAD':u.mem_write(s['p_vaddr'],s.data())
@@ -20,7 +22,9 @@ for case in ('entry-unpaired','query-unavailable','entry-and-cancel','stock-sele
  put=lambda a,v:u.mem_write(a,struct.pack('<I',v&0xffffffff))
  word=lambda a:struct.unpack('<I',u.mem_read(a,4))[0]
  master=int(review['metadata_address'],16)
- assert bytes(u.mem_read(master,193*4))==bytes(u.mem_read(0x3f55d8,193*4))
+ current=bytearray(u.mem_read(master,193*4));original=bytes(u.mem_read(0x3f55d8,193*4))
+ if review.get('pairing_row'):current[154*4:155*4]=original[154*4:155*4]
+ assert bytes(current)==original
  original_desc=word(master+192*4);initializers=word(original_desc+20)
  startup=word(initializers) if initializers else 0
  initial_calls=[];requests=[];posts=[];delegated=[]
@@ -33,12 +37,22 @@ for case in ('entry-unpaired','query-unavailable','entry-and-cancel','stock-sele
    if case=='entry-unpaired':result=4321
    elif case=='query-unavailable' and operation==2:result=0x5752fffd
    elif operation in (1,2):result=0x57530001
+   elif case.startswith('pairing-keyboard-') and operation==4:result=0x57580000
+   elif case.startswith('pairing-keyboard-') and operation==7:result=0x57520000
+   elif (case=='pairing-peer-address' or case.startswith('pairing-select-')) and operation in (4,8,9,10):
+    result={4:0x57590000,8:0x59010002,9:0x59040302,10:0x57590000}[operation]
+   elif case.startswith('pairing-select-') and operation==12:result=0x57570000 if row==1 else 0x57520000
+   elif case.startswith('pairing-forget-') and operation in (4,11):
+    result=0x575a0000 if operation==4 else 0x57520000
+   elif case in ('startup-wait','pairing-selection') and operation==4:result=0x57570000
+   elif case=='startup-wait' and operation==5:result=0x5752fffc
    elif operation in (3,5):result=0x57520000
    elif operation==6:result=0x5752fffd if case=='wireless-busy' else 0x57520000
    else:raise AssertionError(values)
   elif pc==0x950f0:delegated.append(values[:3]);result=0x0202
   elif pc==0x7c8cc:delegated.append(values[:3]);result=0x5a02
   elif pc==0xa57f0:posts.append(values)
+  elif (case=='pairing-peer-address' or case.startswith('pairing-select-')) and pc==0x88654:pass
   elif pc in (0x17c42c,0x33b918):pass
   else:return
   cpu.reg_write(UC_ARM_REG_R0,result);cpu.reg_write(UC_ARM_REG_PC,cpu.reg_read(UC_ARM_REG_LR))
@@ -90,7 +104,59 @@ for case in ('entry-unpaired','query-unavailable','entry-and-cancel','stock-sele
   assert list(u.mem_read(context,2))==[194,1]
   assert posts==[[0x20106,0,29,1]] and requests==[[1,0],[2,0]]
   event(0x4a0116);assert list(u.mem_read(context,2))==[194,2]
-  event(0x4a0111,0);assert requests[-1]==[3,0]
+  selected=2 if case.startswith('pairing-') else 0
+  event(0x4a0111,selected);assert requests[-1]==[3,selected]
+  if case.startswith('pairing-select-'):
+   event(0x4a0119,0xff0000);assert list(u.mem_read(context,2))==[155,1]
+   event(0x4a0116);assert list(u.mem_read(context,2))==[155,2]
+   choice=1 if case.endswith('yes') else 2
+   event(0x4a012e,choice)
+   assert [12,choice] in requests,(case,requests)
+   assert list(u.mem_read(context,2))==([194,1] if choice==1 else [155,2])
+   rows.append(dict(case=case,request_operations=requests,final_state=list(u.mem_read(context,2))))
+   continue
+  if case.startswith('pairing-forget-'):
+   event(0x4a0119,0xff0000)
+   assert list(u.mem_read(context,2))==[194,3]
+   choice=1 if case.endswith('yes') else 2
+   event(0x4a012e,choice)
+   assert requests[-1]==[11,choice] and list(u.mem_read(context,2))==[194,2]
+   rows.append(dict(case=case,request_operations=requests,queued_pages=posts,final_state=[194,2]))
+   continue
+  if case=='pairing-peer-address':
+   event(0x4a0119,0xff0000)
+   assert list(u.mem_read(context,2))==[155,1]
+   destination=area+0x100
+   assert call(review['symbols']['wr_remote_page_mac'],[destination])==0
+   assert bytes(u.mem_read(destination,18))==b'02:00:01:02:03:04\0'
+   assert call(review['symbols']['wr_remote_page_mac_back'])==0xc201
+   assert requests[-3:]==[[8,0],[9,0],[10,0]]
+   rows.append(dict(case=case,request_operations=requests,queued_pages=posts,final_state=[194,1]))
+   continue
+  if case.startswith('pairing-keyboard-'):
+   event(0x4a0119,0xff0000)
+   assert list(u.mem_read(context,2))==[194,4]
+   cancelled=int(case.endswith('cancel'))
+   event(0x4a012d,cancelled)
+   assert requests[-1]==[7,cancelled] and posts[-1]==[0x20621,0,0,0]
+   assert list(u.mem_read(context,2))==[194,2]
+   rows.append(dict(case=case,request_operations=requests,queued_pages=posts,final_state=[194,2]))
+   continue
+  if case=='pairing-selection':
+   event(0x4a0119,0xff0000)
+   assert requests[-1]==[4,0] and list(u.mem_read(context,2))==[194,2]
+   event(0x4a0119,0xff0001)
+   assert requests[-1]==[5,0] and list(u.mem_read(context,2))==[2,1]
+   rows.append(dict(case=case,request_operations=requests,queued_pages=posts,final_state=[2,1]))
+   continue
+  if case=='startup-wait':
+   event(0x4a0119,0xff0000)
+   assert requests[-1]==[4,0] and list(u.mem_read(context,2))==[194,2]
+   event(0x4a0119,0xff0001)
+   assert requests[-1]==[5,0] and list(u.mem_read(context,2))==[194,2]
+   assert posts==[[0x20106,0,29,1]]
+   rows.append(dict(case=case,request_operations=requests,queued_pages=posts,final_state=[194,2]))
+   continue
   event(0x4a0119,0xff0001)
   assert posts[-1]==[0x20106,0,97,11] and list(u.mem_read(context,2))==[2,1]
   event(0x4a0116);assert list(u.mem_read(context,2))==[2,2]

@@ -1,10 +1,10 @@
 """Native Moma binding ABI/lifetime replay; database projection is modeled."""
 from pathlib import Path
-import hashlib,io,json,struct,subprocess
+import hashlib,io,json,struct,subprocess,sys,time
 from elftools.elf.elffile import ELFFile
 from unicorn import Uc,UC_ARCH_ARM,UC_MODE_ARM,UC_HOOK_CODE
 from unicorn.arm_const import UC_ARM_REG_R0,UC_ARM_REG_R1,UC_ARM_REG_R2,UC_ARM_REG_R3,UC_ARM_REG_SP,UC_ARM_REG_LR,UC_ARM_REG_PC
-ROOT=Path(__file__).resolve().parents[1];work=ROOT/'work/stock-media';work.mkdir(exist_ok=True)
+ROOT=Path(__file__).resolve().parents[1];work=ROOT/'work/stock-media'/str(time.time_ns());work.mkdir(parents=True,exist_ok=False)
 sources=['runtime/platform/player/stock_media.c','runtime/platform/player/stock_query.c','runtime/platform/player/query_snapshot.c','runtime/platform/player/media_text.c','runtime/platform/player/local_identity.c','runtime/platform/player/stock_image.c','runtime/native/sha256.c','tools/fixtures/stock_info_host.c'];artifact=work/'reader.arm'
 subprocess.run(['arm-linux-gnueabi-gcc','-std=c99','-Os','-Wall','-Wextra','-Werror','-Wno-misleading-indentation','-march=armv5te','-marm','-mfloat-abi=soft','-ffreestanding','-fno-builtin','-fno-pie','-fno-stack-protector','-nostdlib','-no-pie','-Wl,--build-id=none,-Ttext=0x50000000,-e,_start',*sources,'-lgcc','-o',str(artifact)],cwd=ROOT,check=True)
 stock=(ROOT/'work/targets-jp/SpiderApp').read_bytes();assert hashlib.sha256(stock).hexdigest()=='80b8870b02189443c41f62e8960124820ae999de21ba002e24fe17e9376cea85'
@@ -31,19 +31,108 @@ assert named_key('MOMA_LC_METADATA_KEY_TITLE_INITIAL')==0xfe130002
 assert named_key('MOMA_LC_METADATA_KEY_TITLE_SORTSTR')==0xfe130003
 helper=artifact.read_bytes();elf=ELFFile(io.BytesIO(helper));symbols={s.name:s['st_value'] for s in elf.get_section_by_name('.symtab').iter_symbols()}
 cases=[]
-for scenario in ('metadata-wrong-id','metadata-missing-object','probe-audio','probe-video','probe-nonmedia','probe-missing-field','probe-unwritten-type','probe-wrong-scalar','probe-wrong-id','probe-missing-object','snapshot-page','snapshot-page-child','snapshot-page-empty','snapshot-page-full','snapshot-page-error','snapshot-search','snapshot-domainall','snapshot-child','snapshot-bad-query','snapshot-bad-parent','snapshot-eof','snapshot-error','snapshot-domain-failure','invalid-id','invalid-parent','format3-lists','format3-children','format3-wrong-parent-id','format3-parent-tail','format3-wrong-parent','format3-missing-parent','format3-malformed','tracks','tracks-domain-failure','tracks-error','tracks-malformed','tracks-full','children','children-empty','children-error','children-malformed','children-full','utf16','utf8','missing-artist','truncated','malformed','oversized','repeat','inactive','invalid-token','missing-manager','connect-failure','client-allocation','id-allocation','query-failure','wrong-image','changed-code'):
+scenarios = (
+ 'metadata-wrong-id',
+ 'metadata-missing-object',
+ 'probe-audio',
+ 'probe-video',
+ 'probe-nonmedia',
+ 'probe-missing-field',
+ 'probe-unwritten-type',
+ 'probe-wrong-scalar',
+ 'probe-wrong-id',
+ 'probe-missing-object',
+ 'snapshot-page',
+ 'snapshot-page-child',
+ 'snapshot-page-empty',
+ 'snapshot-page-full',
+ 'snapshot-page-error',
+ 'snapshot-search',
+ 'snapshot-domainall',
+ 'snapshot-child',
+ 'snapshot-bad-query',
+ 'snapshot-bad-parent',
+ 'snapshot-eof',
+ 'snapshot-error',
+ 'snapshot-domain-failure',
+ 'invalid-id',
+ 'invalid-parent',
+ 'format3-lists',
+ 'format3-children',
+ 'format3-wrong-parent-id',
+ 'format3-parent-tail',
+ 'format3-wrong-parent',
+ 'format3-missing-parent',
+ 'format3-malformed',
+ 'tracks',
+ 'tracks-domain-failure',
+ 'tracks-error',
+ 'tracks-malformed',
+ 'tracks-full',
+ 'children',
+ 'children-empty',
+ 'children-error',
+ 'children-malformed',
+ 'children-full',
+ 'utf16',
+ 'utf8',
+ 'missing-artist',
+ 'truncated',
+ 'malformed',
+ 'oversized',
+ 'repeat',
+ 'inactive',
+ 'invalid-token',
+ 'missing-manager',
+ 'connect-failure',
+ 'client-allocation',
+ 'id-allocation',
+ 'query-failure',
+ 'wrong-image',
+ 'changed-code',
+ 'cover-jpeg',
+ 'cover-prefixed',
+ 'cover-legacy',
+ 'cover-fallback',
+ 'cover-native-eof',
+ 'cover-native-read-error',
+ 'cover-missing',
+ 'cover-wrong-id',
+ 'cover-read-error',
+ 'cover-too-large',
+ 'cover-thumb-type-fallback',
+ 'cover-thumb-read-fallback',
+ 'cover-thumb-partial-fallback',
+ 'cover-io-then-missing',
+ 'cover-clone-failure',
+ 'cover-invalid-count',
+ 'cover-native-thumb-error-fallback',
+)
+for scenario in scenarios:
+ if '--cover-only' in sys.argv and not scenario.startswith('cover-'):continue
  u=Uc(UC_ARCH_ARM,UC_MODE_ARM)
  for raw in (stock,helper):
   for segment in ELFFile(io.BytesIO(raw)).iter_segments():
    if segment['p_type']!='PT_LOAD':continue
    a=int(segment['p_vaddr']);base=a&~4095;u.mem_map(base,(a-base+int(segment['p_memsz'])+4095)&~4095);u.mem_write(a,segment.data())
- stack,area,done=0x70000000,0x71000000,0x72000000;u.mem_map(stack,65536);u.mem_map(area,131072);u.mem_map(done,4096)
+ stack,area,done=0x70000000,0x71000000,0x72000000;u.mem_map(stack,65536);u.mem_map(area,0x100000);u.mem_map(done,4096)
  context,identity,out,client,manager,native_id,object_,metadata,plugin,text=(area+x for x in (0,0x100,0x1000,0x2000,0x3000,0x4000,0x5000,0x6000,0x7000,0x8000))
  callback=done+0x100
+ blob,blob_table,clone,art_out=area+0xb000,area+0xb100,area+0xb200,area+0x30000
+ cover_bytes=(b'JPG' if scenario=='cover-prefixed' else b'')+b'\xff\xd8\xff\xe0'+bytes(range(256))*3
+ if scenario in ('cover-native-eof','cover-native-thumb-error-fallback') and '--cover-image' in sys.argv:
+  cover_bytes=Path(sys.argv[sys.argv.index('--cover-image')+1]).read_bytes();assert 3<=len(cover_bytes)<=524288
+ if scenario=='cover-legacy':cover_bytes=b'JPG\0'+cover_bytes
+ cover_key=[16];cover_keys=[]
+ if scenario=='cover-too-large':cover_bytes=b'\xff\xd8\xff'+bytes(524286)
+ cover_cursor=[0];clones=[0];native_eof=[0]
  child_list,list_table,child_id,child_impl,query,page_out=(area+x for x in (0x8600,0x8640,0x8800,0x8840,0x9000,0xa000))
  emitted=[0];list_live=[0];domain_live=[0];search_domain=area+0x8c00
  def put(a,v):u.mem_write(a,struct.pack('<I',v&0xffffffff))
  def get(a):return struct.unpack('<I',u.mem_read(a,4))[0]
+ put(blob,blob_table);put(clone,blob_table);put(blob_table,callback+24);put(blob_table+4,callback+16);put(blob_table+8,callback+20)
+ if scenario.startswith('cover-native-'):
+  put(blob_table+8,0x293f2c);put(clone+4,1);put(clone+8,0);put(clone+0x1010,77)
  put(0x6920c4,scenario!='inactive');put(0x692080,int(scenario in ('invalid-token','connect-failure')));put(0x692084,0 if scenario=='missing-manager' else manager)
  put(plugin+0x38,callback+4);put(plugin+0x30,callback+4);put(child_list,list_table);put(list_table,callback+12);put(list_table+12,callback+8);put(child_id,0x60fc60);put(child_id+4,child_impl);put(child_impl,1);put(child_impl+4,0);put(child_impl+8,0x124);put(object_+8,child_id)
  if scenario.startswith('probe-'):put(child_impl+8,0x124 if scenario=='probe-wrong-id' else 0x123)
@@ -60,6 +149,31 @@ for scenario in ('metadata-wrong-id','metadata-missing-object','probe-audio','pr
  def hook(uc,pc,size,data):
   if pc==done:uc.emu_stop();return
   def finish(value=0):uc.reg_write(UC_ARM_REG_R0,value);uc.reg_write(UC_ARM_REG_PC,uc.reg_read(UC_ARM_REG_LR))
+  if scenario.startswith('cover-native-'):
+   if pc==0x33c040:assert uc.reg_read(UC_ARM_REG_R0)==clone+0x1010;finish();return
+   if pc==0xd898:put(area+0xe000,5);finish(area+0xe000);return
+   if pc==0xe48c:
+    assert uc.reg_read(UC_ARM_REG_R0)==77
+    if scenario=='cover-native-read-error' or (scenario=='cover-native-thumb-error-fallback' and cover_key[0]==16):finish(0xffffffff);return
+    target,capacity=uc.reg_read(UC_ARM_REG_R1),uc.reg_read(UC_ARM_REG_R2)
+    chunk=cover_bytes[cover_cursor[0]:cover_cursor[0]+capacity]
+    if chunk:uc.mem_write(target,chunk)
+    cover_cursor[0]+=len(chunk);finish(len(chunk));return
+   if pc==0x293ff4 and uc.reg_read(UC_ARM_REG_R0)==0x220f:native_eof[0]+=1
+  if pc==callback+16:
+   if scenario=='cover-clone-failure':finish();return
+   assert uc.reg_read(UC_ARM_REG_R0)==blob and not clones[0];clones[0]=1;finish(clone);return
+  if pc==callback+24:
+   assert uc.reg_read(UC_ARM_REG_R0)==clone and clones[0];clones[0]=0;finish();return
+  if pc==callback+20:
+   assert uc.reg_read(UC_ARM_REG_R0)==clone and uc.reg_read(UC_ARM_REG_R1)==0 and clones[0]
+   target,capacity=uc.reg_read(UC_ARM_REG_R2),uc.reg_read(UC_ARM_REG_R3);count=get(uc.reg_read(UC_ARM_REG_SP))
+   if scenario=='cover-invalid-count':put(count,capacity+1);finish();return
+   if scenario=='cover-read-error' or (cover_key[0]==16 and (scenario in ('cover-thumb-read-fallback','cover-io-then-missing') or (scenario=='cover-thumb-partial-fallback' and cover_cursor[0]))):put(count,0);finish(0x106);return
+   source=b'not-an-image' if scenario=='cover-fallback' and cover_key[0]==16 else b'broken-thumbnail'*59 if scenario=='cover-thumb-partial-fallback' and cover_key[0]==16 else cover_bytes
+   chunk=source[cover_cursor[0]:cover_cursor[0]+capacity];put(count,len(chunk))
+   if chunk:uc.mem_write(target,chunk)
+   cover_cursor[0]+=len(chunk);finish();return
   if pc==0x297ce0:
    assert uc.reg_read(UC_ARM_REG_R0)==0xab8764 and not live['client']
    if scenario=='client-allocation':finish();return
@@ -76,7 +190,7 @@ for scenario in ('metadata-wrong-id','metadata-missing-object','probe-audio','pr
    mask=uc.reg_read(UC_ARM_REG_R3)
    if get(mask+4)==1:assert scenario.startswith('format3-') and get(get(mask))==2
    elif scenario.startswith('probe-'):assert get(mask+4)==2 and struct.unpack('<2I',uc.mem_read(get(mask),8))==(0,1)
-   else:assert get(mask+4)==3 and struct.unpack('<3I',uc.mem_read(get(mask),12))==(9,artist_key,album_key)
+   else:assert get(mask+4)==3 and struct.unpack('<3I',uc.mem_read(get(mask),12))==((16,17,18) if scenario.startswith('cover-') else (9,artist_key,album_key))
    assert not live['guard'];live['guard']=1;put(get(uc.reg_read(UC_ARM_REG_SP)),plugin);finish();return
   if pc==0x296464:
    name=b'moma-domain:MOMA_LC:DOMAINALL' if scenario=='snapshot-domainall' else b'moma-domain:MOMA_LC:FOLDERTREE'
@@ -135,6 +249,12 @@ for scenario in ('metadata-wrong-id','metadata-missing-object','probe-audio','pr
   if pc==0x2988f8 and scenario=='probe-unwritten-type' and uc.reg_read(UC_ARM_REG_R1)==0:finish();return
   if pc==0x298738:
    assert uc.reg_read(UC_ARM_REG_R0)==metadata;key=uc.reg_read(UC_ARM_REG_R1);kind=uc.reg_read(UC_ARM_REG_R2);dest=uc.reg_read(UC_ARM_REG_R3)
+   if scenario.startswith('cover-'):
+    assert key in (16,17,18) and kind==13
+    cover_key[0]=key;cover_cursor[0]=0;cover_keys.append(key)
+    if scenario=='cover-missing' or (scenario=='cover-io-then-missing' and key!=16):finish(0x2204);return
+    if scenario=='cover-thumb-type-fallback' and key==16:finish(0x2203);return
+    put(dest,blob);finish();return
    if scenario.startswith('probe-'):
     assert key in (0,1) and kind==9
     if scenario=='probe-missing-field' and key==1:finish(0x2204);return
@@ -218,6 +338,25 @@ for scenario in ('metadata-wrong-id','metadata-missing-object','probe-audio','pr
   assert not domain_live[0] and not list_live[0] and live=={'client':1,'id':0,'object':0,'guard':0}
   assert call('xw_stock_media_close',context)==0 and manager_refs[0]==1
   cases.append(dict(case=scenario,result=result,worker_error_cleanup=True));continue
+ if scenario.startswith('cover-'):
+  put(child_impl+8,0x124 if scenario=='cover-wrong-id' else 0x123)
+  assert call('xw_stock_media_artwork',context,identity,art_out)==-4
+  put(symbols['xw_test_thread'],18)
+  rc=call('xw_stock_media_artwork',context,identity,art_out)
+  expected={'cover-missing':-2,'cover-wrong-id':-5,'cover-read-error':-6,'cover-native-read-error':-6,'cover-too-large':-3,'cover-io-then-missing':-6,'cover-clone-failure':-6,'cover-invalid-count':-8}.get(scenario,0)
+  assert rc==expected,(scenario,rc)
+  if scenario.startswith('cover-thumb-'):assert cover_keys==[16,17],(scenario,cover_keys)
+  if scenario=='cover-native-thumb-error-fallback':assert cover_keys==[16,17] and native_eof[0]==1
+  if scenario=='cover-io-then-missing':assert cover_keys==[16,17,18]
+  if scenario in ('cover-clone-failure','cover-invalid-count'):assert cover_keys==[16]
+  if scenario=='cover-native-eof':assert native_eof[0]==1
+  if not rc:
+   expected_data=cover_bytes[4:] if scenario=='cover-legacy' else cover_bytes[3:] if scenario=='cover-prefixed' else cover_bytes
+   assert get(art_out+68)==len(expected_data) and bytes(u.mem_read(art_out+72,len(expected_data)))==expected_data
+   assert bytes(u.mem_read(art_out,65)).split(b'\0')[0]==id_text
+  assert not clones[0] and live=={'client':1,'id':0,'object':0,'guard':0}
+  assert call('xw_stock_media_close',context)==0 and manager_refs[0]==1
+  cases.append(dict(case=scenario,result=rc,balanced=True,original_blob_getter_clone_read_dispose=True,original_file_blob_and_fs_read=scenario.startswith('cover-native-'),native_eof=native_eof[0]));continue
  if scenario=='invalid-id':
   put(symbols['xw_test_thread'],18);u.mem_write(identity,b'invalid\0');assert call('xw_stock_media_fetch',context,identity,out)==-1
   assert call('xw_stock_media_close',context)==0 and not any(live.values()) and manager_refs[0]==1
@@ -265,8 +404,8 @@ for scenario in ('metadata-wrong-id','metadata-missing-object','probe-audio','pr
  put(symbols['xw_test_thread'],19);assert call('xw_stock_media_close',context)==-4
  put(symbols['xw_test_thread'],18);assert call('xw_stock_media_close',context)==0 and not any(live.values()) and manager_refs[0]==1
  cases.append(dict(case=scenario,result=rc,queries=len(queries),balanced=True))
-report=dict(passed=True,device_accessed=False,original_client_connect=True,original_metadata_registry_verified=True,original_manager_dispatch=True,original_text_getters=True,cases=cases,
- source_hashes={name:hashlib.sha256((ROOT/name).read_bytes()).hexdigest() for name in sources+['runtime/platform/player/stock_media.h','runtime/platform/player/media_text.h','tools/test_stock_media.py']},
+report=dict(passed=True,device_accessed=False,output_directory=work.relative_to(ROOT).as_posix(),original_client_connect=True,original_metadata_registry_verified=True,original_manager_dispatch=True,original_text_getters=True,cases=cases,
+ source_hashes={name:hashlib.sha256((ROOT/name).read_bytes()).hexdigest() for name in sources+['runtime/platform/player/stock_media.h','runtime/platform/player/artwork.h','runtime/platform/player/media_text.h','tools/test_stock_media.py']},
  limits=['Loader identity, pools, manager retain/release/provider guard, ID creation/disposal, domain lookup/disposal, media-object disposal, logging and database-projected values are modeled.',
          'Original connection-token/client/get-object/get-domain/get-children/search/list-next dispatch and typed enum/ustr/cstr getter instructions execute; source text and resource states are synthetic.',
          'No background worker, native database access, sleep/USB behavior or hardware integration is qualified.'])

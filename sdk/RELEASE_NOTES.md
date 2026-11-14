@@ -1,3 +1,22 @@
+# X1000 SDK 0.2.0-alpha.10 (unreleased)
+
+Storage checks cancellation both before and after the ownership callback. A
+pending backend stop or SIGTERM takes precedence over an affirmative callback;
+replacing the provider/context invalidates that operation's observation. This
+prevents a final rename after stop or ownership withdrawal. Default native
+ownership remains unknown, and no new device storage grant is introduced.
+
+Host tests exercise actual file publication; ARM tests use Sony's original libc
+and real SIGTERM delivery without filesystem/device access. Pocket Counter and
+Canvas Playground advance to alpha.4 for the new callback runtime/SDK identity.
+Other native-service application versions are retained.
+
+# X1000 SDK 0.2.0-alpha.9 (unreleased)
+
+Adds the client-only `player-managed-client` module for adopting, observing and
+ending a separately authorized player session. It does not install a provider,
+grant itself authority or supply a general background-task manager.
+
 # X1000 SDK0.2.0-alpha.8 (development)
 
 Exposes the explicit measured ESP-NOW CCMP profile through espnow-security:

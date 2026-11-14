@@ -56,7 +56,18 @@ def main():
    if path==block/'inputs.json':
     old=json.loads(path.read_text());new=json.loads(data)
     names={r['name']:r for r in new['files']}
-    if old.get('kernel_profile')==new['kernel_profile'] and old.get('source_package_sha256')==new['source_package_sha256'] and all(names.get(r['name'])==r for r in old['files']):
+    old_sha=old.get('source_package_sha256',old.get('package_sha256'))
+    if old.get('kernel_profile',new['kernel_profile'])==new['kernel_profile'] and old_sha==new['source_package_sha256']:
+     for row in old['files']:
+      name=row['name'];existing=block/name
+      if (Path(name).name!=name or existing.is_symlink() or not existing.is_file() or
+          sha(existing.read_bytes())!=row['sha256'] or
+          ('bytes' in row and existing.stat().st_size!=row['bytes']) or
+          (name in names and names[name]['sha256']!=row['sha256'])):
+       raise ValueError('Invalid existing kernel component: '+name)
+      names[name]=row
+     merged={**old,**new,'files':list(names.values())}
+     pending[path]=(json.dumps(merged,indent=2)+'\n').encode()
      refresh_manifests.add(path);continue
    raise ValueError('Different existing input: '+str(path))
  for path,data in pending.items():

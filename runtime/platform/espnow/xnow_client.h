@@ -41,6 +41,8 @@ int xnow_client_peer(struct xnow_client *,const struct xnow_client_peer *,int mo
 int xnow_client_delete(struct xnow_client *,const uint8_t address[6],uint32_t *request);
 int xnow_client_send(struct xnow_client *,const uint8_t destination[6],const void *,size_t,uint32_t *request);
 int xnow_client_request_stop(struct xnow_client *,uint32_t *request);
+/* Private pairing worker only. Never exported as a public radio operation. */
+int xnow_client_pairing_store(struct xnow_client *,int publish,const void *record,size_t bytes,uint32_t *request);
 /* One bounded nonblocking read OR write. OK means a staged event is available.
  * Peer/API results are event.result; TX completion is not an application ACK.
  * Too-small take capacity preserves event and outputs for an explicit retry. */

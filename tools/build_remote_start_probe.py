@@ -34,7 +34,7 @@ header = out/'remote_start_probe_profile.h'
 header.write_text(f'#define WR_PROBE_QUEUE_OFFSET {offset}u\n'
                   f'#define WR_PROBE_LIBRARY_BYTES {len(library)}u\n'
                   '#define WR_PROBE_LIBRARY_SHA256 {'+','.join('0x'+digest[i:i+2] for i in range(0,64,2))+'}\n')
-source = 'runtime/apps/diagnostics/remote_start_probe.c'
+source = 'tools/device_probes/remote_start_probe.c'
 binary = out/'remote-start-probe.arm'
 libs = stock_libraries()
 subprocess.run(['arm-linux-gnueabi-gcc','-std=c99','-Os','-Wall','-Wextra','-Werror',

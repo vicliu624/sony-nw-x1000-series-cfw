@@ -2,7 +2,6 @@
 import json
 import os
 from pathlib import Path
-import shutil
 import struct
 import subprocess
 import sys
@@ -18,7 +17,9 @@ def fixture():
 
 def main():
     ident='service-check-'+str(time.time_ns())[-10:]
-    definition=create(ident,'minimal','SDK Service Check')
+    out=ROOT/'work/sdk-service-tests'/ident
+    app_root=out/'client-source'
+    definition=create(ident,'minimal','SDK Service Check',app_root)
     (definition/'main.c').write_text((ROOT/'sdk/tests/services.c').read_text())
     (definition/'rgb-fixture.h').write_text(fixture())
     info=json.loads((definition/'app.json').read_text())
@@ -28,19 +29,14 @@ def main():
     (definition/'build.json').write_text(json.dumps({'profile':'native-services','sources':['main.c'],'checks':[['--help'],['--version'],['--selftest']]},indent=2)+'\n')
     # Generated service recipes still use the common SDK compiler entry, with a custom main.
     (definition/'build.py').write_text('from pathlib import Path\nimport sys\nsys.path.insert(0,str(Path(__file__).resolve().parents[3]/"tools"))\nfrom sdk_build import build\nif __name__=="__main__":build(Path(__file__).resolve().parent)\n')
-    out=ROOT/'work/sdk-service-tests'/ident
     env=dict(os.environ,QEMU_UNSET_ENV='LD_LIBRARY_PATH,LD_PRELOAD')
-    command=[sys.executable,'tools/sdk.py','build',ident,'--output',str(out)]
+    build=out/'compiled'
+    command=[sys.executable,'tools/sdk.py','--apps-root',str(app_root),'build',ident,'--output',str(build)]
     run=subprocess.run(command,cwd=ROOT,env=env,capture_output=True,text=True,timeout=180)
     if run.returncode:raise RuntimeError(run.stdout+run.stderr)
     from verify_app_package import verify
-    report=verify(out/'package');report.update({'native_service_profile':True,'hardware_accessed':False,'network_account_accessed':False})
-    # Keep the generated source and report only in work, not in the public app tree.
-    target=out/'client-source';shutil.copytree(definition,target)
-    for path in sorted(definition.rglob('*'),key=lambda p:len(p.parts),reverse=True):
-        if path.is_file():path.unlink()
-        elif path.is_dir():path.rmdir()
-    definition.rmdir()
+    report=verify(build/'package');report.update({'native_service_profile':True,'hardware_accessed':False,'network_account_accessed':False,
+        'source_definition':definition.relative_to(ROOT).as_posix(),'formal_app_tree_written':False})
     (out/'service-test.json').write_text(json.dumps(report,indent=2)+'\n')
     print(json.dumps(report,indent=2))
     # A full aggregate link can hide missing module edges. Check every service

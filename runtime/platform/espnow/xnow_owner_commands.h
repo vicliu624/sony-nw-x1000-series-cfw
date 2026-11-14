@@ -8,12 +8,16 @@
  * stop() must request full_control_stop(); its return is NOT restore completion.
  * This component does not load images, claim USB ownership or manage PN files. */
 enum {XNOW_OWNER_ADD=1,XNOW_OWNER_MODIFY=2,XNOW_OWNER_DELETE=3,
-      XNOW_OWNER_SEND=4,XNOW_OWNER_STOP=5};
+      XNOW_OWNER_SEND=4,XNOW_OWNER_STOP=5,XNOW_OWNER_PRIVATE_STAGE=6,XNOW_OWNER_PRIVATE_PUBLISH=7};
 #define XNOW_OWNER_HEADER 16u
 #define XNOW_OWNER_COMMAND_MAX (XNOW_OWNER_HEADER+6u+XNOW_ESPNOW_V2_MAX)
 struct xnow_owner_commands {
  void *context;struct xnow_endpoint *(*endpoint)(void *);void (*stop)(void *);
  uint32_t send_token;int sending,stopped;
+ unsigned restricted;
+ int (*allow_send)(const uint8_t destination[6],const uint8_t *,size_t);
+ int (*allow_receive)(const struct xnow_full_received *,const uint8_t *,size_t);
+ int (*private_request)(unsigned operation,const uint8_t *,size_t);
 };
 struct xnow_owner_completion {uint32_t request;struct xnow_endpoint_result result;};
 struct xnow_full_control;

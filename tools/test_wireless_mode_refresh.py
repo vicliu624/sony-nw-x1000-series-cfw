@@ -11,7 +11,9 @@ from app_registry import ROOT
 from review_managed_remote_profile import private,receipt,digest
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--firmware-review',help='Execute the exact callbacks and tables from a reviewed UPG')
+parser.add_argument('--two-choice',action='store_true',help='Build and replay the two-choice source callbacks')
 args=parser.parse_args()
+if args.two_choice and args.firmware_review:parser.error('packaged behavior is taken from its build review')
 out=ROOT/'work/wireless-mode-refresh'/str(time.time_ns());out.mkdir(parents=True)
 linker=out/'refresh.ld';binary=out/'refresh.arm'
 linker.write_text('''ENTRY(xw_wireless_native_confirm)
@@ -25,11 +27,14 @@ xw_mode_param_set = 0x10a0d4; xw_mode_post = 0xa57f0;
 xw_mode_parent = 0x7461c; xw_mode_index = 0x74608; xw_mode_category = 0x74668;
 ''')
 sources=['runtime/platform/wireless/native_callback.c','runtime/platform/wireless/native_mode_init.c']
-subprocess.run(['arm-linux-gnueabi-gcc','-std=c99','-Os','-Wall','-Wextra','-Werror','-march=armv5te','-marm','-mfloat-abi=soft','-ffreestanding','-fno-builtin','-fno-stack-protector','-fno-pie','-nostdlib','-no-pie','-Wl,--build-id=none,-T,'+str(linker),*sources,'-o',str(binary)],cwd=ROOT,check=True)
+flags=['-DXW_WIFI_STOCK_RETURN','-DXW_NATIVE_WIFI_CHOICES=2'] if args.two_choice else []
+subprocess.run(['arm-linux-gnueabi-gcc','-std=c99','-Os','-Wall','-Wextra','-Werror',*flags,'-march=armv5te','-marm','-mfloat-abi=soft','-ffreestanding','-fno-builtin','-fno-stack-protector','-fno-pie','-nostdlib','-no-pie','-Wl,--build-id=none,-T,'+str(linker),*sources,'-o',str(binary)],cwd=ROOT,check=True)
 helper=ELFFile(io.BytesIO(binary.read_bytes()));symbols={s.name:s['st_value'] for s in helper.get_section_by_name('.symtab').iter_symbols()}
 raw=(ROOT/'work/targets-jp/SpiderApp').read_bytes()
 assert hashlib.sha256(raw).hexdigest()=='80b8870b02189443c41f62e8960124820ae999de21ba002e24fe17e9376cea85'
 firmware_sha=None
+choices=2 if args.two_choice else 3
+stock_return=args.two_choice
 images=[ELFFile(io.BytesIO(raw)),helper]
 if args.firmware_review:
  from prepare_managed_firmware_review import unpack
@@ -39,15 +44,18 @@ if args.firmware_review:
  layout_path=next(name for name in review['inputs'] if '/player-system-layout/' in name)
  _,layout=receipt(layout_path)
  wireless=layout['host_build']['wireless_composition']
+ choices=wireless['initializer'].get('visible_choices',3)
+ stock_return=wireless.get('stock_completion_return',False)
  _,parts=unpack(path.read_bytes(),require_stock=False)
  with tarfile.open(fileobj=io.BytesIO(parts[3]),mode='r:gz') as archive:
   raw=archive.extractfile('./usr/local/lib/x1000-player/SpiderApp').read()
  assert hashlib.sha256(raw).hexdigest()==layout['host_build']['candidate_sha256']
  images=[ELFFile(io.BytesIO(raw))]
 rows=[]
-for selected,async_switch,sdk_pending,back_during_drain in (
-        (0,False,False,False),(1,False,False,False),(2,False,False,False),
-        (2,True,False,False),(2,False,True,False),(2,False,True,True)):
+last=choices-1
+cases=[(row,False,False,False) for row in range(choices)]
+cases.extend(((last,True,False,False),(last,False,True,False),(last,False,True,True)))
+for selected,async_switch,sdk_pending,back_during_drain in cases:
  u=Uc(UC_ARCH_ARM,UC_MODE_ARM);u.mem_map(0x8000,0x1000000);u.mem_map(0x50000000,0x10000);u.mem_map(0x70000000,0x10000)
  for image in images:
   for s in image.iter_segments():
@@ -128,12 +136,17 @@ for selected,async_switch,sdk_pending,back_during_drain in (
   assert call(0x17c608,[context,event,completion,arg])==0
   assert list(u.mem_read(context,2))==[90,1] and posts[-1]==[0x20106,0,123,0]
   assert requests==[[2,selected]]
+ if stock_return or async_switch:
+  assert list(u.mem_read(context,2))==[90,1] and posts[-1]==[0x20106,0,123,0]
+  assert call(0x17c608,[context,0x4a0116,0,0])==0
+  assert list(u.mem_read(context,2))==[90,2]
+  assert not any(p[:3]==[0x20106,0,29] for p in posts)
   # The user can reopen Wireless Mode from the parent after completion.
   # Invoke that page's original entry state directly to check its refresh.
   assert call(0x17c494,[context,193,0x3f55d8,154],1)==0
  assert list(u.mem_read(context,2))==[154,1]
  assert requests==[[2,selected]]*(2 if sdk_pending else 1)+[[5,0]]
- assert original==[0x88494] and count[0]==3
+ assert original==[0x88494] and count[0]==choices
  assert [p for p in posts if p[:3]==[0x20106,0,29]]==[[0x20106,0,29,selected]]
  assert posts[-1]==[0x20106,0,29,selected] and get(0x4ee5d8)==selected
  assert call(0x17c608,[context,0x4a0116,0,0])==0
@@ -144,7 +157,7 @@ for selected,async_switch,sdk_pending,back_during_drain in (
  assert call(0x17c608,[context,0x4a0116,0,0])==0
  assert list(u.mem_read(context,2))==[90,2]
  rows.append(dict(selected=selected,sdk_pending_selection_preserved=sdk_pending,stock_completion_group=completion,posts=posts,final_state=[90,2],choice_count=count[0],single_selector_draw_request=True,back_while_sdk_busy=False))
-report=dict(passed=True,cases=rows,firmware_sha256=firmware_sha,player_sha256=hashlib.sha256(raw).hexdigest(),device_accessed=False,firmware_created=False,
+report=dict(passed=True,cases=rows,visible_choices=choices,stock_completion_return=stock_return,firmware_sha256=firmware_sha,player_sha256=hashlib.sha256(raw).hexdigest(),device_accessed=False,firmware_created=False,
  source_hashes={p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in sources+['tools/test_wireless_mode_refresh.py']},
  limits=['Async case runs Sony completion actions and supplies the underlying power-service acknowledgements. Physical RF is unverified.',
          'Mode replies, NVP reads, widget properties, category leaves and ready-event delivery are fixtures; no physical rendering acceptance.'])

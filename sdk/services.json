@@ -143,36 +143,31 @@
     },
     "volume": {
       "sources": [
-        "runtime/apps/qqmusic/qqmusic_storage.c",
-        "runtime/apps/qqmusic/qqmusic_volume.c"
+        "runtime/platform/storage/qqmusic_storage.c",
+        "runtime/platform/storage/qqmusic_volume.c"
       ],
       "requires": [
         "abi"
       ],
       "exports": {
-        "volume.h": "runtime/apps/qqmusic/qqmusic_volume.h",
-        "volume_policy.h": "runtime/apps/qqmusic/qqmusic_storage.h"
+        "volume.h": "runtime/platform/storage/qqmusic_volume.h",
+        "volume_policy.h": "runtime/platform/storage/qqmusic_storage.h"
       }
     },
     "unicode-font": {
-      "sources": [
-        "runtime/apps/dictionary/dictionary.c"
-      ],
+      "sources": [],
       "requires": [
-        "abi"
+        "lexicon",
+        "bitmap-font"
       ],
       "exports": {
-        "unicode_font.h": "runtime/apps/dictionary/dictionary.h"
-      },
-      "inputs": [
-        "third_party/ebook-data/UNIFONT-LICENSE.txt",
-        "third_party/ebook-data/UNIFONT-OFL-1.1.txt"
-      ]
+        "unicode_font.h": "runtime/platform/text/dictionary_compat.h"
+      }
     },
     "images": {
       "sources": [
-        "runtime/apps/qqmusic/qqmusic_image.c",
-        "runtime/apps/qqmusic/qqmusic_picture.c"
+        "runtime/platform/images/qqmusic_image.c",
+        "runtime/platform/images/qqmusic_picture.c"
       ],
       "requires": [
         "abi"
@@ -185,7 +180,7 @@
         "work/stock-resolver-probe/libm.so.6"
       ],
       "exports": {
-        "images.h": "runtime/apps/qqmusic/qqmusic_image.h"
+        "images.h": "runtime/platform/images/qqmusic_image.h"
       },
       "inputs": [
         "third_party/qqmusic-stb/stb_image.h",
@@ -196,10 +191,10 @@
     },
     "audio-route": {
       "sources": [
-        "runtime/apps/fm-radio/fm_audio.c"
+        "runtime/platform/audio/fm_audio.c"
       ],
       "exports": {
-        "audio_route.h": "runtime/apps/fm-radio/fm_audio.h"
+        "audio_route.h": "runtime/platform/audio/fm_audio.h"
       }
     },
     "pcm": {
@@ -216,28 +211,29 @@
     },
     "fm": {
       "sources": [
-        "runtime/apps/fm-radio/fm_radio.c",
-        "runtime/apps/fm-radio/fm_si470x.c",
-        "runtime/apps/fm-radio/fm_session.c",
-        "runtime/apps/fm-radio/fm_posix.c",
-        "runtime/apps/fm-radio/fm_posix_io.c"
+        "runtime/platform/fm/fm_radio.c",
+        "runtime/platform/fm/fm_si470x.c",
+        "runtime/platform/fm/fm_session.c",
+        "runtime/platform/fm/fm_posix.c",
+        "runtime/platform/fm/fm_posix_io.c"
       ],
       "requires": [
         "audio-route"
       ],
       "exports": {
-        "fm_tuner.h": "runtime/apps/fm-radio/fm_si470x.h",
-        "fm_session.h": "runtime/apps/fm-radio/fm_session.h",
-        "fm_native.h": "runtime/apps/fm-radio/fm_posix.h"
+        "fm_tuner.h": "runtime/platform/fm/fm_si470x.h",
+        "fm_session.h": "runtime/platform/fm/fm_session.h",
+        "fm_native.h": "runtime/platform/fm/fm_posix.h",
+        "fm_model.h": "runtime/platform/fm/fm_radio.h"
       }
     },
     "system-info": {
       "sources": [
-        "runtime/apps/device-info/device_info_data.c",
-        "runtime/apps/device-info/device_info_space.c"
+        "runtime/platform/system-info/device_info_data.c",
+        "runtime/platform/system-info/device_info_space.c"
       ],
       "exports": {
-        "system_info.h": "runtime/apps/device-info/device_info_data.h"
+        "system_info.h": "runtime/platform/system-info/device_info_data.h"
       }
     },
     "network": {
@@ -512,8 +508,12 @@
       }
     },
     "espnow-client": {
-      "sources": ["runtime/platform/espnow/xnow_client.c"],
-      "requires": ["abi"],
+      "sources": [
+        "runtime/platform/espnow/xnow_client.c"
+      ],
+      "requires": [
+        "abi"
+      ],
       "exports": {
         "espnow_client.h": "runtime/platform/espnow/xnow_client.h"
       }
@@ -547,6 +547,32 @@
       ],
       "exports": {
         "player_managed.h": "runtime/platform/player/managed_client.h"
+      }
+    },
+    "bitmap-font": {
+      "sources": [
+        "runtime/platform/text/bitmap_font.c"
+      ],
+      "requires": [
+        "abi"
+      ],
+      "exports": {
+        "bitmap_font.h": "runtime/platform/text/bitmap_font.h"
+      },
+      "inputs": [
+        "third_party/ebook-data/UNIFONT-LICENSE.txt",
+        "third_party/ebook-data/UNIFONT-OFL-1.1.txt"
+      ]
+    },
+    "lexicon": {
+      "sources": [
+        "runtime/platform/text/lexicon.c"
+      ],
+      "requires": [
+        "abi"
+      ],
+      "exports": {
+        "lexicon.h": "runtime/platform/text/lexicon.h"
       }
     }
   }

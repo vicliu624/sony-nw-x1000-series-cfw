@@ -10,14 +10,20 @@ parser.add_argument('--catalog-trace',action='store_true',help='Delegate origina
 parser.add_argument('--ram-user-volume',action='store_true',help='Volatile FAT32 block for stock /contents mounting; no physical capacity/USB qualification')
 parser.add_argument('--remote-runtime-review',help='Stage exact reviewed owner/service and synthetic config in a new volatile guest volume')
 parser.add_argument('--mg-constructor-model',action='store_true',help='Guest-only MG open/mapping/empty constructor; all crypto/key operations refused')
+parser.add_argument('--layout-review',help='Fresh source system layout in a PC guest; no UPG generation or installation')
+parser.add_argument('--usb-transition-model',action='store_true',help='Guest-only UART USB connection events; no gadget or physical volume model')
+parser.add_argument('--ncan-wait-model',action='store_true',help='Guest-only idle NCAN wait/break; no noise-cancellation or sensor engine')
 options=parser.parse_args()
+if options.usb_transition_model:assert options.stock_home_fixture and options.interactive_guest and options.touch_serial
+if options.ncan_wait_model:assert options.stock_home_fixture and options.ncan_control_model
 if options.remote_runtime_review:assert options.ram_user_volume and options.firmware_review and options.interactive_guest
 if options.ram_user_volume:assert options.stock_home_fixture and options.ram_state_fixture and not options.live_manager_fixture
 if options.catalog_trace:assert options.stock_home_fixture and options.interactive_guest
 if options.mg_constructor_model:assert options.stock_home_fixture and options.interactive_guest
-if options.homebrew_roundtrip_fixture:assert options.firmware_review and options.interactive_guest and not options.live_manager_fixture
+if options.homebrew_roundtrip_fixture:assert (options.firmware_review or options.layout_review) and options.interactive_guest and not options.live_manager_fixture
 if options.japanese_model_fixture:assert options.stock_home_fixture and options.normal_boot_fixture and not options.stock_env_fallback_fixture
 if options.firmware_review:assert options.stock_home_fixture and options.stock_daemons and not options.player_stock_composition
+if options.layout_review:assert options.stock_home_fixture and options.stock_daemons and not options.player_stock_composition and not options.firmware_review
 if options.resident_fixture or options.missing_resident_fixture or options.resident_exit_fixture or options.resident_sdk_fixture:assert options.live_manager_fixture
 assert sum((options.resident_fixture,options.missing_resident_fixture,options.resident_exit_fixture,options.resident_sdk_fixture))<=1
 if options.resident_restart_fixture:assert options.resident_exit_fixture and not options.resident_exit_code
@@ -71,6 +77,7 @@ if options.ram_user_volume:
  user_inputs=verified_inputs();block_inputs += [AREA/'inputs.json',*user_inputs.values()]
 source=ROOT/'tools/fixtures/stock_manager_init.c';device_source=ROOT/'tools/fixtures/manager_device_preload.c'
 compiled_inputs=[Path(__file__),source,device_source,ROOT/'runtime/store/start.c',ROOT/'runtime/store/start.S']
+if options.interactive_guest:compiled_inputs += [ROOT/'tools/run_stock_gui.py',ROOT/'tools/qemu_monitor.py',ROOT/'tools/stock_usb_input.py']
 if options.display_touch_model:compiled_inputs.append(ROOT/'tools/fixtures/stock_display_touch_model.h')
 if options.touch_serial:compiled_inputs.append(ROOT/'tools/fixtures/stock_touch_serial.h')
 if options.silent_mixer_model:compiled_inputs.append(ROOT/'tools/fixtures/stock_silent_mixer_model.h')
@@ -78,11 +85,15 @@ if options.mg_constructor_model:compiled_inputs.append(ROOT/'tools/fixtures/stoc
 if options.interdsp_idle_model:compiled_inputs.append(ROOT/'tools/fixtures/stock_dsp_idle_model.h')
 if options.empty_media_registry:compiled_inputs.append(ROOT/'tools/fixtures/stock_empty_media_registry.c')
 if options.exit_trace:compiled_inputs.append(ROOT/'tools/fixtures/stock_exit_trace.c')
-if options.task_trace:compiled_inputs.append(ROOT/'tools/fixtures/stock_task_trace.h')
+if options.task_trace:compiled_inputs += [ROOT/'tools/fixtures/stock_task_trace.h',ROOT/'tools/fixtures/stock_player_binding_observer.h']
 if options.homebrew_roundtrip_fixture:compiled_inputs.append(ROOT/'tools/fixtures/stock_homebrew_roundtrip.c')
 if options.catalog_trace:compiled_inputs.append(ROOT/'tools/fixtures/stock_catalog_trace.c')
 if options.ram_user_volume:compiled_inputs.append(ROOT/'tools/stock_user_volume.py')
 if options.remote_runtime_review:compiled_inputs.append(ROOT/'tools/stock_remote_runtime.py')
+if options.layout_review:compiled_inputs.append(ROOT/'tools/stock_guest_layout.py')
+if options.usb_transition_model:
+ compiled_inputs += [ROOT/'tools/fixtures/stock_usb_connection_model.h',ROOT/'tools/fixtures/stock_usb_serial_model.h']
+if options.ncan_wait_model:compiled_inputs.append(ROOT/'tools/fixtures/stock_ncan_wait_model.h')
 compiled_source_hashes={p.relative_to(ROOT).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in compiled_inputs}
 flags=['-U_FORTIFY_SOURCE','-D_FORTIFY_SOURCE=0','-DHB_PROBE_SECONDS='+str(options.guest_seconds),'-march=armv5te','-marm','-mfloat-abi=soft','-nostdlib','-Wl,--hash-style=sysv']
 if options.player_bootstrap_fixture or options.player_stock_composition:flags.insert(0,'-DHB_PLAYER_BOOTSTRAP_FIXTURE')
@@ -98,6 +109,7 @@ if options.resident_fixture:flags.insert(0,'-DHB_RESIDENT_FIXTURE')
 if options.interactive_guest:flags.insert(0,'-DHB_GUI_INTERACTIVE')
 if options.display_touch_model:flags.insert(0,'-O2')
 if options.touch_serial:flags.insert(0,'-DHB_TOUCH_SERIAL')
+if options.usb_transition_model:flags.insert(0,'-DHB_USB_TRANSITION_MODEL')
 if options.silent_mixer_model:flags.insert(0,'-DHB_SILENT_MIXER_MODEL')
 if options.mg_constructor_model:flags.insert(0,'-DHB_MG_CONSTRUCTOR_MODEL')
 if options.task_trace:flags.insert(0,'-DHB_QEMU_TASK_TRACE')
@@ -105,6 +117,7 @@ if options.display_touch_model:flags.insert(0,'-DHB_DISPLAY_TOUCH_MODEL')
 if options.empty_media_registry:flags.insert(0,'-DHB_QEMU_INPUT')
 if options.ncan_open_probe:flags.insert(0,'-DHB_NCAN_OPEN_PROBE')
 if options.ncan_control_model:flags.insert(0,'-DHB_NCAN_CONTROL_MODEL')
+if options.ncan_wait_model:flags.insert(0,'-DHB_NCAN_WAIT_MODEL')
 if options.omf_ram_fixture:flags.insert(0,'-DHB_OMF_PARAM_RAM')
 if options.interdsp_open_probe:flags.insert(0,'-DHB_INTERDSP_OPEN_PROBE')
 if options.interdsp_idle_model:flags.insert(0,'-DHB_INTERDSP_IDLE_MODEL')
@@ -121,10 +134,15 @@ def add(name,data=b'',mode=stat.S_IFREG|0o755,major=0,minor=0):
  global inode
  encoded=name.encode()+b'\0';fields=[inode,mode,0,0,1,0,len(data),0,0,major,minor,len(encoded),0];inode+=1
  archive.extend(b'070701'+b''.join(('%08x'%n).encode() for n in fields)+encoded);archive.extend(b'\0'*(-len(archive)%4));archive.extend(data);archive.extend(b'\0'*(-len(archive)%4))
-stock_packed=None;firmware_input=None;firmware_app_list=None
+stock_packed=None;firmware_input=None;firmware_app_list=None;layout_metadata=None;layout_overlay={};layout_inputs=[];base_directories=set()
 if options.stock_home_fixture:
  stock_packed=ROOT/'work/upg-jp/verified-3.bin'
  assert hashlib.sha256(stock_packed.read_bytes()).hexdigest()=='c6307dba718f1faae821e0330b64532f13fe6ef98ff330a5919d7fb10525adf5'
+ if options.layout_review:
+  from stock_guest_layout import load_layout
+  root_bytes,firmware_app_list,layout_overlay,layout_metadata,layout_inputs=load_layout(options.layout_review)
+  compiled_source_hashes.update(layout_metadata['source_hashes'])
+  stock_packed=work/'analysis-layout-base.tar.gz';stock_packed.write_bytes(root_bytes)
  if options.firmware_review:
   import sys
   sys.path.insert(0,str(ROOT/'scripts'))
@@ -138,12 +156,14 @@ if options.stock_home_fixture:
   stock_packed=work/'reviewed-candidate-root.tar.gz';stock_packed.write_bytes(parts[3])
   with tarfile.open(stock_packed,'r:gz') as candidate:firmware_app_list=candidate.extractfile('./etc/AppList.conf').read()
  overrides={'init','etc/AppList.conf','usr/local/bin/sysmgrd','lib/ld-linux.so.3','lib/libc.so.6','lib/libpthread.so.0','lib/libresolv.so.2','lib/libdl.so.2'}
+ overrides.update(layout_overlay)
  if options.player_stock_composition:overrides.add('usr/local/bin/SpiderApp')
  with tarfile.open(stock_packed,'r:gz') as tar:
   for member in tar:
    name=member.name.removeprefix('./');assert not name.startswith('/') and '..' not in name.split('/')
    if name in overrides or name=='.':continue
-   if member.isdir():add(name,mode=stat.S_IFDIR|member.mode)
+   if member.isdir():
+    add(name,mode=stat.S_IFDIR|member.mode);base_directories.add(name.rstrip('/'))
    elif member.isfile():add(name,tar.extractfile(member).read(),stat.S_IFREG|member.mode)
    elif member.issym():add(name,member.linkname.encode(),stat.S_IFLNK|member.mode)
    elif member.islnk():add(name,tar.extractfile(member).read(),stat.S_IFREG|member.mode)
@@ -156,6 +176,7 @@ if options.empty_media_registry:
  add('dev/zero',mode=stat.S_IFCHR|0o666,major=1,minor=5)
  add('dev/fb0',mode=stat.S_IFCHR|0o600,major=29,minor=0)
  if options.touch_serial:add('dev/ttyAMA1',mode=stat.S_IFCHR|0o600,major=204,minor=65)
+ if options.usb_transition_model:add('dev/ttyAMA2',mode=stat.S_IFCHR|0o600,major=204,minor=66)
  add('dev/input',mode=stat.S_IFDIR|0o755)
  add('dev/input/event0',mode=stat.S_IFCHR|0o600,major=13,minor=64)
 if options.normal_boot_fixture:
@@ -180,8 +201,21 @@ if options.ram_state_fixture:
  add('fixture-var.ext2',state.read_bytes(),stat.S_IFREG|0o600)
 for name,path in user_inputs.items():
  if name.endswith('.ko'):add(name,path.read_bytes())
+if options.usb_transition_model:
+ seed=struct.pack('<5I',0,0x31555342,0,0,0)
+ add('tmp/guest-usb-transition.bin',seed+bytes(4096-len(seed)),stat.S_IFREG|0o600)
 add('init',init.read_bytes());add('usr/local/bin/sysmgrd',manager.read_bytes());add('lib/manager-devices.so',devices.read_bytes())
-additional=[]
+additional=list(layout_inputs)
+layout_directories=set()
+for name in layout_overlay:
+ parent=name.rsplit('/',1)[0] if '/' in name else ''
+ while parent:
+  if parent not in base_directories:layout_directories.add(parent)
+  parent=parent.rsplit('/',1)[0] if '/' in parent else ''
+for name in sorted(layout_directories,key=lambda s:(s.count('/'),s)):add(name,mode=stat.S_IFDIR|0o755)
+for name,(data,mode) in layout_overlay.items():
+ if name=='etc/AppList.conf':continue
+ add(name,data,stat.S_IFREG|mode)
 configuration=stock/'etc/AppList.conf'
 if firmware_app_list is not None:
  configuration=work/'AppList.conf';configuration.write_bytes(firmware_app_list)
@@ -309,15 +343,24 @@ if options.touch_serial:
   with socket.socket(socket.AF_INET,socket.SOCK_STREAM) as reservation:
    reservation.bind(('127.0.0.1',0));touch_port=reservation.getsockname()[1]
  command+=['-serial','tcp:127.0.0.1:'+str(touch_port)+',server=on,wait=off']
-(work/'launch.json').write_text(json.dumps(dict(command=command,monitor_port=monitor_port,touch_port=touch_port,physical_device_access=False),indent=2)+'\n')
+usb_port=None
+if options.usb_transition_model:
+ while usb_port is None or usb_port in (monitor_port,touch_port):
+  with socket.socket(socket.AF_INET,socket.SOCK_STREAM) as reservation:
+   reservation.bind(('127.0.0.1',0));usb_port=reservation.getsockname()[1]
+ command+=['-serial','tcp:127.0.0.1:'+str(usb_port)+',server=on,wait=off']
+(work/'launch.json').write_text(json.dumps(dict(command=command,monitor_port=monitor_port,touch_port=touch_port,usb_port=usb_port,physical_device_access=False),indent=2)+'\n')
 if options.prepare_only:
  prepared=dict(prepared=True,command=command,monitor_port=monitor_port,touch_port=touch_port,
   runtime_library_path=str(extract/'usr/lib/x86_64-linux-gnu'),physical_device_access=False,
   interactive_guest=options.interactive_guest,gui_input_verified=False,ready_to_flash=False,
   compiled_source_hashes=compiled_source_hashes,
   firmware_sha256=firmware_input['sha256'] if firmware_input else None,
+  analysis_layout=layout_metadata,
   settings_layout_fixture='primary' if options.japanese_model_fixture else 'secondary' if options.stock_env_fallback_fixture else None,
   homebrew_roundtrip_fixture=options.homebrew_roundtrip_fixture,
+  usb_transition_model=options.usb_transition_model,usb_port=usb_port,
+  ncan_wait_model=options.ncan_wait_model,
   catalog_trace=options.catalog_trace,
   mg_constructor_model=options.mg_constructor_model,
   mg_crypto_or_authentication_modelled=False,

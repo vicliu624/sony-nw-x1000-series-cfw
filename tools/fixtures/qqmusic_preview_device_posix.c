@@ -1,6 +1,6 @@
 #define _XOPEN_SOURCE 700
 #include "../../runtime/apps/qqmusic/qqmusic_preview_device_posix.h"
-#include "../../runtime/apps/fm-radio/fm_audio.h"
+#include "../../runtime/platform/audio/fm_audio.h"
 #include <assert.h>
 #include <string.h>
 #include <stdarg.h>

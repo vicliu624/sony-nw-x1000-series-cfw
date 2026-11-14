@@ -1,5 +1,38 @@
 # System footprint and slimming assessment
 
+## Reviewed root layout model
+
+The reviewed link-key/retirement layout adds **599,867 bytes of regular file
+content** over Japanese Sony 1.11. In a complete ext2 allocation model, its
+increment is **647,168 bytes (632 KiB)**. The latter includes directory, inode
+and indirect-block allocation; compressed UPG size is a separate measurement.
+
+| Ordinary 148 MiB model file | Original Sony root | Current analysis layout |
+| --- | ---: | ---: |
+| Allocated filesystem blocks, including metadata | 118,374,400 bytes | 119,021,568 bytes |
+| Reserved space | 7,757,824 bytes | 7,757,824 bytes |
+| Free space after reserved blocks | 29,057,024 bytes | 28,409,856 bytes (about 27.09 MiB) |
+| Used inodes | 1,442 | 1,454 |
+
+`tools/measure_layout_ext2.py` verifies the complete capacity/layout receipts,
+original NAND partition definition, original formatter and its Sony library
+closure. It formats new ordinary files with Sony's BusyBox under ARM user
+emulation, populates the whole tree with host debugfs, allocates zero-filled
+regular-file blocks and runs read-only e2fsck. It independently reads back every
+regular file, inode mode/owner/mtime and symlink target. This model
+verified 1,079 original and 1,089 candidate regular files. No image is mounted.
+Reports, images, commands and hashes remain in ignored `work/`.
+
+This is a reproducible PC capacity result, not a physical free-space measurement
+or permission to flash. Host debugfs substitutes for Sony's kernel/tar extraction;
+the static 148 MiB definition does not qualify actual NAND geometry, bad blocks,
+installation, recovery or the outstanding lifecycle regressions. The current
+layout is not an updater package. The model includes the opt-in link-key owner,
+shared-retirement ordering fix and matching parent library. Further component
+changes require a new complete review; component file size alone is insufficient.
+
+## Physical measurements and slimming candidates
+
 Read-only device measurements found a148MiB root partition, with ext2 filesystem
 total146784KiB, used110884KiB and ordinary available28324KiB (about27.7MiB).
 The system is read-only; this review did not delete, remount, stop or replace it.

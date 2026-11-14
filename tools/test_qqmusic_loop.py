@@ -18,11 +18,11 @@ pixels=bytearray()
 for y in range(87):pixels.append(0);pixels.extend(0 if matrix[y//3][x//3] else 255 for x in range(87))
 png=b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',struct.pack('>IIBBBBB',87,87,8,0,0,0,0))+chunk(b'IDAT',zlib.compress(pixels))+chunk(b'IEND',b'')
 modules=('session','protocol','json','credential','catalog','cgi','cookie','http','response','login','app','resource','export','ui','image','runtime','identity','qimei','tls','network','loop')
-sources=['runtime/apps/qqmusic/qqmusic_'+name+'.c' for name in modules]
+sources=[('runtime/platform/images/' if name in ('image','picture') else 'runtime/apps/qqmusic/')+'qqmusic_'+name+'.c' for name in modules]
 sources+=['runtime/store/'+name+'.c' for name in ('https_url','resolver','connect_step','socket_step','tls_socket_step','deadline','tls_platform','stock_tls_compat','stock_fs_bridge','stock_stat64','start')]
 sources+=['runtime/store/start.S','runtime/native/sha256.c','tools/fixtures/qqmusic_loop.c']
 if options.entry_boot:sources[-1]='tools/fixtures/qqmusic_entry_boot.c'
-if options.devices:sources+=['runtime/apps/qqmusic/qqmusic_'+name+'.c' for name in ('devices','entry','program','asset','volume','storage')]+['runtime/native/linux_devices.c','runtime/native/frontend.c']
+if options.devices:sources+=[('runtime/platform/storage/' if name in ('volume','storage') else 'runtime/apps/qqmusic/')+'qqmusic_'+name+'.c' for name in ('devices','entry','program','asset','volume','storage')]+['runtime/native/linux_devices.c','runtime/native/frontend.c']
 if options.entry_boot:sources+=['runtime/apps/qqmusic/qqmusic_'+name+'.c' for name in ('source','output','directory','stage','stage_volume')]
 app=work/'loop-tests.arm'
 subprocess.run(['arm-linux-gnueabi-gcc','-std=c99','-Os','-Wall','-Wextra','-Werror','-DHB_STORE_LIBC_CLOCK','-DHB_STORE_SONY_LIBC',

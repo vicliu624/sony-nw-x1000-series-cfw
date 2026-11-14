@@ -19,6 +19,29 @@
     "pet",
     "qqcheck"
   ],
+  "source_relocations": {
+    "runtime/apps/device-info/device_info_data.c": "runtime/platform/system-info/device_info_data.c",
+    "runtime/apps/device-info/device_info_data.h": "runtime/platform/system-info/device_info_data.h",
+    "runtime/apps/device-info/device_info_space.c": "runtime/platform/system-info/device_info_space.c",
+    "runtime/apps/qqmusic/qqmusic_storage.c": "runtime/platform/storage/qqmusic_storage.c",
+    "runtime/apps/qqmusic/qqmusic_storage.h": "runtime/platform/storage/qqmusic_storage.h",
+    "runtime/apps/qqmusic/qqmusic_volume.c": "runtime/platform/storage/qqmusic_volume.c",
+    "runtime/apps/qqmusic/qqmusic_volume.h": "runtime/platform/storage/qqmusic_volume.h",
+    "runtime/apps/qqmusic/qqmusic_image.c": "runtime/platform/images/qqmusic_image.c",
+    "runtime/apps/qqmusic/qqmusic_image.h": "runtime/platform/images/qqmusic_image.h",
+    "runtime/apps/qqmusic/qqmusic_picture.c": "runtime/platform/images/qqmusic_picture.c",
+    "runtime/apps/fm-radio/fm_audio.c": "runtime/platform/audio/fm_audio.c",
+    "runtime/apps/fm-radio/fm_audio.h": "runtime/platform/audio/fm_audio.h",
+    "runtime/apps/fm-radio/fm_radio.c": "runtime/platform/fm/fm_radio.c",
+    "runtime/apps/fm-radio/fm_radio.h": "runtime/platform/fm/fm_radio.h",
+    "runtime/apps/fm-radio/fm_si470x.c": "runtime/platform/fm/fm_si470x.c",
+    "runtime/apps/fm-radio/fm_si470x.h": "runtime/platform/fm/fm_si470x.h",
+    "runtime/apps/fm-radio/fm_session.c": "runtime/platform/fm/fm_session.c",
+    "runtime/apps/fm-radio/fm_session.h": "runtime/platform/fm/fm_session.h",
+    "runtime/apps/fm-radio/fm_posix.c": "runtime/platform/fm/fm_posix.c",
+    "runtime/apps/fm-radio/fm_posix.h": "runtime/platform/fm/fm_posix.h",
+    "runtime/apps/fm-radio/fm_posix_io.c": "runtime/platform/fm/fm_posix_io.c"
+  },
   "preserve_installed_payload": true,
   "user_report": "Previous local app builds passed on the user unit; exact personal package identities not supplied.",
   "excluded_in_progress": "ESP-NOW work is explicitly excluded by the user for this migration.",
@@ -31,5 +54,17 @@
       "commit": "1d4ba7e7a3e18f364711e88ae1cb1ac3ae490456",
       "reason": "Version 0.1.0-dev.22 intentionally derives a stable connection code from the personal pairing identity."
     }
+  },
+  "source_refactors": {
+    "runtime/apps/dictionary/dictionary.c": [
+      "runtime/platform/text/asset_io.h",
+      "runtime/platform/text/lexicon.c",
+      "runtime/platform/text/bitmap_font.c"
+    ],
+    "runtime/apps/dictionary/dictionary.h": [
+      "runtime/platform/text/dictionary_compat.h",
+      "runtime/platform/text/bitmap_font.h",
+      "runtime/platform/text/lexicon.h"
+    ]
   }
 }

@@ -14,6 +14,8 @@
 #include <dirent.h>
 #ifdef HB_QEMU_TASK_TRACE
 #include "stock_task_trace.h"
+/* Modern headers can inline atoi through __isoc23_strtol. Bind the stock ABI. */
+extern unsigned long guest_process_strtoul(const char *,char **,int) __asm__("strtoul");
 #endif
 static int numeric_name(const char *s){if(!*s)return 0;for(;*s;s++)if(*s<'0'||*s>'9')return 0;return 1;}
 static void report_tasks(void){
@@ -24,17 +26,41 @@ static void report_tasks(void){
   while((t=readdir(tasks)))if(numeric_name(t->d_name)){
    char path[150],name[64]="?",wait[100]="?";FILE *file;
    snprintf(path,sizeof path,"%s/%.10s/comm",directory,t->d_name);file=fopen(path,"r");if(file){if(!fgets(name,sizeof name,file))strcpy(name,"?");fclose(file);}
+   if(name[0]=='?'){
+    /* The pinned 2.6.32 guest predates per-task comm files. */
+    snprintf(path,sizeof path,"%s/%.10s/stat",directory,t->d_name);file=fopen(path,"r");
+    if(file){char stat_line[512];if(fgets(stat_line,sizeof stat_line,file)){
+     char *begin=strchr(stat_line,'('),*end=strrchr(stat_line,')');
+     if(begin&&end&&end>begin&&(size_t)(end-begin-1)<sizeof name){
+      size_t length=(size_t)(end-begin-1);memcpy(name,begin+1,length);name[length]=0;
+     }
+    }fclose(file);}
+   }
    snprintf(path,sizeof path,"%s/%.10s/wchan",directory,t->d_name);file=fopen(path,"r");if(file){if(!fgets(wait,sizeof wait,file))strcpy(wait,"?");fclose(file);}
    name[strcspn(name,"\r\n")]=0;wait[strcspn(wait,"\r\n")]=0;
    printf("GUEST_TASK pid=%s tid=%s name=%s wait=%s\n",p->d_name,t->d_name,name,wait);
   }
   closedir(tasks);
 #ifdef HB_QEMU_TASK_TRACE
-  if(task_trace_ready)trace_stock_task(atoi(p->d_name));
+  if(task_trace_ready)trace_stock_task((int)guest_process_strtoul(p->d_name,0,10));
 #endif
  }
  closedir(procs);
 }
+#if defined(HB_USB_TRANSITION_MODEL) && defined(HB_QEMU_TASK_TRACE)
+static void report_usb_change(unsigned tick){
+ static unsigned last_status,observe_at;
+ unsigned words[5];int fd=open("/tmp/guest-usb-transition.bin",O_RDONLY);
+ if(fd<0)return;ssize_t bytes=read(fd,words,sizeof words);close(fd);
+ if(bytes!=sizeof words||words[1]!=0x31555342u)return;
+ if(words[2]!=last_status){last_status=words[2];observe_at=tick+100;}
+ if(observe_at&&tick>=observe_at){
+  observe_at=0;task_trace_ready=1;
+  printf("GUEST_USB_TASK_OBSERVATION status=%u scheduling_paused=1\n",last_status);
+  report_tasks();
+ }
+}
+#endif
 #endif
 #ifndef HB_PROBE_SECONDS
 #define HB_PROBE_SECONDS 5
@@ -122,6 +148,9 @@ int main(void){
 #endif
  i++){
 #ifdef HB_QEMU_INPUT
+#if defined(HB_USB_TRANSITION_MODEL) && defined(HB_QEMU_TASK_TRACE)
+  if(i%10==0)report_usb_change(i);
+#endif
 #ifdef HB_QEMU_TASK_TRACE
   if(i==1000)task_trace_ready=1;
 #endif

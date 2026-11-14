@@ -4,7 +4,13 @@ import argparse,re
 from pathlib import Path
 from app_registry import ROOT
 from player_arm_guest import stock_libraries
-parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--window-seconds',type=int,choices=(60,180),default=60);parser.add_argument('--power-off-exit',action='store_true');parser.add_argument('--mode-view-required',action='store_true');parser.add_argument('--managed-session',action='store_true');parser.add_argument('--data-leaf',default='espnow-test',help='Single directory under /contents/HOMEBREW/data; existing keys/counters are never copied or reset');options=parser.parse_args()
+from generate_espnow_full_profile import render as render_radio_profile
+from owner_native_profile import render as render_native_profile
+parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--window-seconds',type=int,choices=(60,180),default=60);parser.add_argument('--power-off-exit',action='store_true');parser.add_argument('--mode-view-required',action='store_true');parser.add_argument('--managed-session',action='store_true');parser.add_argument('--root-cold',action='store_true');parser.add_argument('--data-leaf',default='espnow-test',help='Single directory under /contents/HOMEBREW/data; existing keys/counters are never copied or reset');parser.add_argument('--rx-diagnostic-radio',type=Path);parser.add_argument('--link-keys',action='store_true',help='Opt-in authenticated peer-key epochs; no static-key journal reset');options=parser.parse_args()
+if options.root_cold and not options.managed_session:parser.error('--root-cold requires --managed-session')
+if options.rx_diagnostic_radio and not options.root_cold:parser.error('--rx-diagnostic-radio requires --root-cold')
+if options.link_keys and (not options.managed_session or not options.root_cold or options.data_leaf!='wireless-remote'):
+ parser.error('--link-keys requires the managed root profile and wireless-remote binding')
 if not re.fullmatch(r'[a-z][a-z0-9-]{0,47}',options.data_leaf):parser.error('Data leaf must be a single lowercase application directory')
 if options.mode_view_required and not options.power_off_exit:parser.error('Mode-view owner requires power-off-exit profile')
 if options.managed_session and (not options.mode_view_required or '--window-seconds' in sys.argv):parser.error('Managed session requires mode-view-required and no finite window argument')
@@ -15,9 +21,21 @@ sdk=ROOT/'work/espnow-native-library'/version/'sdk';receipt=json.loads((sdk/'bui
 archive=sdk/'lib/libxnow.a';assert digest(archive)==receipt['archive_sha256']
 for p,h in receipt['source_hashes'].items():assert digest(ROOT/p)==h,p
 crypto=ROOT/'work/external-tls-probe/arm-build/libbearssl.a';assert digest(crypto)==receipt['bearssl_archive_sha256']
-review=ROOT/'work/espnow-full-radio-review-3';manifest=json.loads((review/'manifest.json').read_text())
-assert digest(review/'candidate/sd8686.bin')==manifest['candidate_sha256']=='d4b92b65fa502e2c8c94d241e4a293e28db7e98a3afdba0958d8b4f8aa1a5ed8'
-assert digest(review/'radio.elf')==manifest['payload_elf_sha256']=='6918e3996088ebd99924e8c7039ad6ed26555aa3b0c411f2b9f765334c2218df'
+review=ROOT/'work/espnow-full-radio-review-3'
+if options.rx_diagnostic_radio:
+    review=(ROOT/options.rx_diagnostic_radio).resolve()
+    if not review.is_relative_to(ROOT/'work'):raise ValueError('Use a local radio build under work')
+manifest=json.loads((review/'manifest.json').read_text())
+assert digest(review/'candidate/sd8686.bin')==manifest['candidate_sha256']
+assert digest(review/'radio.elf')==manifest['payload_elf_sha256']
+if options.rx_diagnostic_radio:
+    profile=render_radio_profile(review)
+    if not manifest.get('rx_diagnostics') or 'XNOW_RADIO_RX_SEEN' not in profile:
+        raise ValueError('Expected an exact-image RX diagnostic profile')
+    (out/'full_profile.h').write_text(profile)
+else:
+    assert manifest['candidate_sha256']=='d4b92b65fa502e2c8c94d241e4a293e28db7e98a3afdba0958d8b4f8aa1a5ed8'
+    assert manifest['payload_elf_sha256']=='6918e3996088ebd99924e8c7039ad6ed26555aa3b0c411f2b9f765334c2218df'
 prepared=ROOT/'work/autonomous-espnow-test';stock=ROOT/'work/espnow-stock-reload-lab'
 assert digest(prepared/'full_profile.h')=='87dd58336a0e24bf73ca3d598afb73505878b5fcaec6ea43520d9a93fc567369'
 assert digest(prepared/'exchange_inputs.h')=='ab9cdc6bfb0679576aacba088bb689f2fdfa4e02181286a803d7a8b0392552f4'
@@ -26,16 +44,25 @@ data_directory='/contents/HOMEBREW/data/'+options.data_leaf
 exchange_header=(prepared/'exchange_inputs.h').read_text()
 assert exchange_header.count('/contents/HOMEBREW/data/espnow-test/candidate/')==2
 (out/'exchange_inputs.h').write_text(exchange_header.replace('/contents/HOMEBREW/data/espnow-test/candidate/',data_directory+'/candidate/'))
+(out/'native_inputs.h').write_text(render_native_profile(
+    (stock/'stock_reload_inputs.h').read_text(encoding='utf-8'),
+    (out/'exchange_inputs.h').read_text(encoding='utf-8')), encoding='utf-8')
+if options.managed_session:
+    radio=review/'candidate/sd8686.bin'
+    sha=manifest['candidate_sha256']
+    (out/'shared_wifi_input.h').write_text('static const struct xnow_native_file shared_wifi_radio_input={"/lib/modules/sd8686.bin",'+
+        str(radio.stat().st_size)+',{'+','.join('0x'+sha[i:i+2] for i in range(0,64,2))+'}};\n')
 libs=stock_libraries(include_rt=options.mode_view_required);cnmgr=ROOT/'work/stock-resolver-probe/libcnmgr.so.1'
 assert digest(cnmgr)=='688e09dded18c621dba0bf6f0c2bd9088cd495988a3e3e7dadb0a928efd1aac1'
-sources=['runtime/apps/espnow-test/remote_owner.c','runtime/apps/espnow-test/runner.c','runtime/apps/espnow-test/detached.c']
+sources=['runtime/apps/wireless-remote/rf_owner.c','runtime/platform/espnow/native_environment.c']
+if options.managed_session:sources+=['runtime/apps/wireless-remote/run_profile.c','runtime/apps/wireless-remote/pairing_store.c']
 sources+=['runtime/platform/espnow/'+n+'.c' for n in ('xnow_owner_gate','xnow_owner_runtime','xnow_owner_stream','xnow_owner_commands','xnow_owner_commands_control','xnow_handoff_owner','xnow_loader_job')]
 sources+=['runtime/store/start.c','runtime/store/start.S']
 if options.power_off_exit:sources+=['runtime/apps/wireless-remote/radio_stop.c','runtime/platform/wireless/radio_release.c','runtime/platform/espnow/xnow_power_off.c','runtime/platform/wireless/radio_modules.c']
 if options.mode_view_required:sources+=['runtime/apps/wireless-remote/owner_admission.c','runtime/platform/wireless/mode_client.c','runtime/platform/wireless/mode_channel.c','runtime/platform/wireless/mode_policy.c','runtime/store/stock_fs_bridge.c','runtime/store/stock_stat64.c','runtime/store/deadline.c']
 flags=['-std=c99','-Os','-Wall','-Wextra','-Werror','-Wno-unused-function','-Wno-misleading-indentation','-D_DEFAULT_SOURCE=','-DHB_STORE_SONY_LIBC',
        '-DXNOW_REMOTE_WINDOW_MS='+str(options.window_seconds*1000)+'u',
-       '-DXNOW_CANDIDATE_DIRECTORY="'+data_directory+'/candidate"','-DXNOW_USER_DATA_LEAF="'+options.data_leaf+'"','-U_FORTIFY_SOURCE','-D_FORTIFY_SOURCE=0',
+       '-DXNOW_CANDIDATE_DIRECTORY="'+('/lib/modules' if options.root_cold else data_directory+'/candidate')+'"','-DXNOW_USER_DATA_LEAF="'+options.data_leaf+'"','-U_FORTIFY_SOURCE','-D_FORTIFY_SOURCE=0',
        '-march=armv5te','-marm','-mfloat-abi=soft','-fno-builtin','-fno-pie','-fno-stack-protector','-nostdlib','-no-pie',
        '-Wl,--hash-style=sysv,--build-id=none,-E','-Wl,--dynamic-linker=/lib/ld-linux.so.3',
        '-I'+str(out),'-I'+str(prepared),'-I'+str(ROOT/'runtime/platform/espnow'),'-I'+str(stock),
@@ -43,6 +70,8 @@ flags=['-std=c99','-Os','-Wall','-Wextra','-Werror','-Wno-unused-function','-Wno
 if options.power_off_exit:flags+=['-DXNOW_REMOTE_POWER_OFF']
 if options.mode_view_required:flags+=['-DXNOW_REMOTE_MODE_VIEW','-DHB_STORE_LIBC_CLOCK']
 if options.managed_session:flags+=['-DXNOW_REMOTE_MANAGED']
+if options.root_cold:flags+=['-DXNOW_REMOTE_ROOT_COLD']
+if options.link_keys:flags+=['-DXNOW_REMOTE_LINK_KEYS']
 artifact=out/'remote-rf-owner.arm'
 subprocess.run(['arm-linux-gnueabi-gcc',*flags,*sources,str(archive),str(crypto),str(cnmgr),
                 '-Wl,--no-as-needed',str(libs['libpthread.so.0']),*([str(libs['librt.so.1'])] if options.mode_view_required else []),str(libs['libc.so.6']),str(libs['ld-linux.so.3']),'-lgcc','-o',str(artifact)],cwd=ROOT,check=True)
@@ -98,19 +127,34 @@ if options.mode_view_required:
     for fd in pair:
      if fd>=0:os.close(fd)
 baseline=out/'espnow-test-baseline.arm'
-subprocess.run(['arm-linux-gnueabi-gcc',*flags,'runtime/apps/espnow-test/main.c',*sources[1:],str(archive),str(crypto),str(cnmgr),
+diagnostic_sources=['runtime/apps/espnow-test/main.c','runtime/apps/espnow-test/runner.c','runtime/apps/espnow-test/detached.c']
+subprocess.run(['arm-linux-gnueabi-gcc',*flags,*diagnostic_sources,*sources[1:],str(archive),str(crypto),str(cnmgr),
                 '-Wl,--no-as-needed',str(libs['libpthread.so.0']),*([str(libs['librt.so.1'])] if options.mode_view_required else []),str(libs['libc.so.6']),str(libs['ld-linux.so.3']),'-lgcc','-o',str(baseline)],cwd=ROOT,check=True)
 for args,expected in [(['--help'],0),([],64)]:
  run=subprocess.run(base[:-1]+[str(baseline)]+args,cwd=ROOT,env=env,capture_output=True,text=True,timeout=10);assert run.returncode==expected,run.stdout+run.stderr
-inputs=sources+['runtime/apps/espnow-test/main.c','runtime/apps/espnow-test/runner.h','runtime/platform/espnow/exchange_lab.c','runtime/platform/espnow/stock_reload_lab.c','runtime/platform/espnow/stock_wifi_session.c','tools/build_remote_owner.py']
+inputs=sources+diagnostic_sources+['runtime/platform/espnow/native_entry.h','runtime/apps/espnow-test/runner.h',
+ 'runtime/platform/espnow/native_environment.h','tools/owner_native_profile.py','tools/build_remote_owner.py',
+ (out/'native_inputs.h').relative_to(ROOT).as_posix()]
 if options.power_off_exit:inputs+=['runtime/platform/wireless/radio_release.h','runtime/platform/wireless/radio_modules.h']
 if options.mode_view_required:inputs+=['runtime/apps/wireless-remote/owner_admission.h','runtime/platform/wireless/mode_client.h','runtime/platform/wireless/mode_channel.h','runtime/platform/wireless/mode_policy.h','runtime/platform/wireless/mode.h','runtime/store/deadline.h']
 inputs += [p.relative_to(ROOT).as_posix() for p in (ROOT/'runtime/platform/espnow').glob('*.h')]
 inputs += [str(p.relative_to(ROOT)) for p in (prepared/'full_profile.h',prepared/'exchange_inputs.h',stock/'stock_reload_inputs.h')]
+if options.rx_diagnostic_radio:
+    inputs+=['tools/generate_espnow_full_profile.py','tools/build_espnow_full_radio.py']
+    inputs += [(review/p).relative_to(ROOT).as_posix() for p in ('manifest.json','radio.elf','candidate/sd8686.bin')]
+    inputs.append((out/'full_profile.h').relative_to(ROOT).as_posix())
+if options.managed_session:inputs.append((out/'shared_wifi_input.h').relative_to(ROOT).as_posix())
+inputs.append('runtime/apps/wireless-remote/pairing_proof.h')
+inputs.append('runtime/apps/wireless-remote/run_profile.h')
+inputs.append('runtime/apps/wireless-remote/startup_result.h')
+inputs.append('runtime/apps/wireless-remote/pairing_store.h')
 report=dict(built=True,artifact=str(artifact.relative_to(ROOT)),bytes=artifact.stat().st_size,sha256=digest(artifact),
             original_libc_arm_entry_checks=True,lab_only=True,window_seconds=None if options.managed_session else options.window_seconds,radio_started=False,device_accessed=False,
             finite_owner=not options.managed_session,lifetime_mode='supervised-session' if options.managed_session else 'finite-qualification',ready_for_native_settings=False,
             owner_mode_view_supported=options.mode_view_required,owner_mode_view_required=options.mode_view_required,mode_admission_cases=mode_admission_cases,
+            shared_wifi_supported=options.managed_session,
+            root_cold_supported=options.root_cold,
+            negotiated_link_keys=options.link_keys,
             continuous_mode_refresh_compiled=options.mode_view_required,mode_refresh_ms=200 if options.mode_view_required else 0,mode_stale_ms=1000 if options.mode_view_required else 0,
             power_off_exit_profile=options.power_off_exit,borrowed_stock_wifi_allowed=not options.power_off_exit,
             legacy_default_entry_checks=True,baseline_sha256=digest(baseline),

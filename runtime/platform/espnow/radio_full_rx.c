@@ -6,6 +6,9 @@
 #include "radio_packet.h"
 typedef int (*original_fn)(const uint8_t *,void *);
 __attribute__((section(".state"))) struct xnow_full_rx_control xnow_full_rx={.magic=XNOW_FULL_RX_MAGIC};
+#ifdef XNOW_RADIO_RX_DIAGNOSTICS
+__attribute__((section(".state"))) volatile uint32_t xnow_rx_seen,xnow_rx_eligible;
+#endif
 static int original(const uint8_t *frame,void *context){return ((original_fn)(uintptr_t)0xa315)(frame,context);}
 static int work_bounds(const uint8_t *frame,void *context){
     const volatile uint16_t *pool=(const volatile uint16_t *)(uintptr_t)0xc000d5ec;
@@ -16,6 +19,9 @@ static int work_bounds(const uint8_t *frame,void *context){
     return node[2]==(uint32_t)(uintptr_t)frame&&node[6]==0xc0014710u;
 }
 int xnow_radio_full_receive(const uint8_t *frame,void *context){
+#ifdef XNOW_RADIO_RX_DIAGNOSTICS
+    xnow_rx_seen++;
+#endif
     if(!work_bounds(frame,context)||!xnow_radio_pool_ready())return original(frame,context);
     /* Original4b9c copies frame_length-16 bytes after validating its record.
      * body=frame_length-48, hence frame+32/body lies within the copied range. */
@@ -31,6 +37,9 @@ int xnow_radio_full_receive(const uint8_t *frame,void *context){
     unsigned ours=1,all_ff=1,bssid_ff=1;
     for(unsigned i=0;i<6;i++){ours&=frame[6+i]==own[i];all_ff&=frame[6+i]==255;bssid_ff&=frame[18+i]==255;}
     if(!bssid_ff||(!ours&&!all_ff)||(protected&&!ours))return original(frame,context);
+#ifdef XNOW_RADIO_RX_DIAGNOSTICS
+    xnow_rx_eligible++;
+#endif
     struct xnow_full_rx_control *s=&xnow_full_rx;
     if(s->magic!=XNOW_FULL_RX_MAGIC)return original(frame,context);
     /* Preserve original IRQ token, not a guessed zero-argument unlock. This

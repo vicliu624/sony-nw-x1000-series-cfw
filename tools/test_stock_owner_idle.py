@@ -1,5 +1,5 @@
 """Original GUI idle policy, timeout getter/setter and select timeval conversion."""
-import hashlib,io,json,struct
+import hashlib,io,json,struct,sys,subprocess,time
 from elftools.elf.elffile import ELFFile
 from unicorn import Uc,UC_ARCH_ARM,UC_MODE_ARM,UC_HOOK_CODE
 from unicorn.arm_const import UC_ARM_REG_R0,UC_ARM_REG_R1,UC_ARM_REG_R2,UC_ARM_REG_R3,UC_ARM_REG_SP,UC_ARM_REG_LR,UC_ARM_REG_PC
@@ -52,3 +52,30 @@ assert len(anchors)==3 and anchors==[1,2,3] and selected==[(0,200000)]*3
 assert loop_trace==['select','anchor']*3
 report=dict(passed=True,target_sha256=digest,source_sha256=hashlib.sha256((ROOT/'tools/test_stock_owner_idle.py').read_bytes()).hexdigest(),idle_policy_us=200000,cases=cases,device_accessed=False,original_loop_anchor_after_select=anchors,original_loop_trace=loop_trace,limits=['Original idle policy, timeout setter/getter, input poll and timeval conversion execute; memcpy and select syscall boundaries are modeled.','The loop profile executes ff04,10644,134ec,51ae4,b4c54,e1aa0 with inactive GUI fixtures; other loop stages, input decoding and select completion are modeled. No SDK continuation or real wall-clock delay executes.','This confirms a traced 200ms idle policy, not total UI tick latency, power/sleep behavior or physical endpoint responsiveness.'])
 p=ROOT/'work/player-stock-owner-idle';p.mkdir(exist_ok=True);(p/'report.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))
+if '--lease' in sys.argv:
+ folder=ROOT/'work/player-idle-lease'/str(time.time_ns());folder.mkdir(parents=True)
+ sources=['tools/fixtures/player_idle_lease.c','runtime/platform/player/stock_image.c','runtime/native/sha256.c']
+ binary=folder/'lease.arm'
+ subprocess.run(['arm-linux-gnueabi-gcc','-std=c99','-Os','-Wall','-Wextra','-Werror','-Wno-misleading-indentation','-march=armv5te','-marm','-mfloat-abi=soft','-ffreestanding','-fno-builtin','-fno-pie','-fno-stack-protector','-nostdlib','-no-pie','-Wl,--build-id=none,-Ttext=0x50000000,-e,_start',*sources,'-lgcc','-o',str(binary)],cwd=ROOT,check=True)
+ helper=ELFFile(io.BytesIO(binary.read_bytes()));hs={s.name:s['st_value'] for s in helper.get_section_by_name('.symtab').iter_symbols()}
+ for segment in helper.iter_segments():
+  if segment['p_type']!='PT_LOAD':continue
+  a=int(segment['p_vaddr']);base=a&~4095;u.mem_map(base,(a-base+int(segment['p_memsz'])+4095)&~4095);u.mem_write(a,segment.data())
+ loop_mode=False
+ call(0xe44a4,60000000);first=call(hs['test_idle_step'],1);observed=call(0xe44dc);held=call(hs['test_idle_held']);assert (first,observed,held)==(0,200000,1),(first,observed,held)
+ for i in range(100):assert call(hs['test_idle_step'],1)==0 and call(0xe44dc)==200000
+ assert call(hs['test_idle_burst'],1)==0 and call(0xe44dc)==20000
+ assert call(hs['test_idle_step'],1)==0 and call(0xe44dc)==200000
+ assert call(hs['test_idle_step'],0)==0 and call(0xe44dc)==60000000 and not call(hs['test_idle_held'])
+ call(0xe44a4,200000);assert call(hs['test_idle_step'],1)==0 and not call(hs['test_idle_held'])
+ call(0xe44a4,1000001);assert call(hs['test_idle_step'],1)==0 and call(0xe44dc)==200000
+ call(0xe44a4,0);assert call(hs['test_idle_step'],1)==0 and not call(hs['test_idle_held'])
+ assert call(hs['test_idle_step'],0)==0 and call(0xe44dc)==0
+ call(0xe44a4,60000000);assert call(hs['test_idle_step'],1)==0
+ put(hs['xw_test_thread'],18);assert call(hs['test_idle_step'],0)==0xfffffffc and call(0xe44dc)==200000
+ put(hs['xw_test_thread'],17);assert call(hs['test_idle_step'],0)==0 and call(0xe44dc)==60000000
+ call(hs['test_idle_reset']);u.mem_write(0xe44a4,b'\0\0\0\0');assert call(hs['test_idle_step'],1)==0xfffffffd and call(0xe44dc)==60000000
+ result=dict(passed=True,original_setter_getter_executed=True,clamp_restore_and_sony_policy_changes=True,owner_and_image_refusal=True,device_accessed=False,
+  source_hashes={s:hashlib.sha256((ROOT/s).read_bytes()).hexdigest() for s in sources+['runtime/platform/player/stock_idle_lease.h','tools/test_stock_owner_idle.py']},
+  limits=['The original timeout getter/setter execute; thread and loaded-image identities are fixtures.','This bounds GUI select idle only. It neither prevents original system suspend nor proves the physical screen-off disconnect cause.'])
+ (folder/'report.json').write_text(json.dumps(result,indent=2)+'\n');print(json.dumps(result,indent=2))

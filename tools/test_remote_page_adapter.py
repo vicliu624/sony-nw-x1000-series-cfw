@@ -15,7 +15,7 @@ init_source='tools/fixtures/player_worker_system_init.c'
 subprocess.run(['arm-linux-gnueabi-gcc',*arm,init_source,*startup,str(libs['libc.so.6']),str(libs['ld-linux.so.3']),'-lgcc','-o',str(init)],cwd=ROOT,check=True)
 report=run_guest(out,init,{'test':binary},libs,['REMOTE_PAGE_ADAPTER_POLICY_PASS','PLAYER_WORKER_CHILD_STATUS=0'])
 report.update(host_sanitizers=True,original_libc_adapter_executed=True,backend_and_view_operations_modeled=True,
- device_accessed=False,source_hashes={p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in sources+startup+[init_source,'tools/test_remote_page_adapter.py','runtime/platform/player/remote_page_guard.h','runtime/apps/wireless-remote/native_page_bridge.h','runtime/apps/wireless-remote/native_choice_view.h']},
+ device_accessed=False,source_hashes={p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in sources+startup+[init_source,'tools/test_remote_page_adapter.py','runtime/platform/player/remote_page_guard.h','runtime/apps/wireless-remote/native_page_bridge.h','runtime/platform/sony-settings/native_choice_view.h','runtime/platform/sony-settings/native_page.h','runtime/platform/sony-settings/bindings.h']},
  limits=['Actual adapter/bridge execute; factory backend, owner and native view operations are fixtures.',
          'No original UI/controller/renderer, guarded PID dispatch or live RF is exercised by this test.'])
 (out/'report.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2));assert report['passed']

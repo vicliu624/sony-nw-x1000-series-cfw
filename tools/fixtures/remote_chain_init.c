@@ -17,9 +17,10 @@
 #endif
 static void unchanged(void){
  int a=open("/stage/config.bin",O_RDONLY),b=open(REMOTE_DIRECTORY "/config.bin",O_RDONLY);
- assert(a>=0&&b>=0);char first[80],second[80],extra;
- assert(read(a,first,80)==80&&read(b,second,80)==80&&!memcmp(first,second,80));
- assert(read(a,&extra,1)==0&&read(b,&extra,1)==0&&!close(a)&&!close(b));
+ assert(a>=0&&b>=0);char first[113],second[113];
+ ssize_t bytes=read(a,first,sizeof first);
+ assert((bytes==80||bytes==112)&&read(b,second,sizeof second)==bytes&&!memcmp(first,second,(size_t)bytes));
+ assert(!close(a)&&!close(b));
  puts("REMOTE_CONFIG_UNCHANGED");
 }
 static void copy(const char *source,const char *target){
@@ -31,8 +32,14 @@ int main(void){
  assert(!mount("none","/contents","tmpfs",0,"size=8m"));assert(!mkdir("/tmp",0700));
  const char *dirs[]={"/contents/HOMEBREW","/contents/HOMEBREW/data",REMOTE_PARENT,REMOTE_DIRECTORY};
  for(unsigned i=0;i<4;i++)assert(!mkdir(dirs[i],0700));
+#ifdef XW_EMBEDDED_REMOTE
+ assert(!mkdir("/usr",0700)&&!mkdir("/usr/local",0700)&&!mkdir("/usr/local/libexec",0700));
+ copy("/stage/service.arm","/usr/local/libexec/x1000-remote-service.arm");
+ copy("/stage/owner.arm","/usr/local/libexec/x1000-remote-owner.arm");
+#else
  copy("/stage/service.arm",REMOTE_DIRECTORY "/service.arm");
  copy("/stage/owner.arm",REMOTE_DIRECTORY "/owner.arm");
+#endif
  copy("/stage/config.bin",REMOTE_DIRECTORY "/config.bin");
  char *args[]={"/test","--startup-remote-probe","/supervisor","/tmp/x1000-player-chain","0123456789abcdef0123456789abcdef","23","--charger-confirmed","--exclusive-radio-confirmed",0};
 #ifdef XW_DIRECT_REMOTE

@@ -4,11 +4,11 @@ import json,re,struct,subprocess
 from elftools.elf.elffile import ELFFile
 from qqmusic_font_config import FONT_BYTES
 ROOT=Path(__file__).resolve().parents[1];work=ROOT/'work/qqmusic-memory';work.mkdir(exist_ok=True)
-volume=(ROOT/'runtime/apps/qqmusic/qqmusic_volume.c').read_text();ui=(ROOT/'runtime/apps/qqmusic/qqmusic_ui.c').read_text()
+volume=(ROOT/'runtime/platform/storage/qqmusic_volume.c').read_text();ui=(ROOT/'runtime/apps/qqmusic/qqmusic_ui.c').read_text()
 observation=re.search(r'struct observation \{.*?\};',volume,re.S).group()
 glyph=re.search(r'struct glyph_cache \{.*?\};',ui,re.S).group()
 program=re.search(r'struct program \{.*?\};',(ROOT/'runtime/apps/qqmusic/qqmusic_program.c').read_text(),re.S).group()
-code='#include "runtime/apps/qqmusic/qqmusic_network.h"\n#include "runtime/apps/qqmusic/qqmusic_image.h"\n#include "runtime/apps/qqmusic/qqmusic_import_binding.h"\n#include "runtime/apps/qqmusic/qqmusic_program.h"\n#include "runtime/apps/qqmusic/qqmusic_identity.h"\n#define QQ_VOLUME_PREFIX_LIMIT 16u\n'+observation+'\n'+glyph+'\n'+program+'\nconst unsigned qq_memory_sizes[]={sizeof(struct observation),sizeof(struct glyph_cache)*64,QQ_UI_PIXELS*2,QQ_IMAGE_QR_SIDE*QQ_IMAGE_QR_SIDE*2,sizeof(struct qq_runtime),sizeof(struct qq_network),sizeof(struct qq_import_binding),sizeof(struct program)};\n'
+code='#include "runtime/apps/qqmusic/qqmusic_network.h"\n#include "runtime/platform/images/qqmusic_image.h"\n#include "runtime/apps/qqmusic/qqmusic_import_binding.h"\n#include "runtime/apps/qqmusic/qqmusic_program.h"\n#include "runtime/apps/qqmusic/qqmusic_identity.h"\n#define QQ_VOLUME_PREFIX_LIMIT 16u\n'+observation+'\n'+glyph+'\n'+program+'\nconst unsigned qq_memory_sizes[]={sizeof(struct observation),sizeof(struct glyph_cache)*64,QQ_UI_PIXELS*2,QQ_IMAGE_QR_SIDE*QQ_IMAGE_QR_SIDE*2,sizeof(struct qq_runtime),sizeof(struct qq_network),sizeof(struct qq_import_binding),sizeof(struct program)};\n'
 (work/'layout.c').write_text(code)
 subprocess.run(['arm-linux-gnueabi-gcc','-std=gnu99','-march=armv5te','-marm','-mfloat-abi=soft','-I'+str(ROOT),'-I'+str(ROOT/'work/stock-resolver-probe'),'-I'+str(ROOT/'work/external-tls-probe/bearssl-0.6/inc'),'-c',str(work/'layout.c'),'-o',str(work/'layout.o')],check=True)
 with open(work/'layout.o','rb') as f:

@@ -5,7 +5,7 @@ ROOT=Path(__file__).resolve().parents[1];work=ROOT/'work/fm-storage-tests';work.
 lib=ROOT/'work/arm-signal-tests/lib'
 for name,digest in {'libc.so.6':'5afbf3074dfa9ba0478d6670f220ef4d7ec065a255ee856d9093d39210f23812','ld-linux.so.3':'2f007b0809684fde0ac446ad203135c10b4318eb8c10d4160a9f59b32c3c52de'}.items():
  assert hashlib.sha256((lib/name).read_bytes()).hexdigest()==digest
-core=['runtime/apps/fm-radio/fm_radio.c','runtime/apps/fm-radio/fm_state.c','runtime/apps/fm-radio/fm_storage.c','runtime/apps/fm-radio/fm_storage_native.c','tools/fixtures/fm_storage.c']
+core=['runtime/platform/fm/fm_radio.c','runtime/apps/fm-radio/fm_state.c','runtime/apps/fm-radio/fm_storage.c','runtime/apps/fm-radio/fm_storage_native.c','tools/fixtures/fm_storage.c']
 bridge=['runtime/store/stock_fs_bridge.c','runtime/store/stock_stat64.c']
 startup=['runtime/store/start.c','runtime/store/start.S']
 flags=['-D_DEFAULT_SOURCE','-U_FORTIFY_SOURCE','-D_FORTIFY_SOURCE=0','-std=c99','-Os','-Wall','-Wextra','-Werror','-Wl,--wrap=write,--wrap=fsync']

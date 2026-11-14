@@ -70,7 +70,8 @@ int xw_native_rf_cleanup_permission(void){
  if(!ready())return XW_MODE_FAULT;struct xw_native_wireless_permission *p=pthread_getspecific(key);
  if(!p)return xw_native_rf_gui_cleanup_permission();
  if(p->sealed)return 2;
- struct xw_mode_reply view;return xw_native_permission_snapshot(p,200,&view);
+ struct xw_mode_reply view;int rc=xw_native_permission_snapshot(p,200,&view);
+ return rc?rc:view.wifi_borrowed?XW_MODE_BUSY:0;
 }
 int xw_native_rf_permission(void){
  int offered=xw_native_rf_refresh_offer();

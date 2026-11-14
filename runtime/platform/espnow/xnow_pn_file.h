@@ -7,13 +7,22 @@
  * remain open and dedicated until operations finish. Not yet device-qualified.
  * guard must fail when USB owns storage, mount identity changes or writes are
  * disallowed. Provision only for a proven fresh key, never to reset a used key.
- * Missing/corrupt existing records fail closed. No protection against malicious
+ * Reads legacy XPN00001 dat/tmp, including a valid interrupted temp alone.
+ * Updates use two fixed80-byte XPN00002 slots without rename/truncation; both
+ * must remain valid once V2 is observed. Highest valid committed/pending value
+ * wins; uncertain reservations are skipped, never reused. Old firmware cannot
+ * read V2 and must not be used to reset it. Missing/corrupt V2 fails closed.
+ * No protection against malicious
  * snapshot rollback/removal of user data: rotate keys after such a restore. */
 struct xnow_pn_file {int directory;uint64_t device;void *context;int (*guard)(void *);};
 #ifdef __cplusplus
 extern "C" {
 #endif
 int xnow_pn_file_provision(struct xnow_pn_file *,const uint8_t scope[32]);
+/* Provision both directions for a fresh key before publishing its binding.
+ * If either step fails, do not activate or retry the same key. A completed
+ * first record is retained as evidence and never reset by this helper. */
+int xnow_pn_file_provision_pair(struct xnow_pn_file *,const uint8_t tx_scope[32],const uint8_t rx_scope[32]);
 int xnow_pn_file_load_rx(void *,const uint8_t scope[32],uint64_t *);
 int xnow_pn_file_commit_rx(void *,const uint8_t scope[32],uint64_t);
 int xnow_pn_file_reserve(void *,const uint8_t scope[32],unsigned,uint64_t *,uint64_t *);

@@ -42,7 +42,12 @@ def construct(stock,payload):
  for entry in entries.values():
   if not entry&1 or not text[0]<=entry&~1<text[1]:raise ValueError('invalid code entry')
  controls={};control_bytes=set()
- for name,n,magic in (('xnow_full_tx',40,0x3254584e),('xnow_full_rx',64,0x3252584e),('xnow_tx_completion',24,0)):
+ descriptions=[('xnow_full_tx',40,0x3254584e),('xnow_full_rx',64,0x3252584e),('xnow_tx_completion',24,0)]
+ diagnostics=('xnow_rx_seen','xnow_rx_eligible')
+ if any(name in symbols for name in diagnostics):
+  if not all(name in symbols for name in diagnostics):raise ValueError('incomplete RX diagnostics')
+  descriptions.extend((name,4,0) for name in diagnostics)
+ for name,n,magic in descriptions:
   a=symbols[name];addresses=set(range(a,a+n))
   if a&3 or not state_section[0]<=a<a+n<=state_section[1] or control_bytes&addresses:raise ValueError('control overlap/range')
   initial=bytes(reservation[a-RESERVED_START:a+n-RESERVED_START])
@@ -81,7 +86,7 @@ def construct(stock,payload):
  manifest={'profile':'full-radio-experimental-v2','radio_only':True,'original_sha256':STOCK_SHA,'candidate_sha256':digest(candidate),'payload_elf_sha256':digest(Path(payload).read_bytes()),'original_bytes':len(stock),'candidate_bytes':len(candidate),'reserved_start':RESERVED_START,'reserved_end':RESERVED_END,'reserved_bytes':1900,'section_bytes':sum(b-a for _,a,b in sections),'occupied_span_bytes':used,'tail_free_bytes':1900-used,'entries':entries,'controls':controls,'patches':plan,'immutable_segments':immutable,'startup_only_segments':[{'address':0x17328,'bytes':24,'sha256':digest(bytes(loaded[0x17328+i] for i in range(24))),'runtime_reclaimed':True}],'pool_blocks_after':3,'rx_initially_disabled':True,'all_other_loaded_bytes_unchanged':True,'all_other_bss_zeroing_preserved':True,'crc_roundtrip_passed':True,'hardware_tested':False,'driver_reload_qualified':False,'device_written':False}
  return candidate,manifest
 
-def build(stock_path,helper_path,output):
+def build(stock_path,helper_path,output,rx_diagnostics=False):
  output=Path(output).resolve()
  if not output.is_relative_to((ROOT/'work').resolve()) or output.exists():raise ValueError('output must be a new project work directory')
  stock=Path(stock_path).read_bytes();helper=Path(helper_path).read_bytes()
@@ -89,12 +94,18 @@ def build(stock_path,helper_path,output):
  output.mkdir(parents=True)
  link=output/'radio.ld';link.write_text('ENTRY(xnow_radio_full_receive)\nSECTIONS { . = 0xc000a190; .text : { *(.text*) *(.rodata*) } .state : { *(.state) } /DISCARD/ : { *(.ARM.exidx*) *(.ARM.extab*) *(.comment*) *(.note*) } ASSERT(.<=0xc000a8fc,"reserved block exceeded") }')
  payload=output/'radio.elf';flags=['-std=c99','-Os','-Wall','-Wextra','-Werror','-march=armv5te','-mthumb','-mfloat-abi=soft','-ffreestanding','-fno-builtin','-fno-pie','-fno-stack-protector','-nostdlib','-static','-Wl,--build-id=none','-Wl,-T,'+str(link)]
+ if rx_diagnostics:flags+=['-DXNOW_RADIO_RX_DIAGNOSTICS']
  subprocess.run(['arm-linux-gnueabi-gcc',*flags,*SOURCES,'-o',str(payload)],cwd=ROOT,check=True)
  image,manifest=construct(stock,payload);manifest['helper_sha256']=HELPER_SHA;manifest['compiler']=subprocess.check_output(['arm-linux-gnueabi-gcc','--version'],text=True).splitlines()[0];manifest['source_hashes']={p:digest((ROOT/p).read_bytes()) for p in [*SOURCES,*HEADERS,'tools/build_espnow_full_radio.py','tools/marvell_firmware.py']}
+ manifest['rx_diagnostics']=rx_diagnostics
+ if rx_diagnostics:
+  with payload.open('rb') as stream:
+   symbols={s.name:s['st_value'] for s in ELFFile(stream).get_section_by_name('.symtab').iter_symbols()}
+  manifest['rx_diagnostic_counters']={name:dict(address=symbols[name],bytes=4) for name in ('xnow_rx_seen','xnow_rx_eligible')}
  for name,data in (('candidate/sd8686.bin',image),('candidate/helper_sd.bin',helper),('stock/sd8686.bin',stock),('stock/helper_sd.bin',helper)):
   target=output/name;target.parent.mkdir(exist_ok=True);target.write_bytes(data)
  (output/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
  (output/'README.txt').write_text('OFFLINE FULL-RADIO RESEARCH CANDIDATE. NOT HARDWARE QUALIFIED.\nNo loader/automatic installation supplied. Never use Sony system updater for these files.\nOriginal helper and rollback radio retained. No kernel/module/partition edits.\n')
  return manifest
 if __name__=='__main__':
- p=argparse.ArgumentParser(description=__doc__);p.add_argument('--original',type=Path,required=True);p.add_argument('--helper',type=Path,required=True);p.add_argument('--output',type=Path,required=True);a=p.parse_args();print(json.dumps(build(a.original,a.helper,a.output),indent=2))
+ p=argparse.ArgumentParser(description=__doc__);p.add_argument('--original',type=Path,required=True);p.add_argument('--helper',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--rx-diagnostics',action='store_true');a=p.parse_args();print(json.dumps(build(a.original,a.helper,a.output,a.rx_diagnostics),indent=2))

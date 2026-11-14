@@ -3,6 +3,7 @@
 #endif
 #include "../runtime/platform/espnow/xnow_pn_file.h"
 #include "../runtime/platform/espnow/xnow_security.h"
+#include "../runtime/native/sha256.h"
 #include <assert.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
@@ -12,14 +13,40 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include "../runtime/store/target_abi.h"
 static unsigned sync_calls,fail_sync;static int denied;
 int __real_fsync(int);
 int __wrap_fsync(int fd){if(++sync_calls==fail_sync){errno=EIO;return -1;}return __real_fsync(fd);}
 static int guard(void *unused){(void)unused;return denied;}
 static void name(char path[512],const char *dir,const uint8_t scope[32],const char *suffix){char hex[65];for(unsigned i=0;i<32;i++)sprintf(hex+i*2,"%02x",scope[i]);snprintf(path,512,"%s/pn-%s.%s",dir,hex,suffix);}
+static void legacy_file(const char *path,const uint8_t scope[32],uint64_t high){
+ uint8_t bytes[80]={0};memcpy(bytes,"XPN00001",8);memcpy(bytes+8,scope,32);
+ for(unsigned i=0;i<8;i++)bytes[40+i]=(uint8_t)(high>>(8*i));
+ struct hb_sha256 sha;hb_sha256_init(&sha);hb_sha256_update(&sha,bytes,48);hb_sha256_final(&sha,bytes+48);
+ int fd=open(path,O_WRONLY|O_CREAT|O_EXCL,0600);assert(fd>=0&&write(fd,bytes,80)==80&&!fsync(fd)&&!close(fd));
+}
 int main(int argc,char **argv){
+ if(argc==4&&!strcmp(argv[1],"--inspect")){
+  assert(strlen(argv[3])==64);uint8_t scope[32]={0};
+  for(unsigned i=0;i<64;i++){unsigned c=(unsigned char)argv[3][i];assert((c>='0'&&c<='9')||(c>='a'&&c<='f'));scope[i/2]|=(uint8_t)((c<='9'?c-'0':c-'a'+10)<<(i%2?0:4));}
+  int fd=open(argv[2],O_RDONLY|O_DIRECTORY|O_NOFOLLOW);assert(fd>=0);struct stat st;assert(!fstat(fd,&st));
+  struct xnow_pn_file file={fd,st.st_dev,0,guard};uint64_t high=0;
+  int result=xnow_pn_file_load_rx(&file,scope,&high);assert(!close(fd));
+  printf("PN_INSPECT result=%d high=%llu\n",result,(unsigned long long)high);return result?1:0;
+ }
  assert(argc==2);char temp[512];assert(snprintf(temp,sizeof(temp),"%s/pn-XXXXXX",argv[1])>0);char *dir=mkdtemp(temp);assert(dir);
  int fd=open(dir,O_RDONLY|O_DIRECTORY|O_NOFOLLOW);assert(fd>=0);struct stat st;assert(!fstat(fd,&st));struct xnow_pn_file file={fd,st.st_dev,0,guard};
+ /* Reproduce the device readback: intact legacy temp, missing active file. */
+ uint8_t interrupted[32]={12};char active[512],pending[512];uint64_t recovered=999,a_first=999,a_last=999;
+ name(active,dir,interrupted,"dat");name(pending,dir,interrupted,"tmp");legacy_file(pending,interrupted,166);
+ assert(xnow_pn_file_provision(&file,interrupted)==XNOW_PN_STORAGE);
+ assert(!xnow_pn_file_load_rx(&file,interrupted,&recovered)&&recovered==166);
+ assert(!xnow_pn_file_reserve(&file,interrupted,16,&a_first,&a_last)&&a_first==167&&a_last==182);
+ assert(!xnow_pn_file_commit_rx(&file,interrupted,200));
+ assert(!xnow_pn_file_load_rx(&file,interrupted,&recovered)&&recovered==200);
+ assert(!unlink(pending));
+ /* A missing v2 slot must refuse, never roll back to the older retained slot. */
+ assert(xnow_pn_file_load_rx(&file,interrupted,&recovered)==XNOW_PN_STORAGE);
  uint8_t scope[32]={1};uint64_t first=999,last=999;assert(xnow_pn_file_reserve(&file,scope,16,&first,&last)==XNOW_PN_STORAGE&&first==999);
  assert(!xnow_pn_file_provision(&file,scope));assert(xnow_pn_file_provision(&file,scope)==XNOW_PN_STORAGE);
  assert(!xnow_pn_file_reserve(&file,scope,16,&first,&last)&&first==1&&last==16);
@@ -30,7 +57,7 @@ int main(int argc,char **argv){
  denied=1;first=999;assert(xnow_pn_file_reserve(&file,scope,16,&first,&last)==XNOW_PN_STORAGE&&first==999);denied=0;
  char path[512];name(path,dir,scope,"dat");int data=open(path,O_WRONLY|O_NOFOLLOW);assert(data>=0&&write(data,"BAD",3)==3&&!close(data));assert(xnow_pn_file_reserve(&file,scope,16,&first,&last)==XNOW_PN_STORAGE);
  scope[0]=2;assert(!xnow_pn_file_provision(&file,scope));sync_calls=0;fail_sync=1;assert(xnow_pn_file_reserve(&file,scope,16,&first,&last)==XNOW_PN_STORAGE);fail_sync=0;
- assert(xnow_pn_file_reserve(&file,scope,16,&first,&last)==XNOW_PN_STORAGE); /* preserves stale temp rather than resetting */
+ assert(!xnow_pn_file_reserve(&file,scope,16,&first,&last)&&first==17&&last==32); /* skip the complete uncertain reservation */
  scope[0]=3;assert(!xnow_pn_file_provision(&file,scope));sync_calls=0;fail_sync=2;assert(xnow_pn_file_reserve(&file,scope,16,&first,&last)==XNOW_PN_UNCERTAIN);fail_sync=0;
  assert(!xnow_pn_file_reserve(&file,scope,16,&first,&last)&&first==17);
  scope[0]=4;name(path,dir,scope,"dat");assert(!symlink("/dev/null",path));assert(xnow_pn_file_reserve(&file,scope,16,&first,&last)==XNOW_PN_STORAGE);
@@ -44,6 +71,21 @@ int main(int argc,char **argv){
  assert(xnow_pn_file_commit_rx(&file,scope,150)==XNOW_PN_UNCERTAIN);fail_sync=0;
  assert(!xnow_pn_file_load_rx(&file,scope,&highest)&&highest==150);
  assert(xnow_pn_file_commit_rx(&file,scope,150)==XNOW_PN_REPLAY);assert(!xnow_pn_file_commit_rx(&file,scope,151));
+ uint8_t tx_pair[32]={7},rx_pair[32]={8},other_pair[32]={9};
+ assert(xnow_pn_file_provision_pair(&file,tx_pair,tx_pair)==XNOW_PN_ARGUMENT);
+ assert(!xnow_pn_file_provision_pair(&file,tx_pair,rx_pair));
+ assert(!xnow_pn_file_reserve(&file,tx_pair,16,&first,&last)&&last==16);
+ assert(!xnow_pn_file_commit_rx(&file,rx_pair,100));
+ assert(xnow_pn_file_provision_pair(&file,other_pair,rx_pair)==XNOW_PN_STORAGE);
+ assert(xnow_pn_file_reserve(&file,other_pair,16,&first,&last)==XNOW_PN_STORAGE);
+ assert(xnow_pn_file_provision_pair(&file,tx_pair,rx_pair)==XNOW_PN_STORAGE);
+ assert(!xnow_pn_file_load_rx(&file,rx_pair,&highest)&&highest==100);
+ assert(!xnow_pn_file_reserve(&file,tx_pair,16,&first,&last)&&first==17);
+ tx_pair[0]=10;rx_pair[0]=11;
+ sync_calls=0;fail_sync=3;
+ assert(xnow_pn_file_provision_pair(&file,tx_pair,rx_pair)==XNOW_PN_STORAGE);
+ fail_sync=0;
+ assert(xnow_pn_file_provision_pair(&file,tx_pair,rx_pair)==XNOW_PN_STORAGE);
  /* Real host journal callbacks connected to security contexts, not RAM state. */
  struct xnow_security_io sio={&file,xnow_pn_file_reserve,xnow_pn_file_load_rx,xnow_pn_file_commit_rx};
  uint8_t ma[6]={2,1,2,3,4,5},mb[6]={2,6,7,8,9,10},key[16]={0},rx_scope[32];struct xnow_pn tx_scope;

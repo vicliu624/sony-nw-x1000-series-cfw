@@ -1,5 +1,6 @@
 /* Finite qualification launcher. Private build pins every user-volume input. */
 #define _DEFAULT_SOURCE
+#include "startup_result.h"
 #include "../../platform/player/startup_delivery.h"
 #include "../../platform/services/descriptor.h"
 #include "../../platform/services/types.h"
@@ -21,17 +22,23 @@
 #include <sys/un.h>
 #include "../../store/target_abi.h"
 #include "../../platform/wireless/mode_policy.h"
+#include "../../platform/player/wireless_host.h"
 #ifdef WR_OWNER_MODE_VIEW
 static int owner_mode_fd=-1;
 static struct xw_wireless_lease owner_mode_lease;
 #endif
 #include "run_profile.h"
+#ifdef WR_DEVICE_PAIRING
+#include "pairing_store.h"
+#endif
 struct wr_launch_input {const char *path;unsigned bytes;uint8_t sha[32];};
 #include "remote_launch_inputs.h"
 extern int supervisor_fcntl(int,int,...) __asm__("fcntl");
 extern int supervisor_getsockopt(int,int,int,void *,socklen_t *) __asm__("getsockopt");
 extern ssize_t supervisor_send(int,const void *,size_t,int) __asm__("send");
+#ifndef WR_DEVICE_PAIRING
 static uint64_t u64(const uint8_t *p){uint64_t n=0;for(unsigned i=0;i<8;i++)n|=(uint64_t)p[i]<<(8*i);return n;}
+#endif
 static void wipe(void *p,size_t bytes){volatile uint8_t *b=p;while(bytes--)*b++=0;}
 static int number(const char *s,uint64_t *out){uint64_t n=0;if(!s||!*s)return -1;for(;*s;s++){if(*s<'0'||*s>'9'||n>(UINT64_MAX-(unsigned)(*s-'0'))/10)return -1;n=n*10+(unsigned)(*s-'0');}if(!n)return -1;*out=n;return 0;}
 static int expired(uint64_t start,unsigned wait){unsigned long long now;return hb_monotonic_millis(&now)||now<start||now-start>=wait;}
@@ -45,18 +52,35 @@ static int run_entropy(void *context,uint8_t *out,size_t bytes){
 #endif
 static int inputs(uint8_t config[80],uint64_t generation){
  struct stat root,volume;if(lstat("/",&root)||lstat("/contents",&volume)||!S_ISDIR(volume.st_mode)||root.st_dev==volume.st_dev)return -1;
+#ifdef WR_DEVICE_PAIRING
+ const struct wr_launch_input *files[]={&remote_service_input,&remote_owner_input};
+#else
  const struct wr_launch_input *files[]={&remote_service_input,&remote_owner_input,&remote_config_input};
- for(unsigned i=0;i<3;i++)if(xnow_file_check(files[i]->path,volume.st_dev,files[i]->bytes,files[i]->sha))return -1;
- int fd=open(remote_config_input.path,O_RDONLY|O_NOFOLLOW|O_NONBLOCK);if(fd<0)return -1;
- struct stat profile;if(fstat(fd,&profile)||!S_ISREG(profile.st_mode)||profile.st_dev!=volume.st_dev||profile.st_nlink!=1||profile.st_size!=80){close(fd);return -1;}
- size_t used=0;while(used<80){ssize_t n=read(fd,config+used,80-used);if(n<0&&errno==EINTR)continue;if(n<=0){close(fd);return -1;}used+=(size_t)n;}
- uint8_t extra;ssize_t n=read(fd,&extra,1);int closed=close(fd);unsigned peer=0,key=0,cookie=0;
- for(unsigned i=24;i<30;i++)peer|=config[i];for(unsigned i=32;i<64;i++)key|=config[i];for(unsigned i=64;i<80;i++)cookie|=config[i];
+#endif
+#ifdef WR_EMBEDDED_RUNTIME
+ uint64_t executable_device=root.st_dev;
+#else
+ uint64_t executable_device=volume.st_dev;
+#endif
+ for(unsigned i=0;i<sizeof files/sizeof *files;i++)if(xnow_file_check(files[i]->path,executable_device,files[i]->bytes,files[i]->sha))return -1;
+#ifdef WR_DEVICE_PAIRING
+ uint8_t record[WR_PAIRING_RECORD_BYTES];
+ int extended=xnow_file_read_exact(remote_config_path,volume.st_dev,sizeof record,record);
+ int rejected=!extended&&wr_pairing_record_read(record,0,config,0);
+ wipe(record,sizeof record);
+ if(rejected||(extended&&xnow_file_read_exact(remote_config_path,volume.st_dev,80,config)))return -1;
+#else
+ if(xnow_file_read_exact(remote_config_input.path,volume.st_dev,80,config))return -1;
+#endif
+#ifndef WR_DEVICE_PAIRING
  struct hb_sha256 hash;uint8_t digest[32];hb_sha256_init(&hash);hb_sha256_update(&hash,config,80);hb_sha256_final(&hash,digest);
  int changed=memcmp(digest,remote_config_input.sha,32);wipe(&hash,sizeof hash);wipe(digest,sizeof digest);if(changed)return -1;
- if(n||closed||!peer||!key||!cookie||(config[24]&1)||(memcmp(config,"XWRUN001",8)&&memcmp(config,"XWRUN002",8))||!u64(config+16)||config[30]||config[31])return -1;
+#endif
+ if(!wr_run_seed_valid(config))return -1;
 #ifdef WR_REUSABLE_SESSIONS
+#ifndef WR_DEVICE_PAIRING
  if(u64(config+8)!=remote_template_generation)return -1;
+#endif
  return wr_run_profile(config,config,generation,0,run_entropy);
 #else
  return u64(config+8)!=generation?-1:0;
@@ -75,6 +99,119 @@ static void child_fds(const int *keep,unsigned count){
  if(chdir("/"))_exit(71);
 }
 static int wait_child(pid_t child){int status;pid_t n;do{n=waitpid(child,&status,0);}while(n<0&&errno==EINTR);return n==child&&WIFEXITED(status)?WEXITSTATUS(status):255;}
+#ifdef WR_DEVICE_PAIRING
+extern int pairing_scan(const char *,const char *,...) __asm__("sscanf");
+static int pairing_volume_owned(void *unused){
+ (void)unused;
+ FILE *mounts=fopen("/proc/mounts","r");if(!mounts)return 0;
+ char line[512],source[128],path[128],type[32],options[128];unsigned found=0,lines=0;
+ int bad=0;
+ while(fgets(line,sizeof line,mounts)){
+  if(++lines>128||!strchr(line,'\n')||
+     pairing_scan(line,"%127s %127s %31s %127s",source,path,type,options)!=4){bad=1;break;}
+  if(!strcmp(path,"/contents")){
+   found++;
+   if(strcmp(source,"/dev/mtdblock/2")||strcmp(type,"vfat")||
+      (strcmp(options,"rw")&&strncmp(options,"rw,",3)))bad=1;
+  }else if(!strncmp(path,"/contents/",10))bad=1;
+ }
+ if(ferror(mounts))bad=1;
+ if(fclose(mounts))bad=1;
+ return !bad&&found==1;
+}
+static int pairing_store_directory(struct wr_pairing_store *store){
+ static const char *parts[]={"/contents","/contents/HOMEBREW","/contents/HOMEBREW/data",
+  "/contents/HOMEBREW/data/wireless-remote","/contents/HOMEBREW/data/wireless-remote/runtime"};
+ struct stat root,volume,info;
+ if(!pairing_volume_owned(0)||lstat("/",&root)||lstat(parts[0],&volume)||
+    !S_ISDIR(volume.st_mode)||root.st_dev==volume.st_dev)return -1;
+ for(unsigned i=1;i<sizeof parts/sizeof *parts;i++){
+  if(lstat(parts[i],&info))return errno==ENOENT&&pairing_volume_owned(0)?1:-1;
+  if(!S_ISDIR(info.st_mode)||info.st_dev!=volume.st_dev)return -1;
+ }
+ int fd=open(parts[4],O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_NONBLOCK);
+ if(fd<0)return -1;
+ struct stat opened;
+ if(fstat(fd,&opened)||!S_ISDIR(opened.st_mode)||opened.st_dev!=info.st_dev||
+    opened.st_ino!=info.st_ino||!pairing_volume_owned(0)){close(fd);return -1;}
+ *store=(struct wr_pairing_store){fd,opened.st_dev,opened.st_ino,0,pairing_volume_owned};
+ return 0;
+}
+static int run_pairing_store(int argc,char **argv){
+ int forget=!strcmp(argv[2],"forget");
+ uint64_t descriptor;
+ if((!forget&&strcmp(argv[2],"query"))||number(argv[3],&descriptor)||descriptor<3||descriptor>65535)return 64;
+ uint8_t expected[6]={0};
+ if(forget){
+  if(argc!=5||strlen(argv[4])!=12||strspn(argv[4],"0123456789abcdef")!=12)return 64;
+  for(unsigned i=0;i<12;i++){
+   unsigned c=(unsigned char)argv[4][i];
+   unsigned value=c<='9'?c-'0':c-'a'+10;
+   expected[i/2]|=(uint8_t)(value<<(i%2?0:4));
+  }
+ }else if(argc!=4)return 64;
+ int fd=(int)descriptor,flags=supervisor_fcntl(fd,F_GETFL);
+ struct stat info;
+ if(flags<0||(flags&O_ACCMODE)!=O_WRONLY||fstat(fd,&info)||!S_ISFIFO(info.st_mode))return 64;
+ if(signal(SIGPIPE,SIG_IGN)==SIG_ERR)return 71;
+ uint8_t reply[16]={'W','P','S','1',2};
+ struct wr_pairing_store store;
+ int directory=pairing_store_directory(&store);
+ if(directory==1)reply[4]=1;
+ else if(!directory){
+  int rc=forget?wr_pairing_store_forget_peer(&store,expected):wr_pairing_store_peer(&store,reply+8);
+  reply[4]=rc<0?(rc==WR_PAIR_STORE_UNCERTAIN?3:2):(forget?1:(uint8_t)rc);
+  if(close(store.directory))reply[4]=3;
+ }
+ if(reply[4])memset(reply+8,0,6);
+ ssize_t written;
+ do{written=write(fd,reply,sizeof reply);}while(written<0&&errno==EINTR);
+ return written==sizeof reply?0:71;
+}
+static int run_pairing_radio(char **argv){
+ uint64_t fd;
+ int keep[4];
+ for(unsigned i=0;i<4;i++){
+  if(number(argv[i==3?6:2+i],&fd)||fd<3||fd>65535)return 64;
+  keep[i]=(int)fd;
+  for(unsigned j=0;j<i;j++)if(keep[j]==keep[i])return 64;
+  struct stat info;
+  if(fstat(keep[i],&info))return 64;
+  if(i<3){
+   int flags=supervisor_fcntl(keep[i],F_GETFL);
+   if(!S_ISFIFO(info.st_mode)||flags<0||(flags&O_ACCMODE)!=(i?O_WRONLY:O_RDONLY))return 64;
+  }else if(!S_ISSOCK(info.st_mode))return 64;
+ }
+ uint64_t generation,serial,consumer;
+ if(number(argv[7],&generation)||number(argv[8],&serial)||number(argv[9],&consumer)||
+    strlen(argv[5])!=32||
+    strspn(argv[5],"0123456789abcdef")!=32||!strcmp(argv[5],"00000000000000000000000000000000"))return 64;
+ const char *view="--pairing-view";
+ if(consumer!=XW_NATIVE_WIFI_CONSUMER){
+#ifdef WR_ROOT_COLD_OWNER
+  if(consumer!=XW_PLAYER_REMOTE_CONSUMER)return 64;
+  view="--pairing-cold-view";
+#else
+  return 64;
+#endif
+ }
+ struct stat root,volume;
+ if(lstat("/",&root)||lstat("/contents",&volume)||!S_ISDIR(volume.st_mode)||root.st_dev==volume.st_dev)return 70;
+#ifdef WR_EMBEDDED_RUNTIME
+ uint64_t executable_device=root.st_dev;
+#else
+ uint64_t executable_device=volume.st_dev;
+#endif
+ if(xnow_file_check(remote_owner_input.path,executable_device,remote_owner_input.bytes,remote_owner_input.sha))return 70;
+ child_fds(keep,4);
+ char *child[]={(char *)remote_owner_input.path,"--owner",argv[2],argv[3],argv[4],argv[5],
+  "000000000000","--charger-confirmed","--exclusive-radio-confirmed",(char *)view,
+  argv[6],argv[7],argv[8],argv[9],0};
+ char *environment[]={"PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin","LC_ALL=C",0};
+ execve(child[0],child,environment);
+ return 71;
+}
+#endif
 static int run_children(int player_fd,uint8_t config[80],int stop_fd){
  int cfg[2],commands[2],responses[2],retirement[2],proxy[2];
  int service_stop[2]={-1,-1};
@@ -105,8 +242,12 @@ static int run_children(int player_fd,uint8_t config[80],int stop_fd){
   snprintf(mode_fd,sizeof mode_fd,"%d",owner_mode_fd);snprintf(mode_generation,sizeof mode_generation,"%llu",(unsigned long long)owner_mode_lease.generation);
   snprintf(mode_serial,sizeof mode_serial,"%llu",(unsigned long long)owner_mode_lease.serial);snprintf(mode_consumer,sizeof mode_consumer,"%llu",(unsigned long long)owner_mode_lease.consumer);
 #endif
+  char *view_flag="--mode-view";
+#ifdef WR_OWNER_MODE_VIEW
+  if(owner_mode_lease.mode==XW_WIRELESS_MODE_WIFI)view_flag="--shared-wifi-view";
+#endif
   char *argv[]={(char *)remote_owner_input.path,"--owner",a,b,c,cookie,peer,"--charger-confirmed","--exclusive-radio-confirmed",
-   keep_count==4?"--mode-view":0,mode_fd,mode_generation,mode_serial,mode_consumer,0};
+   keep_count==4?view_flag:0,mode_fd,mode_generation,mode_serial,mode_consumer,0};
   char *env[]={"PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin","LC_ALL=C",0};execve(argv[0],argv,env);_exit(127);
  }
 #ifdef WR_OWNER_MODE_VIEW
@@ -137,22 +278,32 @@ static int run_children(int player_fd,uint8_t config[80],int stop_fd){
  uint8_t record[32]={0};memcpy(record,"XRFDONE1",8);memcpy(record+8,config+64,16);record[24]=1;
  uint32_t failure=(uint32_t)receipt.startup_failure;for(unsigned i=0;i<4;i++)record[28+i]=(uint8_t)(failure>>(8*i));
  ssize_t forwarded;do{forwarded=write(proxy[1],record,32);}while(forwarded<0&&errno==EINTR);
- if(forwarded!=32)failed=1;close(proxy[1]);wipe(config,80);
+ int proxy_closed=forwarded<0&&errno==EPIPE;
+ if(forwarded!=32&&!proxy_closed)failed=1;close(proxy[1]);wipe(config,80);
  if(service_stop[1]>=0)close(service_stop[1]);
  /* No owner/client kill on a deadline. Child owns independent restoration;
   * uncertain runtime retains the child and this supervisor's wait. */
  int service_status=service<0?255:wait_child(service),owner_status=wait_child(owner);
+ /* A clean pre-bind refusal may exit before reading the proxy. The actual
+  * owner receipt/cookie/EOF above remains mandatory. Other exits still need
+  * successful delivery of that receipt to the service. */
+ if(proxy_closed&&service_status!=WR_SERVICE_START_RETIRED)failed=1;
  printf("REMOTE_SUPERVISOR_CHILDREN service=%d owner=%d\n",service_status,owner_status);
 #ifdef WR_OWNER_MODE_VIEW
  /* The pinned real owner uses69 only before its first controller step.
   * Service1 here means it retired with startup_failure after closing player.
   * A verified cookie/record/EOF above is mandatory; exit codes alone do not
   * establish retirement. Keep this distinct from normal startup success. */
- if(!failed&&receipt.startup_failure==1&&service_status==1&&owner_status==69){
-  puts("REMOTE_SUPERVISOR_START_REFUSAL_RETIRED");return 70;
+ int shared=owner_mode_lease.mode==XW_WIRELESS_MODE_WIFI;
+ if(!failed&&wr_run_recoverable_retirement(shared,receipt.startup_failure,service_status,owner_status)){
+  if(service_status==WR_SERVICE_START_RETIRED)puts("REMOTE_SUPERVISOR_SERVICE_START_REFUSAL_RETIRED");
+  else if(!receipt.startup_failure&&service_status==0&&owner_status==1)puts("REMOTE_SUPERVISOR_APPLICATION_FAILURE_RETIRED");
+  else if(receipt.startup_failure==WR_RADIO_PAIRING_STORAGE)puts("REMOTE_SUPERVISOR_PAIRING_STORAGE_REFUSED");
+  else puts(owner_status==69?"REMOTE_SUPERVISOR_START_REFUSAL_RETIRED":"REMOTE_SUPERVISOR_CHANNEL_CHANGE_RETIRED");
+  fflush(stdout);return 70;
  }
 #endif
- return failed||service_status||owner_status?1:0;
+ fflush(stdout);return failed||service_status||owner_status?1:0;
 }
 static int run_direct(int channel,uint64_t generation,int stop_fd){
  int kind=0;struct sockaddr_un peer;socklen_t size=sizeof kind;
@@ -170,7 +321,6 @@ static int run_direct(int channel,uint64_t generation,int stop_fd){
  }
  int null=open("/dev/null",O_RDWR);if(null<0||dup2(null,0)<0)return 71;if(null>2)close(null);
  setbuf(stdout,0);uint8_t config[80];int stream=-1,result=1;
- if(inputs(config,generation)){wipe(config,80);close(channel);return 69;}
  struct xw_descriptor_offer offer;unsigned long long began;
  if(hb_monotonic_millis(&began))goto done;
  puts("REMOTE_SUPERVISOR_DIRECT_READY");
@@ -182,11 +332,27 @@ static int run_direct(int channel,uint64_t generation,int stop_fd){
  }
  if(offer.generation!=generation||(offer.grants!=3&&offer.grants!=7))goto done;
  close(channel);channel=-1;
+ if(inputs(config,generation)){
+  result=69;
+#ifdef WR_OWNER_MODE_VIEW
+  /* No radio owner has started. Return a clean refusal after consuming the
+   * host offer so missing provisioning cannot leave the radio lease pinned. */
+  if(owner_mode_fd>=3){
+   puts("REMOTE_SUPERVISOR_INPUT_REFUSED");
+   result=70;
+  }
+#endif
+  goto done;
+ }
  result=run_children(stream,config,stop_fd);stream=-1;
 done:
  wipe(config,80);if(stream>=0)close(stream);if(channel>=0)close(channel);if(stop_fd>=0)close(stop_fd);return result;
 }
 int main(int argc,char **argv){
+#ifdef WR_DEVICE_PAIRING
+ if(argc==10&&!strcmp(argv[1],"--pairing-radio"))return run_pairing_radio(argv);
+ if((argc==4||argc==5)&&!strcmp(argv[1],"--pairing-store"))return run_pairing_store(argc,argv);
+#endif
 #ifdef WR_OWNER_MODE_VIEW
  if(argc!=13&&!(argc==2&&!strcmp(argv[1],"--help")))return 64;
 #endif
@@ -194,12 +360,14 @@ int main(int argc,char **argv){
   uint64_t generation,channel,stop_fd;if(number(argv[3],&generation)||number(argv[2],&channel)||number(argv[5],&stop_fd)||channel<3||channel>65535||stop_fd<3||stop_fd>65535)return 64;
   if(argc==13){
 #ifdef WR_OWNER_MODE_VIEW
-   uint64_t fd;if(strcmp(argv[8],"--mode-view")||number(argv[9],&fd)||fd<3||fd>65535||fd==channel||fd==stop_fd||
+   int shared=!strcmp(argv[8],"--shared-wifi-view");
+   uint64_t fd;if((!shared&&strcmp(argv[8],"--mode-view"))||number(argv[9],&fd)||fd<3||fd>65535||fd==channel||fd==stop_fd||
     number(argv[10],&owner_mode_lease.generation)||number(argv[11],&owner_mode_lease.serial)||number(argv[12],&owner_mode_lease.consumer))return 64;
+   if(shared&&owner_mode_lease.consumer!=XW_NATIVE_WIFI_CONSUMER)return 64;
    int kind=0;socklen_t bytes=sizeof kind;struct stat st;struct sockaddr_un peer;socklen_t peer_bytes=sizeof peer;
    if(fstat((int)fd,&st)||!S_ISSOCK(st.st_mode)||supervisor_getsockopt((int)fd,SOL_SOCKET,SO_TYPE,&kind,&bytes)||bytes!=sizeof kind||kind!=SOCK_DGRAM||
       getpeername((int)fd,(struct sockaddr *)&peer,&peer_bytes)||peer_bytes<sizeof peer.sun_family||peer.sun_family!=AF_UNIX)return 64;
-   owner_mode_fd=(int)fd;owner_mode_lease.mode=XW_WIRELESS_MODE_ESPNOW;
+   owner_mode_fd=(int)fd;owner_mode_lease.mode=shared?XW_WIRELESS_MODE_WIFI:XW_WIRELESS_MODE_ESPNOW;
 #else
    return 64;
 #endif

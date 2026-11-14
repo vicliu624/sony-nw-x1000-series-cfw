@@ -3,16 +3,35 @@ import argparse,hashlib,json,os,re,shutil,subprocess,time
 from pathlib import Path
 from app_registry import ROOT
 from player_arm_guest import stock_libraries
-parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--review',type=Path,required=True);parser.add_argument('--reusable-sessions',action='store_true');parser.add_argument('--forward-owner-mode-view',action='store_true');args=parser.parse_args()
+parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--review',type=Path,required=True);parser.add_argument('--reusable-sessions',action='store_true');parser.add_argument('--forward-owner-mode-view',action='store_true');parser.add_argument('--shared-wifi-owner-review',type=Path);parser.add_argument('--device-pairing',action='store_true',help='Read mutable pairing data while keeping executable hashes pinned');parser.add_argument('--embedded-runtime',action='store_true');args=parser.parse_args()
+if args.embedded_runtime and not args.device_pairing:
+ parser.error('--embedded-runtime requires --device-pairing')
+if args.device_pairing and not (args.reusable_sessions and args.forward_owner_mode_view):
+ parser.error('--device-pairing requires managed reusable sessions and a forwarded owner view')
 review_path=args.review.resolve();assert review_path.is_relative_to(ROOT/'work')
 review=json.loads(review_path.read_text(encoding='utf-8'));directory=review['device_directory']
 if args.forward_owner_mode_view:assert review.get('owner_mode_view_supported') is True,'Reviewed owner must support mode-view FD entry'
 assert directory=='/contents/HOMEBREW/data/wireless-remote/runtime' or re.fullmatch(r'/contents/HOMEBREW/data/player-sdk-live-[0-9]+/remote',directory)
 out=ROOT/'work/remote-supervisor-build'/str(time.time_ns());out.mkdir(parents=True)
-header=[];inputs=['tools/build_remote_supervisor.py','runtime/apps/wireless-remote/run_profile.h'];rows={};local_rows={};mode_host_snapshot=None
+header=[];inputs=['tools/build_remote_supervisor.py','runtime/apps/wireless-remote/run_profile.h','runtime/apps/wireless-remote/startup_result.h'];rows={};local_rows={};mode_host_snapshot=None
 inputs+=['runtime/platform/wireless/mode_policy.h','runtime/platform/wireless/mode.h']
-if args.reusable_sessions:header.append('static const uint64_t remote_template_generation='+str(review['generation'])+'ULL;')
+shared_owner_review=None;shared_wifi_radio_sha256=None
+root_cold_supported=False
+if args.shared_wifi_owner_review:
+ from review_managed_remote_profile import receipt
+ owner_path,owner=receipt(args.shared_wifi_owner_review)
+ expected=review['files']['owner']
+ if (not args.forward_owner_mode_view or not args.reusable_sessions or not owner.get('shared_wifi_supported') or
+     owner['data_directory']+'/runtime'!=directory or owner['sha256']!=expected['sha256'] or owner['bytes']!=expected['bytes']):
+  raise ValueError('Shared Wi-Fi owner receipt does not match launch profile')
+ shared_owner_review=owner_path.relative_to(ROOT).as_posix();inputs.append(shared_owner_review)
+ shared_wifi_radio_sha256=owner['candidate_sha256']
+ root_cold_supported=bool(owner.get('root_cold_supported'))
+ if root_cold_supported:header.append('#define WR_ROOT_COLD_OWNER 1')
+if args.device_pairing:header.append('static const char remote_config_path[]='+json.dumps(directory+'/config.bin')+';')
+elif args.reusable_sessions:header.append('static const uint64_t remote_template_generation='+str(review['generation'])+'ULL;')
 for name,leaf in [('service','service.arm'),('owner','owner.arm'),('config','config.bin')]:
+ if name=='config' and args.device_pairing:continue
  row=review['files'][name];local=(ROOT/row['local'].replace('\\','/')).resolve();assert local.is_relative_to(ROOT/'work')
  data=local.read_bytes();digest=hashlib.sha256(data).hexdigest();assert digest==row['sha256'] and len(data)==row['bytes']
  if name=='config':
@@ -37,31 +56,55 @@ for name,leaf in [('service','service.arm'),('owner','owner.arm'),('config','con
     mode_host_snapshot=(snapshot/'build.json').relative_to(ROOT).as_posix()
     inputs+=['tools/remote_host_review.py','tools/review_managed_remote_profile.py',mode_host_snapshot,(snapshot/'libx1000-player-analysis.so').relative_to(ROOT).as_posix()]
   assert int.from_bytes(data[16:24],'little') and any(data[24:30]) and not data[24]&1 and data[30:32]==b'\0\0' and any(data[32:64]) and any(data[64:80])
- header.append('static const struct wr_launch_input remote_'+name+'_input={'+json.dumps(directory+'/'+leaf)+','+str(len(data))+',{'+','.join(str(x) for x in bytes.fromhex(digest))+'}};')
- rows[name]=dict(path=directory+'/'+leaf,bytes=len(data),sha256=digest)
+ device_path='/usr/local/libexec/x1000-remote-'+leaf if args.embedded_runtime else directory+'/'+leaf
+ header.append('static const struct wr_launch_input remote_'+name+'_input={'+json.dumps(device_path)+','+str(len(data))+',{'+','.join(str(x) for x in bytes.fromhex(digest))+'}};')
+ rows[name]=dict(path=device_path,bytes=len(data),sha256=digest)
  local_rows[name]=dict(local=local.relative_to(ROOT).as_posix(),bytes=len(data),sha256=digest)
 (out/'remote_launch_inputs.h').write_text('\n'.join(header)+'\n',encoding='utf-8')
 sources=['runtime/apps/wireless-remote/supervisor.c','runtime/apps/wireless-remote/run_profile.c','runtime/platform/player/startup_delivery.c',
          'runtime/platform/services/descriptor.c','runtime/platform/espnow/xnow_file_check.c',
          'runtime/platform/espnow/xnow_handoff.c','runtime/native/sha256.c','runtime/store/deadline.c',
          'runtime/store/stock_fs_bridge.c','runtime/store/stock_stat64.c','runtime/store/start.c','runtime/store/start.S']
+if args.device_pairing:
+ sources+=['runtime/apps/wireless-remote/pairing_store.c']
+ inputs+=['runtime/apps/wireless-remote/pairing_store.h']
 libs=stock_libraries(include_rt=True);artifact=out/'remote-supervisor.arm'
 subprocess.run(['arm-linux-gnueabi-gcc','-std=c99','-Os','-Wall','-Wextra','-Werror','-Wno-misleading-indentation',
-                '-DHB_STORE_SONY_LIBC','-DHB_STORE_LIBC_CLOCK',*(['-DWR_REUSABLE_SESSIONS'] if args.reusable_sessions else []),*(['-DWR_OWNER_MODE_VIEW'] if args.forward_owner_mode_view else []),'-U_FORTIFY_SOURCE','-D_FORTIFY_SOURCE=0',
+                '-DHB_STORE_SONY_LIBC','-DHB_STORE_LIBC_CLOCK',*(['-DWR_REUSABLE_SESSIONS'] if args.reusable_sessions else []),*(['-DWR_OWNER_MODE_VIEW'] if args.forward_owner_mode_view else []),*(['-DWR_DEVICE_PAIRING'] if args.device_pairing else []),*(['-DWR_EMBEDDED_RUNTIME'] if args.embedded_runtime else []),'-U_FORTIFY_SOURCE','-D_FORTIFY_SOURCE=0',
                 '-march=armv5te','-marm','-mfloat-abi=soft','-fno-builtin','-fno-pie','-fno-stack-protector',
                 '-nostdlib','-no-pie','-Wl,--hash-style=sysv,--build-id=none','-I'+str(out),*sources,
                 str(libs['librt.so.1']),str(libs['libpthread.so.0']),str(libs['libc.so.6']),str(libs['ld-linux.so.3']),'-lgcc','-o',str(artifact)],cwd=ROOT,check=True)
 base=['qemu-arm','-cpu','arm926',str(libs['ld-linux.so.3']),'--library-path',':'.join(dict.fromkeys(str(p.parent) for p in libs.values())),str(artifact)]
 for argv,expected in [(['--help'],0),([],64),(['/tmp/invalid','00'*16,'23','--charger-confirmed','--exclusive-radio-confirmed'],64),(['--delivery-fd','0','23','--charger-confirmed','--exclusive-radio-confirmed'],64),(['--delivery-fd','65535','23','--charger-confirmed','--exclusive-radio-confirmed'],64)]:
  run=subprocess.run(base+argv,cwd=ROOT,env=dict(os.environ,QEMU_UNSET_ENV='LD_LIBRARY_PATH,LD_PRELOAD'),capture_output=True,text=True,timeout=10);assert run.returncode==expected,run.stdout+run.stderr
-inputs += [review_path.relative_to(ROOT).as_posix(),*[row['local'] for row in local_rows.values()]]
+if args.device_pairing:
+ run=subprocess.run(base+['--pairing-radio','0','4','5','01'*16,'6','1','2','3'],cwd=ROOT,capture_output=True,text=True,timeout=10)
+ assert run.returncode==64,run.stdout+run.stderr
+ run=subprocess.run(base+['--pairing-store','forget','0'],cwd=ROOT,capture_output=True,text=True,timeout=10)
+ assert run.returncode==64,run.stdout+run.stderr
+ reader,writer=os.pipe()
+ try:
+  run=subprocess.run(base+['--pairing-store','query',str(writer)],cwd=ROOT,pass_fds=(writer,),capture_output=True,timeout=10)
+  assert run.returncode==0 and os.read(reader,16)==b'WPS1\x02'+bytes(11),run.stderr
+ finally:
+  os.close(writer);os.close(reader)
+inputs += [review_path.relative_to(ROOT).as_posix(),*[row['local'] for row in local_rows.values()],
+           'tools/review_managed_remote_profile.py']
 report=dict(built=True,artifact=str(artifact.relative_to(ROOT)),bytes=artifact.stat().st_size,
             sha256=hashlib.sha256(artifact.read_bytes()).hexdigest(),original_libc_arm_entry_checks=True,
             private_launch_profile=True,reusable_sessions=args.reusable_sessions,device_accessed=False,radio_started=False,inputs=rows,
             owner_mode_view_forwarded=args.forward_owner_mode_view,
+            device_pairing=args.device_pairing,
+            embedded_runtime=args.embedded_runtime,
+            root_cold_supported=root_cold_supported,
+            shared_wifi_owner_review=shared_owner_review,
+            shared_wifi_radio_sha256=shared_wifi_radio_sha256,
             launch_review=review_path.relative_to(ROOT).as_posix(),local_inputs=local_rows,
             mode_host_snapshot=mode_host_snapshot,
             generation=review['generation'],source_hashes={p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in sources+inputs},
             linked_library_hashes={str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in libs.values()},
             generated_header_sha256=hashlib.sha256((out/'remote_launch_inputs.h').read_bytes()).hexdigest())
+from review_managed_remote_profile import input_artifact
+for role,leaf in (('owner','remote-rf-owner.arm'),('service','wireless-remote-service.arm')):
+ input_artifact(report,role,leaf)
 (out/'build.private.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8');print(json.dumps(report,indent=2))

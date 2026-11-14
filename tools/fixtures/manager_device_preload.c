@@ -44,6 +44,12 @@ static unsigned dsp_setup_seen,dsp_task_seen,dsp_read_seen;
 #endif
 /* F_SETFD has no time structure; bind the stock symbol explicitly. */
 extern int guest_fcntl(int,int,...) __asm__("fcntl");
+#ifdef HB_USB_TRANSITION_MODEL
+#include "stock_usb_serial_model.h"
+#endif
+#ifdef HB_NCAN_WAIT_MODEL
+#include "stock_ncan_wait_model.h"
+#endif
 #ifdef HB_SILENT_MIXER_MODEL
 #include "stock_silent_mixer_model.h"
 #endif
@@ -52,6 +58,15 @@ extern int guest_fcntl(int,int,...) __asm__("fcntl");
 #endif
 #ifdef HB_DISPLAY_TOUCH_MODEL
 #include "stock_display_touch_model.h"
+static int gui_proc_pm=-1;
+ssize_t write(int fd,const void *data,size_t size){
+ ssize_t (*real_write)(int,const void *,size_t)=dlsym(RTLD_NEXT,"write");
+ if(gui_proc_pm<0||fd!=gui_proc_pm)return real_write(fd,data,size);
+ if(size!=2||(memcmp(data,"S3",2)&&memcmp(data,"S4",2))){errno=EINVAL;return -1;}
+ const char note[]="GUEST_PM_TRANSITION_ACK_ONLY\n";
+ (void)real_write(2,note,sizeof note-1);
+ return 2;
+}
 #endif
 #ifdef HB_INTERDSP_IDLE_MODEL
 #include "stock_dsp_idle_model.h"
@@ -74,11 +89,21 @@ static int open_device(const char *path,int flags,unsigned mode,const char *symb
 #endif
 #ifdef HB_DISPLAY_TOUCH_MODEL
  if(!strcmp(path,"/dev/fb/0")||!strcmp(path,"/dev/icx_touch_screen")||!strcmp(path,"/dev/icx_watch_elapsed_time"))return gui_open(path,flags,real_open);
+ if(!strcmp(path,"/proc/pm")&&flags==O_WRONLY){
+  if(gui_proc_pm>=0){errno=EBUSY;return -1;}
+  gui_proc_pm=real_open("/dev/null",flags,mode);return gui_proc_pm;
+ }
 #endif
 #if defined(HB_NCAN_OPEN_PROBE) || defined(HB_NCAN_CONTROL_MODEL)
  if(!strcmp(path,"/dev/icx1111_ncan")){
   int ends[2];if(pipe(ends))return -1;ncan_probe=ends[0];ncan_writer=ends[1];
-  guest_fcntl(ends[0],F_SETFD,FD_CLOEXEC);guest_fcntl(ends[1],F_SETFD,FD_CLOEXEC);return ncan_probe;
+  guest_fcntl(ends[0],F_SETFD,FD_CLOEXEC);guest_fcntl(ends[1],F_SETFD,FD_CLOEXEC);
+#ifdef HB_NCAN_WAIT_MODEL
+  if(guest_ncan_wait_prepare(ncan_probe)){
+   int saved=errno;close(ncan_probe);errno=saved;return -1;
+  }
+#endif
+  return ncan_probe;
  }
 #endif
 #ifdef HB_INTERDSP_IDLE_MODEL
@@ -97,10 +122,14 @@ static int open_device(const char *path,int flags,unsigned mode,const char *symb
  }
 #endif
  if(!strcmp(path,"/dev/usbconn")){
+#ifdef HB_USB_TRANSITION_MODEL
+  return guest_usb_open();
+#else
   /* Unplugged, no state change: status query returns zero, readiness must stay
    * idle. /dev/null is always readable and spins the stock realtime waiter. */
   int ends[2];if(pipe(ends))return -1;usb=ends[0];usb_writer=ends[1];
   guest_fcntl(ends[0],F_SETFD,FD_CLOEXEC);guest_fcntl(ends[1],F_SETFD,FD_CLOEXEC);return usb;
+#endif
  }
  if(!strcmp(path,"/dev/icx1087_power")){
   /* Test-only steady battery: no charger, USB or adapter, gauge 4/4.
@@ -168,6 +197,13 @@ int ioctl(int fd,unsigned long command,void *value){
 #endif
 #if defined(HB_NCAN_OPEN_PROBE) || defined(HB_NCAN_CONTROL_MODEL)
  if(ncan_probe>=0&&fd==ncan_probe){
+#ifdef HB_NCAN_WAIT_MODEL
+  if(command==XW_GUEST_NCAN_WAIT)return guest_ncan_wait(ncan_probe,value);
+  if(command==XW_GUEST_NCAN_BREAK){
+   const char note[]="GUEST_NCAN_WAIT_BREAK_REQUEST\n";write(2,note,sizeof note-1);
+   return guest_ncan_break(ncan_writer);
+  }
+#endif
 #ifdef HB_NCAN_CONTROL_MODEL
   if(command==0xc0046311&&value){
    unsigned requested=*(unsigned *)value;char detail[110];int length=snprintf(detail,sizeof detail,"MANAGER_DEVICE NCAN_VIRTUAL_MODE_REQUEST %u\n",requested);write(2,detail,length);
@@ -208,6 +244,10 @@ int ioctl(int fd,unsigned long command,void *value){
   if(value&&(command==0x80045000||command==0x80045003||command==0x80045006)){
    *(unsigned *)value=command==0x80045003?5:0;return 0;
   }
+  if(value&&command==0x80045002){
+   /* ICX1087_POWER_GET_BAT_ADVAL. Match the modeled full battery gauge. */
+   *(unsigned *)value=0xe0;return 0;
+  }
   errno=EOPNOTSUPP;return -1;
  }
  if(fd==pm){
@@ -217,13 +257,26 @@ int ioctl(int fd,unsigned long command,void *value){
  }
  if(fd==usb){
   char line[100];int n=snprintf(line,sizeof line,"MANAGER_DEVICE USB_IOCTL %08lx\n",command);write(2,line,n);
+#ifdef HB_USB_TRANSITION_MODEL
+  return guest_usb_ioctl(command,value);
+#else
   if(command==0x80046701&&value){*(unsigned *)value=0;return 0;}
   /* Access-control commands are not modeled by this startup-only backend. */
   errno=EOPNOTSUPP;return -1;
+#endif
  }
  int (*real_ioctl)(int,unsigned long,void *)=dlsym(RTLD_NEXT,"ioctl");return real_ioctl(fd,command,value);
 }
-int close(int fd){int (*real_close)(int)=dlsym(RTLD_NEXT,"close");if(usb>=0&&fd==usb){usb=-1;real_close(usb_writer);usb_writer=-1;}if(fd==pm){pm=-1;real_close(pm_writer);pm_writer=-1;}if(fd==power){power=-1;real_close(power_writer);power_writer=-1;}if(fd==cradle){cradle=-1;real_close(cradle_writer);cradle_writer=-1;cradle_enabled=0;}
+int close(int fd){int (*real_close)(int)=dlsym(RTLD_NEXT,"close");if(usb>=0&&fd==usb){
+#ifdef HB_USB_TRANSITION_MODEL
+guest_usb_close();
+#else
+usb=-1;real_close(usb_writer);usb_writer=-1;
+#endif
+}if(fd==pm){pm=-1;real_close(pm_writer);pm_writer=-1;}if(fd==power){power=-1;real_close(power_writer);power_writer=-1;}if(fd==cradle){cradle=-1;real_close(cradle_writer);cradle_writer=-1;cradle_enabled=0;}
+#ifdef HB_DISPLAY_TOUCH_MODEL
+ if(fd==gui_proc_pm)gui_proc_pm=-1;
+#endif
 #ifdef HB_MG_CONSTRUCTOR_MODEL
  if(fd==mg_constructor.fd){mg_constructor.fd=-1;mg_constructor.mappings=mg_constructor.initialized=0;}
 #endif

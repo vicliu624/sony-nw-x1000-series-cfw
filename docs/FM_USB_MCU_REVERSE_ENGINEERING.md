@@ -12,7 +12,7 @@ beyond the ordinary host drivers compared in
 [FM_EXTERNAL_IMPLEMENTATIONS.md](FM_EXTERNAL_IMPLEMENTATIONS.md).
 
 This is a USB bridge MCU candidate, not the internal firmware of Si4702/03.
-Its origin as an unmodified vendor release is not authenticated. Exact tuner
+The archived vendor package below contains identical application records. Exact tuner
 subtype/stepping and relationship to the Japanese Sony board remain unknown.
 No hardware was accessed, application executed, firmware loaded or published.
 Keep acquired headers, decoded bytes and listings in ignored work directories.
@@ -45,10 +45,96 @@ Evidence supporting the decoding:
 - UTF-16LE data at `0x0d55` and `0x0d89` spells the manufacturer name and
   `FM Radio`, respectively.
 
-The stored page CRC algorithm and coverage remain unresolved. Common CRC16
-variants did not authenticate the records. Recognizable code and strings do
-not replace that check. This image must remain labeled a decoded candidate.
-Do not infer the contents of uncovered flash or bootloader space.
+The archived vendor source's `CRConPage` initializes a 16-bit accumulator
+to zero, XORs each decoded byte into its high byte, then shifts left and
+tests bit 15 **after** the shift before XORing `0x1021`. All fifteen
+record checksums match when interpreted as big-endian words. This is an
+integrity check of the application records.
+
+## Recovered Silicon Labs AN264 software
+
+The [2014-07-22 capture of the Silicon Labs download](https://web.archive.org/web/20140722174009id_/http://www.silabs.com/Support%20Documents/Software/AN264SW.zip)
+contains firmware and GUI source, USBRadio v2.0, and PCB design files.
+The 1,217,276-byte ZIP passed ZIP integrity testing. SHA-256:
+`6d95a30d5184cee011467eab5682050742a30027f35c27d87d075cba3223c63d`.
+The vendor header SHA-256 is
+`465455abfccc611796e7416a8601f4f04db22418490bb0618c492bde7e2568b2`.
+Its 7,725 encoded record bytes match the retained header and the complete
+array embedded at file offset `0x17020` in USBRadio.exe. The decoded image
+hash and address coverage above therefore apply to all three copies.
+The executable was inspected as bytes.
+
+`Firmware/Readme.txt` assigns the command interpreter's constant segment
+to `0x3600` and `Radio_Flasher` to `0x3800`.
+`F320_Command_Interpreter.c` declares the 512-byte `Host_Data` array
+with initial bytes `00 07 01` for host scratch, MCU software version
+and board hardware version. This is a source initializer. The scratch
+page is writable and an installed copy can differ.
+
+The actual `F320_FM_Radio.wsp` repeats both fixed addresses in its
+BL51 link flags and references Keil C51 and the command interpreter
+object. The object is absent. Inventorying the top-level ZIP and its
+two nested PCB ZIPs yielded 223 files and no Intel HEX records or MCU
+object, map or absolute image files. This supports the source layout
+independently of the README and records the limit of the archive search.
+
+The flasher's `SetPage` accepts 512-byte page numbers below 28, with
+highest selectable page 27 at `0x3600`. The flasher entry at `0x3800`
+is on page 28, which that selector rejects. Erase and write routines
+consume the saved page base, while the direct byte reader independently
+takes an absolute address. The selector's bound therefore does not
+apply to the byte read and should not be interpreted as a general flash
+protection guarantee.
+
+The application enters the flasher on HID SET report 19, command `0x34`,
+with the two version bytes matching the stored values. The published
+flasher implements command `0x05` as a direct 16-bit CODE pointer read
+with no address check in that function. The response is report byte
+`0x16` followed by one flash byte. The GUI source constructs the address
+high byte first in `CFMRadioBootloader::ReadFlashByte`. The command targets
+the C8051 USB bridge and can name both missing addresses in the published
+source. This is independent of the string-index path. The ZIP supplies
+source and linker placement for these regions, while its application
+update array supplies compiled bytes only through `0x1dff`. No compiled
+byte at `0x3600` or `0x3800` was recovered or synthesized.
+
+In flasher mode, the host helper places `13 05 AH AL` (hexadecimal) in
+the HID feature buffer, with the rest zero-filled. `GetCommand` polls
+EP0 OUT-ready for SET setup and payload, reads four FIFO bytes and drops
+the first by overwriting `CmdBuff[0]`. After acknowledging the OUT data,
+it waits for the next setup packet, which the host helper requests with
+HID GET feature report `0x16`. The firmware writes `16 DATA` into FIFO
+register `0x20` and writes `0x0a` to E0CSR (IN-ready plus data-end).
+The published polling loop does not validate the setup fields or implement
+a timeout. These are source-level observations.
+
+The published GUI has a buffer-size mismatch in the read helper:
+`ReadFlashByte` supplies a two-byte `RESPONSE_BUFFER` but passes
+`CRC_BUFFER_SIZE` (three) to `GetMCUBootloadReport`, which copies that
+many bytes in both directions. The retained GUI source has no call site
+for this helper beyond its declaration and definition. The two-byte
+firmware response and intended host protocol are independently visible
+in the source; execution of the original helper is not qualified.
+
+The GUI's generic register writer allows TEST1, TEST2 and BOOTCONFIG
+reports, serializes high/low words and uses HidD_SetFeature. Direct
+call sites select POWERCFG and CHANNEL. The only call sites of the
+generic `WriteRegister` wrapper are the three calls in
+`InitializeRadioData`, for SYSCONFIG1, SYSCONFIG2 and POWERCFG. Those
+derive from RDS, band, spacing, de-emphasis, mono/stereo and seek
+threshold configuration. No call site selects the three TEST-related
+reports in the supplied GUI source. `SetStreamReport` has no source
+caller either. These call-site findings apply to the AN264 GUI
+source, independently of the EVB software that is still missing.
+
+The generic wrapper also passes a count of sixteen words from
+`m_Register[report - 1]` to the serializer, although the entire array
+contains sixteen words. If the serializer's buffer-capacity check
+passes, those startup calls read beyond the array. In the candidate
+MCU's single-register SET branch only the first payload word becomes
+a tuner register write. Extra host payload bytes cannot be counted as
+a multi-register TEST sequence on that branch.
+
 
 ## Reproducible PC extraction
 
@@ -61,9 +147,8 @@ python tools/replay_fm_mcu_stream.py
 ```
 
 The extractor checks the exact source hash, unique/complete page indices,
-decoded hash and startup bytes. It independently reconstructs all Intel HEX
-records and validates their checksums. This checks extraction and file format,
-not device behavior or the unresolved original page CRC. `dis51` is a PC-side
+all stored page checksums, decoded hash and startup bytes. It independently reconstructs all Intel HEX
+records and validates their checksums. This checks the application records and file format independently of device behavior. `dis51` is a PC-side
 MCS-51 disassembler. Its recursive listing is incomplete around indirect
 dispatch and must not be interpreted as proving the absence of commands.
 
@@ -175,6 +260,25 @@ by the original-byte replay below. There is no recovered link
 from the Si470x internal I/Q ADCs to that stream. Board analog routing and
 physical operation are separate evidence.
 
+### Reference-board nets from the vendor drawing
+
+The archived AN264 package includes the two-sheet SA-TB36PCB-002A
+schematic. Sheet 1 identifies U2 as Si4701 and U1 as C8051F321.
+U2 LOUT (pin 16) and ROUT (pin 15) leave sheet 1 as analog nets.
+Sheet 2 AC-couples them through C6 and C8 into the two MC33202DM
+amplifier sections. L-AMP returns to U1 P2.1 (pin 13) and R-AMP to
+P2.0 (pin 14). This supplies the analog front end corresponding to
+the MCU's alternating ADC mux and USB audio producer.
+
+U2 GPIO3 routes to U1 P0.1, GPIO2 to P0.0, and GPIO1 to P2.2.
+These are available physical nets on the reference PCB. The recovered
+stream producer selects the analog ADC pair and supplies no evidence
+that it samples those GPIO nets. The unpopulated J2 footprint routes
+DB1 (U1 P3.0/C2D), RST (U1 RST/C2CK), and ground to pins 1, 2,
+and 3 respectively. This identifies a separate MCU programming
+connection in the drawing. It does not establish flash lock state.
+These are reference-board connections and are not a Sony netlist.
+
 ### ADC producer to audio FIFO: original-byte replay
 
 `tools/replay_fm_mcu_stream.py` executes the candidate producer at `0x1a5f`
@@ -278,6 +382,50 @@ tuner transaction before its boundary. Results are stored locally in
 This does not exclude further behavior inside the mode helper or missing
 bootloader. It does exclude interpreting report 20 as an additional RF
 register block in these recovered handlers.
+
+### Bootloader entry with supplied version bytes
+
+An original-instruction replay of SET report 19, command `0x34`, sweeps
+all 65,536 payload pairs with synthetic CODE values `07 01` at
+`0x3601/0x3602`, matching the vendor source initializer. Of those
+pairs, 65,280 stop after the first compare and 255 stop after the second.
+The single matching pair executes the LED helper at `0x0958` and
+reaches PC `0x3800` via the LCALL at `0x1025`. An alternate synthetic
+pair `fe 22` confirms that the comparison follows the supplied data
+rather than hard-coded version constants. No tuner transaction occurs
+in these cases. The model stops before fetching the first instruction
+at `0x3800`. The synthetic version bytes are not measurements or a
+recovered flash image.
+
+Local replay and result: `work/fm-mcu-candidate/replay_boot_entry.py`
+and `work/fm-mcu-candidate/boot-entry-replay.json`.
+
+### Ordinary HID scratch report to EP0
+
+The vendor source declares a 64-byte ReturnBuffer. GET report 20 copies
+64 bytes from Host_Data into buffer indices 1 through 64, then sets
+DataSize to 64. The original instructions at `0x0ec8–0x0ee8` reproduce
+that discrepancy. The final copied byte from CODE `0x363f` goes into
+IRAM `0x6f`, adjacent to the buffer at `0x2f–0x6e`. At that point
+`0x6f` holds the normalized setup request type.
+
+A bounded original-byte replay started at the class GET_REPORT call
+site `0x078f`, providing a deterministic synthetic 64-byte region at
+`0x3600` and immediate EP0 IN readiness. In all six scenarios it staged
+64 bytes in FIFO 0, consisting of report ID `0x14` and the first 63
+flash bytes (`0x3600–0x363e`). The byte from `0x363f` changed IRAM
+`0x6f` and was not included. For wLength 64 it staged one packet.
+For wLength 0, 1, 63, 65 and 255 it staged the same packet followed by
+a zero-length packet in the synthetic model. This path does not clamp
+its staged data as GET_DESCRIPTOR does. Host acceptance and actual
+USB behavior at mismatched lengths remain unverified.
+
+The GET path makes no tuner transaction or flash-maintenance call.
+It can expose the MCU version bytes through the normal 64-byte report
+without entering the flasher. This replay provides no actual flash
+content. The fixtures and trace are in
+`work/fm-mcu-candidate/replay_scratch_ep0.py` and
+`work/fm-mcu-candidate/scratch-ep0-replay.json`.
 
 ### Mode helper `0x0958`: bounded state sweeps
 
@@ -442,26 +590,87 @@ Index 3 instead produces `01:0000`, from adjacent constants; index 4
 produces `00:c0d0`, straddling constants and the next function's prologue.
 These are observed pointer bytes, not authenticated extra descriptor entries.
 
-The replay stops at `0x11a9` before generic-pointer dereference, and before
-length clamping or packet copying. It therefore establishes an unchecked
-selection boundary, not successful arbitrary-memory readout, hidden register
-access or extraction of `0x3800`. No replacement bytes are supplied for
-missing code. The local `descriptor-selection-replay.json` retains every
-selected pointer, scope and image/tool hashes. Further analysis must follow
-the generic-memory reader and transfer length before assigning a usable
-data-return capability to an out-of-range index.
+### String index to EP0 FIFO
+
+Run `python tools/replay_fm_mcu_ep0.py` after extracting the pinned image.
+The replay starts at the GET_DESCRIPTOR dispatch target `0x07d9`.
+The reader at `0x14d5` obtains the first byte as length, and the handler
+clamps it to the 16-bit wLength. The writer at `0x18ec` calls the generic
+reader at `0x14ee` and copies bytes to USB indirect register `0x20` (FIFO 0).
+RAM, USB readiness and setup state are synthetic. The report records reads
+and packets staged by writes to EP0 CSR, with no USB bus execution.
+
+Tag 0 selects indirect IRAM, tag 1 selects DPTR-based XRAM, and tag FE
+selects paged XRAM. Other tags select CODE. Among 256 indices there are
+243 CODE, eight IRAM and five XRAM pointers, including no FE tag. In
+this model 66 indices complete, including normal strings 0–2. The
+remaining 190 stop at the first dereference (188 uncovered CODE and
+two USB FIFO RAM aliases that are outside the model).
+
+| Index | Pointer | Result |
+| --- | --- | --- |
+| 3 | `01:0000` | With synthetic length 130 and wLength 255, packet lengths are 64, 64 and 2. Synthetic length 128 produces 64, 64 and 0. |
+| 4 | `00:c0d0` | IRAM starts at `0xd0` and wraps at `0xff`. |
+| 9 | `00:0876` | IRAM length byte aliases the low byte of wLength. |
+| 135 | `10:3602` | Attempts a CODE length read at `0x3602`. The input has no byte there. |
+| 202 | `ff:0fef` | For wLength 255, candidate bytes `0x0fef–0x10ed` reach FIFO 0 in packets of 64, 64, 64 and 63 bytes. |
+
+The length read occurs even at wLength zero. The maximum descriptor length
+is 255. No CODE pointer in the sweep starts at or within 254 bytes below
+`0x3800`; the read at `0x3602` could extend at most through `0x3700`.
+The bootloader entry transfer is a separate path. The input ends at
+`0x1dff`. The local `work/fm-mcu-candidate/ep0-string-replay.json`
+records 2,305 scenarios, with input and interpreter hashes.
+
+### MCU memory-map qualification
+
+The [C8051F320/1 datasheet](https://www.silabs.com/documents/public/data-sheets/C8051F32x.pdf)
+specifies modulo-2048 mapping for MOVX addresses. The replay now masks
+XRAM addresses to 11 bits before selecting user RAM or USB FIFO RAM.
+String indices 42 and 50 select `01:4215` and `01:4216`, which alias
+ordinary XRAM `0x0215` and `0x0216`. Both complete with synthetic
+user RAM. Indices 123 and 210 select aliases of `0x0478` and
+`0x0493` in USB FIFO RAM. Those stop explicitly because FIFO RAM
+contents and clock-domain access are outside this replay. The earlier
+classification of all four addresses as unavailable XRAM was incorrect.
+
+The MCU's user code region extends through `0x3dff`. A MOVC or
+instruction fetch above that boundary triggers a Flash error reset
+according to the datasheet. Uncovered CODE stops above `0x3dff`
+therefore denote a documented device failure condition, while reads
+inside the user code region but outside the retained image remain
+unknown data. Neither category supplies missing bytes to the model.
+
+The EP0 report now records those boundaries separately. For each of
+the nine request lengths, the 256 indices produce 66 completed
+transfers, 158 Flash-error reset boundaries, 30 missing-code
+boundaries inside user code space and two unmodeled USB FIFO RAM
+aliases. The replay stops before the faulting read supplies a value.
+It does not execute the MCU's reset sequence. The classification
+is independent of wLength for this image because the first length
+read precedes clamping, including when wLength is zero. Additional
+assertions pin the XRAM aliases and the missing `0x3602` boundary.
+
+### Vendor bootloader comparison
+
+Silicon Labs [AN200 rev. 0.2](https://www.silabs.com/documents/public/application-notes/AN200.pdf)
+supports the same C8051F320/1 family and names an AN200SW archive, but its
+documented USBXpress architecture reserves the first 5 KiB for the
+bootloader and begins the application region at `0x1400` (figure 4).
+The radio candidate has its application reset and interrupt vectors
+at the bottom of flash, active radio code below `0x1400`, and a separate
+HID-controlled call to `0x3800`. The published AN200 memory map therefore
+does not match this radio image. The attempted vendor archive URLs
+returned HTTP 403, so no AN200 binary comparison was possible.
+Use an attributable AN264 or OEM radio image for missing bytes.
 
 ### Remaining work
 
-Continue through the EP0 downstream handlers and packet/length state machine;
-setup dispatch prefixes, GET/SET handler prefixes and mode-helper sweeps are
-covered, but the entire USB state machine is not.
 Trace indirect IRAM `0x8a` readers before interpreting unadvertised alternate
 values as implemented modes; SET_INTERFACE storage alone is insufficient.
 Obtain the external `0x3600` storage and `0x3800` bootloader from a
 separately attributable PC-side image before assigning behavior to them.
-Validate the original page CRC and identify firmware/tuner version before
-claiming a same-revision match.
+Identify the physical tuner version before claiming a same-revision match.
 
 This candidate has not yet yielded an IQ entry sequence. It creates a new,
 concrete reverse-engineering path; the earlier missing-software limitation

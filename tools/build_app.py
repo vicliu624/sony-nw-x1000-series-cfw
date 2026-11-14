@@ -1,19 +1,19 @@
 """Build and package one app using its local definition. PC only; no deployment."""
 import argparse,hashlib,json,os,shutil,subprocess,sys
 from pathlib import Path
-from app_registry import ROOT,applications
+from app_registry import ROOT,applications,application_root
 from app_presentation import install_presentation
 from market_metadata import parse_version
 
-def package(ident,source,output):
-    info=applications()[ident]
+def package(ident,source,output,app_root=None):
+    root=application_root(app_root);info=applications(root)[ident]
     if Path(source).is_symlink():raise ValueError('Linked package root')
     source=Path(source).resolve();output=Path(output).resolve()
     if not output.is_relative_to(ROOT/'work') or output==ROOT/'work' or output.exists():raise ValueError('Select a new project work directory')
     if source.is_symlink() or not source.is_dir():raise ValueError('Missing package input')
     files=list(source.rglob('*'))
     if any(p.is_symlink() for p in files):raise ValueError('Linked package input')
-    version=(ROOT/'runtime/apps'/ident/'VERSION').read_text().strip();parse_version(version)
+    version=(root/ident/'VERSION').read_text().strip();parse_version(version)
     if (source/'app.ini').is_file():
         manifest=dict(line.split('=',1) for line in (source/'app.ini').read_text().splitlines())
         if manifest.get('id')!=ident:raise ValueError('Package input belongs to another app')
@@ -34,7 +34,7 @@ def package(ident,source,output):
         if not origin.is_file():raise ValueError('Missing required resource: '+str(origin))
         dest.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(origin,dest)
     (output/'app.ini').write_text(f'api=1\nid={ident}\nname={info["title"]}\nversion={version}\ntarget={info["target"]}\nexec=app\nbytes={len(data)}\nsha256={hashlib.sha256(data).hexdigest()}\n')
-    install_presentation(ident,output,version)
+    install_presentation(ident,output,version,app_root)
     (output/'files.sha256').write_text('HBFILES1\n'+''.join(f'{hashlib.sha256(p.read_bytes()).hexdigest()} {p.stat().st_size} {p.relative_to(output).as_posix()}\n' for p in sorted(output.rglob('*')) if p.is_file() and p.name!='files.sha256'))
     return output
 

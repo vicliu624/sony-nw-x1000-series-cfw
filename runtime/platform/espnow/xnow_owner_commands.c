@@ -10,7 +10,8 @@ int xnow_owner_commands_init(struct xnow_owner_commands *c,void *context,struct 
 int xnow_owner_commands_dispatch(struct xnow_owner_commands *c,const void *input,size_t n,uint8_t reply[16],size_t cap){
  if(!c||!c->endpoint||!c->stop||!input||!reply||cap<16||n<16||n>XNOW_OWNER_COMMAND_MAX)return XNOW_ARGUMENT;
  const uint8_t *p=input;unsigned op=p[4],flags=p[5];uint32_t token=get32(p+8),length=get32(p+12);
- if(memcmp(p,"XNC1",4)||p[6]||p[7]||!token||length!=n-16||op<XNOW_OWNER_ADD||op>XNOW_OWNER_STOP||flags>(op==XNOW_OWNER_SEND?1u:0u))return XNOW_ARGUMENT;
+ if(memcmp(p,"XNC1",4)||p[6]||p[7]||!token||length!=n-16||op<XNOW_OWNER_ADD||
+    op>(c->private_request?XNOW_OWNER_PRIVATE_PUBLISH:XNOW_OWNER_STOP)||flags>(op==XNOW_OWNER_SEND?1u:0u))return XNOW_ARGUMENT;
  const uint8_t *body=p+16;
  if((op==XNOW_OWNER_ADD||op==XNOW_OWNER_MODIFY)&&(length!=26||body[9]||body[8]>1))return XNOW_ARGUMENT;
  if(op==XNOW_OWNER_DELETE&&length!=6)return XNOW_ARGUMENT;
@@ -21,7 +22,12 @@ int xnow_owner_commands_dispatch(struct xnow_owner_commands *c,const void *input
  }
  int result=XNOW_IDENTITY;
  if(op==XNOW_OWNER_STOP){c->stopped=1;c->stop(c->context);result=0;}
- else if(!c->stopped){struct xnow_endpoint *e=c->endpoint(c->context);
+ else if(op>XNOW_OWNER_STOP){
+  if(!c->stopped&&c->restricted&&c->endpoint(c->context))result=c->private_request(op,body,length);
+ }
+ else if(!c->stopped&&(!c->restricted||
+         (op==XNOW_OWNER_SEND&&!flags&&c->allow_send&&c->allow_send(body,body+6,length-6)==1))){
+  struct xnow_endpoint *e=c->endpoint(c->context);
   if(e){
    if(op==XNOW_OWNER_ADD||op==XNOW_OWNER_MODIFY){
     struct xnow_peer peer;memset(&peer,0,sizeof peer);memcpy(peer.address,body,6);peer.channel=body[6];peer.version=body[7];peer.encrypt=body[8];memcpy(peer.lmk,body+10,16);
@@ -47,5 +53,11 @@ int xnow_owner_commands_poll(struct xnow_owner_commands *c,struct xnow_owner_com
 int xnow_owner_commands_receive(struct xnow_owner_commands *c,void *data,size_t n,struct xnow_full_received *out){
  if(!c||!c->endpoint||!out||(!data&&n))return XNOW_ARGUMENT;
  if(c->stopped)return XNOW_IDENTITY;
- struct xnow_endpoint *e=c->endpoint(c->context);return e?xnow_endpoint_receive(e,data,n,out):XNOW_IDENTITY;
+ struct xnow_endpoint *e=c->endpoint(c->context);
+ if(!e)return XNOW_IDENTITY;
+ int rc=xnow_endpoint_receive(e,data,n,out);
+ if(!rc&&c->allow_receive&&c->allow_receive(out,data,out->info.payload_bytes)!=1){
+  erase(data,out->info.payload_bytes);erase(out,sizeof *out);return XNOW_AGAIN;
+ }
+ return rc;
 }

@@ -1,7 +1,9 @@
 #ifndef WALKMAN_REMOTE_RECEIVER_H
 #define WALKMAN_REMOTE_RECEIVER_H
 #include "status_auth.h"
-struct wr_receiver {uint8_t address[6],key[32];uint64_t session;uint32_t sequence;unsigned paired,have_status;struct wr_status status;uint8_t challenge[16],last_challenge[16];unsigned challenge_pending;};
+#include "session_wire.h"
+struct wr_receiver {uint8_t address[6],key[32];uint64_t session;uint32_t sequence,snapshot_sequence;unsigned paired,have_status;struct wr_status status;uint8_t challenge[16],last_challenge[16];unsigned challenge_pending;};
+#define WR_RECEIVER_RESYNC (-2)
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -13,6 +15,8 @@ int wr_receiver_challenge(struct wr_receiver *,const uint8_t[16],void *,size_t);
  * Same-session replies never reset status/sequence. No automatic rebinding
  * from ordinary status packets. Host and peer UI integration is separate. */
 int wr_receiver_session_reply(struct wr_receiver *,const uint8_t[6],const void *,size_t);
+int wr_receiver_resume_challenge(struct wr_receiver *,const uint8_t[16],void *,size_t);
+int wr_receiver_resume_reply(struct wr_receiver *,const uint8_t[6],const void *,size_t,struct wr_session_progress *);
 void wr_receiver_cancel_challenge(struct wr_receiver *);
 #ifdef __cplusplus
 }

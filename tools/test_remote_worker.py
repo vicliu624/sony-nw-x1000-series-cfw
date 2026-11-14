@@ -14,8 +14,9 @@ flags = ['-std=c99', '-Wall', '-Wextra', '-Werror', '-Wno-misleading-indentation
 host = out / 'test.host'
 subprocess.run(['gcc-12', *flags, '-fsanitize=address,undefined', *sources,
                 '-o', str(host)], cwd=ROOT, check=True)
-subprocess.run([str(host)], cwd=ROOT, check=True, timeout=20,
-               stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+host_run = subprocess.run([str(host)], cwd=ROOT, capture_output=True, text=True, timeout=20)
+(out / 'host.log').write_text(host_run.stdout + host_run.stderr, encoding='utf-8')
+assert host_run.returncode == 0, host_run.stdout + host_run.stderr
 libs = stock_libraries()
 arm = out / 'test.arm'
 subprocess.run(['arm-linux-gnueabi-gcc', *flags, '-Os', '-march=armv5te',
@@ -35,6 +36,7 @@ inputs = sources + ['tools/test_remote_worker.py', 'runtime/store/start.c',
 inputs += [p.relative_to(ROOT).as_posix() for p in
            (ROOT / 'runtime/apps/wireless-remote').glob('*.h')]
 report = dict(passed=True, host_sanitizers=True, original_libc_arm926_executed=True,
+              callback_stop_gates_later_work=True, cooperative_flag_between_stages=True,
               sdk_modeled=True, device_accessed=False, stdout=run.stdout,
               source_hashes={p: hashlib.sha256((ROOT / p).read_bytes()).hexdigest() for p in inputs})
 (out / 'report.json').write_text(json.dumps(report, indent=2) + '\n', encoding='utf-8')

@@ -8,6 +8,11 @@ Source: runtime/apps/fm-radio. Build: tools/build_fm_radio.py. This is an indepe
 native application using the stock tuner/audio drivers, not a replacement Sony
 FM binary. Its skeuomorphic micro-radio interface was accepted by the user.
 
+The app owns touch controls, UI, preferences and state storage. Shared receiver,
+tuner and session code lives in `runtime/platform/fm/`; shared mixer restoration
+lives in `runtime/platform/audio/`. The same implementations serve FM, PCM and
+other SDK clients. See the [FM contract](../../runtime/platform/fm/README.md).
+
 Implemented: 76.0-108.0MHz,100kHz steps, numeric entry, band wrapping, bounded
 cancelable search,64 favorites and64 search results, and user-storage persistence.
 Scan results are committed transactionally; cancellation restores the prior tune.
@@ -35,6 +40,5 @@ help/version/selftest entries do not establish reception.
 
 Live research confirms an I2C Si470x binding and R2A15602LG audio driver. Exact
 silicon subtype, actual90-108MHz stations, sound and restoration remain unverified.
-The user paused the proposed FM hardware test in favor of Wi-Fi analysis; no tuner
-or sound state was changed in that investigation. No AM/RDS/recording feature is
+The native Sony audio handoff is not qualified. No AM/RDS/recording feature is
 implied. Preserve the original Sony FM program, system files and NVP.

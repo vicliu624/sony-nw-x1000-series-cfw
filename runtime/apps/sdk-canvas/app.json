@@ -5,7 +5,7 @@
   "title": "Canvas Playground",
   "summary": "X1000 SDK canvas-game example",
   "description": "Experimental native application built with the X1000 SDK. Computer previews do not qualify device behavior.",
-  "changes": "First experimental SDK application.",
+  "changes": "Rebuild with the current SDK callback runtime; retain the existing canvas controls.",
   "channel": "experimental",
   "build": {
     "script": "build.py",

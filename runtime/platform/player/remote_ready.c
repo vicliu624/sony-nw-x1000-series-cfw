@@ -26,7 +26,12 @@ static int sample(uint32_t out[3],int verify){
  out[0]=command;out[1]=root[2];out[2]=root[0x4c/4];return 1;
 }
 int xw_player_remote_software_ready(void){
- if(xw_player_host_wireless_remote_mode()!=XW_WIRELESS_MODE_ESPNOW||xw_native_rf_image_valid()!=1)return 0;
+#ifdef XW_PLAYER_SHARED_WIFI_ANALYSIS
+ const int required_mode=XW_WIRELESS_MODE_WIFI;
+#else
+ const int required_mode=XW_WIRELESS_MODE_ESPNOW;
+#endif
+ if(xw_player_host_wireless_remote_mode()!=required_mode||xw_native_rf_image_valid()!=1)return 0;
  uint32_t before[3],after[3];if(!sample(before,1))return 0;
  struct stat root,volume;
  if(lstat("/",&root)||lstat("/contents",&volume)||!S_ISDIR(root.st_mode)||!S_ISDIR(volume.st_mode)||root.st_dev==volume.st_dev)return 0;

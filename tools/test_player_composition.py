@@ -38,7 +38,11 @@ for path in sorted((ROOT/'runtime/platform/player').glob('stock_*.c')):
   row=dict(source=str(path.relative_to(ROOT)),address=start,bytes=count,digest=name)
   if row not in checks:checks.append(row)
 assert len(checks)>=17,len(checks)
-hook=(ROOT/'runtime/platform/player/host_hook.c').read_text();digest=bytes(int(v,16) for v in re.findall(r'0x([0-9a-fA-F]+)',re.search(r'anchor_digest\[32\]=\{([^}]+)\}',hook).group(1)))
+hook=(ROOT/'runtime/platform/player/host_hook.c').read_text(encoding='utf-8')
+declaration=re.search(r'\banchor_digest\s*\[\s*32\s*\]\s*=\s*\{([^}]+)\}',hook)
+if declaration is None:raise ValueError('Missing literal owner-anchor digest in host_hook.c')
+digest=bytes(int(v,16) for v in re.findall(r'0x([0-9a-fA-F]+)',declaration.group(1)))
+if len(digest)!=32:raise ValueError('Owner-anchor digest must contain exactly 32 literal bytes')
 assert hashlib.sha256(composite[offset(composite,0xff3c,8):offset(composite,0xff3c,8)+8]).digest()==digest
 artifact=w/'SpiderApp.home-language-player.analysis-only.elf';artifact.write_bytes(composite)
 combined,met_edit=patch_met_anchor(composite,mapped_stub=0x4d7ff0)

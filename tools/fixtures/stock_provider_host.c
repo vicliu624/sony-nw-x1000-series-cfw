@@ -11,7 +11,19 @@ struct xw_player_snapshot test_snapshot;
 uint32_t test_changes;
 int test_bind(void){return xw_stock_player_bind(&test_player,&test_provider);}
 int test_poll(void){return xw_player_poll(&test_player,&test_snapshot,&test_changes);}
-int test_command(int op,int value){struct xw_player_command command={0};command.operation=op;command.value=value;return xw_player_command(&test_player,&command);}
+#ifdef XW_ENGINE_PROVIDER_FIXTURE
+#include "../../runtime/platform/player/engine_provider.h"
+static struct xw_player adapter_player;
+static struct xw_engine_provider adapter;
+int test_adapter_bind(void){int rc=test_bind();return rc?rc:xw_engine_player_bind(&adapter_player,&adapter,&test_player);}
+#endif
+int test_command(int op,int value){struct xw_player_command command={0};command.operation=op;command.value=value;
+#ifdef XW_ENGINE_PROVIDER_FIXTURE
+return xw_player_command(&adapter_player,&command);
+#else
+return xw_player_command(&test_player,&command);
+#endif
+}
 int test_close(void){return xw_player_close(&test_player);}
 int test_volume(void){return test_snapshot.volume;}
 int test_state(void){return test_snapshot.state;}

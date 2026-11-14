@@ -17,6 +17,7 @@ struct xw_wireless_mode_snapshot {
 struct xw_wireless_mode_policy {
  int owner_pid;unsigned long owner_thread;uint64_t generation,serial;
  struct xw_wireless_mode_snapshot state;
+ unsigned wifi_borrowed,cold_remote;
 };
 #ifdef __cplusplus
 extern "C" {
@@ -30,9 +31,12 @@ int xw_mode_policy_adopt_wifi(struct xw_wireless_mode_policy *,uint64_t consumer
 /* Privileged system setting, not a consumer method. While DRAINING the old
  * owner stays owned, data admission stops and no new mode can acquire. */
 int xw_mode_policy_request(struct xw_wireless_mode_policy *,int mode);
+/* Prevent stock Wi-Fi teardown while a shared transport drains. */
+int xw_mode_policy_pin_wifi(struct xw_wireless_mode_policy *,const struct xw_wireless_lease *,int pin);
 int xw_mode_policy_admitted(struct xw_wireless_mode_policy *);
 int xw_mode_policy_snapshot(struct xw_wireless_mode_policy *,struct xw_wireless_mode_snapshot *);
 int xw_mode_policy_acquire(struct xw_wireless_mode_policy *,int mode,uint64_t consumer,struct xw_wireless_lease *);
+int xw_mode_policy_acquire_cold_remote(struct xw_wireless_mode_policy *,uint64_t consumer,struct xw_wireless_lease *);
 /* Ownership survives drain/fault for restoration; permission to send data does
  * not. Evidence is supplied only by the trusted original resource adapter. */
 int xw_mode_policy_owns(struct xw_wireless_mode_policy *,const struct xw_wireless_lease *);

@@ -21,6 +21,12 @@ static struct xw_stock_source_result receipt;
 static unsigned read_counter(unsigned *value){assert(!pthread_mutex_lock(&gate));unsigned n=*value;assert(!pthread_mutex_unlock(&gate));return n;}
 static void set_counter(unsigned *value,unsigned n){assert(!pthread_mutex_lock(&gate));*value=n;assert(!pthread_mutex_unlock(&gate));}
 int xw_stock_media_source_ready(void){assert(pthread_self()==owner);return read_counter(&available);}
+int xw_stock_media_adopt(struct xw_stock_media *media){
+ if(!media||!media->bound)return XW_PLAYER_CLOSED;
+ unsigned long current=pthread_self();
+ if(media->busy||current==media->gui_owner||(media->worker_set&&media->worker!=current))return XW_PLAYER_BUSY;
+ media->worker=current;media->worker_set=1;return 0;
+}
 int xw_stock_media_open(struct xw_stock_media *s){
  assert(pthread_self()==owner);memset(s,0,sizeof *s);s->bound=1;s->gui_owner=owner;
  assert(!pthread_mutex_lock(&gate));opened++;assert(!pthread_mutex_unlock(&gate));return 0;

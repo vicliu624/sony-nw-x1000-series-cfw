@@ -35,14 +35,15 @@
     }
   ],
   "sdk": {
-    "version": "0.2.0-alpha.9",
+    "version": "0.2.0-alpha.10",
     "profile": "native-services",
     "modules": [
       "startup",
       "display",
       "signals-libc",
       "abi",
-      "unicode-font",
+      "bitmap-font",
+      "lexicon",
       "font5x7"
     ]
   }

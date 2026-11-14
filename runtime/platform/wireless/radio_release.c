@@ -4,6 +4,7 @@
 int xw_wireless_radio_release_step(struct xnow_full_control *c,void *context,int (*exclusive)(void *)){
  if(!c||!exclusive||!c->initialized||c->manager.owner!=(int)getpid()||c->stepping)return XNOW_ARGUMENT;
  if(c->uncertain||c->manager.uncertain)return XNOW_UNCERTAIN;
+ if(c->shared_channel)return xnow_full_control_step(c);
  /* One consumer cannot destroy another application's saved connection. */
  if(c->options.allow_disconnect||c->session.was_connected)return XNOW_RADIO_REJECTED;
  if(!c->stop_requested)return XNOW_RADIO_REJECTED;

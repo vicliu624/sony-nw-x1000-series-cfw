@@ -8,6 +8,12 @@ static void stop(void *p){(void)p;stops++;endpoint.stopping=1;}
 static int random4(void *p,uint8_t b[4]){(void)p;memset(b,0x31,4);return 0;}
 static void le(uint8_t *p,uint32_t n){for(unsigned i=0;i<4;i++)p[i]=(uint8_t)(n>>(i*8));}
 static int32_t result(const uint8_t *p){return (int32_t)((uint32_t)p[8]|(uint32_t)p[9]<<8|(uint32_t)p[10]<<16|(uint32_t)p[11]<<24);}
+static int allow_test_send(const uint8_t address[6],const uint8_t *data,size_t n){
+ return !memcmp(address,"\xff\xff\xff\xff\xff\xff",6)&&n==4&&!memcmp(data,"WPO1",4);
+}
+static int reject_test_receive(const struct xnow_full_received *rx,const uint8_t *data,size_t n){
+ (void)rx;(void)data;(void)n;return 0;
+}
 static size_t request(uint8_t *p,unsigned op,uint32_t token,unsigned n){memset(p,0,XNOW_OWNER_COMMAND_MAX);memcpy(p,"XNC1",4);p[4]=(uint8_t)op;le(p+8,token);le(p+12,n);return 16+n;}
 #ifndef XNOW_OWNER_COMMAND_TEST_MAIN
 #define XNOW_OWNER_COMMAND_TEST_MAIN main
@@ -36,6 +42,24 @@ int XNOW_OWNER_COMMAND_TEST_MAIN(void){
  /* In-place reply cannot export any LMK in its16-byte response. */
  assert(!xnow_owner_commands_dispatch(&c,command,n,command,16)&&!result(command));xnow_peer_count(&endpoint.peers,&total,&encrypted);assert(encrypted==1);
  n=request(command,XNOW_OWNER_SEND,11,7);memcpy(command+16,address,6);command[22]=7;assert(!xnow_owner_commands_dispatch(&c,command,n,reply,16)&&result(reply)==XNOW_ENDPOINT_CRYPTO_UNAVAILABLE&&!c.sending);
+ c.restricted=1;
+ assert(!xnow_owner_commands_dispatch(&c,command,n,reply,16)&&result(reply)==XNOW_IDENTITY&&!c.sending);
+ n=request(command,XNOW_OWNER_DELETE,11,6);memcpy(command+16,address,6);
+ assert(!xnow_owner_commands_dispatch(&c,command,n,reply,16)&&result(reply)==XNOW_IDENTITY);
+ xnow_peer_count(&endpoint.peers,&total,&encrypted);assert(total==1&&encrypted==1);
+ const struct xnow_peer broadcast={{255,255,255,255,255,255},{0},6,1,0};
+ assert(!xnow_endpoint_add(&endpoint,&broadcast));
+ c.allow_send=allow_test_send;
+ n=request(command,XNOW_OWNER_SEND,14,10);
+ memcpy(command+16,broadcast.address,6);memcpy(command+22,"WPO1",4);
+ assert(!xnow_owner_commands_dispatch(&c,command,n,reply,16)&&!result(reply));
+ assert(xnow_owner_commands_poll(&c,&event)==XNOW_PENDING);done(0);
+ assert(!xnow_owner_commands_poll(&c,&event)&&event.request==14);
+ assert(xnow_owner_commands_poll(&c,&event)==XNOW_AGAIN);
+ c.allow_receive=reject_test_receive;
+ receive(decoded,4);memset(output,0xa5,sizeof output);
+ assert(xnow_owner_commands_receive(&c,output,sizeof output,&rx)==XNOW_AGAIN);
+ assert(!memcmp(output,(uint8_t[4]){0},4)&&!rx.info.payload_bytes);
  /* No plaintext fallback for encrypted peers lacking configured security. */
  n=request(command,XNOW_OWNER_STOP,12,0);assert(!xnow_owner_commands_dispatch(&c,command,n,reply,16)&&!result(reply)&&stops==1&&c.stopped);
  n=request(command,XNOW_OWNER_DELETE,13,6);memcpy(command+16,address,6);assert(!xnow_owner_commands_dispatch(&c,command,n,reply,16)&&result(reply)==XNOW_IDENTITY);assert(!xnow_endpoint_stop_step(&endpoint));

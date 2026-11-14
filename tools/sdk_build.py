@@ -20,7 +20,7 @@ NATIVE = ['runtime/platform/sdk/native.c','runtime/native/linux_devices.c',
           'runtime/native/syscalls.S','runtime/store/deadline.c',
           'runtime/store/termination.c','runtime/store/start.c','runtime/store/start.S',
           'runtime/store/stock_fs_bridge.c','runtime/store/stock_stat64.c',
-          'runtime/apps/qqmusic/qqmusic_storage.c','runtime/apps/qqmusic/qqmusic_volume.c']
+          'runtime/platform/storage/qqmusic_storage.c','runtime/platform/storage/qqmusic_volume.c']
 
 def fresh_work(path):
     path=Path(path)
@@ -55,7 +55,7 @@ def compile_app(definition, output, host=False):
         source.append(path)
     output=fresh_work(output)
     storage_sources={'runtime/platform/sdk/storage.c','runtime/store/stock_fs_bridge.c','runtime/store/stock_stat64.c',
-                     'runtime/apps/qqmusic/qqmusic_storage.c','runtime/apps/qqmusic/qqmusic_volume.c'}
+                     'runtime/platform/storage/qqmusic_storage.c','runtime/platform/storage/qqmusic_volume.c'}
     selected=COMMON+(['runtime/platform/sdk/host.c'] if host else NATIVE)
     if 'storage' not in modules:selected=[p for p in selected if p not in storage_sources]
     sources=source+[ROOT/p for p in selected]

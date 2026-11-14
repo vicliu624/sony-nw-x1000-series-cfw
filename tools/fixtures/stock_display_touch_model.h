@@ -5,6 +5,9 @@
  */
 #include <linux/fb.h>
 #include <stdint.h>
+#ifdef HB_QEMU_TASK_TRACE
+#include "stock_player_binding_observer.h"
+#endif
 static int gui_fb=-1,gui_touch=-1,gui_touch_writer=-1,gui_touch_normal;
 #ifdef HB_TOUCH_SERIAL
 #include "stock_touch_serial.h"
@@ -73,16 +76,26 @@ static int gui_present(unsigned *frame){
  }
  unsigned left=(gui_real_var.xres-240)/2,top=(gui_real_var.yres-432)/2;
  unsigned short *page=gui_pixels+frame[3]*(0x60000/2);
+ unsigned visible_pixels=0;
+ const int sample=gui_frames<4;
  for(unsigned y=0;y<432;y++)for(unsigned x=0;x<240;x++){
   unsigned source=frame[4]?(431-y)*240+(239-x):y*240+x;
   unsigned short pixel=page[source];
   if(frame[0]&&pixel==frame[1])pixel=0;
+  if(sample&&pixel)visible_pixels++;
   unsigned r=(pixel>>11)&31,g=(pixel>>5)&63,b=pixel&31;
   unsigned packed=gui_red[r]|gui_green[g]|gui_blue[b];
   unsigned char *target=(unsigned char *)gui_clcd+(top+y)*gui_real_fix.line_length+(left+x)*(gui_real_var.bits_per_pixel/8);
   for(unsigned byte=0;byte<gui_real_var.bits_per_pixel/8;byte++)target[byte]=(packed>>(byte*8))&255;
  }
- if(gui_frames++<4){const char note[]="GUEST_SONY_RGB565_FRAME_PRESENTED\n";write(2,note,sizeof note-1);}
+#ifdef HB_QEMU_TASK_TRACE
+ guest_player_binding_observe();
+#endif
+ if(gui_frames++<4){
+  char note[124];
+  int length=snprintf(note,sizeof note,"GUEST_SONY_RGB565_FRAME_PRESENTED page=%u visible_pixels=%u\n",frame[3],visible_pixels);
+  write(2,note,length);
+ }
  return 0;
 }
 static int gui_ioctl(int fd,unsigned long command,void *value){

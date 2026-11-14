@@ -7,10 +7,12 @@ from unicorn.arm_const import UC_ARM_REG_R0,UC_ARM_REG_R1,UC_ARM_REG_R2,UC_ARM_R
 out=ROOT/'work/player-sleep-native'/str(time.time_ns());out.mkdir(parents=True)
 raw=(ROOT/'work/targets-jp/SpiderApp').read_bytes();assert hashlib.sha256(raw).hexdigest()=='80b8870b02189443c41f62e8960124820ae999de21ba002e24fe17e9376cea85'
 sources=['runtime/platform/player/'+n for n in ('sleep_native.c','sleep_host.c','sleep_retirement.c','stock_image.c')]+['runtime/native/sha256.c','tools/fixtures/sleep_native.c']
+inputs=sources+['tools/test_sleep_native.py','runtime/platform/player/sleep_native.h','runtime/platform/player/sleep_host.h','runtime/platform/player/sleep_retirement.h','runtime/platform/player/stock_prepare_view.h']
+(out/'inputs.json').write_text(json.dumps({'source_hashes':{p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in inputs},'device_accessed':False},indent=2)+'\n')
 binary=out/'native.arm'
 subprocess.run(['arm-linux-gnueabi-gcc','-std=c99','-Os','-Wall','-Wextra','-Werror','-march=armv5te','-marm','-mfloat-abi=soft','-ffreestanding','-fno-builtin','-fno-stack-protector','-fno-pie','-no-pie','-nostdlib','-Wl,--build-id=none,-Ttext=0x50000000,-e,_start',*sources,'-lgcc','-o',str(binary)],cwd=ROOT,check=True)
 helper=ELFFile(io.BytesIO(binary.read_bytes()));symbols={s.name:s['st_value'] for s in helper.get_section_by_name('.symtab').iter_symbols()};rows=[]
-for case in ('ready','initial-main','state-seven','inactive-main','native-inactive','native-inactive-initial','bad-callsite','wrong-owner','bad-image','root-changed','sequence-changed','main-changed','ack-error','restore-ready','restore-state-seven','restore-no-begin','restore-sequence','restore-root','restore-rejected','restore-wait','restore-usb','restore-native-queries'):
+for case in ('ready','initial-main','state-seven','inactive-main','native-inactive','native-inactive-initial','bad-callsite','wrong-owner','bad-image','root-changed','sequence-changed','main-changed','ack-error','restore-ready','restore-state-seven','restore-no-begin','restore-sequence','restore-root','restore-rejected','restore-wait','restore-usb','restore-native-queries','restore-entry-busy','restore-complete-busy','restore-complete-busy-exit'):
  u=Uc(UC_ARCH_ARM,UC_MODE_ARM);segments=[s for e in (ELFFile(io.BytesIO(raw)),helper) for s in e.iter_segments() if s['p_type']=='PT_LOAD'];merged=[]
  for start,end in sorted((int(s['p_vaddr'])&~4095,(int(s['p_vaddr'])+int(s['p_memsz'])+4095)&~4095) for s in segments):
   if merged and start<=merged[-1][1]:merged[-1]=(merged[-1][0],max(end,merged[-1][1]))
@@ -61,20 +63,35 @@ for case in ('ready','initial-main','state-seven','inactive-main','native-inacti
     assert call('xw_player_sleep_native_restore_complete',1,17)==-7
     assert not word(symbols['test_resume_calls'])
    else:
-    assert call('xw_player_sleep_native_restore_begin',0x613e60,17)==0
+    if case=='restore-entry-busy':put(0x613e30,1)
+    entry=call('xw_player_sleep_native_restore_begin',0x613e60,17)
+    assert entry==0,(case,'restore entry',entry)
     put(0x613e64,15)
     if case=='restore-sequence':put(0x820f7c,5)
     if case=='restore-native-queries':put(0x820f7c,8)
+    if case.startswith('restore-complete-busy'):put(0x613e30,1)
     complete=call('xw_player_sleep_native_restore_complete',0 if case=='restore-rejected' else 1,17)
     if case in ('restore-sequence','restore-rejected'):
      assert complete==(-5 if case=='restore-sequence' else -3) and not word(symbols['test_resume_calls'])
     else:
-     assert complete==0 and call('xw_player_sleep_native_poll')==1 and not word(symbols['test_resume_calls'])
+     assert complete==0,(case,'restore completion',complete)
+     assert call('xw_player_sleep_native_poll')==1 and not word(symbols['test_resume_calls'])
      put(0x682cdc,0x103)
      if case=='restore-root':put(0x613e68,1)
      if case=='restore-wait':put(symbols['test_resume_wait'],1)
      if case=='restore-usb':
       put(0x613e30,1);assert call('xw_player_sleep_native_poll')==1 and not word(symbols['test_resume_calls']);put(0x613e30,0)
+     if case=='restore-entry-busy' or case.startswith('restore-complete-busy'):
+      assert call('xw_player_sleep_native_restore_complete',1,17)==-7
+      assert call('xw_player_sleep_native_poll')==1 and not word(symbols['test_resume_calls'])
+      if case.endswith('-exit'):
+       put(symbols['test_exit_seen'],1);put(0x613e30,0)
+       assert call('xw_player_sleep_native_poll')==-7 and not word(symbols['test_resume_calls'])
+       put(symbols['test_exit_seen'],0)
+       assert call('xw_player_sleep_native_poll')==-7 and not word(symbols['test_resume_calls'])
+       rows.append(dict(case=case,begin=start,packets=packets,resume_calls=0))
+       continue
+      put(0x613e30,0)
      resumed=call('xw_player_sleep_native_poll')
      if case=='restore-root':assert resumed==-5 and not word(symbols['test_resume_calls'])
      else:
@@ -83,5 +100,6 @@ for case in ('ready','initial-main','state-seven','inactive-main','native-inacti
       put(0x682cdc,0x403);assert call('xw_player_sleep_native_begin',0x61c5c,17)==1
       assert call('xw_player_sleep_native_poll')==0 and len(packets)==2
  rows.append(dict(case=case,begin=start,packets=packets,resume_calls=word(symbols['test_resume_calls'])))
-report=dict(passed=True,cases=rows,device_accessed=False,native_hook_installed=False,source_hashes={p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in sources+['tools/test_sleep_native.py','runtime/platform/player/sleep_native.h','runtime/platform/player/sleep_host.h','runtime/platform/player/sleep_retirement.h']},limits=['Native binding and original singleton/ack client instructions execute with pinned image hashes.','Loader identity, initial native state, owner, SDK/radio retirement and IPC replies are fixtures.','No patched callsites, full native event timing, RF, physical sleep or wake/rearm qualification.'])
+report=dict(passed=True,cases=rows,device_accessed=False,native_hook_installed=False,source_hashes={p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in inputs},limits=['Native binding and original singleton/ack client instructions execute with pinned image hashes.','Loader identity, initial native state, owner, SDK/radio retirement and IPC replies are fixtures.','No patched callsites, full native event timing, RF, physical sleep or wake/rearm qualification.'])
+(out/'report.json').write_text(json.dumps(report,indent=2)+'\n')
 (ROOT/'work/player-sleep-native-latest.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))

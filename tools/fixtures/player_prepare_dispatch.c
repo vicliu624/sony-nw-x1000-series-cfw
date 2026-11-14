@@ -5,6 +5,8 @@
 unsigned test_prepare_owned=1,test_exit_events,test_output_value,test_reentries;
 int test_decision_error;
 #ifdef XW_PLAYER_NATIVE_RF
+int xw_player_host_revoked_exit_retired(void){return 0;}
+int xw_player_host_drain_cancelled_exit(uint64_t epoch){(void)epoch;return XW_PLAYER_UNSUPPORTED;}
 int xw_player_host_service_stop(void){return 0;}
 int xw_player_host_service_quiesce(void){return 0;}
 unsigned test_radio_pending,test_radio_calls;

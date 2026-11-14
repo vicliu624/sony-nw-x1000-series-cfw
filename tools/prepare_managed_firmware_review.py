@@ -2,7 +2,7 @@
 import argparse,copy,gzip,hashlib,io,json,sys,tarfile,time
 from app_registry import ROOT
 from review_managed_remote_profile import private,receipt,digest
-from review_managed_root_capacity import inventory
+from review_managed_root_capacity import inventory,compose_root_inventory
 from release_firmware import pack
 sys.path.insert(0,str(ROOT/'scripts'))
 from upg import unpack
@@ -68,23 +68,20 @@ def main():
   path=private(lp.parent/'root-overlay'/name);data=path.read_bytes()
   if len(data)!=row['bytes'] or hashlib.sha256(data).hexdigest()!=row['sha256']:raise ValueError('Overlay changed')
   overlay[name]=(data,int(row['mode'],8))
+ base_inventory=inventory(parts[3])
+ declared_inventory=compose_root_inventory(base_inventory,layout['files'])
+ missing_dirs={name for name,row in declared_inventory.items() if name not in base_inventory and row['kind']=='directory'}
  raw=io.BytesIO()
  with tarfile.open(fileobj=io.BytesIO(parts[3]),mode='r:gz') as old,tarfile.open(fileobj=raw,mode='w',format=tarfile.GNU_FORMAT) as new:
-  members=old.getmembers();names={m.name.removeprefix('./').rstrip('/') for m in members};written=set()
+  members=old.getmembers();written=set()
   for member in members:
    entry=copy.copy(member);name=entry.name.removeprefix('./').rstrip('/')
    if name in overlay:
     if not entry.isfile():raise ValueError('Overlay replaces non-file')
     data,mode=overlay[name];entry.size=len(data);entry.mode=mode;new.addfile(entry,io.BytesIO(data));written.add(name)
    else:new.addfile(entry,old.extractfile(member) if member.isfile() else None)
-  missing_dirs=set()
-  for name in overlay.keys()-written:
-   parent=name.rsplit('/',1)[0]
-   while parent not in names:
-    missing_dirs.add(parent);parent=parent.rsplit('/',1)[0] if '/' in parent else ''
-    if not parent:break
   for name in sorted(missing_dirs,key=lambda p:(p.count('/'),p)):
-   entry=tarfile.TarInfo('./'+name);entry.type=tarfile.DIRTYPE;entry.mode=0o755;entry.uid=entry.gid=0;entry.mtime=0;new.addfile(entry)
+   row=declared_inventory[name];entry=tarfile.TarInfo('./'+name);entry.type=tarfile.DIRTYPE;entry.mode=row['mode'];entry.uid=row['uid'];entry.gid=row['gid'];entry.mtime=0;new.addfile(entry)
   for name in sorted(overlay.keys()-written):
    data,mode=overlay[name];entry=tarfile.TarInfo('./'+name);entry.mode=mode
    entry.uid=layout['files'][name].get('uid',0);entry.gid=layout['files'][name].get('gid',0)
@@ -102,13 +99,14 @@ def main():
   (failure/'failure.json').write_text(json.dumps(dict(rejected=True,components=rows),indent=2)+'\n')
   raise ValueError('Final component roundtrip mismatch; rejected evidence: '+str(failure))
  stock=inventory(originals[3]);final=inventory(decoded[3])
+ if final!=declared_inventory:raise ValueError('Final root differs from the complete declared tree')
  delta=sum(r['bytes'] for r in final.values())-sum(r['bytes'] for r in stock.values())
  if delta!=capacity['regular_file_delta_bytes']:raise ValueError('Final payload differs from capacity review')
  expected={row['path']:row['candidate'] for row in capacity['changed_paths']}
  for name in stock.keys()|final.keys():
   if name in expected:
    if final.get(name)!=expected[name]:raise ValueError('Final reviewed path differs: '+name)
-  elif name not in missing_dirs and stock.get(name)!=final.get(name):raise ValueError('Undeclared root change: '+name)
+  elif stock.get(name)!=final.get(name):raise ValueError('Undeclared root change: '+name)
  out=ROOT/'work/managed-firmware-review'/str(time.time_ns());out.mkdir(parents=True)
  target=out/'DIAGNOSTIC-REVIEW-ONLY.UPG';target.write_bytes(result)
  report=dict(prepared=True,analysis_only=True,ready_to_flash=False,installed=False,device_accessed=False,

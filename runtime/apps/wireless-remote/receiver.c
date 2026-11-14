@@ -9,13 +9,34 @@ int wr_receiver_pair(struct wr_receiver *r,const uint8_t address[6],const uint8_
 }
 int wr_receiver_accept(struct wr_receiver *r,const uint8_t address[6],const void *data,size_t bytes){
  if(!r||!r->paired||!address||memcmp(address,r->address,6))return -1;
+ if(bytes==WR_HEARTBEAT_BYTES){
+  uint64_t session;uint32_t sequence,snapshot;
+  if(wr_heartbeat_verify(&session,&sequence,&snapshot,data,bytes,r->key)||session!=r->session||sequence<=r->sequence)return -1;
+  if(!r->have_status||snapshot!=r->snapshot_sequence)return WR_RECEIVER_RESYNC;
+  r->sequence=r->status.sequence=sequence;return 0;
+ }
  struct wr_status s;if(wr_status_verify(&s,data,bytes,r->key)||s.session!=r->session||s.sequence<=r->sequence)return -1;
- r->status=s;r->sequence=s.sequence;r->have_status=1;return 0;
+ r->status=s;r->sequence=r->snapshot_sequence=s.sequence;r->have_status=1;return 0;
+}
+static int challenge_start(struct wr_receiver *r,const uint8_t challenge[16],void *out,size_t bytes,int resume){
+ if(!r||!r->paired||r->challenge_pending||!challenge||!memcmp(challenge,r->last_challenge,16))return -1;
+ if((resume?wr_session_resume_request:wr_session_request)(out,bytes,challenge,r->key))return -1;
+ memcpy(r->challenge,challenge,16);memcpy(r->last_challenge,challenge,16);r->challenge_pending=1;return 0;
 }
 int wr_receiver_challenge(struct wr_receiver *r,const uint8_t challenge[16],void *out,size_t bytes){
- if(!r||!r->paired||r->challenge_pending||!challenge||!memcmp(challenge,r->last_challenge,16))return -1;
- if(wr_session_request(out,bytes,challenge,r->key))return -1;
- memcpy(r->challenge,challenge,16);memcpy(r->last_challenge,challenge,16);r->challenge_pending=1;return 0;
+ return challenge_start(r,challenge,out,bytes,0);
+}
+int wr_receiver_resume_challenge(struct wr_receiver *r,const uint8_t challenge[16],void *out,size_t bytes){
+ return challenge_start(r,challenge,out,bytes,1);
+}
+int wr_receiver_resume_reply(struct wr_receiver *r,const uint8_t address[6],const void *in,size_t bytes,struct wr_session_progress *progress){
+ if(!r||!r->paired||!r->challenge_pending||!address||memcmp(address,r->address,6)||!progress)return -1;
+ uint64_t session;struct wr_session_progress observed;
+ if(wr_session_resume_reply_read(&session,&observed,in,bytes,r->challenge,r->key))return -1;
+ int changed=session!=r->session;
+ if(changed||r->sequence<observed.status)r->sequence=observed.status;
+ r->session=session;r->have_status=0;memset(&r->status,0,sizeof r->status);
+ *progress=observed;wr_receiver_cancel_challenge(r);return changed;
 }
 int wr_receiver_session_reply(struct wr_receiver *r,const uint8_t address[6],const void *in,size_t bytes){
  if(!r||!r->paired||!r->challenge_pending||!address||memcmp(address,r->address,6))return -1;

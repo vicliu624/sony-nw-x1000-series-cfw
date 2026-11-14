@@ -2,7 +2,7 @@
 #define XW_PARENT_TRACE_STORE_H
 #include <stdint.h>
 #define XW_PARENT_TRACE_FILE_BYTES 2048u
-#define XW_PARENT_TRACE_SLOTS 16u
+#define XW_PARENT_TRACE_SLOTS 31u
 #define XW_PARENT_TRACE_RECORD_BYTES 64u
 /* Internal diagnostic backend, never a public SDK grant. Caller supplies a
  * trusted ownership check: exactly1 means user storage is still Linux-owned,
@@ -22,5 +22,10 @@ enum {XW_TRACE_OK=0,XW_TRACE_SKIPPED=1,XW_TRACE_INVALID=-1,XW_TRACE_STORAGE=-2,X
 /* Zero-initialized context required. No file is opened or created by init. */
 int xw_parent_trace_store_init(struct xw_parent_trace_store *,const unsigned char[32],void *,int (*)(void *));
 int xw_parent_trace_store_record(struct xw_parent_trace_store *,unsigned stage,const uint32_t payload[12]);
+/* Quiescent-owner flush of RAM-staged events: at most one preallocated2KiB
+ * write/fsync, preserving occupied slots. Never call while a timing-sensitive
+ * observer/remote child is live. Sequence values preserve capture ordering. */
+int xw_parent_trace_store_snapshot(struct xw_parent_trace_store *,uint32_t mask,
+ const uint32_t payload[XW_PARENT_TRACE_SLOTS][12],const uint32_t sequence[XW_PARENT_TRACE_SLOTS]);
 int xw_parent_trace_store_destroy(struct xw_parent_trace_store *);
 #endif

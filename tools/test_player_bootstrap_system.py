@@ -54,7 +54,20 @@ if layout_arg:files.update({layout.get('player_payload_path','usr/local/bin/Spid
 report=run_guest(w,init,files,libraries,['PLAYER_BOOTSTRAP_CASE=9 STATUS=0','PLAYER_VOLATILE_BIND_RESTORED','PLAYER_BOOTSTRAP_RENDEZVOUS_PASS','PLAYER_BOOTSTRAP_SELF_DETACH_PASS','PLAYER_BOOTSTRAP_SYSTEM_PASS'])
 report.update(reviewed_host_used=bool(review_arg),exact_layout_wrapper_used=bool(layout_arg),stock_player_body_modeled=True)
 inputs=startup+startup_sources+[source,probe_source,init_source,marker_source,'runtime/platform/player/startup_delivery.h',Path(__file__).relative_to(ROOT).as_posix()]
-report.update(analysis_only=True,ready_to_flash=False,firmware_package_created=False,original_sony_loader=True,production_default_wrapper_bytes=default.stat().st_size,production_default_wrapper_sha256=hashlib.sha256(default.read_bytes()).hexdigest(),service_library_sha256=host_report['library_sha256'],cases=['default off','enabled with no prior preload','enabled preserving original preload and absolute argv0','explicitly disabled preserving original preload','missing service library preserves old preload and executes payload'],pid_argv_comm_cwd_env_preserved=report['passed'],source_hashes={p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in inputs},limits=['Original Sony loader/libc and full service DSO execute under a generic ARM kernel; the payload is a C identity probe, not SpiderApp.','This tests environment/exec invariants and ordinary-PID pass-through, not AppList registration, full original GUI startup, sleep/USB or physical hardware.','No rootfs, AppList, boot script, device files or firmware installer is changed; production default paths are compiled only.'])
+report.update(analysis_only=True,ready_to_flash=False,firmware_package_created=False,original_sony_loader=True,production_default_wrapper_bytes=default.stat().st_size,production_default_wrapper_sha256=hashlib.sha256(default.read_bytes()).hexdigest(),service_library_sha256=host_report['library_sha256'],cases=['default off','enabled with no prior preload','enabled preserving original preload and absolute argv0','explicitly disabled preserving original preload','missing service library preserves old preload and executes payload'],pid_argv_comm_cwd_env_preserved=report['passed'],source_hashes={p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in inputs},limits=['Original Sony loader/libc and full service DSO execute under a generic ARM kernel; the payload is a C identity probe, not SpiderApp.','This tests environment/exec invariants and ordinary-PID pass-through, not AppList registration, full original GUI startup, sleep/USB or physical hardware.','Guest filesystem and bind changes are confined to a new RAM test image; no physical system or updater is modified.'])
+report['configured_system_paths_executed'] = bool(layout_arg)
+if layout_arg:
+ report['system_wrapper'] = dict(local=system.relative_to(ROOT).as_posix(),
+                                bytes=system.stat().st_size,
+                                sha256=hashlib.sha256(system.read_bytes()).hexdigest(),
+                                invoked_path='/system/SpiderApp',
+                                configured_payload=layout['player_payload_path'],
+                                layout_review=lp.relative_to(ROOT).as_posix(),
+                                layout_review_sha256=hashlib.sha256(lp.read_bytes()).hexdigest())
+ report['source_hashes'][lp.relative_to(ROOT).as_posix()] = hashlib.sha256(lp.read_bytes()).hexdigest()
+ report['limits'].append('The exact reviewed system wrapper executes from /system/SpiderApp with its configured payload/library paths; only the original player body is substituted by the identity probe.')
+else:
+ report['limits'].append('The default production-path wrapper is compiled only; execution uses the explicit test-path wrappers.')
 report['managed_host_profile']=managed;report['startup_rendezvous_and_exec_pass']=report['passed']
 report['localization_profile']=host_report['localization_profile']
 report['candidate_sha256']=host_report['candidate_sha256']

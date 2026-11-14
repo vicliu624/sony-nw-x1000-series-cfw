@@ -41,7 +41,7 @@ invalid:
  if(s->output>=0)close(s->output);
  s->input=s->output=-1;s->fault=1;return XNOW_IDENTITY;
 }
-int xnow_owner_stream_step(struct xnow_owner_stream *s){
+static int step(struct xnow_owner_stream *s,int read_requests){
  if(!s||!s->commands||s->pid!=(int)getpid())return XNOW_ARGUMENT;
  if(s->fault)return XNOW_IO;
  if(!identity(s,0)||!identity(s,1))return fail(s);
@@ -57,7 +57,7 @@ int xnow_owner_stream_step(struct xnow_owner_stream *s){
   if(s->written==s->output_bytes){erase(s->response,sizeof s->response);s->written=s->output_bytes=0;}
   return XNOW_PENDING;
  }
- if(!(p[0].revents&POLLIN))return XNOW_AGAIN;
+ if(!read_requests||!(p[0].revents&POLLIN))return XNOW_AGAIN;
  ssize_t n=read(s->input,s->request+s->used,s->needed-s->used);
  if(n<0&&(errno==EAGAIN||errno==EINTR))return XNOW_PENDING;
  if(n<=0)return fail(s);
@@ -72,6 +72,8 @@ int xnow_owner_stream_step(struct xnow_owner_stream *s){
  if(xnow_owner_commands_dispatch(s->commands,s->request,s->used,s->response,sizeof s->response))return fail(s);
  erase(s->request,sizeof s->request);s->used=0;s->needed=16;s->output_bytes=16;s->written=0;return XNOW_PENDING;
 }
+int xnow_owner_stream_step(struct xnow_owner_stream *s){return step(s,1);}
+int xnow_owner_stream_flush(struct xnow_owner_stream *s){return step(s,0);}
 int xnow_owner_stream_writable(const struct xnow_owner_stream *s){return s&&s->commands&&s->pid==(int)getpid()&&!s->fault&&!s->output_bytes&&!s->commands->stopped;}
 int xnow_owner_stream_completion(struct xnow_owner_stream *s,const struct xnow_owner_completion *e){
  if(!s||!e||!e->request)return XNOW_ARGUMENT;

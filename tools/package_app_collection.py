@@ -54,7 +54,8 @@ shutil.copytree(dist/'emulator-apps/0.1.0-alpha.3/SOURCE',out/'SOURCE/emulators'
 (out/'SOURCE/diagnostics').mkdir(parents=True)
 for name in ['device_info_app.c','device_info_data.c','device_info_data.h','device_info_space.c','key_check.c','diagnostics.c','graphics_demo.c']:
  group='device-info' if name.startswith('device_info_') else {'key_check.c':'key-check','diagnostics.c':'diagnostics','graphics_demo.c':'graphics-demo'}[name]
- shutil.copyfile(ROOT/'runtime/apps'/group/name,out/'SOURCE/diagnostics'/name)
+ source=ROOT/'runtime/platform/system-info'/name if name in ('device_info_data.c','device_info_data.h','device_info_space.c') else ROOT/'runtime/apps'/group/name
+ shutil.copyfile(source,out/'SOURCE/diagnostics'/name)
 (out/'REVIEW').mkdir()
 for source,name in [(dist/'dictionary/0.1.0-alpha.1/REVIEW/tests.json','dictionary-tests.json'),(dist/'emulator-apps/0.1.0-alpha.3/REVIEW/tests.json','emulator-tests.json'),(dist/'apps/device-info/review/tests.json','device-info-tests.json'),(ROOT/'work/key-check-review/build.json','key-check-build.json')]:shutil.copyfile(source,out/'REVIEW'/name)
 (out/'DOCS').mkdir()

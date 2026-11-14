@@ -1,6 +1,6 @@
 #include <assert.h>
 #include <string.h>
-#include "../../runtime/apps/fm-radio/fm_radio.h"
+#include "../../runtime/platform/fm/fm_radio.h"
 struct fake {int frequency,fail_tune,fail_sample,calls;};
 static int tune(void *p,int khz){struct fake *f=p;f->calls++;if(f->fail_tune==khz)return -1;f->frequency=khz;return 0;}
 static int sample(void *p,int *strength){struct fake *f=p;if(f->fail_sample)return -1;*strength=f->frequency==76100?80:10;return f->frequency==76100;}

@@ -5,7 +5,7 @@
   "title": "Pocket Counter",
   "summary": "X1000 SDK touch-ui example",
   "description": "Experimental native application built with the X1000 SDK. Computer previews do not qualify device behavior.",
-  "changes": "First experimental SDK application.",
+  "changes": "Use the current SDK storage cancellation guards; retain the existing counter file format.",
   "channel": "experimental",
   "build": {
     "script": "build.py",

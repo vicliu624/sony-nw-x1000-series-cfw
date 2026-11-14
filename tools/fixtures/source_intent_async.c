@@ -30,6 +30,12 @@ static struct xw_stock_source_result receipt;
 int xw_player_snapshot(struct xw_player *p,struct xw_player_snapshot *out){(void)p;(void)out;assert(0);return XW_PLAYER_PROTOCOL;}
 #endif
 int xw_stock_media_source_ready(void){assert(pthread_self()==owner);return atomic_load(&available);}
+int xw_stock_media_adopt(struct xw_stock_media *media){
+ if(!media||!media->bound)return XW_PLAYER_CLOSED;
+ unsigned long current=pthread_self();
+ if(media->busy||current==media->gui_owner||(media->worker_set&&media->worker!=current))return XW_PLAYER_BUSY;
+ media->worker=current;media->worker_set=1;return 0;
+}
 int xw_stock_media_open(struct xw_stock_media *m){memset(m,0,sizeof *m);m->bound=1;m->gui_owner=pthread_self();atomic_fetch_add(&opened,1);return 0;}
 int xw_stock_media_validate_audio(struct xw_stock_media *m,const struct xw_media_id *id,struct xw_stock_audio_identity *out){
  assert(m->bound&&m->gui_owner!=pthread_self());m->worker_set=1;m->worker=pthread_self();

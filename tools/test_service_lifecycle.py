@@ -1,8 +1,12 @@
 """Private session/request core: host sanitizers and ARM compilation, no device."""
 from pathlib import Path
-import hashlib,json,os,subprocess,time
+import argparse,hashlib,json,os,subprocess,time
 from app_registry import ROOT
 from player_arm_guest import stock_libraries
+fixtures=('session','request','player','events','dispatch','channel','control','descriptor','offer','quiesce','drain','host')
+parser=argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--fixture',action='append',choices=fixtures,help='Run an explicit subset; the default runs every fixture')
+args=parser.parse_args()
 out=ROOT/'work/service-lifecycle'/str(time.time_ns());out.mkdir(parents=True)
 sources=['runtime/platform/services/session.c','runtime/platform/services/request.c','runtime/platform/services/events.c','runtime/platform/player/managed.c','runtime/platform/player/client.c']
 flags=['-std=c99','-Wall','-Wextra','-Werror','-Wno-misleading-indentation']
@@ -21,10 +25,13 @@ sources+=['runtime/platform/player/deferred_prepare.c']
 sources+=['runtime/platform/player/managed_host.c']
 libraries=stock_libraries(include_rt=True);libc=libraries['libc.so.6'];loader=libraries['ld-linux.so.3']
 arm_flags=[*flags,'-U_FORTIFY_SOURCE','-D_FORTIFY_SOURCE=0','-march=armv5te','-marm','-mfloat-abi=soft','-fno-builtin','-fno-stack-protector','-fno-pie','-no-pie','-nostdlib','-Wl,--hash-style=sysv,--build-id=none','-Wl,--dynamic-linker=/lib/ld-linux.so.3']
-for name in ('session','request','player','events','dispatch','channel','control','descriptor','offer','quiesce','drain','host'):
+for name in args.fixture or fixtures:
  fixture='tools/fixtures/service_'+name+'.c';binary=out/name
  subprocess.run(['gcc-12',*flags,'-fsanitize=address,undefined',*sources,'tools/fixtures/player_host_clock.c',fixture,'-o',str(binary)],cwd=ROOT,check=True)
- run=subprocess.run([str(binary)],capture_output=True,text=True,timeout=10);assert run.returncode==0,run.stdout+run.stderr
+ run=subprocess.run([str(binary)],capture_output=True,text=True,timeout=10)
+ (out/(name+'-host-result.json')).write_text(json.dumps(dict(exit_code=run.returncode,stdout=run.stdout,stderr=run.stderr,
+  source_hashes={source:hashlib.sha256((ROOT/source).read_bytes()).hexdigest() for source in [*sources,fixture,'runtime/platform/player/deferred_prepare.h']}),indent=2)+'\n')
+ assert run.returncode==0,run.stdout+run.stderr
  arm=out/(name+'.arm')
  subprocess.run(['arm-linux-gnueabi-gcc',*arm_flags,'-DHB_STORE_LIBC_CLOCK',*sources,fixture,'runtime/store/deadline.c','runtime/store/start.c','runtime/store/start.S',str(libraries['librt.so.1']),str(libraries['libpthread.so.0']),str(libc),str(loader),'-lgcc','-o',str(arm)],cwd=ROOT,check=True)
  arm_run=subprocess.run(['qemu-arm','-cpu','arm926',str(loader),'--library-path',str(libc.parent)+':'+str(libraries['librt.so.1'].parent),str(arm)],cwd=ROOT,env=dict(os.environ,QEMU_UNSET_ENV='LD_LIBRARY_PATH,LD_PRELOAD'),capture_output=True,text=True,timeout=15)
@@ -50,6 +57,7 @@ report['source_hashes']['tools/fixtures/service_channel.c']=hashlib.sha256((ROOT
 report['source_hashes']['runtime/platform/player/managed_channel.h']=hashlib.sha256((ROOT/'runtime/platform/player/managed_channel.h').read_bytes()).hexdigest()
 for p in ['runtime/platform/player/managed_control.h','tools/fixtures/service_control.c']:report['source_hashes'][p]=hashlib.sha256((ROOT/p).read_bytes()).hexdigest()
 report['source_hashes']['runtime/platform/player/managed_codec.h']=hashlib.sha256((ROOT/'runtime/platform/player/managed_codec.h').read_bytes()).hexdigest()
+for p in ['runtime/platform/player/artwork.h','runtime/platform/player/managed_wire.h']:report['source_hashes'][p]=hashlib.sha256((ROOT/p).read_bytes()).hexdigest()
 report['source_hashes']['runtime/platform/player/snapshot.h']=hashlib.sha256((ROOT/'runtime/platform/player/snapshot.h').read_bytes()).hexdigest()
 report['source_hashes']['runtime/platform/player/managed_remote.h']=hashlib.sha256((ROOT/'runtime/platform/player/managed_remote.h').read_bytes()).hexdigest()
 report['source_hashes']['runtime/platform/player/managed_client.h']=hashlib.sha256((ROOT/'runtime/platform/player/managed_client.h').read_bytes()).hexdigest()

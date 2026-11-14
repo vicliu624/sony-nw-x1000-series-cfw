@@ -9,7 +9,13 @@
 int xw_player_host_session_offer(int delivery,uint32_t requested,uint32_t authorized,uint64_t generation);
 int xw_player_host_prepare_exit(uint64_t epoch,void *context,
  int (*valid)(void *,uint64_t),int (*resume)(void *,uint64_t));
+/* Qualified native exit was accepted and admission stopped, but its continuation
+ * was revoked while radio retirement was pending. After that same radio epoch
+ * actually retires, finish owned SDK/dependency cleanup without a native callback.
+ * Owner-only; refuses fresh admission, unquiesced work and unrelated faults. */
+int xw_player_host_drain_cancelled_exit(uint64_t epoch);
 unsigned xw_player_host_service_phase(void);
+int xw_player_host_cleanup_needs_progress(void);
 /* Serialized original owner: next admissible generation, not a reservation.
  * Refuses active/draining/faulted or native-exit state; output preserved. */
 int xw_player_host_next_generation(uint64_t *);
@@ -18,10 +24,19 @@ int xw_player_host_next_generation(uint64_t *);
 int xw_player_host_resources_idle(void);
 /* Native continuation only: exit admission may already be closed, but a
  * resource-free stock exit must remain delegated. Retained/faulted/owned
- * resources, deferred prepare and wrong owner still refuse. Never admission. */
+ * resources and wrong owner still refuse. The matched, fully drained native
+ * continuation may query during CALLING and after successful DONE; other
+ * pending/revoked/faulted preparation refuses. Never SDK admission. */
 int xw_player_host_native_resources_idle(void);
+/* Boolean proof that a revoked native exit retired its SDK generation and
+ * independent dependency. It does not validate a new native request, resume
+ * the revoked callback, clear exit admission or grant another session. */
+int xw_player_host_revoked_exit_retired(void);
 int xw_player_host_service_stop_generation(uint64_t);
-/* 1 means this generation is no longer live; 0 means still live/unknown. */
+/* 1 means this generation is no longer live; 0 means still live/unknown.
+ * A proved retired generation may have a revoked native continuation while
+ * the host remains faulted and refuses new sessions. Unknown faults are not
+ * retirement proof. */
 int xw_player_host_generation_retired(uint64_t);
 int xw_player_host_original_exiting(void);
 /* Stops admission only; preserves current channels for cooperative CLOSE/ack. */

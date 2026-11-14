@@ -35,11 +35,17 @@ On exit it requests a session-close receipt before detaching local state. A
 transport error is reported as unconfirmed release, never as a successful close.
 
 `tools/test_sdk_player_service.py` checks ARM build/help and C++ syntax.
+In the full research checkout,
 `tools/test_sdk_managed_channel.py --managed-example` executes snapshot, watch,
-all four media views and pause under ARM926 with Sony libc against a separate
+all four media views and all six CLI controls under ARM926 with Sony libc against a separate
 sanitized model host, using a fresh session for each case. Watch checks an
-independently changed model state and the refreshed observation; pause checks
-exactly one provider command. Every case verifies session release and host drain.
-The remaining control names and error/recovery CLI paths are not individually
-covered by that test; this is not exhaustive example qualification.
+independently changed model state and the refreshed observation. Each control
+checks exactly one provider call, the operation/value and resulting model state.
+Every connected case verifies session release and host drain. Eleven invalid
+CLI cases must exit before descriptor adoption, including count/offset bounds,
+unknown actions, excess arguments, invalid descriptors and generation overflow.
+Transport-failure and recovery paths are not exhaustively covered by this example
+test; they require the separate client/service lifecycle checks.
 No physical player, original-manager grant or firmware installation is tested.
+The separate model-host fixtures are not part of the lean source SDK archive;
+use its bundled `test_sdk_player_service.py` for standalone build/help checks.

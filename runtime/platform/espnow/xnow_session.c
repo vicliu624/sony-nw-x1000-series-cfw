@@ -15,7 +15,7 @@ enum xnow_session_action xnow_session_take(struct xnow_session *s) {
     if(s->pending||s->phase==XNOW_SESSION_REPAIR_REQUIRED)return XNOW_SESSION_NONE;
     action=s->next;s->next=XNOW_SESSION_NONE;s->pending=action;
     /* Even a failed mutating request may have partially changed the radio. */
-    if(action==XNOW_SESSION_DISCONNECT||action==XNOW_SESSION_UNLOAD)s->changed=1;
+    if(action==XNOW_SESSION_DISCONNECT||action==XNOW_SESSION_UNLOAD||action==XNOW_SESSION_LOAD_CANDIDATE)s->changed=1;
     return action;
 }
 int xnow_session_complete(struct xnow_session *s,enum xnow_session_action action,int result) {
@@ -23,8 +23,13 @@ int xnow_session_complete(struct xnow_session *s,enum xnow_session_action action
     s->pending=XNOW_SESSION_NONE;
     if(action==XNOW_SESSION_ACQUIRE&&result==0)s->lease=1;
     if(action==XNOW_SESSION_INSPECT) {
+        if(result==XNOW_SESSION_INSPECT_SHARED){
+            if(s->cancelled)cleanup(s);else s->next=XNOW_SESSION_VERIFY_CANDIDATE;
+            return 0;
+        }
         if(result==4)s->was_connected=1;
-        result=(result==3||(result==4&&s->allow_disconnect))?0:-1;
+        if(result==XNOW_SESSION_INSPECT_OFF_VERIFIED)s->started_off=1;
+        result=(result==3||s->started_off||(result==4&&s->allow_disconnect))?0:-1;
     }
     if(result!=0) {
         if(s->phase==XNOW_SESSION_STOPPING) {
@@ -37,15 +42,16 @@ int xnow_session_complete(struct xnow_session *s,enum xnow_session_action action
     switch(action) {
     case XNOW_SESSION_PREFLIGHT:s->next=XNOW_SESSION_ACQUIRE;break;
     case XNOW_SESSION_ACQUIRE:s->next=XNOW_SESSION_INSPECT;break;
-    case XNOW_SESSION_INSPECT:s->next=s->was_connected?XNOW_SESSION_DISCONNECT:XNOW_SESSION_UNLOAD;break;
+    case XNOW_SESSION_INSPECT:s->next=s->started_off?XNOW_SESSION_LOAD_CANDIDATE:
+        s->was_connected?XNOW_SESSION_DISCONNECT:XNOW_SESSION_UNLOAD;break;
     case XNOW_SESSION_DISCONNECT:s->next=XNOW_SESSION_UNLOAD;break;
     case XNOW_SESSION_UNLOAD:s->next=XNOW_SESSION_LOAD_CANDIDATE;break;
     case XNOW_SESSION_LOAD_CANDIDATE:s->next=XNOW_SESSION_WAKE;break;
     case XNOW_SESSION_WAKE:s->next=XNOW_SESSION_VERIFY_CANDIDATE;break;
-    case XNOW_SESSION_VERIFY_CANDIDATE:s->next=XNOW_SESSION_INITIALIZE;break;
+    case XNOW_SESSION_VERIFY_CANDIDATE:s->next=s->changed?XNOW_SESSION_INITIALIZE:XNOW_SESSION_CONFIGURE;break;
     case XNOW_SESSION_INITIALIZE:s->next=XNOW_SESSION_CONFIGURE;break;
     case XNOW_SESSION_CONFIGURE:s->phase=XNOW_SESSION_READY;break;
-    case XNOW_SESSION_RESTORE_UNLOAD:s->next=XNOW_SESSION_LOAD_STOCK;break;
+    case XNOW_SESSION_RESTORE_UNLOAD:s->next=s->started_off?XNOW_SESSION_RELEASE:XNOW_SESSION_LOAD_STOCK;break;
     case XNOW_SESSION_LOAD_STOCK:s->next=XNOW_SESSION_RESTORE_WAKE;break;
     case XNOW_SESSION_RESTORE_WAKE:s->next=XNOW_SESSION_VERIFY_STOCK;break;
     case XNOW_SESSION_VERIFY_STOCK:s->next=XNOW_SESSION_RESTORE_INITIALIZE;break;

@@ -1,187 +1,121 @@
-# ESP-NOW on the NW-X1000: mechanism and limits
+# ESP-NOW implementation
 
-Target: the Japanese NW-X1060 on the1.11 platform. This describes the XNOW
-implementation whose identified native worker passed a physical bidirectional
-test with an original Cardputer. Other devices, firmware revisions and newly
-compiled payloads require independent checks.
+The Japanese X1000 transport reuses Sony's original Linux Wi-Fi driver and the
+SD8686 radio's management-frame machinery. Native C/C++ owns bounded host IPC,
+packet handling and lifecycle; a matched Thumb payload runs on the separate
+radio CPU. It is not an Espressif SDK port, replacement Linux driver or SDR.
+For app code use [SDK ESP-NOW services](sdk/ESPNOW.md). For exact endpoint and
+ownership contracts use [the full stack](ESPNOW_FULL_STACK.md).
 
-## What has actually been implemented?
+## Data path
 
-The over-air traffic is ESP-NOW-compatible unencrypted v1 vendor-specific
-Action traffic, transmitted directly between the two devices. It is not chat
-over an access point, UDP disguised as ESP-NOW, or ESP-NOW tunneled through the
-Terminal connection. TCP/TLS is used to deploy programs and recover logs only.
+```mermaid
+flowchart LR
+    App[App and SDK] <--> Owner[Admitted owner and IPC]
+    Owner <--> Endpoint[Native endpoint and security]
+    Endpoint <--> Driver[Original Sony Linux driver]
+    Driver <--> Radio[Matched radio RX and TX bridge]
+    Radio <--> Peer[802.11 ESP-NOW peer]
+```
 
-This is a subset, not a complete Espressif-equivalent stack. The current bridge
-accepts exactly32 payload bytes containing the XNOW header. That leaves16 opaque
-binary bytes per raw datagram. Applications can define their own binary schema;
-the optional message helper is one consumer and is not required by the device
-module. The helper's96-byte messages use eight fragments and application ACKs.
+The bridge intercepts supported vendor Action envelopes before Sony's ordinary
+category-127 fallback. That fallback can return category 255, which demonstrates
+original reception/response but does not deliver a custom application message.
+The inspected stock driver has no usable monitor mode; command 0x0098 takes the
+unsupported radio-dispatch branch. An Ethernet AF_PACKET socket alone is not a
+payload transport for these internal Action objects.
 
-Espressif's [official frame/API documentation](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/network/esp_now.html)
-describes vendor-specific Action frames, v1 payloads up to250 bytes and v2
-payloads up to1470 bytes, as well as peer keys and CCMP encryption. Supporting a
-valid subset of those frames does not establish all those capabilities here.
-The current plaintext XNOW path is not compatible with every unchanged ESP-NOW
-application, encrypted peer or v2 packet.
+## Transport profiles
 
-## Why the Marvell chip can participate
-
-The stock sd8686 Linux driver and radio image identify a Marvell88W8686-family
-path. Linux runs on the player's ARM CPU; sd8686.bin runs on the separate radio
-CPU. Reverse engineering found an existing radio-side path for receiving and
-submitting IEEE802.11 management Action frames. The firmware already handles
-the underlying WLAN machinery; the new code adds a bounded format/host bridge.
-This is not an Espressif SDK port or a replacement Linux Wi-Fi driver.
-
-There was no usable stock monitor interface to enable. The inspected driver
-mode handler admits AUTO/ADHOC/INFRA, and executing the original radio command
-dispatcher showed command0x0098 taking its unsupported/default path. An Ethernet
-AF_PACKET socket does not expose the radio's original Action frame objects.
-Searching for the number0x0098 alone was therefore insufficient.
-
-The original Action handler also offered a useful diagnostic: category127
-traffic followed a fallback that produced category255 responses. This was seen
-over the air with matching probe fields. It demonstrated reception and an
-original response path, but was not ESP-NOW application delivery. The custom
-hook must intercept the supported ESP-NOW envelope before that fallback.
-
-## The radio hook
-
-The original subtype dispatch at radio address0xa314 leads Action frames through
-the radio's management state machine. The candidate changes the callback veneer
-at0xc00026b0 from the original Thumb target0xa315 to the new bridge entry.
-Addresses here are radio CPU addresses, not Linux process or kernel addresses.
-
-radio_bridge.c checks the bounded internal wrapper and the accepted envelope:
-Action subtype, unprotected frame, category127, OUI18:fe:34, vendor element221,
-element length37, type4, version1, and a32-byte payload with valid XNOW header
-fields. Its wrapper offsets are internal firmware offsets; they must not be
-copied as raw socket capture offsets. The logical vendor content body is47
-bytes for this packet shape. Unmatched traffic calls the original handler.
-
-For an accepted data frame, the hook copies the payload and source MAC into its
-own mailbox. It never retains an original RX pointer. For TX it reuses original
-radio routines: allocator0xd458, header builder0xda00 and submit0xd800 (Thumb
-calls use the low-bit-set entry values). The reply is addressed to the peer
-whose accepted incoming frame triggered the callback. A successful submit means
-queue acceptance, not proof of RF delivery or application reception.
-
-## Reserving memory instead of choosing an apparent gap
-
-An earlier apparent RAM gap was not treated as free memory: physical reads
-showed nonzero contents and no owner was established. The accepted candidate
-reserves a block from a known original packet pool instead:
-
-| Item | Original | Candidate |
+| Profile | Radio behavior | Payload contract |
 | --- | --- | --- |
-| Pool manager |0xc000d5a4| unchanged |
-| Pool base/stride |0xc0008b4c /1900 bytes| unchanged |
-| Large block count |4|3|
-| Reserved interval | none |0xc000a190..0xc000a8fc|
+| Legacy mailbox | Receive callback clocks pending TX to the current peer; one latest RX snapshot | Fixed 32-byte XNOW frame, 16 opaque application bytes; optional 96-byte fragmented chat |
+| Full endpoint | Independent TX requests, correlated original completion and retained RX queue | Standard v1 up to 250 / v2 up to 1,470 bytes, without a mandatory chat envelope |
+| Managed Root consumer | Full transport under native system ownership and shared Wi-Fi policy | Wireless Remote is one consumer, separate from player-control and other apps |
+| Negotiated-key link | Authenticated bootstrap followed by fresh per-link encryption | Opt-in Root/Core2 composition; permanent pairing and player payloads unchanged |
 
-Four coordinated edits reduce the count at0x163ee, redirect the callback and
-split two startup-zeroing table entries around the reserved block. The420-byte
-Thumb bridge starts at0xc000a190; its92-byte mailbox starts at0xc000a334.
-No new SRAM beyond the original pool is assumed. The allocator and startup
-zeroing must agree; injecting this code into an unchanged four-block pool would
-permit the original allocator to overwrite it.
+The legacy peer's 250 ms PING clocks its mailbox transport. That mechanism is
+not a heartbeat requirement of the full endpoint or current on-demand remote.
+Codec support for a zero-length body is separate from peer API/delivery support;
+recorded standard-peer tests did not qualify empty application delivery.
 
-Offline tests execute original scatter zeroing, pool initialization/allocation/
-release, the callback veneer, compiled bridge code and the original boot-reclaim
-routine0x11e0. They verify payload survival with RTOS/IRQ effects substituted.
-These tests do not prove every ROM alias, concurrency case or high-load capacity
-effect. Reducing the pool remains a real tradeoff.
+## Matched image and memory ownership
 
-## Linux-to-radio mailbox
+The candidate reserves the original fourth 1,900-byte large-packet block:
+`[0xc000a190,0xc000a8fc)`. It reduces the original four-block pool to three,
+redirects the callback target word at `0xc00026b0`, and splits startup zeroing
+around that interval. Pool count, scatter tables, download records and code must
+agree. The original allocator must never be allowed to allocate over the payload.
 
-The original driver exposes private hostcmd ioctl0x8be4. Radio command0x0086
-supports a fixed addressed-word GET/action0 and SET/action1. The native adapter
-uses the verified20-byte command layout with response/length checks. Its
-internal address lists are bounded; the public SDK does not expose an arbitrary
-radio-memory writer.
+The legacy bridge uses 420 code bytes and a 92-byte mailbox; its latest-snapshot
+semantics differ from the full image. Full RX copies from the exact borrowed
+work object into owned packets and retains them until acknowledgement. Full TX
+uses the original allocator/header/submit path and retains submitted ownership
+until completion. Unmatched frames follow the original handler. The optional
+full diagnostic image fits in the same reservation and has its own fingerprints.
+Profiles and constants must be generated from the selected image, not copied
+between builds because they happen to use the same interval.
 
-Before publishing TX, the adapter checks the matching original driver identity,
-the three-block candidate layout, exact compiled bridge code and mailbox magic.
-It writes the32-byte TX area first and commits the request counter last. The
-radio callback observes request != ack, constructs/submits one response, then
-publishes its result and acknowledgement. RX uses an odd/even sequence counter:
-the host accepts a snapshot only when the counter is unchanged and even.
+The original driver carries validated private hostcmd requests. Native adapters
+bound every read/write to the verified code/layout, current owned packet and
+session. Applications do not receive an arbitrary radio-memory writer. The
+[SD8686 reference](reference/SD8686.md) records exact container, driver, command,
+filter, packet and admission bindings for platform development.
 
-This mailbox is not a receive FIFO. Another accepted packet can replace the
-latest snapshot before Linux reads it. The library reports known misses and
-rejects torn reads, but cannot reconstruct overwritten data. Publication,
-queue acceptance and application ACK remain distinct. A timeout does not
-guarantee that a previously published request was cancelled.
+## Completion and cleanup
 
-## Why the peer polls
+Request acceptance, original MAC completion, authenticated peer response and an
+observed playback transition are separate results. A timeout cannot free a
+submitted packet, manufacture completion or replay an uncertain NEXT command.
 
-TX currently runs inside the receive callback, not an independent radio task.
-Cardputer sends a specific empty XNOW PING every250ms when its transport is idle.
-An incoming heartbeat gives the bridge an opportunity to submit pending TX.
-The exact empty heartbeat does not replace an unread data/ACK snapshot.
+The full owner verifies inherited IPC identities and platform authority before
+startup. Stop closes data admission, waits for accepted RX producers, drains
+retained packets and submitted TX, then cleans up the endpoint. In shared mode
+it yields before manager RELEASE so the composing owner can close receive
+membership and restore sleep state it changed while the same native lease is
+held. Confirmed retirement and the matching receipt/EOF complete the handoff.
 
-Consequently, the X1060 can originate application messages, but still needs an
-incoming peer frame to clock its physical transmission. The mailbox has no
-arbitrary destination-MAC argument: TX responds to the current poll source.
-This is a significant single-peer/poll-driven restriction, not a complete
-independent send scheduler. Another accepted peer must not be assumed isolated
-or authenticated by the format checks.
+Shared mode preserves the admitted native Wi-Fi connection and follows its
+actual channel. It does not reload an active native owner or retune an associated
+radio. Exclusive laboratory mode separately captures the original 1,004-byte
+configuration in RAM, disconnects, loads/wakes/verifies/initializes the matched
+image, then restores original files and reconnects through original APIs.
+Configuration can contain credentials and is never serialized.
 
-## Loading and returning to normal Wi-Fi
+App handoff, sleep and USB/permanent exit have distinct owner transitions;
+one generic release callback is insufficient. Ordinary app switching can retain
+a valid native connection after player-dependent consumers drain. Physical
+retirement is not inferred from a closed descriptor, process exit or delay.
+See [wireless lifecycle](sdk/WIRELESS.md).
 
-The unchanged Sony loader accepts fw_dir. It can download the candidate from
-verified user storage through the unchanged driver, while original radio files
-remain under /lib/modules. This changes radio RAM; it does not flash the player,
-edit rootfs or modify the Linux module, kernel, initrd or Sony updater.
+## Keys and counters
 
-The owner captures the original1004-byte connection configuration through
-libcnmgr, disconnects, unloads, loads the candidate, wakes it, verifies its
-identity, initializes RF through original tools and selects the explicit test
-channel. Configuration can contain credentials: it stays in RAM and is wiped,
-never serialized into logs. The normal AP/IP connection is not used for the
-ESP-NOW payloads and concurrent AP/ESP-NOW operation is not qualified.
+The generic CCMP management primitive and measured S3/IDF 5.5.1 ESP-NOW profile
+are explicit alternatives. The measured profile uses nonce 0, legacy subtype-
+masked AAD, Key ID 3 and mandatory MIC8. Its effective wire key is derived from
+PMK/API LMK. A Protected bit, peer membership or upstream software tag0 branch
+never substitutes for authentication.
 
-On stop the owner unloads the candidate, loads original root files, wakes and
-verifies the stock radio, performs original initialization, reconnects using
-the captured configuration and releases its manager client. Failure retains
-ownership for inspection rather than blindly restarting. The nvp zr11/1 command
-is a read, not an NVP write. A real failure exposed its stdout/stderr difference;
-the parser was corrected and verified on the device before accepted recovery.
+Reusable keys require durable TX reservations and RX replay state on verified
+user storage. Existing counter journals must not be reset to recover connection.
+The opt-in [fresh-link protocol](reference/ESPNOW_LINK_KEYS.md) instead uses
+an authenticated new key epoch and its scoped RAM counters. It keeps permanent
+pairing, rejects stale/duplicate installation, and adds no idle heartbeat.
+Both sides must have matching transport builds; the diagnostic packer verifies
+source and artifact identity and includes the matched controller application.
 
-The stock-only rehearsal and two candidate tests restored normal Wi-Fi. The
-accepted bidirectional test logged RX1, delivered1, unconfirmed0 and done0;
-the worker was absent afterward and a new authenticated Terminal connection
-verified the original fingerprint, channel8 and four free stock pool blocks.
-See the [exact validation identities](../runtime/platform/espnow/VALIDATION.md).
+## Validation and development
 
-## Remaining work toward a general stack
+Recorded legacy experiments passed bidirectional 96-byte messages and original
+restoration. Separate full-endpoint workers passed nonempty plaintext/encrypted
+lengths through 1,470 bytes, reverse encrypted packets and selected same-key
+restart, stale-PN and wrong-key tests. These bounded identities do not qualify
+all later shared-radio, Settings, sleep or USB compositions.
 
-The active complete-stack requirements and current experimental evidence are
-maintained in [full-stack development](ESPNOW_FULL_STACK.md). The old physical
-baseline below must not be treated as completion of that objective.
-
-- Accept arbitrary binary ESP-NOW payloads independently of the XNOW format,
-  with bounded variable-length parsing. v1/250-byte and optional v2 support
-  require separate format/memory work, not just increasing a host constant.
-- Add an independent radio TX scheduling path and explicit target selection,
-  with buffer ownership, backpressure and error/completion reporting.
-- Implement peer management and bounded receive queues. Validate addressing,
-  broadcast/unicast behavior, filtering and multiple-peer interference.
-- For encrypted interoperability, implement compatible PMK/LMK/CCMP handling,
-  nonce/counter and replay behavior; custom payload AES alone is not equivalent.
-  Suitability of the original hardware crypto path is not established.
-- Qualify channels, repeated sessions, loss/load, sleep/wake, power transitions,
-  USB handoff and AP coexistence. The current physical result is channel8 on
-  one device pair, not a long-duration or throughput certification.
-- Finish the consumer-facing owner/UI lifecycle. The ordinary launcher has a
-  roughly2s termination boundary. The detached chat owner and RAM IPC have now
-  passed physical client/owner exchange and EOF restoration. The user then
-  reported Chat testing passed; exhaustive HOME/sleep/USB behavior remains
-  outside that brief report.
-
-Reliability/fragmentation is an optional application service. Remote controls,
-telemetry, games and other protocols should not have to adopt chat semantics.
-The user SDK therefore separates espnow-core, espnow-device and espnow-message;
-see [SDK usage](sdk/ESPNOW.md). No general completion percentage is assigned:
-the missing firmware scheduling and crypto/ownership paths need their own proof.
+Current acceptance is centralized in [status](STATUS.md). The complete
+[regression groups](REGRESSION.md) separate host sanitizers, compiled radio
+instruction replay, original-libc ARM execution, service/owner process chains,
+exact composed GUI artifacts and full filesystem models. A passing model is
+not hardware acceptance. Private reports and original images remain under
+ignored `work/`; selected physical scope is in
+[the native reference](reference/STOCK_WIRELESS.md#recorded-physical-exchange-scope).

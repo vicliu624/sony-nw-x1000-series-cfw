@@ -44,10 +44,13 @@ put(ctx+16,frame) # Original task's c34 pointer store, before its ring read.
 ring=0x201000;config=0xc000dc8c+4*32
 put(config,ring);put(config+8,4096);put(config+16,0x200700);put(config+20,0x200704);put(config+24,0x7b4)
 codec=env['codec'];nonce=env['nonce'];patterns=[]
-def body(version,length,seed):
-    data=bytes((i*17+seed)&255 for i in range(length));out=ctypes.create_string_buffer(1520);payload=ctypes.create_string_buffer(data);n=ctypes.c_size_t()
+def encode_payload(version,data):
+    out=ctypes.create_string_buffer(1520);payload=ctypes.create_string_buffer(data);n=ctypes.c_size_t()
+    length=len(data)
     assert codec.xnow_espnow_encode_body(out,1520,version,nonce,payload,length,ctypes.byref(n))==0
     return out.raw[:n.value]
+def body(version,length,seed):
+    return encode_payload(version,bytes((i*17+seed)&255 for i in range(length)))
 def inject(raw,flags=0,declared=None,destination=bytes.fromhex('021122334455'),runner=call,fragment=0,a3=b'\xff'*6):
     length=len(raw)+48 if declared is None else declared
     packet=bytearray(32+len(raw));struct.pack_into('<H',packet,0,length);packet[2]=0xd0;packet[3]=flags
@@ -67,6 +70,15 @@ p,n=slot(0);assert n==len(first) and bytes(cpu.mem_read(p,n))==first
 assert inject(second)==0 and word(rx+4)==2 and free_count()==1
 q,m=slot(1);assert m==len(second) and bytes(cpu.mem_read(q,m))==second
 assert bytes(cpu.mem_read(p,n))==first,'old work buffer reuse changed queued payload'
+# An associated station's management Action frame must still reach the
+# original receiver even when both ESP-NOW slots are occupied.
+ap_bssid=bytes.fromhex('021122334400')
+ordinary_action=bytes((3,0,1))+bytes(247)
+before=len(fallback)
+assert inject(ordinary_action,a3=ap_bssid)==7 and fallback[before:]==[(frame,ctx)]
+assert word(rx+4)==2 and word(rx+8)==0 and word(rx+16)==0 and free_count()==1
+assert slot(0)==(p,n) and slot(1)==(q,m)
+assert bytes(cpu.mem_read(p,n))==first and bytes(cpu.mem_read(q,m))==second
 assert inject(first)==0 and word(rx+4)==2 and word(rx+16)==1 and free_count()==1
 assert pop(99)==-5 and word(rx+8)==0 and free_count()==1
 assert pop(1)==0 and free_count()==2 and not slot(0)[0]
@@ -75,6 +87,9 @@ assert pop(2)==0 and free_count()==3
 assert pop(3)==1 and free_count()==3
 # Valid data is dropped, not overwritten, when original packet allocation fails.
 held=[call(0xd458,1900) for _ in range(3)];assert free_count()==0
+before=len(fallback)
+assert inject(ordinary_action,a3=ap_bssid)==7 and fallback[before:]==[(frame,ctx)]
+assert free_count()==0 and word(rx+16)==1
 assert inject(first)==0 and word(rx+4)==2 and word(rx+16)==2
 for pointer in held:assert call(0x1360,pointer)==0
 assert free_count()==3
@@ -84,7 +99,16 @@ bad=bytearray(first);bad[0]=1;assert inject(bad)==7 and free_count()==3
 assert call(symbols['xnow_radio_full_receive'],frame,0)==7 and free_count()==3
 assert inject(second+b'\0')==7 and free_count()==3
 assert inject(first,destination=bytes.fromhex('021111111111'))==7 and free_count()==3
-assert inject(first,destination=b'\xff'*6)==0 and free_count()==2
+invite_payload=b'WPI1'+bytes([11,0,0,0])+bytes(range(1,17))
+invite=encode_payload(1,invite_payload)
+assert inject(invite,destination=b'\xff'*6)==0 and free_count()==2
+entry=rx+24+(word(rx+8)&1)*16
+pointer,used=slot(word(rx+8))
+assert used==len(invite) and bytes(cpu.mem_read(pointer,used))==invite
+assert bytes(cpu.mem_read(entry+8,8))==bytes.fromhex('0266778899aa0200')
+before=len(fallback)
+assert inject(ordinary_action,a3=ap_bssid)==7 and fallback[before:]==[(frame,ctx)]
+assert slot(word(rx+8))==(pointer,used)
 assert pop(word(rx+8)+1)==0 and free_count()==3
 # Wrap head/tail tickets without reusing an occupied slot or freeing twice.
 put(rx+4,0xfffffffe);put(rx+8,0xfffffffe)

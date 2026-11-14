@@ -1,4 +1,4 @@
-#include "../../runtime/apps/qqmusic/qqmusic_storage.h"
+#include "../../runtime/platform/storage/qqmusic_storage.h"
 #include <assert.h>
 #include <string.h>
 static const char *mounts="/dev/root / ext2 rw 0 0\n/dev/mtdblock/2 /contents vfat rw,noatime 0 0\n";

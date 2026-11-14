@@ -15,6 +15,8 @@ helper=ELFFile(io.BytesIO(binary.read_bytes()));symbols={s.name:s['st_value'] fo
 matrix=[('play',0,2,1),('pause',1,1,1),('next',2,1,1),('previous',3,2,1),('already-playing',0,1,1),('already-paused',1,2,1),('transition',0,3,-4),('error',0,2,-4),('no-track',0,2,-2),('no-controller',0,2,-2),('wrong-thread',0,2,-4),('allocation-failure',0,2,-9),('changed-code',0,2,-3)]
 matrix += [('service-replaced-during-read',0,2,-4),('session-replaced-during-read',0,2,-4),('session-replaced-after-submit',0,2,-9)]
 for case,op,primary,expected in matrix:
+ delegated=provider_mode and op<2
+ if delegated and case not in ('wrong-thread','changed-code'):expected=1
  u=Uc(UC_ARCH_ARM,UC_MODE_ARM)
  for image in (ELFFile(io.BytesIO(raw)),helper):
   for s in image.iter_segments():
@@ -58,16 +60,17 @@ for case,op,primary,expected in matrix:
  if provider_mode:assert call('test_provider_invalid')==-1 and not native
  if case=='wrong-thread':put(symbols['test_thread'],8)
  rc=call('test_provider_command',op) if provider_mode else call('xw_stock_engine_control_command',symbols['engine'],op);assert rc==expected,(case,rc,native,allocations)
- attempted=case in ('play','pause','next','previous','allocation-failure','session-replaced-after-submit');assert len(native)==int(attempted) and len(allocations)==int(attempted)
+ attempted=not delegated and case in ('play','pause','next','previous','allocation-failure','session-replaced-after-submit');assert len(native)==int(attempted) and len(allocations)==int(attempted)
  assert get(0x6831dc)==0 and get(0x6922e8)==6
- if case in ('play','pause','previous'):
+ if not delegated and case in ('play','pause','previous'):
   expected_options=[0,1] if op==0 else [1,1] if op==1 else [1,1000,1,1]
   assert [get(area+0x3028+i*4) for i in range(len(expected_options))]==expected_options
  if provider_mode:
-  assert get(symbols['test_base_commands'])==0
+  base_commands=int(delegated and case!='wrong-thread')
+  assert get(symbols['test_base_commands'])==base_commands
   if case=='wrong-thread':assert call('test_provider_close')==-4
   put(symbols['test_thread'],7)
-  assert call('test_provider_volume')==1 and get(symbols['test_base_commands'])==1
+  assert call('test_provider_volume')==1 and get(symbols['test_base_commands'])==base_commands+1
   assert call('test_provider_snapshot')==0 and get(symbols['test_base_snapshots'])==1
   assert call('test_provider_browse')==0 and get(symbols['test_base_browses'])==1
   assert call('test_provider_close')==0 and call('test_provider_base_alive')==1 and get(symbols['test_base_closes'])==0
@@ -76,5 +79,6 @@ for case,op,primary,expected in matrix:
  cases.append(dict(case=case,result=rc,native_calls=native,allocations=allocations,audio_ui_actor_absent=True,ui_ticket_unchanged=True))
 report=dict(passed=True,actual_arm_binding_and_native_request_construction=True,ctrl_info_and_queue_primitives_modeled=True,device_accessed=False,installed=False,cases=cases,source_hashes={p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in sources+['runtime/platform/player/stock_engine_control.h','runtime/platform/player/stock_info.h','tools/test_stock_engine_control.py']},limits=['Fresh CtrlInfo validation is a model here; original info reader has separate tests.','Native lifetime, actual owner identity, audio completion and post-handoff resource effects remain unqualified.','Existing stock provider/host do not select this binding; stable-track controls only, not PLAY from unloaded/stopped source.'])
 report['engine_provider_adapter']=provider_mode
+report['source_hashes']['runtime/platform/player/stock_controller_binding.h']=hashlib.sha256((ROOT/'runtime/platform/player/stock_controller_binding.h').read_bytes()).hexdigest()
 if provider_mode:report['source_hashes']['runtime/platform/player/engine_provider.h']=hashlib.sha256((ROOT/'runtime/platform/player/engine_provider.h').read_bytes()).hexdigest()
 (out/'report.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))

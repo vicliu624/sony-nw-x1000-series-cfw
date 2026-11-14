@@ -2,7 +2,7 @@
 #define ER_EPUB_H
 #include "zip.h"
 #include "xml.h"
-#include "../../../../sdk/include/x1000/services/unicode_font.h"
+#include "../../../../sdk/include/x1000/services/bitmap_font.h"
 #define EP_ITEMS 1024
 #define EP_SPINE 512
 #define EP_TOC 1024

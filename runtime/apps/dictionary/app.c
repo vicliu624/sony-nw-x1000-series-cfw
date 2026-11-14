@@ -6,9 +6,16 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#ifndef HB_BUILD_VERSION
+#define HB_BUILD_VERSION "unknown"
+#endif
 static struct dx_ui ui;
 static const char *base = "/contents/HOMEBREW/apps/dictionary/assets/";
 int main(int argc, char **argv) {
+  if (argc == 2 && !strcmp(argv[1], "--version")) {
+    puts(HB_BUILD_VERSION);
+    return 0;
+  }
   if (argc == 2 && !strcmp(argv[1], "--help")) {
     puts("Offline English-Chinese dictionary. Nine-key multi-tap input, prefix "
          "results, definition pages, Chinese/IPA glyphs. Read-only assets, no "

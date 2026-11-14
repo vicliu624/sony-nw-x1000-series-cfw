@@ -15,8 +15,8 @@ for p in (ROOT/'work/epub-tests').glob('*.json'):shutil.copyfile(p,out/'REVIEW'/
 for p in (ROOT/'work/ebook-preview').glob('0[1-5]-*.png'):shutil.copyfile(p,out/'PREVIEW'/p.name)
 (out/'REVIEW').mkdir(exist_ok=True)
 for source,name in [(w/'build.json','build.json'),(ROOT/'work/ebook-tests/report.json','tests.json'),(ROOT/'work/ebook-data/encoding.json','encoding.json')]:shutil.copyfile(source,out/'REVIEW'/name)
-for folder in ['runtime/apps/ebook','runtime/native']:shutil.copytree(ROOT/folder,out/'SOURCE'/folder,ignore=shutil.ignore_patterns('__pycache__','*.o'))
-for folder,names in [('runtime/apps/emulators',['platform.c','platform.h']),('runtime/apps/dictionary',['dictionary.c','dictionary.h']),('runtime/store',['stock_fs_bridge.c','stock_fs_bridge.h','stock_stat64.c','stock_stat64.h','start.c','start.S'])]:
+for folder in ['runtime/apps/ebook','runtime/native','sdk/include']:shutil.copytree(ROOT/folder,out/'SOURCE'/folder,ignore=shutil.ignore_patterns('__pycache__','*.o'))
+for folder,names in [('runtime/apps/emulators',['platform.c','platform.h']),('runtime/platform/text',['bitmap_font.c','bitmap_font.h','asset_io.h']),('runtime/store',['stock_fs_bridge.c','stock_fs_bridge.h','stock_stat64.c','stock_stat64.h','start.c','start.S'])]:
  for n in names:
   p=out/'SOURCE'/folder/n;p.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(ROOT/folder/n,p)
 for n in ['build_ebook_assets.py','build_ebook_encoding.py','prepare_ebook_fixtures.py','build_ebook_app.py','test_ebook_app.py','package_ebook_app.py','render_ebook.py','test_ebook.c','test_ebook_epub.c','test_ebook_epub.py','test_ebook_storage.c','render_ebook.c','fixtures/ebook_host_stat.c','fixtures/device_preload.c']:

@@ -3,6 +3,7 @@
 #define XW_PLAYER_STOCK_MEDIA_H
 #include "player.h"
 #include "query_snapshot.h"
+#include "artwork.h"
 struct xw_stock_media {uint32_t client;unsigned bound,busy,worker_set;unsigned long gui_owner,worker;};
 /* Prepare on the serialized GUI owner while its original connection token is
  * available. Transfer exclusive ownership to a background reader for fetch.
@@ -24,6 +25,11 @@ int xw_stock_media_validate_audio(struct xw_stock_media *,const struct xw_media_
  * A different object returns STALE; an absent object returns UNAVAILABLE.
  * Output remains unchanged on error. */
 int xw_stock_media_fetch(struct xw_stock_media *,const struct xw_media_id *,struct xw_media_item *);
+/* Separate caller-owned scratch buffer. Header/length commit on success; bytes
+ * after a failure are untrusted. Optional type/read failures try later image
+ * candidates; clone allocation, invalid counts and size violations terminate.
+ * All candidate blobs and the metadata object retire before returning. */
+int xw_stock_media_artwork(struct xw_stock_media *,const struct xw_media_id *,struct xw_artwork_blob *);
 /* Raw/local views. FORMAT3 modes implement the original view5 query shape;
  * they are not advertised as SDK playlists until its UI association is qualified. */
 enum xw_stock_query_kind {XW_STOCK_CHILDREN=0,XW_STOCK_TRACKS=1,XW_STOCK_FORMAT3_LISTS=2,XW_STOCK_FORMAT3_CHILDREN=3};

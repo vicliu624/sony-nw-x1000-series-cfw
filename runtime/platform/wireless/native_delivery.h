@@ -6,6 +6,8 @@ int xw_native_delivery_attached(void);
 int xw_native_rf_refresh_offer(void);
 int xw_native_rf_wait_offer(unsigned timeout_ms);
 int xw_native_rf_gui_owner(void);
+/* Borrowed wait descriptor on the original GUI owner, never an IO grant. */
+int xw_native_rf_gui_notice_fd(void);
 int xw_native_delivery_send_notice(const unsigned char raw[64]);
 int xw_native_rf_bootstrap_gui(void);
 int xw_native_rf_bootstrap_worker(void);

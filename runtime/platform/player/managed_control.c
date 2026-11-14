@@ -7,12 +7,15 @@ static void put64(unsigned char *p,uint64_t n){put32(p,(uint32_t)n);put32(p+4,(u
 int xw_managed_control_execute(struct xw_managed_player *p,const unsigned char *input,size_t bytes,unsigned char *out,size_t capacity,size_t *used){
  if(!p||!input||!out||!used||bytes!=XW_CONTROL_REQUEST_BYTES||memcmp(input,"XLC1",4)||get32(input+36)||!get64(input+8))return XW_PLAYER_INVALID;
  uint32_t op=get32(input+4),limit=get32(input+32);uint64_t generation=get64(input+16),after=get64(input+24);
- if(op<XW_CONTROL_STATUS||op>XW_CONTROL_PLAY_MODE||op==XW_CONTROL_SNAPSHOT_SYNC||(op==XW_CONTROL_EVENTS?(!limit||limit>XW_EVENT_SLOTS):(after||limit)))return XW_PLAYER_INVALID;
- size_t maximum=op==XW_CONTROL_EVENTS?40+24*limit:op==XW_CONTROL_PLAY_MODE?40:56;
+ if(op<XW_CONTROL_STATUS||op>XW_CONTROL_ARTWORK||op==XW_CONTROL_SNAPSHOT_SYNC||(op==XW_CONTROL_EVENTS?(!limit||limit>XW_EVENT_SLOTS):op==XW_CONTROL_ARTWORK?(after>XW_ARTWORK_MAX||limit!=XW_ARTWORK_CHUNK):(after||limit)))return XW_PLAYER_INVALID;
+ size_t maximum=op==XW_CONTROL_ARTWORK?109+XW_ARTWORK_CHUNK:op==XW_CONTROL_EVENTS?40+24*limit:op==XW_CONTROL_PLAY_MODE?40:56;
  if(capacity<maximum)return XW_PLAYER_INVALID; /* No side effect before capacity check. */
  unsigned char packet[XW_CONTROL_RESPONSE_MAX]={0};size_t payload=0;int rc;
  if(generation!=p->requests.session.generation)rc=XW_SESSION_STALE;
- else if(op==XW_CONTROL_PLAY_MODE){
+ else if(op==XW_CONTROL_ARTWORK){
+  struct xw_artwork_chunk value;rc=xw_managed_player_artwork_get(p,(uint32_t)after,&value);
+  if(!rc){put64(packet+24,generation);memcpy(packet+32,value.id.value,65);put32(packet+97,value.total);put32(packet+101,value.offset);put32(packet+105,value.bytes);memcpy(packet+109,value.data,value.bytes);payload=85+value.bytes;}
+ }else if(op==XW_CONTROL_PLAY_MODE){
   uint32_t native,index;rc=xw_managed_player_mode_get(p,&native,&index);
   if(!rc){put32(packet+24,native);put32(packet+28,index);put64(packet+32,generation);payload=16;}
  }else if(op==XW_CONTROL_EVENTS){

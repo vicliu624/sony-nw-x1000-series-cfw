@@ -1,4 +1,4 @@
-name: SDK application behavior preservation
+name: Current SDK application checks
 
 on:
   push:
@@ -14,7 +14,7 @@ concurrency:
   group: sdk-apps-${{ github.ref }}
   cancel-in-progress: true
 jobs:
-  equivalence:
+  current-apps:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
@@ -40,10 +40,16 @@ jobs:
           python tools/ci_bootstrap.py
           python tools/build_hello_app.py
           python tools/build_libc_frontend.py
-      - name: Check SDK adoption and unchanged application logic
-        run: python tools/audit_sdk_adoption.py --check-logic
-      - name: Compare complete pre-SDK and SDK application payloads
-        run: python tools/test_sdk_app_equivalence.py
+      - name: Check current SDK contracts
+        run: python tools/audit_sdk_adoption.py
+      - name: Build and verify all maintained current app packages
+        run: python tools/test_sdk_app_equivalence.py --current
+      - name: Check text module separation and affected app behavior
+        run: |
+          python tools/test_sdk_text.py
+          python tools/test_dictionary_app.py
+          python tools/test_ebook_app.py
+          python tools/test_ebook_epub.py
       - name: Check optional QQ playback components without a personal delivery profile
         run: |
           python tools/test_qqmusic_preview_pcm.py
@@ -52,15 +58,15 @@ jobs:
           python tools/test_qqmusic_preview_device_posix.py
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
-          name: sdk-app-equivalence
-          path: work/sdk-migration/equivalence.json
+          name: sdk-current-app-checks
+          path: work/sdk-migration/ci-*/current/report.json
           if-no-files-found: error
-      - name: Preserve public-code ELF comparison diagnostics
+      - name: Preserve current check diagnostics
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
-          name: sdk-app-elf-diagnostics
+          name: sdk-app-check-diagnostics
           path: |
-            work/sdk-migration/**/elf-*.json
-            work/sdk-migration/**/elf-*.diff
+            work/sdk-migration/ci-*/current-driver.log
+            work/sdk-migration/ci-*/current/*.log
           if-no-files-found: ignore

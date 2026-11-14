@@ -2,8 +2,11 @@
 Import("env")
 from pathlib import Path
 project=Path(env.subst("$PROJECT_DIR"))
-env.BuildSources(env.subst("$BUILD_DIR")+"/protocol",str(project.parent),src_filter=["+<link.c>","+<status_auth.c>","+<receiver.c>","+<session_wire.c>","+<control.c>","+<mode_wire.c>","+<library_wire.c>","+<library_client.c>"])
+env.BuildSources(env.subst("$BUILD_DIR")+"/protocol",str(project.parent),src_filter=["+<link.c>","+<status_auth.c>","+<receiver.c>","+<session_wire.c>","+<control.c>","+<mode_wire.c>","+<library_wire.c>","+<library_client.c>","+<pairing_proof.c>"])
 env.BuildSources(env.subst("$BUILD_DIR")+"/hash",str(project.parents[2]/"native"),src_filter=["+<sha256.c>"])
+env.BuildSources(env.subst("$BUILD_DIR")+"/link",str(project.parents[2]/"platform/espnow"),src_filter=["+<xnow_link.c>"])
+env.BuildSources(env.subst("$BUILD_DIR")+"/pair-auto",str(project.parent),src_filter=["+<pairing_auto.c>","+<pairing_curve.c>"])
+env.BuildSources(env.subst("$BUILD_DIR")+"/artwork",str(project.parent),src_filter=["+<artwork_wire.c>","+<artwork_client.c>","+<artwork_image.c>"])
 
 import json
 version=(project/"VERSION").read_text().strip()

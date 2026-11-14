@@ -2,7 +2,7 @@
 from pathlib import Path
 import hashlib,json,subprocess,tempfile
 ROOT=Path(__file__).resolve().parents[1];w=ROOT/'work/qqmusic-preview-receipt';w.mkdir(exist_ok=True)
-sources=['runtime/apps/qqmusic/qqmusic_preview_receipt.c','runtime/apps/qqmusic/qqmusic_volume.c','runtime/apps/qqmusic/qqmusic_storage.c','runtime/apps/qqmusic/qqmusic_stage.c','runtime/apps/qqmusic/qqmusic_stage_volume.c','runtime/native/sha256.c','runtime/apps/qqmusic/qqmusic_protocol.c','tools/fixtures/qqmusic_preview_receipt.c']
+sources=['runtime/apps/qqmusic/qqmusic_preview_receipt.c','runtime/platform/storage/qqmusic_volume.c','runtime/platform/storage/qqmusic_storage.c','runtime/apps/qqmusic/qqmusic_stage.c','runtime/apps/qqmusic/qqmusic_stage_volume.c','runtime/native/sha256.c','runtime/apps/qqmusic/qqmusic_protocol.c','tools/fixtures/qqmusic_preview_receipt.c']
 flags=['-std=gnu99','-Wall','-Wextra','-Werror','-Wno-unused-function','-Wno-format-truncation','-ffunction-sections','-fdata-sections','-Iwork/bearssl-0.6/inc','-Iwork/stock-resolver-probe']
 wrap=['-Wl,--gc-sections,--wrap=open,--wrap=open64,--wrap=readlink,--wrap=lstat,--wrap=__lxstat64,--wrap=fsync']
 lib=ROOT/'work/arm-signal-tests/lib';host=w/'receipt.sanitized';arm=w/'receipt.arm'

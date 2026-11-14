@@ -8,6 +8,10 @@ on:
     branches: [main]
   workflow_dispatch:
     inputs:
+      build_firmware:
+        description: Explicitly build experimental firmware (paused by default)
+        type: boolean
+        default: false
       publish:
         description: Publish assets (run on the matching version tag)
         type: boolean
@@ -28,6 +32,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
+          # Source-relocation checks compare with immutable migration commits.
+          fetch-depth: 0
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
         with:
           python-version: '3.12.3'
@@ -38,9 +44,22 @@ jobs:
           python -m unittest discover -s tests -v
           python tools/test_release_protocol.py
           python tools/test_qqmusic_installation.py
+      - name: Run source-only regressions
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y gcc-12 g++-12
+          python tools/test_firmware_regressions.py --suite host
+      - name: Preserve source-only regression evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: x1000-source-regressions
+          path: work/firmware-regressions/
+          if-no-files-found: warn
+          retention-days: 14
 
   package:
-    if: github.event_name != 'pull_request'
+    if: github.event_name == 'workflow_dispatch' && inputs.build_firmware
     needs: verify
     runs-on: ubuntu-24.04
     timeout-minutes: 90
@@ -102,7 +121,7 @@ jobs:
           retention-days: 7
 
   publish:
-    if: startsWith(github.ref, 'refs/tags/v') && (github.event_name == 'push' || inputs.publish)
+    if: github.event_name == 'workflow_dispatch' && inputs.build_firmware && inputs.publish && startsWith(github.ref, 'refs/tags/v')
     needs: package
     runs-on: ubuntu-24.04
     timeout-minutes: 20

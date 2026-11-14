@@ -11,6 +11,8 @@ extern "C" {
 #endif
 int xnow_file_check(const char *path,uint64_t expected_device,unsigned bytes,
                     const unsigned char sha256[32]);
+int xnow_file_read_exact(const char *path,uint64_t expected_device,unsigned bytes,
+                         unsigned char *out);
 #ifdef __cplusplus
 }
 #endif

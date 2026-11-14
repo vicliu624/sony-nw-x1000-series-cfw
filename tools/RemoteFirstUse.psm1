@@ -3,6 +3,9 @@ function Install-RemoteFirstUseDirectory {
     param([Parameter(Mandatory)][string]$Source,
           [Parameter(Mandatory)][string]$Destination,
           [Parameter(Mandatory)][object[]]$Files,
+          [switch]$SharedWifi,
+          [switch]$PrepareEmptyHomebrew,
+          [scriptblock]$BeginAttempt = {},
           [Parameter(Mandatory)][scriptblock]$VerifyOwnership)
     $ErrorActionPreference='Stop'
     function Assert-PlainPath([string]$Path){
@@ -19,19 +22,47 @@ function Install-RemoteFirstUseDirectory {
     $target=[IO.Path]::GetFullPath($Destination)
     $parent=[IO.Path]::GetDirectoryName($target)
     Assert-PlainPath $sourceRoot;Assert-PlainPath $parent
-    if(!(Test-Path -LiteralPath $parent -PathType Container)){throw 'Existing verified parent directory required'}
+    $directoriesToCreate=@()
+    if(!(Test-Path -LiteralPath $parent -PathType Container)){
+        if(!$PrepareEmptyHomebrew){throw 'Existing verified HOMEBREW/data directory required, or use -PrepareEmptyHomebrew for first use'}
+        $homebrew=[IO.Path]::GetDirectoryName($parent)
+        $volume=[IO.Path]::GetDirectoryName($homebrew)
+        if([IO.Path]::GetFileName($target) -ne 'wireless-remote' -or
+           [IO.Path]::GetFileName($parent) -ne 'data' -or
+           [IO.Path]::GetFileName($homebrew) -ne 'HOMEBREW' -or
+           !$volume -or !(Test-Path -LiteralPath $volume -PathType Container)){
+            throw 'Refusing to create directories outside the first-use layout'
+        }
+        foreach($directory in @($homebrew,$parent)){
+            if(Test-Path -LiteralPath $directory -PathType Container){continue}
+            if(Test-Path -LiteralPath $directory){throw 'First-use parent is not a directory'}
+            $directoriesToCreate+=$directory
+        }
+    }
     if(Test-Path -LiteralPath $target){throw 'First-use destination already exists; no merge or overwrite permitted'}
     $seen=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
     foreach($file in $Files){
         if($file.relative -notmatch '^(runtime/(service\.arm|owner\.arm|config\.bin)|candidate/(sd8686\.bin|helper_sd\.bin)|session\.keys|pn/pn-[0-9a-f]{64}\.dat)$' -or !$seen.Add($file.relative)){throw 'Unexpected or duplicate first-use input'}
+        if($SharedWifi -and $file.relative -like 'candidate/*'){throw 'Shared Wi-Fi uses the system radio image'}
         $path=[IO.Path]::GetFullPath((Join-Path $sourceRoot $file.relative))
         Assert-PlainPath $path
         if(!$path.StartsWith($sourceRoot,[StringComparison]::OrdinalIgnoreCase)){throw 'Input escaped staging directory'}
         $probe=Get-Item -LiteralPath $path -Force
         if($probe.PSIsContainer -or ($probe.Attributes -band [IO.FileAttributes]::ReparsePoint) -or $probe.Length -ne $file.bytes -or (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash -ne $file.sha256){throw 'First-use source verification failed'}
     }
-    if($Files.Count -ne 8 -or @($Files|Where-Object {$_.relative -like 'pn/*'}).Count -ne 2){throw 'Complete first-use set required'}
+    $expectedCount=if($SharedWifi){6}else{8}
+    if($Files.Count -ne $expectedCount -or @($Files|Where-Object {$_.relative -like 'pn/*'}).Count -ne 2){throw 'Complete first-use set required'}
     & $VerifyOwnership
+    & $BeginAttempt
+    foreach($directory in $directoriesToCreate){
+        & $VerifyOwnership
+        Assert-PlainPath $directory
+        if(!(Test-Path -LiteralPath ([IO.Path]::GetDirectoryName($directory)) -PathType Container)){
+            throw 'First-use parent disappeared during setup'
+        }
+        $null=[IO.Directory]::CreateDirectory($directory)
+    }
+    Assert-PlainPath $parent
     $temporary=Join-Path $parent ('.wireless-remote-install-'+[Guid]::NewGuid().ToString('N'))
     $committed=$false
     try {
@@ -55,10 +86,17 @@ function Install-RemoteFirstUseDirectory {
         [IO.Directory]::Move($temporary,$target);$committed=$true
     } finally {
         if(!$committed -and (Test-Path -LiteralPath $temporary)){
-            $resolved=[IO.Path]::GetFullPath($temporary)
-            if([IO.Path]::GetDirectoryName($resolved) -ne $parent -or [IO.Path]::GetFileName($resolved) -notmatch '^\.wireless-remote-install-[0-9a-f]{32}$'){throw 'Refusing cleanup outside owned staging directory'}
-            Assert-PlainPath $resolved
-            Remove-Item -LiteralPath $resolved -Recurse -Force
+            $canClean=$true
+            try { & $VerifyOwnership } catch {
+                $canClean=$false
+                Write-Warning 'First-use staging was left in place because WALKMAN ownership could not be reverified.'
+            }
+            if($canClean){
+                $resolved=[IO.Path]::GetFullPath($temporary)
+                if([IO.Path]::GetDirectoryName($resolved) -ne $parent -or [IO.Path]::GetFileName($resolved) -notmatch '^\.wireless-remote-install-[0-9a-f]{32}$'){throw 'Refusing cleanup outside owned staging directory'}
+                Assert-PlainPath $resolved
+                Remove-Item -LiteralPath $resolved -Recurse -Force
+            }
         }
     }
     [pscustomobject]@{installed=$true;files=$Files.Count;overwritten=$false;firmware_written=$false;device_program_executed=$false}

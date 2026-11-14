@@ -69,6 +69,11 @@ int xnow_client_send(struct xnow_client *c,const uint8_t mac[6],const void *data
  int rc=queue(c,4,body,6+bytes,request);wipe(body,6+bytes);return rc;
 }
 int xnow_client_request_stop(struct xnow_client *c,uint32_t *request){return queue(c,5,0,0,request);}
+int xnow_client_pairing_store(struct xnow_client *c,int publish,const void *record,size_t bytes,uint32_t *request){
+ if(publish==1&&!record&&!bytes)return queue(c,7,0,0,request);
+ if(!publish&&record&&bytes==112)return queue(c,6,record,bytes,request);
+ return XNOW_CLIENT_ARGUMENT;
+}
 static int decode(struct xnow_client *c){
  const uint8_t *p=c->response;struct xnow_client_event event;memset(&event,0,sizeof event);
  if(!memcmp(p,"XNA1",4)){

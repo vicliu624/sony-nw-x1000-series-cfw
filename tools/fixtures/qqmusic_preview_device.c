@@ -1,5 +1,5 @@
 #include "../../runtime/apps/qqmusic/qqmusic_preview_device.h"
-#include "../../runtime/apps/fm-radio/fm_audio.h"
+#include "../../runtime/platform/audio/fm_audio.h"
 #include <assert.h>
 #include <string.h>
 #include <errno.h>

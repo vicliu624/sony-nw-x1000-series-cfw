@@ -2,7 +2,7 @@
 from pathlib import Path
 import subprocess,struct,zlib
 ROOT=Path(__file__).resolve().parents[1];w=ROOT/'work/ebook-preview';w.mkdir(exist_ok=True)
-cmd=['gcc','-std=c99','-D_DEFAULT_SOURCE','-O1','-Wno-misleading-indentation','-ffunction-sections','-fdata-sections','tools/render_ebook.c','tools/fixtures/ebook_host_stat.c','runtime/apps/ebook/reader.c','runtime/apps/ebook/storage.c','runtime/apps/ebook/ui.c','runtime/apps/dictionary/dictionary.c','runtime/native/sha256.c','runtime/apps/emulators/platform.c','-Wl,--gc-sections','-o',str(w/'render')];cmd[1:1]=['-DMINIZ_NO_STDIO','-DMINIZ_NO_TIME','-DMINIZ_NO_ARCHIVE_APIS','-DMINIZ_NO_DEFLATE_APIS'];cmd[1:1]=[str(p.relative_to(ROOT))for p in sorted((ROOT/'runtime/apps/ebook/epub').glob('*.c'))]+['third_party/epub-miniz/miniz_tinfl.c'];subprocess.run(cmd,cwd=ROOT,check=True);subprocess.run([str(w/'render')],cwd=ROOT,check=True)
+cmd=['gcc','-std=c99','-D_DEFAULT_SOURCE','-O1','-Wno-misleading-indentation','-ffunction-sections','-fdata-sections','tools/render_ebook.c','tools/fixtures/ebook_host_stat.c','runtime/apps/ebook/reader.c','runtime/apps/ebook/storage.c','runtime/apps/ebook/ui.c','runtime/platform/text/bitmap_font.c','runtime/native/sha256.c','runtime/apps/emulators/platform.c','-Wl,--gc-sections','-o',str(w/'render')];cmd[1:1]=['-DMINIZ_NO_STDIO','-DMINIZ_NO_TIME','-DMINIZ_NO_ARCHIVE_APIS','-DMINIZ_NO_DEFLATE_APIS'];cmd[1:1]=[str(p.relative_to(ROOT))for p in sorted((ROOT/'runtime/apps/ebook/epub').glob('*.c'))]+['third_party/epub-miniz/miniz_tinfl.c'];subprocess.run(cmd,cwd=ROOT,check=True);subprocess.run([str(w/'render')],cwd=ROOT,check=True)
 for p in w.glob('*.rgb565'):
  rgb=bytearray();raw=p.read_bytes()
  for i in range(0,len(raw),2):

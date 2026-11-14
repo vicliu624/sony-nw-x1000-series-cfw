@@ -36,7 +36,7 @@ int __wrap_open64(const char *p,int flags,...){
 }
 int __wrap_close(int fd){if(fd==trace_fd){trace_fd=-1;closes++;}return __real_close(fd);}
 ssize_t __wrap_write(int fd,const void *p,size_t n){
- if(fd==trace_fd){assert(n==64);writes++;return __real_write(fd,p,short_write?32:n);}
+ if(fd==trace_fd){assert(n==64||n==2048);writes++;return __real_write(fd,p,short_write?32:n);}
  return __real_write(fd,p,n);
 }
 int __wrap_fsync(int fd){if(fd==trace_fd&&flush_fail){errno=EIO;return -1;}return __real_fsync(fd);}
@@ -69,13 +69,13 @@ int main(void){
  for(unsigned i=0;i<3;i++)assert(!mkdir(dirs[i],0700));
  start(&s);assert(emit(&s,1)==XW_TRACE_STORAGE);finish(&s);assert(access(path,F_OK)!=0);
  seed();start(&s);unsigned before=writes;
- assert(emit(&s,2)==XW_TRACE_SKIPPED&&writes==before);assert(emit(&s,0)==XW_TRACE_INVALID&&emit(&s,17)==XW_TRACE_INVALID);
+ assert(emit(&s,2)==XW_TRACE_SKIPPED&&writes==before);assert(emit(&s,0)==XW_TRACE_INVALID&&emit(&s,32)==XW_TRACE_INVALID);
  assert(!emit(&s,1));assert(emit(&s,1)==XW_TRACE_SKIPPED);assert(!emit(&s,2));
- for(unsigned stage=3;stage<=16;stage++)assert(!emit(&s,stage));
- assert(writes==before+16);finish(&s);
+ for(unsigned stage=3;stage<=31;stage++)assert(!emit(&s,stage));
+ assert(writes==before+31);finish(&s);
  unsigned char result[2048];FILE *f=fopen(path,"rb");assert(f&&fread(result,1,sizeof result,f)==sizeof result&&fgetc(f)==EOF&&!fclose(f));
  assert(!memcmp(result,header,32)&&!memcmp(result+32,"HBP1",4)&&!memcmp(result+96,"HBP1",4));
- for(unsigned i=1056;i<2048;i++)assert(!result[i]);
+ for(unsigned i=2016;i<2048;i++)assert(!result[i]);
  f=fopen(path,"rb");assert(f);struct hb_target_stat st;assert(!hb_target_fstat(fileno(f),&st)&&st.st_size==2048);fclose(f);
  printf("PARENT_TRACE_RECORD_HEX ");for(unsigned i=32;i<96;i++)printf("%02x",result[i]);puts("");
  printf("PARENT_TRACE_FILE_HEX ");for(unsigned i=0;i<2048;i++)printf("%02x",result[i]);puts("");
@@ -97,6 +97,19 @@ int main(void){
  seed();f=fopen(path,"r+b");assert(f&&fputc('!',f)!=EOF&&!fclose(f));start(&s);assert(emit(&s,1)==XW_TRACE_STORAGE);finish(&s);
  seed();start(&s);short_write=1;before=writes;assert(emit(&s,1)==XW_TRACE_STORAGE&&writes==before+1);assert(emit(&s,1)==XW_TRACE_SKIPPED);finish(&s);
  seed();start(&s);flush_fail=1;assert(emit(&s,1)==XW_TRACE_STORAGE);finish(&s);
+ static uint32_t events[XW_PARENT_TRACE_SLOTS][12],sequence[XW_PARENT_TRACE_SLOTS];
+ uint32_t mask=1u|(1u<<16)|(1u<<17);sequence[0]=1;sequence[16]=2;sequence[17]=3;
+ events[0][0]=11;events[16][0]=17;events[17][0]=18;
+ seed();start(&s);before=writes;
+ assert(xw_parent_trace_store_snapshot(&s,mask,events,sequence)==0&&writes==before+1&&opens==closes&&trace_fd==-1);
+ assert(xw_parent_trace_store_snapshot(&s,mask,events,sequence)==XW_TRACE_SKIPPED&&writes==before+1);finish(&s);
+ f=fopen(path,"rb");assert(f&&fread(result,1,sizeof result,f)==sizeof result&&!fclose(f));
+ printf("PARENT_TRACE_SNAPSHOT_HEX ");for(unsigned i=0;i<sizeof result;i++)printf("%02x",result[i]);puts("");
+ start(&s);before=writes;assert(xw_parent_trace_store_snapshot(&s,mask,events,sequence)==XW_TRACE_SKIPPED&&writes==before);finish(&s);
+ seed();start(&s);ownership=0;before=opens;assert(xw_parent_trace_store_snapshot(&s,mask,events,sequence)==XW_TRACE_STORAGE&&opens==before);zero_payload();finish(&s);
+ seed();start(&s);short_write=1;assert(xw_parent_trace_store_snapshot(&s,mask,events,sequence)==XW_TRACE_STORAGE&&opens==closes&&trace_fd==-1);finish(&s);
+ seed();start(&s);flush_fail=1;assert(xw_parent_trace_store_snapshot(&s,mask,events,sequence)==XW_TRACE_STORAGE&&opens==closes&&trace_fd==-1);finish(&s);
+ puts("PARENT_TRACE_SNAPSHOT_PASS");
  assert(!unlink(path)&&!umount("/contents"));start(&s);before=opens;assert(emit(&s,1)==XW_TRACE_STORAGE&&opens==before);finish(&s);
  puts("PARENT_TRACE_STORE_PASS");fflush(stdout);return 0;
 }

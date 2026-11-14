@@ -3,12 +3,15 @@
 #include "../runtime/apps/emulators/platform.h"
 #include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 static struct dx_ui ui;
 static void frame(const char *name) {
   dx_ui_render(&ui);
   char p[256];
-  snprintf(p, sizeof p, "work/dictionary-preview/%s.rgb565", name);
+  const char *directory = getenv("HB_DICT_RENDER_OUT");
+  if (!directory) directory = "work/dictionary-preview";
+  snprintf(p, sizeof p, "%s/%s.rgb565", directory, name);
   FILE *f = fopen(p, "wb");
   assert(f);
   assert(fwrite(ep_canvas, 2, 240 * 432, f) == 240 * 432);

@@ -4,7 +4,7 @@ import subprocess,json,hashlib,tempfile,os,shutil
 ROOT=Path(__file__).resolve().parents[1];w=ROOT/'work/ebook-tests';w.mkdir(exist_ok=True);lib=ROOT/'work/arm-signal-tests/lib';rows=[]
 subprocess.run([__import__('sys').executable,'tools/prepare_ebook_fixtures.py'],cwd=ROOT,check=True)
 flags=['-std=c99','-O2','-DMINIZ_NO_STDIO','-DMINIZ_NO_TIME','-DMINIZ_NO_ARCHIVE_APIS','-DMINIZ_NO_DEFLATE_APIS','-D_DEFAULT_SOURCE','-U_FORTIFY_SOURCE','-D_FORTIFY_SOURCE=0','-fno-stack-protector','-ffunction-sections','-fdata-sections']
-common=['tools/test_ebook.c','runtime/apps/ebook/reader.c','runtime/apps/ebook/storage.c','runtime/apps/ebook/ui.c','runtime/apps/dictionary/dictionary.c','runtime/native/sha256.c','runtime/apps/emulators/platform.c']
+common=['tools/test_ebook.c','runtime/apps/ebook/reader.c','runtime/apps/ebook/storage.c','runtime/apps/ebook/ui.c','runtime/platform/text/bitmap_font.c','runtime/native/sha256.c','runtime/apps/emulators/platform.c']
 epub_sources=[str(p.relative_to(ROOT)) for p in sorted((ROOT/'runtime/apps/ebook/epub').glob('*.c'))]+['third_party/epub-miniz/miniz_tinfl.c']
 common+=epub_sources
 for arm in [False,True]:

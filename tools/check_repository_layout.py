@@ -8,9 +8,11 @@ for p in apps.iterdir():
  if p.is_file() and p.name!='README.md':errors.append('Flat app source: '+p.relative_to(ROOT).as_posix())
 for name in ('ebook','dictionary','emulators','language','diagnostics'):
  if (ROOT/'runtime'/name).exists():errors.append('Old runtime directory remains: '+name)
-docs=[ROOT/n for n in ('README.md','AGENTS.md','CHANGELOG.md','THIRD_PARTY.md')]
+docs=[ROOT/n for n in ('README.md','AGENTS.md','CONTRIBUTING.md','CHANGELOG.md','THIRD_PARTY.md')]
 docs+=list((ROOT/'docs').rglob('*.md'))+list(apps.rglob('README.md'))
 docs+=list((ROOT/'sources').glob('README.md'))+list((ROOT/'third_party').rglob('PROVENANCE.md'))
+docs+=list((ROOT/'tools/device_probes').glob('README.md'))
+docs+=list((ROOT/'runtime/platform').rglob('README.md'))
 for p in docs:
  text=p.read_text(encoding='utf-8-sig')
  if re.search(r'[\u3400-\u9fff\u3040-\u30ff]',text):errors.append('Non-English documentation: '+p.relative_to(ROOT).as_posix())

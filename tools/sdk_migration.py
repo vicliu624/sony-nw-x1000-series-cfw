@@ -46,15 +46,23 @@ def elf_difference(old,new,out,ident):
 
 def main():
     p=argparse.ArgumentParser(description=__doc__)
-    p.add_argument('phase',choices=['baseline','verify'])
+    p.add_argument('phase',choices=['baseline','verify','current'])
     p.add_argument('--baseline',type=Path,default=ROOT/'work/sdk-migration/baseline-b27cff1')
+    p.add_argument('--output',type=Path,help='Fresh current-check root under work/; historical phases use --baseline')
     p.add_argument('--apps',nargs='+');a=p.parse_args()
-    baseline=a.baseline.resolve()
-    if not baseline.is_relative_to(ROOT/'work/sdk-migration'):raise ValueError('Use project migration evidence directory')
-    original=json.loads((baseline/'baseline.json').read_text());selected=a.apps or original['apps']
-    if not set(selected)<=set(original['apps']):raise ValueError('Not part of the captured migration baseline')
-    info=applications();out=baseline/('rebuilt' if a.phase=='baseline' else 'migrated')
-    out.mkdir(exist_ok=True)
+    if a.phase=='current' and not os.environ.get('GITHUB_ACTIONS') and not a.apps:
+        p.error('Local current checks require --apps; personal inputs are never selected implicitly')
+    if a.output and a.phase!='current':p.error('--output belongs to current-source checks')
+    baseline=(a.output or a.baseline).resolve()
+    allowed=(ROOT/'work') if a.phase=='current' else (ROOT/'work/sdk-migration')
+    if not baseline.is_relative_to(allowed) or baseline==allowed:raise ValueError('Use a fresh project work directory')
+    original=(json.loads((ROOT/'config/sdk-migration.json').read_text()) if a.phase=='current'
+              else json.loads((baseline/'baseline.json').read_text()))
+    selected=a.apps or original['apps']
+    if not set(selected)<=set(original['apps']):raise ValueError('Application is outside the selected check scope')
+    info=applications();out=baseline/({'baseline':'rebuilt','verify':'migrated','current':'current'}[a.phase])
+    if a.phase=='current' and out.exists():raise ValueError('Current-source reports require a fresh output')
+    out.mkdir(parents=True,exist_ok=True)
     # Preserve old generated packages before any builder can refresh them.
     if a.phase=='baseline':
         for ident in selected:
@@ -78,6 +86,10 @@ def main():
         config['ca_files']=roots;profile.write_text(json.dumps(config))
     report_path=out/'report.json'
     report=json.loads(report_path.read_text()) if report_path.exists() else {'phase':a.phase,'apps':{},'hardware_accessed':False,'firmware_created':False}
+    if a.phase=='current':
+        from test_firmware_regressions import source_inventory
+        current_inputs=source_inventory()
+        report.update(source_hashes=current_inputs,historical_equivalence_checked=False)
     env=dict(os.environ,QEMU_UNSET_ENV='LD_LIBRARY_PATH,LD_PRELOAD')
     for ident in selected:
         if report['apps'].get(ident,{}).get('passed'):continue
@@ -116,5 +128,11 @@ def main():
         if not row['passed']:print(ident+' changed runtime/resource payload: '+repr(row['changed_files']),flush=True)
     print(json.dumps({'phase':a.phase,'passed_apps':[k for k,v in report['apps'].items() if v['passed']],
                       'report':str(report_path.relative_to(ROOT)),'hardware_accessed':False},indent=2))
-    if any(not row['passed'] for row in report['apps'].values()):raise RuntimeError('Installed-byte differences remain; see ELF diagnostics')
+    if a.phase=='current':
+        changed=current_inputs!=source_inventory()
+        report['source_changed_during_run']=changed
+        report['passed']=not changed and all(row['passed'] for row in report['apps'].values())
+        report_path.write_text(json.dumps(report,indent=2)+'\n')
+        if changed:raise RuntimeError('Source changed during current-app checks')
+    if any(not row['passed'] for row in report['apps'].values()):raise RuntimeError('Application checks failed; see per-app reports')
 if __name__=='__main__':main()

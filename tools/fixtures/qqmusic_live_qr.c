@@ -1,5 +1,5 @@
 #include "../../runtime/apps/qqmusic/qqmusic_network.h"
-#include "../../runtime/apps/qqmusic/qqmusic_image.h"
+#include "../../runtime/platform/images/qqmusic_image.h"
 #ifdef QQ_LIVE_QIMEI
 #include "../../runtime/apps/qqmusic/qqmusic_qimei.h"
 #include "../../runtime/apps/qqmusic/qqmusic_identity.h"

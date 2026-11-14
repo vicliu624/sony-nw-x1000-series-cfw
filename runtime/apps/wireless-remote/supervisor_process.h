@@ -18,7 +18,7 @@ struct wr_supervisor_process {
  int owner,child,delivery,log_reader,stop_fd,state,status;
  uint64_t generation,delivery_device,delivery_inode,log_device,log_inode;
  uint64_t stop_device,stop_inode;
- unsigned log_bytes,reaped,stop_sent,startup_refused;char log_tail[513];
+ unsigned log_bytes,reaped,stop_sent,startup_refused,service_ready,radio_ready;char log_tail[513];
  /* Borrowed from the factory until reap; process_close must not close it. */
  int mode_view;unsigned mode_view_configured;uint64_t mode_device,mode_inode;
  struct xw_wireless_lease mode_lease;
@@ -38,4 +38,27 @@ int wr_supervisor_process_request_stop(struct wr_supervisor_process *);
 int wr_supervisor_process_poll(struct wr_supervisor_process *);
 /* Only after normal reap and delivery close; never signals or kills a child. */
 int wr_supervisor_process_close(struct wr_supervisor_process *);
+#ifdef WR_PAIRING_PROCESS
+#include "../../platform/espnow/xnow_client.h"
+#include "../../platform/espnow/xnow_handoff.h"
+struct wr_pairing_process {
+ struct xnow_client client;
+ struct xnow_handoff handoff;
+ int owner,child,reaped,fault;
+};
+/* The GUI retains the shared lease and mode-view server until poll succeeds.
+ * Stop closes the command pipe. Only verified retirement and child reap end
+ * the dependency. An unexpected exit without a receipt remains uncertain. */
+int wr_pairing_process_start(struct wr_pairing_process *,int mode_fd,const struct xw_wireless_lease *,const uint8_t cookie[16]);
+int wr_pairing_process_stop(struct wr_pairing_process *);
+int wr_pairing_process_poll(struct wr_pairing_process *,struct xnow_handoff_result *);
+struct wr_pairing_store_job {
+ int child,reader,owner;
+ uint64_t device,inode;
+ unsigned used;
+ uint8_t reply[17];
+};
+int wr_pairing_store_job_start(struct wr_pairing_store_job *,const uint8_t expected_peer[6]);
+int wr_pairing_store_job_poll(struct wr_pairing_store_job *,unsigned *result,uint8_t peer[6]);
+#endif
 #endif
