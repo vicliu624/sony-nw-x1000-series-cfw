@@ -7,6 +7,21 @@ from elftools.elf.elffile import ELFFile
 BASE_SHA = 'ea106d7d362793fe39450673b79e3cf77dbdd00bc1ba573b7e8f854d56dc53e0'
 SETTINGS_SHA = '4ca0755d3fe3322cf14c60ccbc456a344d5293e1cbd59665a1c2b9ebd11bbbd8'
 
+def enable_home_settings(raw, symbols):
+    descriptor = symbols['hb_error_descriptor']
+    elf = ELFFile(io.BytesIO(raw))
+    mappings = [segment for segment in elf.iter_segments()
+                if segment['p_type'] == 'PT_LOAD' and segment['p_vaddr'] <= descriptor
+                and descriptor + 48 <= segment['p_vaddr'] + segment['p_filesz']]
+    if len(mappings) != 1:
+        raise ValueError('Homebrew error descriptor must have one mapping')
+    segment = mappings[0]
+    offset = segment['p_offset'] + descriptor - segment['p_vaddr']
+    image = bytearray(raw)
+    struct.pack_into('<I', image, offset + 4, 99999)
+    struct.pack_into('<I', image, offset + 20, 0)
+    return enable_settings(bytes(image))
+
 def enable_settings(raw):
     if hashlib.sha256(raw).hexdigest() != BASE_SHA:
         raise ValueError('Pinned source-built Homebrew base required')

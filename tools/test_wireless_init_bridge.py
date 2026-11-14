@@ -1,5 +1,5 @@
 """Execute composed native initialization, including object replacement."""
-import contextlib, io, json, runpy, struct, sys, time
+import io, json, struct, sys, time
 from itertools import product
 from app_registry import ROOT
 from elftools.elf.elffile import ELFFile
@@ -7,10 +7,12 @@ from unicorn import Uc, UC_ARCH_ARM, UC_MODE_ARM, UC_HOOK_CODE
 from unicorn.arm_const import UC_ARM_REG_R0, UC_ARM_REG_R1, UC_ARM_REG_R2, UC_ARM_REG_R3, UC_ARM_REG_SP, UC_ARM_REG_LR, UC_ARM_REG_PC
 from wireless_callback_bridge import compose as confirm, offset
 from wireless_init_bridge import compose
+from player_prepare_bridge import build_builtin
 
 out=ROOT/'work/wireless-init'/str(time.time_ns());out.mkdir(parents=True)
-with contextlib.redirect_stdout(io.StringIO()):
-    base=runpy.run_path(str(ROOT/'tools/test_builtin_player_composition.py'),init_globals={'native_settings_profile':True})['artifact'].read_bytes()
+stock=(ROOT/'work/targets-jp/SpiderApp').read_bytes()
+_,base_artifact,_=build_builtin(out/'base',stock,native_settings=True)
+base=base_artifact.read_bytes()
 paired, callback=confirm(base,out/'confirm')
 choices=2 if '--two-choice' in sys.argv else 3
 patched, report=compose(paired,out/'init',choices)

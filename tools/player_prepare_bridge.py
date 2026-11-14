@@ -1,9 +1,11 @@
-"""Analysis-only ARM bridge bytes; does not patch an ELF or install firmware."""
+"""Compose the pinned Japanese 1.11 player prepare bridge offline."""
 import struct
 import hashlib
 import io
+import json
+import re
 from elftools.elf.elffile import ELFFile
-from build_player_met_anchor import branch
+from build_player_met_anchor import branch, patch_met_anchor
 PREPARE_BRIDGE=0x4d7fc0
 PREPARE_HANDLED=0x58575052
 PREPARE_COMPOSITION_SHA='ab2b31b56b4b70c793491f3a33fa4edbee8ab337b0794389abc61db168551e61'
@@ -71,3 +73,78 @@ def patch_prepare_bridge(raw,original,*,profile='external-language'):
     return bytes(result),dict(analysis_only=True,ready_to_flash=False,additional_elf_bytes=0,
                              stub=hex(PREPARE_BRIDGE),stub_bytes=len(bridge),callsites=sites,
                              original_spans=spans,stock_sha256=stock_hash)
+
+
+def build_builtin(out, stock, *, native_settings=False):
+    from app_registry import ROOT
+    from build_home_feedback import build as build_home
+    from build_player_host import patch_owner_anchor
+    from builtin_language import enable_home_settings
+
+    out.mkdir(parents=True)
+    sources = ['tools/player_prepare_bridge.py', 'tools/builtin_language.py',
+               'tools/build_player_host.py', 'tools/build_player_met_anchor.py']
+    resource_review = None
+    if native_settings:
+        from prepare_remote_settings_row import build as build_settings
+        settings_dir = out / 'settings'
+        _, settings_artifact, settings_report = build_settings(settings_dir)
+        base = settings_artifact.read_bytes()
+        profile = 'native-settings'
+        home_sources = settings_report['home_source_hashes']
+        sources.extend(settings_report['source_hashes'])
+        resource_review = (settings_dir / 'report.json').relative_to(ROOT).as_posix()
+    else:
+        home, symbols, home_report = build_home(out / 'home')
+        base = enable_home_settings(home, symbols)
+        profile = 'builtin-language'
+        home_sources = home_report['source_hashes']
+    sources.extend(home_sources)
+
+    owner, owner_edit = patch_owner_anchor(base)
+    native_guards = []
+    elf = ELFFile(io.BytesIO(owner))
+    loads = [segment for segment in elf.iter_segments() if segment['p_type'] == 'PT_LOAD']
+    for path in sorted((ROOT / 'runtime/platform/player').glob('stock_*.c')):
+        name = path.relative_to(ROOT).as_posix()
+        sources.append(name)
+        source = path.read_text(encoding='utf-8')
+        arrays = [(match.start(), match[1], bytes(int(value, 16) for value in
+                   re.findall(r'0x([0-9a-fA-F]+)', match[2])))
+                  for match in re.finditer(r'(\w+)\[32\]\s*=\s*\{([^}]+)\}', source)]
+        calls = [(*match.groups(), match.start()) for match in re.finditer(
+            r'xw_stock_image_match\(\s*(0x[0-9a-fA-F]+)u?\s*,\s*(0x[0-9a-fA-F]+)u?\s*,\s*(\w+)\s*\)', source)]
+        if path.name == 'stock_volume.c':
+            constants = dict(re.findall(r'#define\s+(REGION_\w+)\s+(0x[0-9a-fA-F]+)u?', source))
+            count = int(constants['REGION_END'], 16) - int(constants['REGION_BEGIN'], 16)
+            calls.append((constants['REGION_BEGIN'], hex(count), 'expected', len(source)))
+        for address, length, identifier, position in calls:
+            expected = next(value for start, symbol, value in reversed(arrays)
+                            if symbol == identifier and start < position)
+            start, count = int(address, 16), int(length, 16)
+            mappings = [segment for segment in loads if segment['p_vaddr'] <= start
+                        and start + count <= segment['p_vaddr'] + segment['p_filesz']]
+            if len(mappings) != 1:
+                raise ValueError(f'Expected one stock guard mapping at {address}')
+            segment = mappings[0]
+            offset = segment['p_offset'] + start - segment['p_vaddr']
+            if hashlib.sha256(owner[offset:offset + count]).digest() != expected:
+                raise ValueError(f'Stock guard mismatch in {name} at {address}')
+            native_guards.append(dict(source=name, address=address, bytes=count))
+    if len(native_guards) < 17:
+        raise ValueError('Missing stock player guards')
+    met, met_edit = patch_met_anchor(owner, mapped_stub=0x4d7ff0)
+    candidate, prepare_edit = patch_prepare_bridge(met, stock, profile=profile)
+    artifact = out / 'SpiderApp.builtin-player-met.analysis-only.elf'
+    artifact.write_bytes(candidate)
+    report = dict(analysis_only=True, ready_to_flash=False, device_accessed=False,
+                  firmware_package_created=False, native_settings_profile=native_settings,
+                  base_sha256=hashlib.sha256(base).hexdigest(),
+                  candidate_sha256=hashlib.sha256(candidate).hexdigest(),
+                  artifact=artifact.relative_to(ROOT).as_posix(), elf_growth_bytes=len(candidate) - len(base),
+                  settings_resource_review=resource_review, owner_edit=owner_edit, met_edit=met_edit,
+                  prepare_edit=prepare_edit, home_source_hashes=home_sources, native_guards=native_guards,
+                  source_hashes={name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest()
+                                 for name in sorted(set(sources))})
+    (out / 'report.json').write_text(json.dumps(report, indent=2) + '\n', encoding='utf-8')
+    return base, artifact, report

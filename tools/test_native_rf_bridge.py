@@ -1,13 +1,15 @@
 """Original RF wrappers through source anchors/receiver; no RF/device/UPG."""
-import contextlib,hashlib,io,json,runpy,struct,subprocess,time
+import hashlib,io,json,struct,subprocess,time
 from app_registry import ROOT
 from native_rf_bridge import compose
+from player_prepare_bridge import build_builtin
 from elftools.elf.elffile import ELFFile
 from unicorn import Uc,UC_ARCH_ARM,UC_MODE_ARM,UC_HOOK_CODE
 from unicorn.arm_const import UC_ARM_REG_R0,UC_ARM_REG_R1,UC_ARM_REG_R2,UC_ARM_REG_R3,UC_ARM_REG_R7,UC_ARM_REG_SP,UC_ARM_REG_LR,UC_ARM_REG_PC
 out=ROOT/'work/native-rf-bridge'/str(time.time_ns());out.mkdir(parents=True)
-with contextlib.redirect_stdout(io.StringIO()):base=runpy.run_path(str(ROOT/'tools/test_builtin_player_composition.py'))
-candidate,composition=compose(base['artifact'].read_bytes(),out/'anchor')
+stock=(ROOT/'work/targets-jp/SpiderApp').read_bytes()
+_,base,base_report=build_builtin(out/'base',stock)
+candidate,composition=compose(base.read_bytes(),out/'anchor')
 fixture=out/'fixture.c';fixture.write_text('''
 unsigned allowed=1,image_valid=1;int error=77;
 int *__errno_location(void){return &error;}
@@ -64,7 +66,7 @@ for entry in (0xb3458,0xb3784,0xb3538,0xb3ee4,0xb3f70,0xb3ffc):
     cases.append(dict(entry=hex(entry),allowed=allowed,image_valid=image_valid,result=result))
 artifact=out/'SpiderApp.rf-gate.analysis-only.elf';artifact.write_bytes(candidate)
 report=dict(passed=True,device_accessed=False,firmware_created=False,ready_to_flash=False,arm_cases=len(cases),cases=cases,composition=composition,
- source_hashes={p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in (source,'tools/test_native_rf_bridge.py')},
+ source_hashes={**base_report['source_hashes'],**{p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in (source,'tools/test_native_rf_bridge.py')}},
  limits=['Request shim transfer, image qualification, permission and imported RF/loggers are fixture boundaries.',
  'Original wrappers, source ARM anchors and source C receiver execute together; no actual RF operation.',
  'The receiver is not installed in the production SDK dispatcher; worker provisioning remains unfinished.'])

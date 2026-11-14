@@ -45,7 +45,7 @@ implementation has the following confirmed coupling points:
 | Coupling | Current evidence | Required boundary |
 | --- | --- | --- |
 | Global SDK version pin | `tools/sdk_services.py:definition_contract` and `tools/sdk_build.py:compile_app` reject every different package version, including apps whose selected module API is unchanged | Distinguish module API compatibility from the exact SDK source identity recorded by a build. An unrelated module change must not require editing every app definition |
-| Executable tests used as build libraries | `tools/build_player_host.py` executes `test_builtin_player_composition.py` through `runpy`; radio tests also execute other tests to obtain fixtures | Product construction belongs to import-safe builder functions. Tests consume those functions and pure fixtures, with no build or test execution on import |
+| Executable tests used as build libraries | Built-in player and Settings composition use maintained builder functions. The legacy external-language path still executes `test_player_prepare_composition.py`, and some radio tests execute other tests for fixtures | Product construction belongs to import-safe builder functions. Tests consume those functions and pure fixtures |
 | Compiled component identity cascade | The owner/service hashes enter the supervisor, then its identity enters the player library and startup wrapper | Package composition owns component identities. A compatible child implementation change should regenerate package metadata without changing unrelated parent logic |
 | Incomplete startup error contract | `rf_owner.c:owner_prepare` reduces backend setup errors to `-1`; service startup reports a numeric result and a post-cleanup flag | Retain component, operation, result domain and original error. Readiness, failure and resource retirement are separate observations |
 | Diagnostic records lack attempt identity | `parent_trace_store.c` fills a preallocated slot only once; `read_remote_pairing_trace.py` has no firmware/build or boot identity to validate | Use bounded, versioned records correlated to a build, boot and start request. Reading diagnostics must not depend on manually copying an empty file before each attempt |
@@ -83,20 +83,21 @@ Player result codes are a separate domain: `XW_PLAYER_IO` is -6 and
 resource state, not the reason HELLO failed. Record CRC proves byte integrity;
 build/boot/request identity must separately prove which attempt was captured.
 
-Migration is gated and incremental:
+Migration is incremental:
 
-1. Establish the current failure's provenance and startup stage. Existing records
-   without build/attempt identity are historical observations, not proof about
-   the latest installation. Runtime changes remain on hold.
-2. Remove build-to-test and test-to-test execution dependencies. Preserve generated
+1. Remove build-to-test and test-to-test execution dependencies. Preserve generated
    bytes and existing component contracts while moving construction into normal
    maintained functions. No revision-specific replacement scripts are introduced.
-3. Separate compatibility, package identities and startup results at their owning
+2. Separate compatibility and package identities at their owning
    boundaries. Keep one original radio authority and preserve generation/retirement
    rules. Review each affected caller before changing an interface.
-4. Archive obsolete orchestration only after the supported graph no longer refers
+3. Archive obsolete orchestration only after the supported graph no longer refers
    to it. Preserve original inputs, usable rollback packages and minimal failure
    evidence. A directory move alone does not complete a boundary.
+
+Runtime regression investigation remains separate from this sequence. Records
+without build/attempt identity are historical observations. Obtain a correlated
+failure before changing runtime startup behavior.
 
 This is the architecture contract and migration order. These boundaries have not
 all been implemented, and runtime bug fixing does not resume on the strength of

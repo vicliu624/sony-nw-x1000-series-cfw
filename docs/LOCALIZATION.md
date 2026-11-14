@@ -55,10 +55,10 @@ are completed; other native languages retain their original coverage. Hardware
 visibility, persistence and sleep/wake remain unqualified. Remote host composition
 must use this new base, not silently reintroduce the external cache base.
 
-`tools/test_builtin_player_composition.py` composes the owner, Met and prepare
-anchors with this exact pinned Settings base. It verifies native SDK guard spans
-before the declared Met edit, preserves the restored STX callsites and Settings
-data, and reconstructs the complete input by reverting only declared SDK edits.
+`tools/player_prepare_bridge.py` composes the owner, Met and prepare anchors with
+the pinned Settings base and validates native SDK guard spans before the Met edit.
+`tools/test_builtin_player_composition.py` verifies the STX callsites and Settings
+data and reconstructs the complete input by reverting the declared SDK edits.
 Changed code, occupied bridge data, changed language data and a mismatched profile
 are rejected. `tools/build_player_host.py --managed-host --engine-provider
 --native-prepare --builtin-localization` builds the paired ARM host in a separate

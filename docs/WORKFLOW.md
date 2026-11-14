@@ -15,6 +15,15 @@ Do not create one-off executable helpers, even in ignored storage. A supported
 workflow uses maintained purpose-based entry points with explicit inputs; version
 numbers identify delivery artifacts, not another implementation of the workflow.
 
+## Build and verification inputs
+
+The current player host builds its built-in composition once per invocation.
+The builder validates the stock image and patch spans, and records the resulting
+ELF and Settings overlay with their input identities. Independent tests use the
+same builder, then execute the refusal cases and ARM replay. Packaging consumes
+reviewed outputs through their receipts. See the [build guide](BUILD.md) for the
+supported commands and [architecture](ARCHITECTURE.md) for module ownership.
+
 ## Select verification
 
 | Change | Routine iteration | Checkpoint |
