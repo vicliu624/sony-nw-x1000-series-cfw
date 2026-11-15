@@ -1,10 +1,11 @@
 """Actual unchanged r3 store: fetch HTTPS catalog with real TLS, virtual devices."""
 from pathlib import Path
+from actual_app_fixture import prepare
 from workflow_paths import composition_path,work_area,evidence_path,stamp_report,write_report
-import signal,time,os,contextlib,hashlib,io,json,runpy,shutil,subprocess,tempfile,re,struct,zlib
+import signal,time,os,hashlib,json,shutil,subprocess,tempfile,re,struct,zlib
 from local_store_https import repository_fixture
 ROOT=Path(__file__).resolve().parents[1]
-with contextlib.redirect_stdout(io.StringIO()):base=runpy.run_path(str(ROOT/'tools/test_libc_production_ui.py'))
+base = prepare()
 work=work_area(ROOT,'production-store-stop-review')
 composition=base['composition'];store=composition/'external/HOMEBREW/apps/store/app';preload=base['preload'];lib=base['lib']
 expected=next(r['sha256'] for r in base['manifest']['files'] if r['path']=='external/HOMEBREW/apps/store/app');assert hashlib.sha256(store.read_bytes()).hexdigest()==expected
@@ -49,7 +50,7 @@ with repository_fixture(ROOT/'work/hello-app/package',hold_path='/catalog.txt') 
  assert not list((home/'packages').iterdir())
  cache=[{'name':p.name,'bytes':p.stat().st_size} for p in (home/'cache').iterdir()]
  assert len(cache)<=1 and all(p['name'].startswith('.fetch-') and p['bytes']<=len((fixture['web']/'catalog.txt').read_bytes()) for p in cache)
- report={'passed':True,'actual_launcher_and_store':True,'SIGTERM_during_pending_HTTPS_response':True,'child_group_SIGTERM_forwarded':True,'no_parent_device_reacquire_after_stop':True,'parent_and_child_device_cleanup_observed':True,'parent_exit':process.returncode,'no_app_installed':True,'remaining_owned_cache':cache,'trace':stderr,'source_hashes':{str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in [Path(__file__),ROOT/'tools/local_store_https.py',ROOT/'tools/test_libc_production_ui.py',ROOT/'tools/fixtures/device_preload.c',store,launcher,preload,composition/'manifest.json']},'hardware_tested':False,'limits':['Actual ARM artifacts, QEMU host process/signal delivery; devices and paths virtual.','Stop injected while catalog HTTP response withheld; not every install/flash interruption point.','Not physical USB unmount/export, Sony proxy or GUI handoff qualification.']}
+ report={'passed':True,'actual_launcher_and_store':True,'SIGTERM_during_pending_HTTPS_response':True,'child_group_SIGTERM_forwarded':True,'no_parent_device_reacquire_after_stop':True,'parent_and_child_device_cleanup_observed':True,'parent_exit':process.returncode,'no_app_installed':True,'remaining_owned_cache':cache,'trace':stderr,'source_hashes':{str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in [Path(__file__),ROOT/'tools/local_store_https.py',*base['inputs'],store,launcher,preload,composition/'manifest.json']},'hardware_tested':False,'limits':['Actual ARM artifacts, QEMU host process/signal delivery; devices and paths virtual.','Stop injected while catalog HTTP response withheld; not every install/flash interruption point.','Not physical USB unmount/export, Sony proxy or GUI handoff qualification.']}
  write_report(ROOT,'native-production-store-stop-tests.json',report)
 print('Actual launcher/store: SIGTERM during pending HTTPS response cleans devices and exits without reacquire.')
 

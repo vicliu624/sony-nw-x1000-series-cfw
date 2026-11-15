@@ -37,10 +37,11 @@ def repository_fixture(package,hold_path=None):
   server=ThreadingHTTPServer(('127.0.0.1',0),partial(Handler,directory=str(web)))
   url='https://localhost:'+str(server.server_port)+'/'
   published=publisher['publish']([Path(package)],url,area/'publication')
+  package_path = '/' + published['packages'][0]['path'] + '/'
   configuration['prepare'](published['catalog_url'],web/'catalog.txt',rootder,area/'configuration')
   context=ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER);context.load_cert_chain(leaf,leafkey);server.socket=context.wrap_socket(server.socket,server_side=True)
   thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
-  try:yield {'area':area,'url':url,'web':web,'configuration':area/'configuration/HOMEBREW/repository','ca_pem':root,'ca_der':rootder,'requests':requests,'package':Path(package),'requested':requested,'proceed':proceed}
+  try:yield {'area':area,'url':url,'web':web,'configuration':area/'configuration/HOMEBREW/repository','ca_pem':root,'ca_der':rootder,'requests':requests,'package':Path(package),'package_path':package_path,'requested':requested,'proceed':proceed}
   finally:proceed.set();server.shutdown();server.server_close();thread.join(timeout=5);assert not thread.is_alive()
 if __name__=='__main__':
  package=ROOT/'work/hello-app/package'

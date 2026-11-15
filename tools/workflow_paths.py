@@ -8,8 +8,11 @@ def _profile():
  return value
 
 def composition_path(root):
- root=Path(root).resolve();path=(root/os.environ.get('HB_WORKFLOW_COMPOSITION','work/libc-product-review-0.1.0-dev.16-r3')).resolve()
- assert path.is_relative_to(root/'work') and path!=root/'work'
+ root=Path(root).resolve();selected=os.environ.get('HB_WORKFLOW_COMPOSITION')
+ if not selected:raise ValueError('Select the local workflow fixture with --composition or HB_WORKFLOW_COMPOSITION')
+ path=(root/selected).resolve()
+ if not path.is_relative_to(root/'work') or path==root/'work' or not (path/'manifest.json').is_file():
+  raise ValueError('Expected a prepared workflow composition with a manifest under work/')
  return path
 
 def work_area(root,name):
@@ -20,14 +23,15 @@ def work_area(root,name):
 
 def evidence_path(root,name):
  assert re.fullmatch(r'[a-z0-9-]+\.json',name)
- root=Path(root).resolve();profile=_profile();base=root/'sources'
+ root=Path(root).resolve();profile=_profile();base=root/'work'
  if profile:base=base/'workflow-profiles'/profile
+ base=base/'evidence'
  base.mkdir(parents=True,exist_ok=True);return base/name
 
 def stamp_report(root,report):
  root=Path(root).resolve();helper=Path(__file__).resolve()
  report.setdefault('source_hashes',{})[str(helper.relative_to(root))]=hashlib.sha256(helper.read_bytes()).hexdigest()
- report['workflow_profile']=_profile() or 'r3'
+ report['workflow_profile']=_profile()
  report['composition']=str(composition_path(root).relative_to(root))
  return report
 

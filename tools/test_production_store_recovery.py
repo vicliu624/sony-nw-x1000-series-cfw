@@ -1,10 +1,11 @@
 """Actual unchanged r3 store: fetch HTTPS catalog with real TLS, virtual devices."""
 from pathlib import Path
+from actual_app_fixture import prepare
 from workflow_paths import composition_path,work_area,evidence_path,stamp_report,write_report
-import signal,time,os,contextlib,hashlib,io,json,runpy,shutil,subprocess,tempfile,re,struct,zlib
+import signal,time,os,hashlib,json,shutil,subprocess,tempfile,re,struct,zlib
 from local_store_https import repository_fixture
 ROOT=Path(__file__).resolve().parents[1]
-with contextlib.redirect_stdout(io.StringIO()):base=runpy.run_path(str(ROOT/'tools/test_libc_production_ui.py'))
+base = prepare()
 work=work_area(ROOT,'production-store-recovery-review')
 composition=base['composition'];store=composition/'external/HOMEBREW/apps/store/app';preload=base['preload'];lib=base['lib']
 expected=next(r['sha256'] for r in base['manifest']['files'] if r['path']=='external/HOMEBREW/apps/store/app');assert hashlib.sha256(store.read_bytes()).hexdigest()==expected
@@ -64,7 +65,7 @@ with repository_fixture(ROOT/'work/hello-app/package',hold_path='/catalog.txt') 
  for mode,output in (('--catalog','store\tNetwork Store\nhello\tHello Walkman\n'),('--check','store VERIFIED\nhello VERIFIED\n')):
   checked=subprocess.run(['qemu-arm','-cpu','arm926',str(lib/'ld-linux.so.3'),'--library-path',str(lib),str(launcher),mode,str(home/'apps')],capture_output=True,text=True,timeout=10)
   assert checked.returncode==0 and checked.stdout==output,(checked.returncode,checked.stdout)
- report={'passed':True,'actual_launcher_and_store':True,'SIGTERM_during_pending_HTTPS_response':True,'child_group_SIGTERM_forwarded':True,'no_parent_device_reacquire_after_stop':True,'parent_and_child_device_cleanup_observed':True,'parent_exit':process.returncode,'no_app_installed_before_recovery':True,'actual_stopped_cache_reused':True,'recovery_retry_and_install_passed':True,'cache_packages_empty_after_cleanup':True,'recovery_trace':resumed.stderr,'remaining_owned_cache':cache,'trace':stderr,'source_hashes':{str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in [Path(__file__),ROOT/'tools/local_store_https.py',ROOT/'tools/test_libc_production_ui.py',ROOT/'tools/fixtures/device_preload.c',store,launcher,preload,composition/'manifest.json']},'hardware_tested':False,'limits':['Actual ARM artifacts, QEMU host process/signal delivery; devices and paths virtual.','Stop injected while catalog HTTP response withheld; not every install/flash interruption point.','Not physical USB unmount/export, Sony proxy or GUI handoff qualification.']}
+ report={'passed':True,'actual_launcher_and_store':True,'SIGTERM_during_pending_HTTPS_response':True,'child_group_SIGTERM_forwarded':True,'no_parent_device_reacquire_after_stop':True,'parent_and_child_device_cleanup_observed':True,'parent_exit':process.returncode,'no_app_installed_before_recovery':True,'actual_stopped_cache_reused':True,'recovery_retry_and_install_passed':True,'cache_packages_empty_after_cleanup':True,'recovery_trace':resumed.stderr,'remaining_owned_cache':cache,'trace':stderr,'source_hashes':{str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in [Path(__file__),ROOT/'tools/local_store_https.py',*base['inputs'],store,launcher,preload,composition/'manifest.json']},'hardware_tested':False,'limits':['Actual ARM artifacts, QEMU host process/signal delivery; devices and paths virtual.','Stop injected while catalog HTTP response withheld; not every install/flash interruption point.','Not physical USB unmount/export, Sony proxy or GUI handoff qualification.']}
  write_report(ROOT,'native-production-store-recovery-tests.json',report)
 print('Actual stopped-download cache -> recovery RETRY -> HTTPS install/cleanup -> launcher return passed.')
 

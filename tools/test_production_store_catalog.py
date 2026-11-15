@@ -1,10 +1,11 @@
 """Actual unchanged r3 store: fetch HTTPS catalog with real TLS, virtual devices."""
 from pathlib import Path
+from actual_app_fixture import prepare
 from workflow_paths import composition_path,work_area,evidence_path,stamp_report,write_report
-import contextlib,hashlib,io,json,runpy,shutil,subprocess,tempfile,re,struct,zlib
+import hashlib,json,shutil,subprocess,tempfile,re,struct,zlib
 from local_store_https import repository_fixture
 ROOT=Path(__file__).resolve().parents[1]
-with contextlib.redirect_stdout(io.StringIO()):base=runpy.run_path(str(ROOT/'tools/test_libc_production_ui.py'))
+base = prepare()
 work=work_area(ROOT,'production-store-catalog-review')
 composition=base['composition'];store=composition/'external/HOMEBREW/apps/store/app';preload=base['preload'];lib=base['lib']
 expected=next(r['sha256'] for r in base['manifest']['files'] if r['path']=='external/HOMEBREW/apps/store/app');assert hashlib.sha256(store.read_bytes()).hexdigest()==expected
@@ -37,7 +38,7 @@ with repository_fixture(ROOT/'work/hello-app/package') as fixture:
  def chunk(kind,data):return struct.pack('>I',len(data))+kind+data+struct.pack('>I',zlib.crc32(kind+data)&0xffffffff)
  scan=b''.join(b'\0'+rgb[y*720:(y+1)*720] for y in range(432))
  (work/'catalog.png').write_bytes(b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',struct.pack('>IIBBBBB',240,432,8,2,0,0,0))+chunk(b'IDAT',zlib.compress(scan))+chunk(b'IEND',b''))
- report={'passed':True,'loopback_network_operations':len(operations),'unchanged_store_sha256':expected,'actual_store_HTTPS_catalog_loaded':True,'request_paths':fixture['requests'],'configuration_unchanged':True,'cache_packages_empty':True,'trace':run.stderr,'source_hashes':{str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in [work/'catalog.rgb565',work/'catalog.png',ROOT/'sources/native-stock-resolver-probe.json',*[ROOT/'work/stock-resolver-probe'/name for name in resolver['libraries']],Path(__file__),ROOT/'tools/local_store_https.py',ROOT/'tools/test_libc_production_ui.py',ROOT/'tools/fixtures/device_preload.c',store,preload,composition/'manifest.json']},'hardware_tested':False,'limits':['Actual store ELF and real loopback HTTPS; virtual display/touch and test pathname translation.','No application installation in this case; BACK from fetched catalog.','No physical Wi-Fi, Sony UI/proxy or USB handoff qualification.']}
+ report={'passed':True,'loopback_network_operations':len(operations),'unchanged_store_sha256':expected,'actual_store_HTTPS_catalog_loaded':True,'request_paths':fixture['requests'],'configuration_unchanged':True,'cache_packages_empty':True,'trace':run.stderr,'source_hashes':{str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in [work/'catalog.rgb565',work/'catalog.png',ROOT/'sources/native-stock-resolver-probe.json',*[ROOT/'work/stock-resolver-probe'/name for name in resolver['libraries']],Path(__file__),ROOT/'tools/local_store_https.py',*base['inputs'],store,preload,composition/'manifest.json']},'hardware_tested':False,'limits':['Actual store ELF and real loopback HTTPS; virtual display/touch and test pathname translation.','No application installation in this case; BACK from fetched catalog.','No physical Wi-Fi, Sony UI/proxy or USB handoff qualification.']}
  write_report(ROOT,'native-production-store-catalog-tests.json',report)
 print('Actual selected store loaded HTTPS catalog and returned; real TLS, virtual devices, no installed app.')
 

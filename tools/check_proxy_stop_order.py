@@ -65,7 +65,7 @@ if options.actual_workflow_report:
     artifact=composition/'external/HOMEBREW/launcher/app';artifact_relative=str(artifact.relative_to(ROOT));artifact_sha=hashlib.sha256(artifact.read_bytes()).hexdigest()
     def scenario_report(script):
         rows=[row for row in workflow['scenarios'] if row['script']==script];assert len(rows)==1
-        relative=rows[0]['report'];path=(ROOT/relative).resolve();assert path.is_relative_to(ROOT/'sources')
+        relative=rows[0]['report'];path=(ROOT/relative).resolve();assert any(path.is_relative_to(ROOT/folder) for folder in ('work','sources'))
         assert hashlib.sha256(path.read_bytes()).hexdigest()==rows[0]['sha256']
         return relative
     actual_cases=[]

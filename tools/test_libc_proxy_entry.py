@@ -32,7 +32,7 @@ with tempfile.TemporaryDirectory(dir=work) as temporary:
  negative=subprocess.run(['qemu-arm','-cpu','arm926','-L',str(prefix),'-0','unregistered-name','-strace',str(app)],capture_output=True,text=True,timeout=15)
  assert negative.returncode==64 and '/dev/fb/0' not in negative.stderr
 report={'passed':True,'actual_candidate_sha256':row['sha256'],'original_proxy_captured_argv_cases':cases,'negative_control_exit':64,'hardware_tested':False,'source_hashes':{str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in tracked},'limits':['Original proxy argv capture is reused after source validation, not real process scheduling.','Actual current ELF and stock loader/libc execute under QEMU; display is a regular-file failure fixture.','No successful UI entry, Sony return, physical USB or device execution qualification.']}
-output=(ROOT/options.report).resolve();assert output.is_relative_to(ROOT/'sources') and output.suffix=='.json'
+output=(ROOT/options.report).resolve();assert output.suffix=='.json' and any(output.is_relative_to(ROOT/folder) for folder in ('work','sources'))
 stamp_report(ROOT,report)
 output.write_text(json.dumps(report,indent=2)+'\n');print(f'Actual libc launcher accepted {len(cases)} original proxy argv cases; negative control rejected; display cleaned up.')
 

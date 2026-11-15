@@ -522,6 +522,29 @@ and do not establish physical rendering or a complete application handoff.
 The old prototype resource builders and capacity scripts can be recovered from
 Git history. Current capacity checks consume a reviewed system layout.
 
+## Actual Launcher and Store ELF checks
+
+Select a prepared composition and a new profile on the WSL development host:
+
+```sh
+.venv/bin/python tools/check_actual_app_workflows.py \
+  --composition work/<prepared-composition> --profile local-store-review
+```
+
+The runner verifies the selected files, builds the virtual-device preload once
+and reuses it across the eligible cases. Each test executes its own behavior.
+Results, logs and the preload receipt stay under
+`work/workflow-profiles/local-store-review/`. Use `--verify-only` with the same
+profile and composition to check retained evidence without rebuilding or running
+the ELF again.
+
+To run one case independently, set `HB_WORKFLOW_COMPOSITION` and
+`HB_WORKFLOW_PROFILE` and invoke that test directly. Set
+`HB_WORKFLOW_PRELOAD_REVIEW` to a verified preload `build.json` to reuse the
+test library. The Store tests use a temporary HTTPS repository on loopback and
+check the version from the published package. Sony display, proxy and hardware
+ownership remain outside these tests.
+
 ## Hardware acceptance
 
 The physical acceptance list is in [status](STATUS.md). It includes cold start,

@@ -1,9 +1,10 @@
 """Unchanged selected launcher -> unchanged graphics ELF -> launcher, virtual I/O and exec bridge."""
 from pathlib import Path
+from actual_app_fixture import prepare
 from workflow_paths import composition_path,work_area,evidence_path,stamp_report,write_report
-import contextlib,hashlib,io,json,runpy,shutil,subprocess,tempfile,struct,zlib
+import hashlib,json,shutil,subprocess,tempfile,struct,zlib
 ROOT=Path(__file__).resolve().parents[1]
-with contextlib.redirect_stdout(io.StringIO()):base=runpy.run_path(str(ROOT/'tools/test_libc_production_ui.py'))
+base = prepare()
 work=work_area(ROOT,'libc-production-store-loop-review')
 composition=base['composition'];app=base['app'];preload=base['preload'];lib=base['lib']
 child=composition/'external/HOMEBREW/apps/store/app';manifest=base['manifest']
@@ -39,7 +40,7 @@ for name in ('launcher','store'):
  def chunk(kind,data):return struct.pack('>I',len(data))+kind+data+struct.pack('>I',zlib.crc32(kind+data)&0xffffffff)
  scan=b''.join(b'\0'+rgb[y*720:(y+1)*720] for y in range(432))
  (work/(name+'.png')).write_bytes(b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',struct.pack('>IIBBBBB',240,432,8,2,0,0,0))+chunk(b'IDAT',zlib.compress(scan))+chunk(b'IEND',b''))
-tracked=[ROOT/'sources/native-stock-resolver-probe.json',*[ROOT/'work/stock-resolver-probe'/n for n in ('libcares.so.2','librt.so.1','libpthread.so.0')],Path(__file__),ROOT/'tools/test_libc_production_ui.py',ROOT/'tools/fixtures/device_preload.c',ROOT/'runtime/native/syscalls.S',app,child,preload,composition/'manifest.json',lib/'libc.so.6',lib/'ld-linux.so.3',*[work/(n+e) for n in ('launcher','store') for e in ('.png','.rgb565')]]
+tracked=[ROOT/'sources/native-stock-resolver-probe.json',*[ROOT/'work/stock-resolver-probe'/n for n in ('libcares.so.2','librt.so.1','libpthread.so.0')],Path(__file__),*base['inputs'],app,child,preload,composition/'manifest.json',lib/'libc.so.6',lib/'ld-linux.so.3',*[work/(n+e) for n in ('launcher','store') for e in ('.png','.rgb565')]]
 report={'passed':True,'unchanged_launcher_sha256':hashlib.sha256(app.read_bytes()).hexdigest(),'unchanged_store_sha256':hashlib.sha256(child.read_bytes()).hexdigest(),'exit':run.returncode,'events':events,'trace':run.stderr,'source_hashes':{str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in tracked},'hardware_tested':False,'limits':['Actual launcher/app bytes run; device I/O and chdir path mapping interposed; exec explicitly bridged through nested host QEMU.','Not actual Sony kernel, GUI/proxy, USB handoff or device rendering.','Preload library and bridge are test-only and absent from app packages.']}
 write_report(ROOT,'native-libc-production-store-loop-tests.json',report);print('Actual selected ELF pair: launcher -> unconfigured store/back -> launcher return passed; virtual devices and explicit QEMU exec bridge.')
 
