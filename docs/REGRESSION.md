@@ -118,11 +118,13 @@ of the legacy slots. Slot 29 provides child detail only when its identity
 matches slot 28 and the supervisor was reaped. An empty or unchanged trace
 remains inconclusive.
 
-Each new aggregate retains `checked-source.zip` and its SHA-256 alongside the
-report. It contains exactly the inventory's checked source/configuration bytes,
-including uncommitted files, so a later edit cannot erase the tested version.
-It is not a complete build environment or source SDK: original Sony inputs,
-toolchains, generated libraries and hardware evidence are not included.
+By default the aggregate writes `checked-source.zip`. For another suite on the
+same checkout, pass `--source-snapshot work/<review>/checked-source.zip` to share
+that file. The runner verifies its inventory and bytes before running fresh
+checks and records the path and SHA-256 in the new report. Keep the shared ZIP
+with the reports that reference it. The archive preserves checked
+source/configuration bytes, including uncommitted files. Original Sony inputs,
+toolchains, generated libraries and hardware evidence are separate.
 
 Root-inventory review and packaging share `compose_root_inventory`. The declared
 tree includes implicit parent directories with their mode/ownership, preserves

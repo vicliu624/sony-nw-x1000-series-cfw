@@ -87,16 +87,16 @@ class RegressionSnapshotTests(unittest.TestCase):
             (root / "VERSION").write_text("0.1.0\n")
             (root / "sdk/VERSION").write_text("0.2.0\n")
             output = root / "work/check"
+            snapshot = root / "work/checked-source.zip"
+            snapshot.parent.mkdir()
+            snapshot_hash = write_source_snapshot(root, source_inventory(root), snapshot)
 
             def radio_replay(command, **kwargs):
                 report_dir = Path(command[command.index("--output") + 1])
                 self.assertEqual(report_dir, output / "radio-profiles")
                 self.assertEqual(command[command.index("--radio-reviews") + 1], str(root / 'work/radio'))
                 self.assertEqual(command[command.index("--sdk-review") + 1], str(root / 'work/sdk/build.json'))
-                snapshot = Path(command[command.index("--source-snapshot") + 1])
-                self.assertEqual(snapshot, output / "checked-source.zip")
-                self.assertEqual(verify_source_snapshot(source_inventory(root), snapshot),
-                                 hashlib.sha256(snapshot.read_bytes()).hexdigest())
+                self.assertEqual(Path(command[command.index("--source-snapshot") + 1]), snapshot)
                 report_dir.mkdir()
                 (report_dir / "report.json").write_bytes(b'{"passed":true}')
                 return subprocess.CompletedProcess(command, 0)
@@ -104,12 +104,18 @@ class RegressionSnapshotTests(unittest.TestCase):
             with mock.patch.object(regression, "ROOT", root), \
                     mock.patch.object(regression, "SUITES", {"integration": [["test_radio_profiles.py"]]}), \
                     mock.patch.object(sys, "argv", ["regressions", "--suite", "integration", "--output", str(output),
+                                                     "--source-snapshot", str(snapshot),
                                                      "--radio-reviews", str(root / 'work/radio'),
                                                      "--sdk-review", str(root / 'work/sdk/build.json')]), \
                     mock.patch.object(regression.subprocess, "run", side_effect=radio_replay), \
                     contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(regression.main(), 0)
-            check = json.loads((output / "report.json").read_text())["checks"][0]
+            report = json.loads((output / "report.json").read_text())
+            self.assertTrue(report["passed"])
+            self.assertEqual(report["source_snapshot"], "work/checked-source.zip")
+            self.assertEqual(report["source_snapshot_sha256"], snapshot_hash)
+            self.assertFalse((output / "checked-source.zip").exists())
+            check = report["checks"][0]
             self.assertEqual(check["radio_review"], "work/check/radio-profiles/report.json")
             self.assertEqual(check["radio_review_sha256"],
                              hashlib.sha256(b'{"passed":true}').hexdigest())

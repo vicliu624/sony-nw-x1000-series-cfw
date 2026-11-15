@@ -97,6 +97,10 @@ The dev.37 radio group's twelve checks took 37 seconds, excluding snapshot/build
 setup. These local measurements justify selecting component checks during radio
 iteration; they do not predict every machine or establish hardware performance.
 
+On WSL/DrvFS, writing the 4 MiB source ZIP took 14.65 seconds after the source
+inventory scan. Validating that ZIP for reuse took 0.17 seconds. Use
+`--source-snapshot` for a second focused run on the same checked source.
+
 Current iteration targets are no compilation for documentation/workflow edits
 and roughly one minute for the prepared radio group. Treat a slower run as a
 profiling prompt, not a reason to remove relevant coverage or source validation.

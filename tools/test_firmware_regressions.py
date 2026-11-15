@@ -14,7 +14,7 @@ import sys
 import time
 
 from app_registry import ROOT
-from evidence_checks import source_inventory, write_source_snapshot
+from evidence_checks import source_inventory, verify_source_snapshot, write_source_snapshot
 
 SERVICE_CHECKS = ("test_remote_service.py", "test_remote_supervisor.py")
 
@@ -197,6 +197,7 @@ def main():
     parser.add_argument("--plan", action="store_true", help="Print selected checks without executing or creating output")
     parser.add_argument("--host-review", type=Path,
                         help="Explicit immutable analysis-library receipt for the artifact suite")
+    parser.add_argument("--source-snapshot", type=Path, help="Reuse an exact source ZIP below work/")
     parser.add_argument("--radio-reviews", type=Path, help="Use these four existing radio builds in the integration replay")
     sdk_input = parser.add_mutually_exclusive_group()
     sdk_input.add_argument("--sdk-review", type=Path, help="Use this existing native SDK build in the integration replay")
@@ -235,15 +236,20 @@ def main():
         return 0
     if sys.flags.optimize:
         raise RuntimeError("Regression assertions must remain enabled")
+    work = (ROOT / "work").resolve()
     output = args.output or ROOT / "work/firmware-regressions" / str(time.time_ns())
     output = output.resolve()
-    if not output.is_relative_to((ROOT / "work").resolve()):
+    if not output.is_relative_to(work):
         raise ValueError("Regression output must stay under work/")
-    output.mkdir(parents=True, exist_ok=False)
+    snapshot = args.source_snapshot.resolve() if args.source_snapshot else output / "checked-source.zip"
+    if not snapshot.is_relative_to(work) or not snapshot.is_relative_to(ROOT):
+        raise ValueError("Source snapshot must stay under work/")
     began = time.monotonic()
     before = source_inventory(ROOT)
-    snapshot = output / "checked-source.zip"
-    snapshot_hash = write_source_snapshot(ROOT, before, snapshot)
+    snapshot_hash = verify_source_snapshot(before, snapshot) if args.source_snapshot else None
+    output.mkdir(parents=True, exist_ok=False)
+    if snapshot_hash is None:
+        snapshot_hash = write_source_snapshot(ROOT, before, snapshot)
     report = {
         "version": (ROOT / "VERSION").read_text().strip(),
         "sdk_version": (ROOT / "sdk/VERSION").read_text().strip(),
@@ -294,9 +300,15 @@ def main():
         (output / "report.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
         print(f"{'PASS' if run.returncode == 0 else 'FAIL'} {label}", flush=True)
     report["source_changed_during_run"] = source_inventory(ROOT) != before
+    try:
+        with snapshot.open("rb") as stream:
+            report["inputs_changed_during_run"] = hashlib.file_digest(stream, "sha256").hexdigest() != snapshot_hash
+    except OSError:
+        report["inputs_changed_during_run"] = True
     report["total_seconds"] = round(time.monotonic() - began, 3)
-    report["passed"] = not report["source_changed_during_run"] and all(
-        check["exit_code"] == 0 for check in report["checks"]
+    report["passed"] = (
+        not report["source_changed_during_run"] and not report["inputs_changed_during_run"]
+        and all(check["exit_code"] == 0 for check in report["checks"])
     )
     (output / "report.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     print(f"Report: {output / 'report.json'}", flush=True)
