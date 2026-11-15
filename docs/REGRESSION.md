@@ -130,7 +130,9 @@ replacement-file ownership, and rejects file or symlink ancestors. Final package
 inventory must match that complete tree; new directories are not exempt from
 review. The corresponding synthetic unit tests create no firmware or image.
 
-Pushes and pull requests run the host subset in CI and retain this evidence.
+Pushes and pull requests with build input changes run the host subset in CI and
+retain this evidence. Documentation-only changes run the layout and gallery
+checks.
 The subset is excluded from the default full run because its cases already
 belong to `remote`/`workers`. It does not replace ARM, SDK or integration groups.
 Firmware packaging is a separate manual workflow option, disabled by default.

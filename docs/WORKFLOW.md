@@ -62,6 +62,11 @@ to build inputs, including app guides that enter packages. The job completes
 after the diff check for changes such as general documentation. Manual runs
 and runs with an unavailable base use the full matrix.
 
+For documentation-only changes, the main workflow runs the repository layout and
+gallery checks. Changes to source or other build inputs also run the Python unit
+tests and compiled host regressions. Tags, manual runs and unavailable base
+commits use the full verification job.
+
 ## Stop and expansion rules
 
 - After the selected checks pass, review the diff and finish the iteration.

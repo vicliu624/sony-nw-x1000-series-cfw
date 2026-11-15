@@ -34,23 +34,43 @@ jobs:
           persist-credentials: false
           # Source-relocation checks compare with immutable migration commits.
           fetch-depth: 0
+      - name: Select host regression scope
+        id: scope
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" != workflow_dispatch && "$GITHUB_REF" != refs/tags/* ]] &&
+             git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null &&
+             git diff --quiet --no-renames "$BASE_SHA" HEAD -- . \
+               ':(exclude,glob)docs/**' ':(exclude,glob)sdk/**/*.md' ':(exclude,glob)runtime/**/README.md' \
+               ':(exclude)README.md' ':(exclude)AGENTS.md' ':(exclude)CONTRIBUTING.md' \
+               ':(exclude)CHANGELOG.md' ':(exclude)THIRD_PARTY.md'; then
+            echo 'host=false' >> "$GITHUB_OUTPUT"
+          else
+            echo 'host=true' >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
         with:
           python-version: '3.12.3'
-      - run: |
-          python -m pip install -r requirements-ci.txt
+      - name: Check repository layout and gallery
+        run: |
           python tools/check_repository_layout.py
           python tools/check_readme_gallery.py
+      - name: Check Python tooling contracts
+        if: steps.scope.outputs.host == 'true'
+        run: |
+          python -m pip install -r requirements-ci.txt
           python -m unittest discover -s tests -v
-          python tools/test_release_protocol.py
-          python tools/test_qqmusic_installation.py
       - name: Run source-only regressions
+        if: steps.scope.outputs.host == 'true'
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y gcc-12 g++-12
+          python tools/test_release_protocol.py
+          python tools/test_qqmusic_installation.py
           python tools/test_firmware_regressions.py --suite host
       - name: Preserve source-only regression evidence
-        if: always()
+        if: always() && steps.scope.outputs.host == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: x1000-source-regressions
