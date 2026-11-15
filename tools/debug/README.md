@@ -1,9 +1,18 @@
 # Offline diagnostic probes
 
-`probe_home_feedback_popup.py` is a PC-only reverse-engineering harness, not player code or a firmware builder. It uses candidate5, original SDK templates and virtual file/libc/display/allocation interfaces. `DEBUG-pool-retain` instrumentation stays here for reproduction; it is never packaged.
+`probe_home_feedback_popup.py` reproduces the historical popup-pool experiment
+with original SDK templates and virtual file, libc, display and allocation
+interfaces. Supply the retained candidate5 UPG with `--package` and its
+resource-feedback ELF receipt with `--feedback-build`. The probe checks the exact
+package hash. Use a new `--output work/...` path for the reports.
 
-Use `tools/test_home_feedback_popup_pool.py` for the positive/negative lifecycle regression. Direct probe runs require a new `--output work/...` path. `--native-image-manager` enables the original image-manager initialization; omitting it deliberately retains the incomplete-initialization comparison. The old tools/probe_home_feedback_popup.py path delegates here.
+`tools/test_home_feedback_popup_pool.py` takes the same inputs and runs one
+incomplete-initialization case and two initialized cases. In a direct probe run,
+`--native-image-manager` enables the original initialization. Historical
+reports retain their own source hashes.
 
-Historical reports retain their own source hashes; the exact prior source is saved under work/popup-pool-diagnosis/source-before-cleanup.py. No existing candidate was changed by this cleanup.
-
-`capture_popup_image.py --prepare-cache --output work/<new>` inspects the live text cache through the original cache-preparation API. Its default20M instruction budget is finite; check cache_preparation_completed, not just whether pixels changed. It intentionally stops before teardown. The ordinary regression now prepares and paints the cache before each positive-case teardown.
+`capture_popup_image.py` takes the same inputs and stops before teardown.
+`--prepare-cache` calls the original cache preparation API. Inspect
+`cache_preparation_completed` in its report before interpreting bitmap data.
+For checks on the current composition, use the
+[Homebrew regression guide](../../docs/REGRESSION.md#homebrew-entry-and-error-resources).

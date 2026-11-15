@@ -1,9 +1,11 @@
-"""Execute the patched ARM hook from the candidate ELF with native services mocked."""
+"""Replay the Homebrew selection hook from a localized root with native services mocked."""
+import argparse
 from pathlib import Path
 import hashlib
 import io
 import json
 import struct
+import tarfile
 from elftools.elf.elffile import ELFFile
 from unicorn import Uc, UC_ARCH_ARM, UC_MODE_ARM, UC_HOOK_CODE
 from unicorn.arm_const import (
@@ -12,18 +14,26 @@ from unicorn.arm_const import (
     UC_ARM_REG_R8, UC_ARM_REG_R9, UC_ARM_REG_R10, UC_ARM_REG_R11,
     UC_ARM_REG_SP, UC_ARM_REG_LR, UC_ARM_REG_PC,
 )
+from review_managed_root_capacity import read_root_input
 
 ROOT = Path(__file__).resolve().parents[1]
-area = ROOT / 'work/home-feedback-resource-elf-review-1'
-report = json.loads((area / 'build.json').read_text())
-raw = (area / 'SpiderApp.resource.analysis-only.elf').read_bytes()
-assert hashlib.sha256(raw).hexdigest() == report['candidate_sha256']
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--localization-root', required=True, type=Path)
+args = parser.parse_args()
+path, localized, root_sha256 = read_root_input(args.localization_root, root_only=True)
+with tarfile.open(fileobj=io.BytesIO(localized), mode='r:gz') as archive:
+    raw = archive.extractfile('./usr/local/bin/SpiderApp').read()
 elf = ELFFile(io.BytesIO(raw))
 segments = [s for s in elf.iter_segments() if s['p_type'] == 'PT_LOAD']
 low = min(s['p_vaddr'] for s in segments) & ~4095
 high = (max(s['p_vaddr'] + s['p_memsz'] for s in segments) + 4095) & ~4095
 saved_regs = [UC_ARM_REG_R4, UC_ARM_REG_R5, UC_ARM_REG_R6, UC_ARM_REG_R7,
               UC_ARM_REG_R8, UC_ARM_REG_R9, UC_ARM_REG_R10, UC_ARM_REG_R11]
+# The preflight reads only the 52-byte ARM ELF header, never the launcher body.
+elf_header = bytearray(52)
+elf_header[:7] = b'\x7fELF\x01\x01\x01'
+struct.pack_into('<HHI', elf_header, 16, 2, 40, 1)
+struct.pack_into('<HHH', elf_header, 40, 52, 32, 1)
 rows = []
 for mode, count in [(1, 10), (2, 9), (0, 0), (3, 0)]:
     if count:
@@ -41,7 +51,7 @@ for mode, count in [(1, 10), (2, 9), (0, 0), (3, 0)]:
         u.mem_map(0x60000000, 0x30000)
         u.mem_write(0x613e4c, struct.pack('<I', mode))
         calls = []
-        header = bytearray((ROOT/'dist/0.1.0-dev.16/diagnostic-review-2/external/HOMEBREW/launcher/app').read_bytes()[:52])
+        header = elf_header.copy()
         if case=='bad-header':header[0]=0
         position=[0]
         def word(address):
@@ -90,7 +100,7 @@ for mode, count in [(1, 10), (2, 9), (0, 0), (3, 0)]:
             elif pc == 0x2681e8:
                 assert uc.reg_read(UC_ARM_REG_LR) == 0xb0558
                 assert uc.reg_read(UC_ARM_REG_SP) % 8 == 0
-                assert [uc.reg_read(r) for r in (UC_ARM_REG_R0, UC_ARM_REG_R1, UC_ARM_REG_R2, UC_ARM_REG_R3)] == [0x60021000, 0x30001, 0, 0]
+                assert [uc.reg_read(r) for r in (UC_ARM_REG_R0, UC_ARM_REG_R1, UC_ARM_REG_R2, UC_ARM_REG_R3)] == [0x60021000, 0x30001, 0, 1]
                 calls.append('change')
                 uc.reg_write(UC_ARM_REG_R0, 456 if case == 'change-error' else 0)
             elif pc == 0x737f0:
@@ -144,11 +154,12 @@ for mode, count in [(1, 10), (2, 9), (0, 0), (3, 0)]:
             assert bytes(u.mem_read(0x60022000, 2)) == b'\x33\x02'
         rows.append({'mode': mode, 'index': index, 'case': case, 'calls': calls,
                      'stack_and_callee_saved_restored': True})
-result = {'scope': 'Actual modified ELF branch and leaf adapters; original b0464 service call sites executed; APF/log/feature continuation mocked',
-          'candidate_sha256': report['candidate_sha256'], 'cases': rows,
+result = {'passed': True,
+          'scope': 'Actual modified ELF branch and leaf adapters; original b0464 service call sites executed; APF/log/feature continuation mocked',
+          'localization_root': path.relative_to(ROOT).as_posix(), 'localization_root_sha256': root_sha256,
+          'candidate_sha256': hashlib.sha256(raw).hexdigest(), 'cases': rows,
           'physical_device_access': False,'file_services_and_message_queue_mocked':True,'test_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
           'limits': ['Does not prove the real Home touch event reaches this handler.',
                      'Native feature execution and complete APF/USB/sleep lifecycle are not run.',
                      'ELF mapping is provided by Unicorn, not the Sony device loader.']}
-(area / 'integrated-entry-report.json').write_text(json.dumps(result, indent=2) + '\n')
-print(f'{len(rows)} patched ARM selection cases passed; native services mocked')
+print(json.dumps(result, indent=2))

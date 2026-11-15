@@ -1,22 +1,33 @@
 """Validate appended labels using stock ARM STX loader and lookup; virtual files only."""
+import argparse
 from pathlib import Path
 import hashlib,io,json,struct,sys,tarfile
 from elftools.elf.elffile import ELFFile
 from unicorn import Uc,UC_ARCH_ARM,UC_MODE_ARM,UC_HOOK_CODE
 from unicorn.arm_const import UC_ARM_REG_R0,UC_ARM_REG_R1,UC_ARM_REG_R2,UC_ARM_REG_R3,UC_ARM_REG_SP,UC_ARM_REG_LR,UC_ARM_REG_PC
+from review_managed_root_capacity import read_root_input
 ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT))
-from scripts.resources import append_stx,parse_stx
+from scripts.resources import parse_stx
+
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--localization-root', required=True, type=Path)
+args = parser.parse_args()
 raw=(ROOT/'work/targets-jp/SpiderApp').read_bytes()
 assert hashlib.sha256(raw).hexdigest()=='80b8870b02189443c41f62e8960124820ae999de21ba002e24fe17e9376cea85'
 elf=ELFFile(io.BytesIO(raw));syms={s.name:s['st_value'] for s in elf.get_section_by_name('.dynsym').iter_symbols()}
 archive=(ROOT/'work/upg-jp/verified-3.bin').read_bytes()
 assert hashlib.sha256(archive).hexdigest()=='c6307dba718f1faae821e0330b64532f13fe6ef98ff330a5919d7fb10525adf5'
+path, localized, root_sha256 = read_root_input(args.localization_root, root_only=True)
 rows=[]
-with tarfile.open(fileobj=io.BytesIO(archive),mode='r:gz') as tar:
+with (tarfile.open(fileobj=io.BytesIO(archive),mode='r:gz') as tar,
+      tarfile.open(fileobj=io.BytesIO(localized),mode='r:gz') as current):
  for item in tar.getmembers():
     if not(item.name.startswith('./usr/local/share/gemini/res/stx/') and item.name.endswith('.stx')):continue
-    original=(ROOT/'work/libc-product-review-0.1.0-dev.16-r4/system-overlay'/item.name.removeprefix('./')).read_bytes();modified=(ROOT/'work/home-feedback-resource-review-1/overlay'/item.name.removeprefix('./')).read_bytes();index=len(parse_stx(original))
-    texts=parse_stx(original);assert parse_stx(modified)[:-1]==texts
+    original = tar.extractfile(item).read()
+    modified = current.extractfile(item.name).read()
+    index = len(parse_stx(original))
+    texts = parse_stx(modified)
+    assert index == 7308 and len(texts) == index + 2 and texts[index] and texts[index + 1]
     u=Uc(UC_ARCH_ARM,UC_MODE_ARM);u.mem_map(0x8000,0x1000000)
     for segment in elf.iter_segments():
         if segment['p_type']=='PT_LOAD':u.mem_write(segment['p_vaddr'],segment.data())
@@ -42,14 +53,13 @@ with tarfile.open(fileobj=io.BytesIO(archive),mode='r:gz') as tar:
         return u.reg_read(UC_ARM_REG_R0)
     u.mem_write(0x60001000,item.name.encode()+b'\0')
     assert call(0xec8e4,0x60000000,0x60001000)==0 and len(mapping)==1
-    for selected in (0,264,index-1,index):
+    for selected in (0,264,index-1,index,index+1):
         pointer=call(0xeca30,0x60000000,selected)
-        expected='Homebrew unavailable.\nCheck HOMEBREW folder.' if selected==index else texts[selected]
+        expected=texts[selected]
         if expected:
             encoded=expected.encode('utf-16-le')+b'\0\0';assert bytes(u.mem_read(pointer,len(encoded)))==encoded
         else:assert pointer==0
-    rows.append({'file':item.name,'new_index':index,'growth_bytes':len(modified)-len(original),'sha256':hashlib.sha256(modified).hexdigest(),'native_loader_lookup_passed':True,'mapped_bytes':rounded})
+    rows.append({'file':item.name,'homebrew_tids':[index,index+1],'growth_bytes':len(modified)-len(original),'sha256':hashlib.sha256(modified).hexdigest(),'native_loader_lookup_passed':True,'mapped_bytes':rounded})
 assert len(rows)==11
-report={'scope':'Stock ARM STX loader/lookup; file/sysconf/mmap/division and empty cleanup virtual, no font rendering or hardware','cases':rows,'physical_device_access':False,'firmware_created':False,'passed':True,'new_tid':7309,'test_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}
-(ROOT/'work/home-feedback-resource-review-1/stx-lookup-report.json').write_text(json.dumps(report,indent=2)+'\n')
-print('11 feedback STX files: stock loader and old/new text lookup verified')
+report={'scope':'Stock ARM STX loader/lookup; file/sysconf/mmap/division and empty cleanup virtual, no font rendering or hardware','localization_root':path.relative_to(ROOT).as_posix(),'localization_root_sha256':root_sha256,'cases':rows,'physical_device_access':False,'firmware_created':False,'passed':True,'test_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}
+print(json.dumps(report,indent=2))

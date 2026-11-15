@@ -500,6 +500,28 @@ It does not belong to device tests and cannot qualify installation. The model
 uses dense regular-file blocks, counts filesystem overhead and excludes reserved
 blocks from its reported ordinary margin; see [system footprint](SYSTEM_FOOTPRINT.md).
 
+## Homebrew entry and error resources
+
+Use the `localized-root.tar.gz` from the maintained `release_firmware.py
+--root-only` build with `test_home_feedback_resource_entry.py`,
+`test_home_feedback_resource_controller.py`, `test_home_feedback_stx.py` or
+`test_home_feedback_swd_parser.py`. Pass the existing archive with
+`--localization-root work/<review>/localized-root.tar.gz`. Each check reports
+the input hash on stdout. Select the check for the affected code or resource:
+
+- Entry replays both Home layouts, native APF call arguments and loader errors
+  using a minimal ARM header fixture.
+- The controller check covers duplicate suppression, close and slot reclaim.
+- STX runs the original loader and string lookup for all 11 language tables.
+- SWD runs the original dialog mapping and checks the error text in all 11
+  language tables, including the two maintained Chinese translations.
+
+`test_home_feedback_sid_open.py` checks the original SID-to-filename routine
+through its read-only open boundary. These checks model the native boundaries
+and do not establish physical rendering or a complete application handoff.
+The old prototype resource builders and capacity scripts can be recovered from
+Git history. Current capacity checks consume a reviewed system layout.
+
 ## Hardware acceptance
 
 The physical acceptance list is in [status](STATUS.md). It includes cold start,

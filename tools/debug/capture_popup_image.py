@@ -2,12 +2,12 @@
 from pathlib import Path
 import argparse,hashlib,json,struct,sys,zlib,binascii
 ROOT=Path(__file__).resolve().parents[2]
-parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--output',required=True);parser.add_argument('--prepare-cache',action='store_true');parser.add_argument('--instruction-budget',type=int,default=20000000);args=parser.parse_args()
+parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--package',required=True);parser.add_argument('--feedback-build',required=True);parser.add_argument('--output',required=True);parser.add_argument('--prepare-cache',action='store_true');parser.add_argument('--instruction-budget',type=int,default=20000000);args=parser.parse_args()
 harness=ROOT/'tools/debug/probe_home_feedback_popup.py';source=harness.read_text();marker='destroyed=call(0xc6a20'
 assert source.count(marker)==1
 # This is a debugger stop before destruction; no harness source is modified.
 namespace={'__file__':str(harness),'__name__':'__main__'}
-previous=sys.argv;sys.argv=[str(harness),'--message','homebrew','--native-image-manager','--output',args.output,'--instruction-budget',str(args.instruction_budget)]
+previous=sys.argv;sys.argv=[str(harness),'--package',args.package,'--feedback-build',args.feedback_build,'--message','homebrew','--native-image-manager','--output',args.output,'--instruction-budget',str(args.instruction_budget)]
 try:exec(compile(source.split(marker,1)[0],str(harness),'exec'),namespace)
 finally:sys.argv=previous
 (namespace['out']/'prefix-status.json').write_text(json.dumps({key:namespace.get(key) for key in ['creation_and_frame_passed','stop','created','shown','frame_updated','commit_ok']},indent=2)+'\n')

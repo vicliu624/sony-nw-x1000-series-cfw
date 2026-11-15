@@ -4,8 +4,27 @@ import io,json,hashlib,struct,sys,tarfile,argparse
 from elftools.elf.elffile import ELFFile
 from unicorn import Uc,UC_ARCH_ARM,UC_MODE_ARM,UC_HOOK_CODE,UcError
 from unicorn.arm_const import *
-ROOT=Path(__file__).resolve().parents[2];parser=argparse.ArgumentParser();parser.add_argument('--message',choices=['homebrew','stock22'],default='homebrew');parser.add_argument('--output',required=True);parser.add_argument('--native-image-manager',action='store_true');parser.add_argument('--prepare-cache',action='store_true');parser.add_argument('--instruction-budget',type=int,default=2000000);args=parser.parse_args();assert 1<=args.instruction_budget<=100000000;out=(ROOT/args.output).resolve();assert out.is_relative_to(ROOT/'work');out.mkdir(exist_ok=False);message_id=745 if args.message=='homebrew' else 22;sys.path.insert(0,str(ROOT));from scripts.upg import unpack;from scripts.resources import parse_stx
-package=(ROOT/'dist/0.1.0-dev.16/diagnostic-review-5/firmware/DIAGNOSTIC-REVIEW-ONLY.UPG').read_bytes();assert hashlib.sha256(package).hexdigest()=='11f466c94d091c2a7bfb905beb3d94f81ab540dcc0bc33c38597c2ae34daa8cd'
+ROOT = Path(__file__).resolve().parents[2]
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--package', required=True, type=Path, help='Retained review UPG')
+parser.add_argument('--feedback-build', required=True, type=Path, help='Retained feedback ELF build.json')
+parser.add_argument('--message', choices=['homebrew', 'stock22'], default='homebrew')
+parser.add_argument('--output', required=True)
+parser.add_argument('--native-image-manager', action='store_true')
+parser.add_argument('--prepare-cache', action='store_true')
+parser.add_argument('--instruction-budget', type=int, default=2000000)
+args = parser.parse_args()
+assert 1 <= args.instruction_budget <= 100000000
+package = (ROOT / args.package).read_bytes()
+assert hashlib.sha256(package).hexdigest() == '11f466c94d091c2a7bfb905beb3d94f81ab540dcc0bc33c38597c2ae34daa8cd'
+metadata = json.loads((ROOT / args.feedback_build).read_text(encoding='utf-8'))
+out = (ROOT / args.output).resolve()
+assert out.is_relative_to(ROOT / 'work')
+out.mkdir(exist_ok=False)
+message_id = 745 if args.message == 'homebrew' else 22
+sys.path.insert(0, str(ROOT))
+from scripts.upg import unpack
+from scripts.resources import parse_stx
 _,components=unpack(package,require_stock=False);archive=tarfile.open(fileobj=io.BytesIO(components[3]),mode='r:gz');raw=archive.extractfile('./usr/local/bin/SpiderApp').read();assert hashlib.sha256(raw).hexdigest()=='91b28344c4839e0dc9ce967ce6101634c23dfc6b794c316acc4f4e3c3fe28d16'
 message=parse_stx(archive.extractfile('./usr/local/share/gemini/res/stx/ucs2-dev-en.stx').read())[7309]
 elf=ELFFile(io.BytesIO(raw));names={s['st_value']:s.name for s in elf.get_section_by_name('.dynsym').iter_symbols() if s['st_value']}
@@ -173,7 +192,7 @@ graphics_bookkeeping=call(0x119258,[0x761394,0,0,0])
 global_initialized=call(0xe8800,[manager,0,0,0])
 configured=call(0xe8b64,[manager,383,0,0]);opened=call(0xe9388,[manager,0,0,0],0xe948c)
 stx_path=0x50001000;u.mem_write(stx_path,b'/usr/local/share/gemini/res/stx/ucs2-dev-en.stx\0');loaded=call(0xec8e4,[0x70b8dc,stx_path,0,0])
-control=0x50008000;metadata=json.loads((ROOT/'work/home-feedback-resource-elf-review-1/build.json').read_text());descriptor=metadata['symbols']['hb_error_descriptor'] if args.message=='homebrew' else 0x4eb99c+22*48
+control=0x50008000;descriptor=metadata['symbols']['hb_error_descriptor'] if args.message=='homebrew' else 0x4eb99c+22*48
 word=lambda a:struct.unpack('<I',u.mem_read(a,4))[0]
 baseline_slots=[0x65000000+i*4936 for i in range(383) if word(0x65000000+i*4936+0x460)&0x2001]
 allocation_trace=[];constructor_trace=[]

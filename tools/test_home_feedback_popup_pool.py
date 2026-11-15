@@ -2,7 +2,11 @@
 from pathlib import Path
 import argparse,hashlib,json,subprocess,sys
 ROOT=Path(__file__).resolve().parents[1]
-parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--output',required=True);args=parser.parse_args()
+parser=argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--package',required=True)
+parser.add_argument('--feedback-build',required=True)
+parser.add_argument('--output',required=True)
+args=parser.parse_args()
 out=(ROOT/args.output).resolve()
 if not out.is_relative_to(ROOT/'work'):
     raise ValueError('Output must be inside project work/')
@@ -12,7 +16,8 @@ source_hash=hashlib.sha256(harness.read_bytes()).hexdigest()
 rows=[]
 for name,message,initialized in [('negative','homebrew',False),('homebrew','homebrew',True),('stock22','stock22',True)]:
     target=out/name
-    command=[sys.executable,str(harness),'--message',message,'--output',str(target.relative_to(ROOT))]
+    command=[sys.executable,str(harness),'--package',args.package,'--feedback-build',args.feedback_build,
+             '--message',message,'--output',str(target.relative_to(ROOT))]
     if initialized:command.extend(['--native-image-manager','--prepare-cache','--instruction-budget','20000000'])
     run=subprocess.run(command,cwd=ROOT,capture_output=True,text=True,timeout=180)
     (out/(name+'.stdout')).write_text(run.stdout)

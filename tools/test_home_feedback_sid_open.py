@@ -36,4 +36,4 @@ for sid,expected in [(34700,'347-00'),(99999,'999-99')]:
  u.emu_start(0x10a544,0x50019000,count=1000);assert len(opened)==1
  rows.append({'sid':sid,'read_only_open_attempt':opened[0]})
 report={'passed':True,'scope':'Actual stock numeric SID arithmetic and loader prefix through open; parsing/mapping not executed','cases':rows,'formatting_and_memset_mocked':True,'resource_context_fixture':True,'registry_required_before_open':False,'swd_parser_verified':False,'actual_text_lookup_verified':False,'stock_sha256':hashlib.sha256(raw).hexdigest(),'test_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}
-out=ROOT/'work/home-feedback-resource-review-1/loader-open-report.json';out.write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))
+print(json.dumps(report,indent=2))

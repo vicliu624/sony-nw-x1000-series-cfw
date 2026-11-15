@@ -1,15 +1,18 @@
 """Execute stock message allocation and duplicate suppression with GUI boundaries mocked."""
 from pathlib import Path
-import hashlib,io,json,struct
+import hashlib,io,json,struct,tarfile
 from elftools.elf.elffile import ELFFile
 from unicorn import Uc,UC_ARCH_ARM,UC_MODE_ARM,UC_HOOK_CODE
 from unicorn.arm_const import *
 import argparse
+from review_managed_root_capacity import read_root_input
 ROOT=Path(__file__).resolve().parents[1]
-parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--candidate',required=True);args=parser.parse_args()
-area=(ROOT/args.candidate).resolve()
-assert area.is_relative_to(ROOT/'work')
-b=(area/'SpiderApp.resource.analysis-only.elf').read_bytes();report=json.loads((area/'build.json').read_text());assert hashlib.sha256(b).hexdigest()==report['candidate_sha256']
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--localization-root', required=True, type=Path)
+args = parser.parse_args()
+path, localized, root_sha256 = read_root_input(args.localization_root, root_only=True)
+with tarfile.open(fileobj=io.BytesIO(localized), mode='r:gz') as archive:
+    b = archive.extractfile('./usr/local/bin/SpiderApp').read()
 e=ELFFile(io.BytesIO(b));u=Uc(UC_ARCH_ARM,UC_MODE_ARM);u.mem_map(0x8000,0x700000)
 for s in e.iter_segments():
  if s['p_type']=='PT_LOAD':u.mem_write(s['p_vaddr'],s.data())
@@ -70,5 +73,6 @@ for kind,children,param,foreign in ((19,0,745,False),(38,0,745,False),(19,1,745,
   u.reg_write(UC_ARM_REG_R0,slot);u.reg_write(UC_ARM_REG_LR,0x50007000);u.emu_start(0x28264,0x50007000,count=3000)
  assert word(slot)==0 and word(controller)==0 and struct.unpack('<H',u.mem_read(controller+4,2))[0]==0
  event_results.append({'gui_event_type':kind,'child_count':children,'ignored_event':ignored,'foreign_parent':foreign,'slot_reclaimed_by_event':not ignored,'fixture_cleanup_for_ignored':ignored,'slot_empty_after_case':True,'animation_completion_injected':kind==19 and not ignored})
-result={'passed':True,'gui_event_cases':event_results,'stock_widget_event_dispatch_executed':True,'stock_child_collection_executed':True,'child_layout_is_fixture':True,'close_callback_cycles':cycles,'stock_slot_reset_verified':True,'stock_control_destroy_and_clear_executed':True,'stock_controller_executed':True,'stock_id_mapping_and_descriptor_constructor_executed':True,'duplicate_suppression_verified':True,'boundaries_mocked':['0x14e9c','0x28140','0xc6880','0x28214','0xecb5c','0x3700c','0xd574','0x14ea0','0xc69cc','0x15114'],'visible_gui_verified':False,'close_callback_to_slot_reset_verified':True,'physical_key_to_close_verified':False,'candidate_sha256':report['candidate_sha256'],'test_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}
-(area/'controller-cleanup-report.json').write_text(json.dumps(result,indent=2)+'\n');print(json.dumps(result,indent=2))
+result={'passed':True,'gui_event_cases':event_results,'stock_widget_event_dispatch_executed':True,'stock_child_collection_executed':True,'child_layout_is_fixture':True,'close_callback_cycles':cycles,'stock_slot_reset_verified':True,'stock_control_destroy_and_clear_executed':True,'stock_controller_executed':True,'stock_id_mapping_and_descriptor_constructor_executed':True,'duplicate_suppression_verified':True,'boundaries_mocked':['0x14e9c','0x28140','0xc6880','0x28214','0xecb5c','0x3700c','0xd574','0x14ea0','0xc69cc','0x15114'],'visible_gui_verified':False,'close_callback_to_slot_reset_verified':True,'physical_key_to_close_verified':False,'candidate_sha256':hashlib.sha256(b).hexdigest(),'test_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}
+result.update(localization_root=path.relative_to(ROOT).as_posix(), localization_root_sha256=root_sha256)
+print(json.dumps(result,indent=2))
