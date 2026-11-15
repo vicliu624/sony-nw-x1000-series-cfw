@@ -57,15 +57,19 @@ validate sources, headers, flags, compiler and linked inputs. Introduce addition
 cache machinery only after measuring a remaining compilation bottleneck.
 
 The SDK application workflow compares pushes and pull requests against their
-recorded base before installing tools. It runs the full app matrix for changes
-to build inputs, including app guides that enter packages. The job completes
-after the diff check for changes such as general documentation. Manual runs
-and runs with an unavailable base use the full matrix.
+recorded base before installing tools. It runs the full app matrix for shared
+build inputs, app guides that enter packages and checks executed by the job
+or the app builders. General documentation and the explicitly listed independent
+Home, USB and Store replay tools finish at the diff check. When a build or a
+matrix check starts to consume an excluded tool, remove that exclusion in the
+same change. Manual runs and runs with an unavailable base use the full matrix.
 
 For documentation-only changes, the main workflow runs the repository layout and
-gallery checks. Changes to source or other build inputs also run the Python unit
-tests and compiled host regressions. Tags, manual runs and unavailable base
-commits use the full verification job.
+gallery checks. Both workflows use `config/ci-offline-tool-pathspecs.txt` for the
+independent replay tools. Changes limited to those paths also run the Python
+tooling tests in the main workflow. Other source or build inputs trigger the
+compiled host regressions. Tags, manual runs and unavailable base commits use
+the full main verification job.
 
 ## Stop and expansion rules
 

@@ -24,18 +24,22 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
-      - name: Check for application build inputs in the diff
+      - name: Check whether the application matrix is affected
         id: scope
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
+          # These offline probes and fixtures are outside the SDK app job.
+          # Keep other tools in scope, including checks invoked by app builders.
+          mapfile -t offline_tools < config/ci-offline-tool-pathspecs.txt
           if [[ "$GITHUB_EVENT_NAME" != workflow_dispatch ]] &&
              git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null &&
              git diff --quiet --no-renames "$BASE_SHA" HEAD -- \
                runtime sdk tools scripts config sources third_party assets examples translations \
-               docs/apps VERSION 'requirements*.txt' .gitattributes .gitignore .github/workflows/sdk-apps.yml; then
+               docs/apps VERSION 'requirements*.txt' .gitattributes .gitignore .github/workflows/sdk-apps.yml \
+               "${offline_tools[@]}"; then
             echo 'needed=false' >> "$GITHUB_OUTPUT"
-            echo 'Application build inputs are unchanged.'
+            echo 'The application matrix inputs are unchanged.'
           else
             echo 'needed=true' >> "$GITHUB_OUTPUT"
           fi
