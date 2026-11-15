@@ -3,7 +3,7 @@
 from pathlib import Path
 import argparse, hashlib, json
 from build_espnow_full_radio import ROOT, HELPER_SHA, construct
-from review_managed_remote_profile import private, receipt
+from component_receipts import private, receipt
 
 
 def reviewed_radio(directory):

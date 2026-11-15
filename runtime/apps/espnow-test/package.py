@@ -3,7 +3,7 @@ from pathlib import Path
 import argparse,hashlib,json,sys,zipfile
 ROOT=Path(__file__).resolve().parents[3]
 sys.path.insert(0,str(ROOT/'tools'))
-from review_managed_remote_profile import private
+from component_receipts import private
 
 parser=argparse.ArgumentParser(description=__doc__)
 default=ROOT/'work/autonomous-espnow-test'

@@ -9,7 +9,7 @@ from pathlib import Path
 from app_registry import ROOT
 from build_espnow_full_radio import build, digest
 from generate_espnow_full_profile import reviewed_radio
-from review_managed_remote_profile import private
+from component_receipts import private
 from sdk_build import fresh_work
 
 ROOT_SHA256 = 'c6307dba718f1faae821e0330b64532f13fe6ef98ff330a5919d7fb10525adf5'

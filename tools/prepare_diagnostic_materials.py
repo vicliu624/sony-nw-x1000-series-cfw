@@ -14,7 +14,8 @@ from app_registry import ROOT
 from evidence_checks import source_inventory
 from market_metadata import parse_version, compare_versions
 from read_remote_pairing_trace import SEED as PAIRING_TRACE_SEED
-from review_managed_remote_profile import digest, private, receipt, radio_dependencies
+from component_receipts import digest, private, receipt
+from review_managed_remote_profile import radio_dependencies
 from review_managed_root_capacity import inventory, compose_root_inventory, read_localization_root
 
 sys.path.insert(0, str(ROOT / 'scripts'))
@@ -410,7 +411,8 @@ def stage_materials(staging, reviewed, controller, updater, radio):
                     subsequent_pc_source_changes=reviewed['subsequent_pc_changes'],
                     subsequent_external_app_source_changes=reviewed['subsequent_external_app_changes'],
                     source_hashes={name:digest(ROOT / name) for name in (
-                        'tools/prepare_diagnostic_materials.py', 'tools/review_managed_remote_profile.py',
+                        'tools/prepare_diagnostic_materials.py', 'tools/component_receipts.py',
+                        'tools/review_managed_remote_profile.py',
                         'tools/review_managed_root_capacity.py', 'tools/test_firmware_regressions.py',
                         'scripts/upg.py', 'scripts/upg_crypto.py', 'tools/market_metadata.py')},
                     model_margin_bytes=reviewed['model']['model_nonreserved_margin_bytes'])

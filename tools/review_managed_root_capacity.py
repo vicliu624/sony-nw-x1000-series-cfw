@@ -2,7 +2,7 @@
 import argparse,copy,hashlib,io,json,posixpath,sys,tarfile,time
 from pathlib import Path
 from app_registry import ROOT
-from review_managed_remote_profile import private,receipt,digest
+from component_receipts import private,receipt,digest
 from sdk_build import fresh_work
 sys.path.insert(0,str(ROOT/'scripts'))
 from upg import unpack
@@ -177,7 +177,7 @@ def main():
   changed_paths=changes,layout_review=layout_path.relative_to(ROOT).as_posix(),layout_review_sha256=digest(layout_path),
   new_directories=sorted(name for name,row in candidate.items() if name not in base and row['kind']=='directory'),
   localization_sha256=localization_sha,original_root_sha256=digest(original),
-  source_hashes={name:digest(ROOT/name) for name in ('tools/review_managed_root_capacity.py','tools/review_managed_remote_profile.py','scripts/upg.py','scripts/upg_crypto.py')},
+  source_hashes={name:digest(ROOT/name) for name in ('tools/review_managed_root_capacity.py','tools/component_receipts.py','scripts/upg.py','scripts/upg_crypto.py')},
   capacity_margin_verified=False,limitations=['Complete proposed file inventory, not an allocated filesystem image.',
    'Block models omit inode/directory/indirect blocks, reserved space and flash translation/bad blocks.',
    'No current physical free-space measurement or partition-write qualification.',

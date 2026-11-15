@@ -18,7 +18,7 @@ import tempfile
 
 from elftools.elf.elffile import ELFFile
 
-from review_managed_remote_profile import ROOT, WORK, digest, private, receipt
+from component_receipts import ROOT, WORK, digest, private, receipt
 from review_managed_root_capacity import compose_root_inventory, inventory, read_localization_root
 from sdk_build import fresh_work
 
@@ -297,7 +297,7 @@ def main():
     area = (fresh_work(args.output) if args.output is not None else
             Path(tempfile.mkdtemp(prefix='layout-ext2-', dir=WORK)))
     source_paths = ('tools/measure_layout_ext2.py', 'tools/review_managed_root_capacity.py',
-                    'tools/review_managed_remote_profile.py', 'scripts/upg.py', 'scripts/upg_crypto.py')
+                    'tools/component_receipts.py', 'scripts/upg.py', 'scripts/upg_crypto.py')
     sources = {name: digest(ROOT / name) for name in source_paths}
     report = dict(passed=False, analysis_only=True, ready_to_flash=False,
                   device_accessed=False, firmware_created=False, physical_margin_verified=False,

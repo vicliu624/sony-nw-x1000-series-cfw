@@ -9,7 +9,7 @@ import time
 from app_registry import ROOT
 from evidence_checks import gcc_project_dependencies
 from player_arm_guest import stock_libraries
-from review_managed_remote_profile import component_build, digest
+from component_receipts import component_build, digest
 from sdk_build import fresh_work
 
 
@@ -42,7 +42,7 @@ def build(output=None, *, fixture_sources=(), fixture_flags=()):
     sources = [*SERVICE_SOURCES, *fixture_sources]
     compiler = ['arm-linux-gnueabi-gcc', *flags, *fixture_flags]
     inputs = gcc_project_dependencies(ROOT, compiler, sources)
-    inputs.update(('tools/build_remote_service.py', 'tools/evidence_checks.py'))
+    inputs.update(('tools/build_remote_service.py', 'tools/component_receipts.py', 'tools/evidence_checks.py'))
     source_hashes = {p: digest(ROOT / p) for p in sorted(inputs)}
     linked_hashes = {p.relative_to(ROOT).as_posix(): digest(p) for p in libs.values()}
     subprocess.run([*compiler, *sources, str(libs['librt.so.1']),

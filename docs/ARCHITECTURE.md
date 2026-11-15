@@ -58,9 +58,22 @@ feature contract agree. Layout receipts bind the actual deployed executables,
 radio image and selected reviews. Older host receipts retain their original
 deployment pairing.
 
+PC-side component receipts validate source, linked inputs and executable
+identity in `tools/component_receipts.py`. The player-specific profile and
+generated compile header live in `tools/player_remote_profile.py`. Editing the
+player profile or the staged diagnostic command no longer invalidates a Remote
+supervisor, service or native ESP-NOW archive. Assembling the system layout still
+validates the selected supervisor, both of its child executables and the radio
+image against the host's compile contract.
+
 The build and runtime dependencies differ. The startup wrapper is rebuilt by
 layout assembly. It carries the player library's path and can use the same
 bytes whenever its own build inputs match. It carries no child hash or size.
+Rebuilding in another output directory can change the player's generated trace
+identifier. A relink can also change a component's symbol string table, in turn
+changing the identity embedded by its supervisor. Use ELF program headers and
+section contents to locate an executable difference. Deployment validation
+continues to use the full hashes of the actual files.
 
 ```mermaid
 flowchart LR

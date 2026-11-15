@@ -295,7 +295,7 @@ stdout = exercise([binary], "host")
 arm_stdout = None
 if "--host-only" not in sys.argv:
     from player_arm_guest import stock_libraries
-    from review_managed_remote_profile import native_sdk_build
+    from component_receipts import native_sdk_build
 
     libraries = stock_libraries()
     target = out / "native.arm"
@@ -372,7 +372,7 @@ inputs = [
     *manifest["source_hashes"],
 ]
 if arm_stdout is not None:
-    inputs += ["runtime/store/start.c", "runtime/store/start.S", "tools/review_managed_remote_profile.py",
+    inputs += ["runtime/store/start.c", "runtime/store/start.S", "tools/component_receipts.py",
                controller_source, "runtime/platform/espnow/xnow_full_control.h",
                native_path.relative_to(ROOT).as_posix(), archive.relative_to(ROOT).as_posix()]
 report = dict(

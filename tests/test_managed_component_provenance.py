@@ -9,8 +9,9 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'tools'))
-from review_managed_remote_profile import (component_build, input_artifact, player_remote_header,
-                                           player_remote_inputs, select_player_remote_inputs)
+from component_receipts import component_build
+from player_remote_profile import (input_artifact, player_remote_header,
+                                   player_remote_inputs, select_player_remote_inputs)
 
 
 def digest(path):

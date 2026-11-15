@@ -10,9 +10,9 @@ import subprocess
 import time
 
 from app_registry import ROOT
+from component_receipts import component_build, digest, private
 from evidence_checks import gcc_project_dependencies
 from player_arm_guest import stock_libraries
-from review_managed_remote_profile import component_build, digest, private
 from sdk_build import fresh_work
 
 
@@ -118,7 +118,7 @@ def build(*, review=None, service_review=None, shared_wifi_owner_review=None, ou
       shutil.copy2(host_path.parent/filename,snapshot/filename)
      mode_host(snapshot/'build.json')
      mode_host_snapshot=(snapshot/'build.json').relative_to(ROOT).as_posix()
-     inputs+=['tools/remote_host_review.py','tools/review_managed_remote_profile.py',mode_host_snapshot,(snapshot/'libx1000-player-analysis.so').relative_to(ROOT).as_posix()]
+     inputs+=['tools/remote_host_review.py',mode_host_snapshot,(snapshot/'libx1000-player-analysis.so').relative_to(ROOT).as_posix()]
    assert int.from_bytes(data[16:24],'little') and any(data[24:30]) and not data[24]&1 and data[30:32]==b'\0\0' and any(data[32:64]) and any(data[64:80])
   device_path='/usr/local/libexec/x1000-remote-'+leaf if embedded_runtime else directory+'/'+leaf
   header.append('static const struct wr_launch_input remote_'+name+'_input={'+json.dumps(device_path)+','+str(size)+',{'+','.join(str(x) for x in bytes.fromhex(sha))+'}};')
@@ -139,7 +139,7 @@ def build(*, review=None, service_review=None, shared_wifi_owner_review=None, ou
                  '-march=armv5te','-marm','-mfloat-abi=soft','-fno-builtin','-fno-pie','-fno-stack-protector',
                  '-nostdlib','-no-pie','-Wl,--hash-style=sysv,--build-id=none','-I'+str(out)]
  inputs += [*[row['local'] for row in local_rows.values()], 'tools/evidence_checks.py',
-            'tools/review_managed_remote_profile.py']
+            'tools/component_receipts.py']
  if review_path:
   inputs.append(review_path.relative_to(ROOT).as_posix())
  dependencies=gcc_project_dependencies(ROOT, compiler, sources)

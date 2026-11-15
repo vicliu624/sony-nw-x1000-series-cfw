@@ -9,7 +9,7 @@ sys.path.insert(0,str(ROOT/'tools'))
 sys.path.insert(0,str(ROOT/'runtime/platform/espnow'))
 from build_library import build_sdk
 from elftools.elf.elffile import ELFFile
-from review_managed_remote_profile import native_sdk_build
+from component_receipts import native_sdk_build
 from sdk_services import compiler
 sdk_run=compiler(ROOT/'runtime/apps/espnow-chat')
 version=(ROOT/'runtime/apps/espnow-chat/VERSION').read_text().strip()

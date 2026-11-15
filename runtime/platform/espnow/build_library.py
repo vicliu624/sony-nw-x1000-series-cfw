@@ -17,7 +17,7 @@ from elftools.elf.elffile import ELFFile
 ROOT=Path(__file__).resolve().parents[3]
 sys.path.insert(0,str(ROOT/'tools'))
 from prepare_espnow_radio_candidate import HELPER_SHA, construct
-from review_managed_remote_profile import digest, private
+from component_receipts import digest, private
 from sdk_build import fresh_work
 
 SOURCE = ROOT / 'runtime/platform/espnow'
@@ -124,7 +124,8 @@ def compile_sdk(scratch, version, *, mailbox_review=None):
         shutil.copy2(SOURCE / source, document)
         documentation[name] = hashlib.sha256(document.read_bytes()).hexdigest()
     dependencies.add(consumer.relative_to(ROOT).as_posix())
-    dependencies.update(('runtime/platform/espnow/VERSION', 'runtime/platform/espnow/build_library.py'))
+    dependencies.update(('runtime/platform/espnow/VERSION', 'runtime/platform/espnow/build_library.py',
+                         'tools/component_receipts.py'))
     startup=[]
     for index,name in enumerate(('runtime/store/start.c','runtime/store/start.S')):
         obj=scratch/f'start-{index}.o';subprocess.run(['arm-linux-gnueabi-gcc',*flags,'-c',name,'-o',str(obj)],cwd=ROOT,check=True);startup.append(str(obj));dependencies.add(name)

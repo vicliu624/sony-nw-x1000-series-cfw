@@ -1,5 +1,5 @@
 """PC-side identity check for the source-built native five-mode host."""
-from review_managed_remote_profile import receipt,artifact
+from component_receipts import receipt,artifact
 
 def mode_host(path):
  path,host=receipt(path)

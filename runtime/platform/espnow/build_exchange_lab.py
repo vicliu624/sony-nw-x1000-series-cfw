@@ -9,7 +9,7 @@ ROOT=Path(__file__).resolve().parents[3]
 sys.path.insert(0,str(ROOT/'tools'))
 from build_library import LEGACY_REVIEW, build_sdk
 from prepare_espnow_radio_candidate import HELPER_SHA
-from review_managed_remote_profile import native_sdk_build, private
+from component_receipts import native_sdk_build, private
 
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--sdk-review',type=Path)

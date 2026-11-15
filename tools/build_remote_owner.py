@@ -16,7 +16,7 @@ from evidence_checks import gcc_project_dependencies
 from generate_espnow_full_profile import profile_header, reviewed_radio, verify_image
 from owner_native_profile import file_initializer, render as render_native_profile, stock_header
 from player_arm_guest import stock_libraries
-from review_managed_remote_profile import digest, native_sdk_build, private, receipt
+from component_receipts import digest, native_sdk_build, private, receipt
 from sdk_build import fresh_work
 
 
@@ -136,7 +136,8 @@ def build(*, sdk_review=None, rx_diagnostic_radio=None, external_radio_inputs=No
                str(libs['libc.so.6']),str(libs['ld-linux.so.3']),'-lgcc']
     dependencies=gcc_project_dependencies(ROOT,compiler,sources)
     dependencies.update(radio_inputs)
-    dependencies.update(('tools/evidence_checks.py','tools/owner_native_profile.py','tools/build_remote_owner.py'))
+    dependencies.update(('tools/component_receipts.py','tools/evidence_checks.py',
+                         'tools/owner_native_profile.py','tools/build_remote_owner.py'))
     dependencies.update(path.relative_to(ROOT).as_posix() for path in (stock_root,sdk_receipt))
     source_hashes={**{p:digest(ROOT/p) for p in sorted(dependencies)},**radio_source_hashes,**external_hashes}
     linked_hashes={p.relative_to(ROOT).as_posix():digest(p) for p in libraries}

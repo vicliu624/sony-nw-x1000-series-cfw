@@ -7,7 +7,7 @@ import argparse,hashlib,io,json,struct,subprocess,time,tarfile
 from capstone import Cs,CS_ARCH_ARM,CS_MODE_ARM
 from elftools.elf.elffile import ELFFile
 from app_registry import ROOT
-from review_managed_remote_profile import receipt,digest
+from component_receipts import receipt,digest
 from remote_choice_resource import SOURCE as RESOURCE_SOURCE,TARGET as RESOURCE_TARGET,compose as compose_resource
 from remote_choice_resource import BOUND_TARGET,CONFIRM_SOURCE,CONFIRM_TARGET,PAIR_TARGET,compose_bound
 

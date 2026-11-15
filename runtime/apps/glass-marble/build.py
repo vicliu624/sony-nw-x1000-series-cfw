@@ -6,7 +6,7 @@ sys.path.insert(0,str(ROOT/'tools'))
 sys.path.insert(0,str(ROOT/'runtime/platform/espnow'))
 from build_library import build_sdk
 from generate_espnow_full_profile import render
-from review_managed_remote_profile import native_sdk_build
+from component_receipts import native_sdk_build
 OUT=ROOT/'work/glass-marble';OUT.mkdir(parents=True,exist_ok=True)
 APP=ROOT/'runtime/apps/glass-marble'
 def run(args,**kw):return subprocess.run([str(a) for a in args],cwd=ROOT,check=True,**kw)

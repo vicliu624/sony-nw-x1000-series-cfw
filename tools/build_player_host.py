@@ -105,7 +105,7 @@ def build(engine_provider=False,managed_host=False,native_prepare=False,builtin_
     if native_sleep_analysis:name+='-sleep-analysis'
     factory_profile = factory_contract = shared_wifi = None
     if remote_profile is not None:
-        from review_managed_remote_profile import player_remote_inputs, player_remote_header
+        from player_remote_profile import player_remote_inputs, player_remote_header
         factory_contract, factory_profile, _, image_review = player_remote_inputs(remote_profile, shared_wifi_review)
         if managed_remote and not (factory_contract['root_cold_supported'] and
                                    factory_contract['device_pairing']):
@@ -255,7 +255,7 @@ def build(engine_provider=False,managed_host=False,native_prepare=False,builtin_
             inputs.append(composition_report['settings_resource_review'])
     if settings_visible_count:inputs+=list(settings_visible_count['source_hashes'])
     if factory_profile:
-        inputs.append('tools/review_managed_remote_profile.py')
+        inputs.extend(('tools/component_receipts.py', 'tools/player_remote_profile.py'))
     if native_wireless_settings:inputs+=list(wireless_composition['source_hashes'])
     if native_rf_gate:inputs+=list(rf_composition['source_hashes'])
     if sleep_composition:inputs+=list(sleep_composition['source_hashes'])

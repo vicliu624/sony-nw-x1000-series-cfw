@@ -6,7 +6,7 @@ sys.path.insert(0,str(ROOT/'runtime/platform/espnow'))
 from build_library import build_sdk
 from generate_espnow_full_profile import profile_header, reviewed_radio
 from owner_native_profile import file_initializer, render as render_native_profile, stock_header
-from review_managed_remote_profile import native_sdk_build, private
+from component_receipts import native_sdk_build, private
 from sdk_build import fresh_work
 
 parser = argparse.ArgumentParser(description=__doc__)

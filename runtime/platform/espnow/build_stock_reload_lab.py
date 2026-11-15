@@ -10,7 +10,7 @@ import tarfile
 ROOT=Path(__file__).resolve().parents[3]
 sys.path.insert(0,str(ROOT/'tools'))
 from build_library import build_sdk
-from review_managed_remote_profile import native_sdk_build
+from component_receipts import native_sdk_build
 
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--sdk-review',type=Path)

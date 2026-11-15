@@ -2,7 +2,7 @@
 import argparse,copy,gzip,hashlib,io,json,sys,tarfile,time
 from pathlib import Path
 from app_registry import ROOT
-from review_managed_remote_profile import private,receipt,digest
+from component_receipts import private,receipt,digest
 from review_managed_root_capacity import inventory,compose_root_inventory,read_localization_root
 from release_firmware import pack
 from sdk_build import fresh_work
@@ -118,7 +118,7 @@ def main():
   cold_dso_review=cold.relative_to(ROOT).as_posix(),settings_count_review=count_review.relative_to(ROOT).as_posix() if count_review else None,
   prepare_exit_review=exit_path.relative_to(ROOT).as_posix(),
   remote_page_replay=remote_replay.relative_to(ROOT).as_posix() if remote_replay else None,
-  source_hashes={name:digest(ROOT/name) for name in ('tools/prepare_managed_firmware_review.py','tools/review_managed_root_capacity.py','tools/review_managed_remote_profile.py','tools/release_firmware.py','scripts/upg.py','scripts/upg_crypto.py')},
+  source_hashes={name:digest(ROOT/name) for name in ('tools/prepare_managed_firmware_review.py','tools/review_managed_root_capacity.py','tools/component_receipts.py','tools/release_firmware.py','scripts/upg.py','scripts/upg_crypto.py')},
   inputs={path.relative_to(ROOT).as_posix():digest(path) for path in (lp,cp,source,cold,exit_path,count_review,remote_replay) if path},
   limits=['Private diagnostic candidate, not hardware qualified or released.',
    'Original updater reformats system storage; interruption or install failure can still brick the device.',

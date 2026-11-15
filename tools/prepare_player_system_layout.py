@@ -11,9 +11,10 @@ import time
 from app_registry import ROOT
 from build_player_host import build
 from builtin_language import SETTINGS_SHA
+from component_receipts import receipt, artifact, private
 from player_arm_guest import stock_libraries
+from player_remote_profile import input_artifact, select_player_remote_inputs
 from review_managed_root_capacity import read_root_input
-from review_managed_remote_profile import receipt, artifact, private, select_player_remote_inputs
 from remote_choice_resource import SOURCE as REMOTE_TEMPLATE, TARGET as REMOTE_RESOURCE
 from remote_choice_resource import BOUND_TARGET,CONFIRM_TARGET,CONFIRM_SOURCE,PAIR_TARGET
 from sdk_build import fresh_work
@@ -132,7 +133,6 @@ def main():
         if len(paths)!=1:raise ValueError('Expected one compiled system supervisor path')
         entries[paths[0].lstrip('/')]=(supervisor.read_bytes(),0o755)
         if supervisor_review.get('embedded_runtime'):
-            from review_managed_remote_profile import input_artifact
             for kind,leaf in [('owner','remote-rf-owner.arm'),('service','wireless-remote-service.arm')]:
                 path,_=input_artifact(supervisor_review,kind,leaf)
                 code_path,code_review=receipt(path.parent/'build.json')
@@ -237,7 +237,8 @@ def main():
         report['remote_factory_profile'] = binding
         if image_review is not None:
             report['shared_wifi_review'] = image_review.relative_to(ROOT).as_posix()
-        report['source_hashes']['tools/review_managed_remote_profile.py']=hashlib.sha256((ROOT/'tools/review_managed_remote_profile.py').read_bytes()).hexdigest()
+        for validator in ('tools/component_receipts.py', 'tools/player_remote_profile.py'):
+            report['source_hashes'][validator] = hashlib.sha256((ROOT / validator).read_bytes()).hexdigest()
     for name,expected in report['source_hashes'].items():
         if hashlib.sha256((ROOT/name).read_bytes()).hexdigest()!=expected:
             raise ValueError('Layout source/input changed: '+name)
