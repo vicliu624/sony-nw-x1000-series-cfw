@@ -1,7 +1,10 @@
 """Test C manifest/program validation using ordinary host fixtures; compile ARM objects."""
 from pathlib import Path
 import hashlib,json,struct,subprocess
-ROOT=Path(__file__).resolve().parents[1];work=ROOT/'work/store-package-tests';work.mkdir(exist_ok=True)
+from store_test_fixture import ROOT, workspace
+
+scratch = workspace('store-package-')
+work = Path(scratch.name)
 program=bytearray(96);program[:7]=b'\x7fELF\x01\x01\x01';struct.pack_into('<HH',program,16,2,40);program=bytes(program)
 def manifest(payload=program,**changes):
  fields={'api':'1','id':'demo','name':'Demo','version':'0.1.0','target':'sony-nw-x1000-jp','exec':'app','bytes':str(len(payload)),'sha256':hashlib.sha256(payload).hexdigest()};fields.update(changes)
@@ -21,5 +24,9 @@ for name,data,payload,expected in cases:
  rows.append({'case':name,'result':actual})
 for source in sources[:2]:
  subprocess.run(['arm-linux-gnueabi-gcc','-std=c99','-Os','-march=armv5te','-marm','-mfloat-abi=soft','-ffreestanding','-fno-builtin','-Wall','-Wextra','-Werror','-c',source,'-o',str(work/(Path(source).stem+'.arm.o'))],cwd=ROOT,check=True)
-report={'all_passed':True,'physical_device_access':False,'cases':rows,'source_sha256':{s:hashlib.sha256((ROOT/s).read_bytes()).hexdigest() for s in sources[:2]},'limits':['C functions execute on host with partial ordinary-file reads; ARM object compile only.','Checks app.ini and main app executable; asset inventory/archive integrity/authorship and filesystem confinement remain separate.','ELF class/endian/machine/type checks do not qualify Sony ABI or executable behavior.','No store UI, filesystem transaction adapter, device execution or integration-candidate changes.']}
-(ROOT/'sources/native-store-package-validation.json').write_text(json.dumps(report,indent=2)+'\n');print('C package validation:',len(rows),'cases passed; ARM objects compiled.')
+report={'all_passed':True,'physical_device_access':False,'cases':rows,'source_sha256':{s:hashlib.sha256((ROOT/s).read_bytes()).hexdigest() for s in sources[:2]},'limits':['C functions execute on host with partial ordinary-file reads; ARM object compile only.','Checks app.ini and main app executable; asset inventory/archive integrity/authorship and filesystem confinement remain separate.','ELF class/endian/machine/type checks do not qualify Sony ABI or executable behavior.','No store UI, filesystem transaction adapter, device execution.']}
+report['source_hashes'] = {
+    name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest()
+    for name in (*sources, 'tools/store_test_fixture.py', 'tools/test_store_package.py')
+}
+print(json.dumps(report, indent=2))

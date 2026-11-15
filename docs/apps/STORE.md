@@ -22,9 +22,11 @@ matching market-source/player-setup files; see ../RELEASES.md. A setup/review
 composition without these files still requires configuration. A local fixture
 installation is software evidence, not physical deployment qualification.
 
-Builders include build_libc_frontend.py, build_store_app.py and
-build_network_store_app.py. Prefer original-libc device/process and librt monotonic
-clock profiles where supported; retain explicit legacy profiles for research.
+Build the Store with `tools/build_app.py store`. Its build recipe and identity
+live in `runtime/apps/store/`. The launcher uses `tools/build_libc_frontend.py`.
+Pass `--build-output work/<build>` and `--output work/<package>` to keep a new
+Store build and package independent of earlier outputs. The compiler's object
+files are temporary. The older candidate builders are available in Git history.
 
 The offline store tests use the original libc and loader prepared by
 `tools/sdk.py setup`. Download-plan fixtures can be imported by the intent,
@@ -34,6 +36,15 @@ For loopback transport and install tests, prepare the pinned TLS and resolver
 inputs once with `tools/sdk.py setup --services`. Each test generates its own
 small fixture headers. Download-task, package-download and compatibility
 probes remain separate commands.
+
+Run the package, stage, filesystem fault or installer tests independently with
+`tools/test_store_package.py`, `tools/test_store_stage.py`,
+`tools/test_store_fs_faults.py` or `tools/test_install_posix.py`. These tests
+build their synthetic fixtures in temporary storage and report JSON on stdout.
+To check catalog boundary cases against an already built launcher, use
+`tools/test_native_catalog_boundaries.py --launcher work/<review>/launcher.elf`.
+To check display failure cleanup against a built Store, pass its executable to
+`tools/test_network_store_candidate_failure.py --app work/<package>/app`.
 
 Installation uses verified user storage, staged writes, hashes and rollback/error
 states. Packages do not each receive a Sony Home entry. Do not bypass TLS checks,

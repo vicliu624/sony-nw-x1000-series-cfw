@@ -70,8 +70,9 @@ lookup_config=None;lookup_source=None
 if args.native_name_lookup:
     from native_lookup_fixture import lookup
     args.native_switch_client=True
-    version=(ROOT/'VERSION').read_text().strip()
-    manifest_path=(ROOT/args.lookup_manifest).resolve() if args.lookup_manifest else ROOT/'work'/('integration-'+version)/'manifest.json'
+    if not args.lookup_manifest:
+        parser.error('--lookup-manifest is required for native name lookup')
+    manifest_path=(ROOT/args.lookup_manifest).resolve()
     if not manifest_path.is_relative_to((ROOT/'work').resolve()):raise ValueError('Lookup manifest must be a local work input')
     path=manifest_path.parent/'system-overlay/etc/AppList.conf';content=path.read_bytes()
     manifest=json.loads(manifest_path.read_text())

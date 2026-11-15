@@ -1,20 +1,12 @@
 """Run C installer against ordinary temporary directories inside project work/."""
 from pathlib import Path
-import fcntl,hashlib,json,shutil,struct,subprocess,tempfile
-ROOT=Path(__file__).resolve().parents[1];work=(ROOT/'work/store-fs-tests').resolve();work.mkdir(exist_ok=True)
-sources=['runtime/store/fs_posix.c','runtime/store/transaction.c','runtime/store/package.c','runtime/native/sha256.c','tools/test_store_fs_driver.c']
-subprocess.run(['gcc','-DHB_STORE_HOST_FIXTURE','-std=c99','-O2','-Wall','-Wextra','-Werror',*sources,'-o',str(work/'driver')],cwd=ROOT,check=True)
-version=(ROOT/'VERSION').read_text().strip();area=ROOT/'work'/('integration-'+version)
-protected=[ROOT/'VERSION',area/'manifest.json']+[area/x['path'] for x in json.loads((area/'manifest.json').read_text())['files']]
-def snapshot():return {str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in protected}
-before=snapshot();cases=[]
-def make(folder,revision):
- folder.mkdir(exist_ok=True)
- b=bytearray(96);b[:7]=b'\x7fELF\x01\x01\x01';struct.pack_into('<HH',b,16,2,40);b[-1]=revision
- (folder/'app').write_bytes(b)
- fields={'api':'1','id':'demo','name':'Demo','version':f'0.1.{revision}','target':'sony-nw-x1000-jp','exec':'app','bytes':'96','sha256':hashlib.sha256(b).hexdigest()}
- (folder/'app.ini').write_text('\n'.join(k+'='+v for k,v in fields.items())+'\n')
- return bytes(b)
+import fcntl,hashlib,json,shutil,subprocess,tempfile
+from store_test_fixture import ROOT, FS_DRIVER_SOURCES, build_fs_driver, make_legacy_package as make, workspace
+
+scratch = workspace('store-fs-')
+work = Path(scratch.name)
+build_fs_driver(work)
+cases=[]
 with tempfile.TemporaryDirectory(prefix='fixture-',dir=work) as temp:
  base=Path(temp).resolve();assert base.parent==work
  apps=base/'apps';source=base/'package';outside=base/'data';apps.mkdir();outside.mkdir()
@@ -41,6 +33,5 @@ with tempfile.TemporaryDirectory(prefix='fixture-',dir=work) as temp:
  with (apps/'.store-lock').open('r+') as locked:
   fcntl.flock(locked,fcntl.LOCK_EX|fcntl.LOCK_NB);run('concurrent-install-rejected',-1)
  assert (apps/'demo/app').read_bytes()==new
-assert before==snapshot()
-report={'all_passed':True,'physical_device_access':False,'cases':cases,'source_sha256':{s:hashlib.sha256((ROOT/s).read_bytes()).hexdigest() for s in sources[:4]},'candidate_version':version,'candidate_unchanged':True,'limits':['Real host files/rename/fsync/flock in project work fixtures, not target FAT, flash or physical USB.','Profile accepts exactly app.ini and app; resources/archives and publisher authentication remain unimplemented.','Not linked into ARM candidate; POSIX/libc/flock/fsync behavior on Sony requires independent qualification.','No real I/O error, storage-full or power-cut injection; low-space case uses an intentionally unavailable reserve.','Filesystem root confinement is an adapter contract, not a sandbox against other processes.']}
-(ROOT/'sources/native-store-filesystem-tests.json').write_text(json.dumps(report,indent=2)+'\n');print('C filesystem adapter:',len(cases),'cases passed; candidate unchanged.')
+report={'all_passed':True,'physical_device_access':False,'cases':cases,'source_hashes':{s:hashlib.sha256((ROOT/s).read_bytes()).hexdigest() for s in (*FS_DRIVER_SOURCES,'tools/store_test_fixture.py','tools/test_store_fs.py')},'limits':['Real host files/rename/fsync/flock in project work fixtures, not target FAT, flash or physical USB.','Only the legacy app.ini and app profile is exercised here.','No real I/O error, storage-full or power-cut injection; low-space case uses an intentionally unavailable reserve.']}
+print(json.dumps(report,indent=2))

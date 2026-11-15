@@ -1,15 +1,13 @@
 """Inject host filesystem errors/process exits into the C adapter, work fixtures only."""
 from pathlib import Path
-import hashlib,json,os,struct,subprocess,tempfile
-ROOT=Path(__file__).resolve().parents[1];work=(ROOT/'work/store-fs-tests').resolve();work.mkdir(exist_ok=True)
-p=subprocess.run(['python3',str(ROOT/'tools/test_store_fs.py')],cwd=ROOT,capture_output=True,text=True,timeout=30)
-assert p.returncode==0,p.stderr
+import hashlib,json,os,subprocess,tempfile
+from store_test_fixture import ROOT, FS_DRIVER_SOURCES, build_fs_driver, make_legacy_package as make, workspace
+
+scratch = workspace('store-fs-faults-')
+work = Path(scratch.name)
+build_fs_driver(work)
 library=work/'faults.so'
 subprocess.run(['gcc','-DHB_STORE_HOST_FIXTURE','-std=c99','-O2','-Wall','-Wextra','-Werror','-fPIC','-shared','tools/store_fs_faults.c','-ldl','-o',str(library)],cwd=ROOT,check=True)
-def make(folder,revision):
- folder.mkdir(exist_ok=True);b=bytearray(96);b[:7]=b'\x7fELF\x01\x01\x01';struct.pack_into('<HH',b,16,2,40);b[-1]=revision;b=bytes(b)
- fields={'api':'1','id':'demo','name':'Demo','version':f'0.1.{revision}','target':'sony-nw-x1000-jp','exec':'app','bytes':'96','sha256':hashlib.sha256(b).hexdigest()}
- (folder/'app.ini').write_text('\n'.join(k+'='+v for k,v in fields.items())+'\n');(folder/'app').write_bytes(b)
 def valid(folder):
  try:
   fields=dict(line.split('=',1) for line in (folder/'app.ini').read_text().splitlines())
@@ -78,7 +76,11 @@ for mutation in ('bad-checksum','wrong-id','changed-live','changed-backup','fore
   assert int(explicit.stdout.strip())==-3 and tree()==before,mutation
   refusals.append({'case':mutation,'recovery_result':-3,'explicit_keep_current_result':-3,'entire_managed_tree_content_unchanged':True})
 report={'all_passed':True,'physical_device_access':False,'cases':rows,'receipt_refusal_cases':refusals,'original_regression_cases':original_cases,'manual_review_cases':sum(r['recovery_result']==-3 for r in rows),'explicit_choice_recovered_cases':sum(r['explicit_keep_current_result']==0 for r in rows),'adapter_sha256':hashlib.sha256((ROOT/'runtime/store/fs_posix.c').read_bytes()).hexdigest(),'limits':['LD_PRELOAD error injection and _exit after real host operations, not hardware I/O failure or power loss.','Faults restricted to this run project work fixture path. No Sony files, devices, mount or firmware touched.','Normal recovery retains incomplete receipts; explicit keep-current checks both complete copies. No device recovery UI exists yet.','No target FAT durability, flash capacity or USB lifecycle qualification.']}
-(ROOT/'sources/native-store-filesystem-faults.json').write_text(json.dumps(report,indent=2)+'\n');print('Filesystem fault tests:',len(rows),'passed;',report['manual_review_cases'],'require retained-state review.')
+report['source_hashes'] = {
+    name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest()
+    for name in (*FS_DRIVER_SOURCES, 'tools/store_fs_faults.c', 'tools/store_test_fixture.py', 'tools/test_store_fs_faults.py')
+}
+print(json.dumps(report,indent=2))
 
 
 

@@ -1,7 +1,10 @@
 """C bundle staging tests on project work fixtures; no activation/device writes."""
 from pathlib import Path
 import hashlib,json,os,struct,subprocess,tempfile
-ROOT=Path(__file__).resolve().parents[1];work=(ROOT/'work/store-stage-tests').resolve();work.mkdir(exist_ok=True)
+from store_test_fixture import ROOT, workspace
+
+scratch = workspace('store-stage-')
+work = Path(scratch.name)
 sources=['runtime/store/stage_posix.c','runtime/store/bundle_posix.c','runtime/store/inventory.c','runtime/store/package.c','runtime/native/sha256.c','tools/test_store_stage_driver.c']
 subprocess.run(['gcc','-DHB_STORE_HOST_FIXTURE','-std=c99','-O2','-Wall','-Wextra','-Werror',*sources,'-o',str(work/'driver')],cwd=ROOT,check=True)
 subprocess.run(['gcc','-DHB_STORE_HOST_FIXTURE','-std=c99','-O2','-Wall','-Wextra','-Werror','-fPIC','-shared','tools/store_fs_faults.c','-ldl','-o',str(work/'faults.so')],cwd=ROOT,check=True)
@@ -10,10 +13,6 @@ fields={'api':'1','id':'demo','name':'Demo','version':'0.1.0','target':'sony-nw-
 manifest=('\n'.join(k+'='+v for k,v in fields.items())+'\n').encode()
 names=['legacy','resources','nested16','long-path','bad-resource','undeclared-file','source-link','cancel','space','existing-stage','stage-link','parent-alias','overlap','write-index-error','write-program-error','process-interrupted']
 rows=[]
-version=(ROOT/'VERSION').read_text().strip();area=ROOT/'work'/('integration-'+version)
-protected=[ROOT/'VERSION',area/'manifest.json']+[area/f['path'] for f in json.loads((area/'manifest.json').read_text())['files']]
-def candidate():return {str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in protected}
-before=candidate()
 for name in names:
  with tempfile.TemporaryDirectory(prefix='fixture-',dir=work) as temp:
   base=Path(temp).resolve();assert base.parent==work
@@ -57,8 +56,10 @@ for name in names:
    assert {str(f.relative_to(stage)):f.read_bytes() for f in stage.rglob('*') if f.is_file()}==files
   if name=='existing-stage':assert (stage/'keep').read_bytes()==b'KEEP STAGE'
   rows.append({'case':name,'result':result,'source_unchanged':True,'live_and_save_unchanged':True,'activated':False,'stage_exists_after':stage.exists()})
-assert before==candidate()
 subprocess.run(['arm-linux-gnueabi-gcc','-std=c99','-Os','-march=armv5te','-marm','-mfloat-abi=soft','-ffreestanding','-fno-builtin','-Wall','-Wextra','-Werror','-c',sources[0],'-o',str(work/'stage.arm.o')],cwd=ROOT,check=True)
-report={'all_passed':True,'physical_device_access':False,'cases':rows,'candidate_version':version,'candidate_unchanged':True,'source_sha256':hashlib.sha256((ROOT/sources[0]).read_bytes()).hexdigest(),'limits':['Real host staging copy/fsync and injected failures/process exit, not target FAT or physical power loss.','Failures can leave inactive partial stage. Resource commit/cleanup/recovery is not integrated.','Source/parent must be quiescent; no sandbox against malicious concurrent changes.','No archive extraction, publisher authentication, app execution or store UI.','ARM object compile only; target libc/ABI and durability remain unqualified.']}
-(ROOT/'sources/native-store-stage-tests.json').write_text(json.dumps(report,indent=2)+'\n');print('C bundle staging:',len(rows),'cases passed; ARM object compiled; candidate unchanged.')
-
+report={'all_passed':True,'physical_device_access':False,'cases':rows,'source_sha256':hashlib.sha256((ROOT/sources[0]).read_bytes()).hexdigest(),'limits':['Real host staging copy/fsync and injected failures/process exit, not target FAT or physical power loss.','Failures can leave inactive partial stage. Resource commit/cleanup/recovery is not integrated.','Source/parent must be quiescent; no sandbox against malicious concurrent changes.','No archive extraction, publisher authentication, app execution or store UI.','ARM object compile only; target libc/ABI and durability remain unqualified.']}
+report['source_hashes'] = {
+    name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest()
+    for name in (*sources, 'tools/store_test_fixture.py', 'tools/test_store_stage.py', 'tools/store_fs_faults.c')
+}
+print(json.dumps(report, indent=2))

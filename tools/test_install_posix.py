@@ -1,14 +1,13 @@
 """Unified resource installer normal/fault/recovery tests on host work fixtures."""
 from pathlib import Path
 import fcntl,hashlib,json,os,shutil,struct,subprocess,tempfile
-ROOT=Path(__file__).resolve().parents[1];work=(ROOT/'work/store-install-tests').resolve();work.mkdir(exist_ok=True)
+from store_test_fixture import ROOT, workspace
+
+scratch = workspace('store-install-')
+work = Path(scratch.name)
 sources=['runtime/store/install_posix.c','runtime/store/transaction.c','runtime/store/stage_posix.c','runtime/store/cleanup_posix.c','runtime/store/pending_plan.c','runtime/store/cleanup_plan.c','runtime/store/bundle_posix.c','runtime/store/inventory.c','runtime/store/package.c','runtime/native/sha256.c','tools/test_install_posix_driver.c']
 subprocess.run(['gcc','-DHB_STORE_HOST_FIXTURE','-std=c99','-O2','-Wall','-Wextra','-Werror',*sources,'-o',str(work/'driver')],cwd=ROOT,check=True)
 subprocess.run(['gcc','-DHB_STORE_HOST_FIXTURE','-std=c99','-O2','-Wall','-Wextra','-Werror','-fPIC','-shared','tools/store_fs_faults.c','-ldl','-o',str(work/'faults.so')],cwd=ROOT,check=True)
-version=(ROOT/'VERSION').read_text().strip();area=ROOT/'work'/('integration-'+version)
-protected=[ROOT/'VERSION',area/'manifest.json']+[area/f['path'] for f in json.loads((area/'manifest.json').read_text())['files']]
-def candidate():return {str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in protected}
-before_candidate=candidate()
 def index(files):return b'HBFILES1\n'+b''.join(f'{hashlib.sha256(data).hexdigest()} {len(data)} {path}\n'.encode() for path,data in sorted(files.items()))
 def make(folder,revision,resources=True):
  folder.mkdir(exist_ok=True);program=bytearray(96);program[:7]=b'\x7fELF\x01\x01\x01';struct.pack_into('<HH',program,16,2,40);program[-1]=revision;program=bytes(program)
@@ -115,11 +114,10 @@ for scenario in normal+faults:
    if scenario=='legacy-receipt':assert (apps/'.cleanup-demo').read_bytes()==b'v1 metadata must not be guessed'
   assert tree(source)==source_before and (base/'save.dat').read_bytes()==b'USER SAVE' and (apps/'unrelated.txt').read_bytes()==b'OTHER APP DATA'
   rows.append({'case':str(scenario),'result':result,'recovery_result':recovery,'explicit_idle_cancel_result':explicit,'source_save_unrelated_unchanged':True})
-  if len(rows)==len(normal):print('Normal package scenarios passed; checking injected faults.',flush=True)
-assert candidate()==before_candidate
 subprocess.run(['arm-linux-gnueabi-gcc','-std=c99','-Os','-march=armv5te','-marm','-mfloat-abi=soft','-ffreestanding','-fno-builtin','-Wall','-Wextra','-Werror','-c',sources[0],'-o',str(work/'install.arm.o')],cwd=ROOT,check=True)
-report={'all_passed':True,'physical_device_access':False,'cases':rows,'manual_recovery_cases':sum(r['recovery_result']==-3 for r in rows),'explicit_idle_cancel_successes':sum(r['explicit_idle_cancel_result']==0 for r in rows),'candidate_version':version,'candidate_unchanged':True,'source_sha256':hashlib.sha256((ROOT/sources[0]).read_bytes()).hexdigest(),'limits':['Unified host local-package transaction only; no device app/store UI/network/archive implementation.','Malformed partially created metadata can require retained-state review; no automatic guessing.','Faults are host injected errors/process exits, not target FAT/physical power loss.','Source and managed tree must be quiescent; not an OS sandbox or publisher authentication.','ARM object compilation only; target libc/ABI, USB handoff, capacity and durability unqualified.']}
-(ROOT/'sources/native-store-install-tests.json').write_text(json.dumps(report,indent=2)+'\n');print('Unified resource installation:',len(rows),'cases passed;',report['manual_recovery_cases'],'retained-state recoveries; ARM object compiled; candidate unchanged.')
-
-
-
+report={'all_passed':True,'physical_device_access':False,'cases':rows,'manual_recovery_cases':sum(r['recovery_result']==-3 for r in rows),'explicit_idle_cancel_successes':sum(r['explicit_idle_cancel_result']==0 for r in rows),'source_sha256':hashlib.sha256((ROOT/sources[0]).read_bytes()).hexdigest(),'limits':['Unified host local-package transaction only; no device app/store UI/network/archive implementation.','Malformed partially created metadata can require retained-state review; no automatic guessing.','Faults are host injected errors/process exits, not target FAT/physical power loss.','Source and managed tree must be quiescent; not an OS sandbox or publisher authentication.','ARM object compilation only; target libc/ABI, USB handoff, capacity and durability unqualified.']}
+report['source_hashes'] = {
+    name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest()
+    for name in (*sources, 'tools/store_test_fixture.py', 'tools/test_install_posix.py', 'tools/store_fs_faults.c')
+}
+print(json.dumps(report, indent=2))

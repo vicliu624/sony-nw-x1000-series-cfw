@@ -18,10 +18,16 @@ parser.add_argument('--walkman-request',action='store_true',help='Captured Respo
 parser.add_argument('--inactive-confirmation-report',help='Consume actual Home cleanup APF state1 packet through original manager f75c; transport remains virtual.')
 parser.add_argument('--home-switch-report',help='Consume native Home switch wire request and subsequent same-client inactive confirmation.')
 parser.add_argument('--native-launch-config',action='store_true',help='Reuse native parser/query manager memory and execute original launch-entry lookup; requires Home lookup report.')
+parser.add_argument('--app-list', type=Path, help='Matching AppList.conf for old Home reports without a recorded file path.')
+parser.add_argument('--report', type=Path, help='Write a new report under work/.')
 parser.add_argument('--native-process-registry',action='store_true',help='Execute original process list construction/find/count/insertion during first launch; OS effects still virtual.')
 parser.add_argument('--save-manager-state',action='store_true',help='Save local model RAM after first native registry activation, never device memory.')
 parser.add_argument('--native-ipc-service',action='store_true',help='Construct original IPC service/pool/observer at start; separate offline variant.')
 args=parser.parse_args()
+report_path = (ROOT / args.report).resolve() if args.report else None
+if report_path and (not report_path.is_relative_to(ROOT / 'work') or report_path.suffix != '.json'
+                    or report_path.exists() or (ROOT / args.report).is_symlink()):
+    parser.error('--report must be a new JSON file under work/')
 if args.native_ipc_service:args.native_process_registry=True;args.save_manager_state=True
 if args.save_manager_state:assert args.native_process_registry
 if args.native_process_registry:args.native_launch_config=True
@@ -33,7 +39,7 @@ if args.home_switch_report:
  assert not args.walkman_request and not args.wrong_app_ack
  if args.inactive_confirmation_report:assert args.inactive_confirmation_report==args.home_switch_report
  args.inactive_confirmation_report=args.home_switch_report
- path=(ROOT/args.home_switch_report).resolve();assert path.is_relative_to(ROOT/'sources')
+ path=(ROOT/args.home_switch_report).resolve();assert any(path.is_relative_to(ROOT/area) for area in ('sources','work'))
  content=path.read_bytes();home=json.loads(content)
  root_activation_route=bool(home.get('native_activation_route'))
  combined_home_actor=bool(home.get('native_frame_receiver')) and any(row['rebuild_cycle']==1 for row in home['cases'])
@@ -53,7 +59,7 @@ inactive_input=None;inactive_packet=None;inactive_replies=[]
 if args.inactive_confirmation_report:
  assert not any((args.walkman_request,args.wrong_app_ack))
  args.ack_registered=True
- path=(ROOT/args.inactive_confirmation_report).resolve();assert path.is_relative_to(ROOT/'sources')
+ path=(ROOT/args.inactive_confirmation_report).resolve();assert any(path.is_relative_to(ROOT/area) for area in ('sources','work'))
  content=path.read_bytes();home=json.loads(content)
  candidate=(ROOT/'work/home-entry-candidate/SpiderApp.analysis-only.elf').read_bytes()
  assert home['candidate_sha256']==hashlib.sha256(candidate).hexdigest()
@@ -99,7 +105,10 @@ for target in ((0x30001,) if home_switch_input else (1,) if args.walkman_request
  if args.native_launch_config:
   from native_lookup_fixture import lookup
   assert home_lookup_used
-  version=(ROOT/'VERSION').read_text().strip();config_path=ROOT/'work'/('integration-'+version)/'system-overlay/etc/AppList.conf';config=config_path.read_bytes()
+  from component_receipts import private
+  supplied_config = args.app_list or home.get('lookup_input', {}).get('path')
+  if not supplied_config:parser.error('--app-list is required for a Home report without a recorded path')
+  config_path=private(supplied_config);config=config_path.read_bytes()
   captured_lookup=home['cases'][0]['native_lookup_wire_requests'][0]
   assert hashlib.sha256(config).hexdigest()==captured_lookup['parser']['config_sha256']
   session={};native_config_details={};reply,_=lookup(ROOT,bytes.fromhex(captured_lookup['packet_hex']),config_bytes=config,details=native_config_details,session=session)
@@ -484,7 +493,7 @@ if args.native_ipc_service:
  report['limits'].append('Original IPC service,port pool,observer and notification bindings constructed at start; socket/queue creation and scheduling virtual.')
 if args.save_manager_state:
  assert word(changer)==0x34bd0 and word(changer+4)==target and word(0x6001010c)==2 and word(0x6001000c)==1
- state_dir=ROOT/'work/native-manager-states'/version;state_dir.mkdir(parents=True,exist_ok=True);state_label='native-ipc-launch' if args.native_ipc_service else 'activation-route-launch' if root_activation_route else 'home-actor-launch' if combined_home_actor else 'first-launch';state_path=state_dir/(state_label+'.bin');state=bytes(u.mem_read(core,0x20000));state_path.write_bytes(state)
+ state_dir=report_path.with_suffix('') if report_path else ROOT/'work/native-manager-states'/version;state_dir.mkdir(parents=True,exist_ok=report_path is None);state_label='native-ipc-launch' if args.native_ipc_service else 'activation-route-launch' if root_activation_route else 'home-actor-launch' if combined_home_actor else 'first-launch';state_path=state_dir/(state_label+'.bin');state=bytes(u.mem_read(core,0x20000));state_path.write_bytes(state)
  report['native_manager_state']={'path':str(state_path.relative_to(ROOT)),'sha256':hashlib.sha256(state).hexdigest(),'bytes':len(state),'base':hex(core),'current_app':target,'target_record':'0x60010100','home_record':'0x60010000','pid':321,'scope':'Model RAM only; not read from any device.'}
  report['source_hashes'][str(state_path.relative_to(ROOT))]=hashlib.sha256(state).hexdigest()
  regions=[]
@@ -494,5 +503,10 @@ if args.save_manager_state:
    regions.append({'path':str(path.relative_to(ROOT)),'address':hex(address),'bytes':len(content),'sha256':hashlib.sha256(content).hexdigest()})
    report['source_hashes'][str(path.relative_to(ROOT))]=hashlib.sha256(content).hexdigest()
  report['native_manager_state']['module_regions']=regions
-(ROOT/('sources/native-manager-native-ipc-exec.json' if args.native_ipc_service else 'sources/native-manager-home-activation-exec.json' if root_activation_route and args.native_process_registry else 'sources/native-manager-home-actor-exec.json' if combined_home_actor and args.native_process_registry else 'sources/native-manager-home-registry-exec.json' if args.native_process_registry else 'sources/native-manager-home-config-exec.json' if args.native_launch_config else 'sources/native-manager-home-lookup-exec.json' if home_lookup_used and args.capture_frontend_exec else 'sources/native-manager-home-lookup-ack.json' if home_lookup_used else 'sources/native-manager-home-wire-exec.json' if home_switch_input and args.capture_frontend_exec else 'sources/native-manager-home-wire-ack.json' if home_switch_input else 'sources/native-manager-home-inactive-exec.json' if args.inactive_confirmation_report and args.capture_frontend_exec else 'sources/native-manager-home-inactive-ack.json' if args.inactive_confirmation_report else 'sources/native-manager-responder-walkman-prefix.json' if args.walkman_request else 'sources/native-manager-proxy-noargs-exec.json' if args.no_launch_arguments else 'sources/native-manager-proxy-exec-request.json' if args.capture_frontend_exec else 'sources/native-manager-proxy-activation.json' if args.activate_proxy else 'sources/native-manager-first-proxy-registration.json' if args.proxy_register else 'sources/native-manager-first-registration.json' if args.register_target else 'sources/native-manager-first-launch.json' if args.fresh_target else 'sources/native-manager-change-wrong-ack.json' if args.wrong_app_ack else 'sources/native-manager-change-ack-registered.json' if args.ack_registered else 'sources/native-manager-change-notification.json')).write_text(json.dumps(report,indent=2)+'\n')
+if report_path:
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    with report_path.open('x', encoding='utf-8') as stream:
+        stream.write(json.dumps(report, indent=2) + '\n')
+else:
+    (ROOT/('sources/native-manager-native-ipc-exec.json' if args.native_ipc_service else 'sources/native-manager-home-activation-exec.json' if root_activation_route and args.native_process_registry else 'sources/native-manager-home-actor-exec.json' if combined_home_actor and args.native_process_registry else 'sources/native-manager-home-registry-exec.json' if args.native_process_registry else 'sources/native-manager-home-config-exec.json' if args.native_launch_config else 'sources/native-manager-home-lookup-exec.json' if home_lookup_used and args.capture_frontend_exec else 'sources/native-manager-home-lookup-ack.json' if home_lookup_used else 'sources/native-manager-home-wire-exec.json' if home_switch_input and args.capture_frontend_exec else 'sources/native-manager-home-wire-ack.json' if home_switch_input else 'sources/native-manager-home-inactive-exec.json' if args.inactive_confirmation_report and args.capture_frontend_exec else 'sources/native-manager-home-inactive-ack.json' if args.inactive_confirmation_report else 'sources/native-manager-responder-walkman-prefix.json' if args.walkman_request else 'sources/native-manager-proxy-noargs-exec.json' if args.no_launch_arguments else 'sources/native-manager-proxy-exec-request.json' if args.capture_frontend_exec else 'sources/native-manager-proxy-activation.json' if args.activate_proxy else 'sources/native-manager-first-proxy-registration.json' if args.proxy_register else 'sources/native-manager-first-registration.json' if args.register_target else 'sources/native-manager-first-launch.json' if args.fresh_target else 'sources/native-manager-change-wrong-ack.json' if args.wrong_app_ack else 'sources/native-manager-change-ack-registered.json' if args.ack_registered else 'sources/native-manager-change-notification.json')).write_text(json.dumps(report,indent=2)+'\n')
 print('Captured Responder request -> native manager -> Responder event4 prefix passed' if args.walkman_request else str(len(rows))+' native manager change cases verified' + ('; native child execvp request captured without optional arguments' if args.no_launch_arguments else '; native child execvp request captured with single frontend path and --native' if args.capture_frontend_exec else '; native event frame -> proxy receive/ack -> manager state2 -> virtual frontend fork' if args.activate_proxy else '; native proxy registration bytes -> manager handler -> native proxy reply/state/thread request' if args.proxy_register else '; original registration handler updates target and requests activation5 before success reply' if args.register_target else '; fresh parent-launch path waits for injected target state1 before activation5' if args.fresh_target else '; wrong-app acknowledgement does not advance switch' if args.wrong_app_ack else '; current-app acknowledgement precedes target activation5 (registered target fixture)' if args.ack_registered else '; current-app event6 prefix only'))
