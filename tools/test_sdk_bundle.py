@@ -51,6 +51,13 @@ def verify_bundle(a, work):
     assert actual==set(manifest['files'])|{'SDK_MANIFEST.json'}
     for name,info in manifest['files'].items():
         data=(work/name).read_bytes();assert len(data)==info['bytes'] and hashlib.sha256(data).hexdigest()==info['sha256']
+    report = dict(passed=True, sdk_version=manifest['sdk_version'],
+                  source_archive_sha256=hashlib.sha256(a.archive.read_bytes()).hexdigest(),
+                  documentation_links_checked=documentation_count, hardware_accessed=False,
+                  firmware_created=False)
+    if a.archive_only:
+        report.update(scope='archive-only', full_sdk_matrix_run=False)
+        return 'archive-test-report.json', report
     env=dict(os.environ,QEMU_UNSET_ENV='LD_LIBRARY_PATH,LD_PRELOAD')
     def run(*args,timeout=120):
         started=time.monotonic();print('SDK bundle check: '+str(args[0]),flush=True)
@@ -64,7 +71,8 @@ def verify_bundle(a, work):
     run(*setup,'--services');run('tools/sdk.py','doctor')
     if a.player_only:
         run('tools/test_sdk_player_service.py')
-        report={'passed':True,'scope':'player-client-only','sdk_version':manifest['sdk_version'],'source_archive_sha256':hashlib.sha256(a.archive.read_bytes()).hexdigest(),'clean_inputs':True,'original_installer_only':True,'public_player_consumer':True,'full_sdk_matrix_run':False,'documentation_links_checked':documentation_count,'hardware_accessed':False,'firmware_created':False}
+        report.update(scope='player-client-only', clean_inputs=True, original_installer_only=True,
+                      public_player_consumer=True, full_sdk_matrix_run=False)
         return 'player-bundle-test-report.json', report
     checks=[]
     for template in ('minimal','touch-ui','canvas-game'):
@@ -86,9 +94,8 @@ def verify_bundle(a, work):
     run('tools/test_sdk_text.py')
     run('tools/test_sdk_storage_stop.py')
     run('tools/test_sdk_espnow.py');run('tools/test_sdk_espnow_full.py');run('tools/test_sdk_espnow_owner.py');run('tools/test_sdk_player_service.py')
-    report={'passed':True,'sdk_version':manifest['sdk_version'],'source_archive_sha256':hashlib.sha256(a.archive.read_bytes()).hexdigest(),
-            'documentation_links_checked':documentation_count,
-            'clean_inputs':True,'templates_created_host_rendered_arm_packaged':checks,'external_native_service_client':True,'hardware_accessed':False,'firmware_created':False}
+    report.update(clean_inputs=True, templates_created_host_rendered_arm_packaged=checks,
+                  external_native_service_client=True, full_sdk_matrix_run=True)
     return 'bundle-test-report.json', report
 
 
@@ -96,8 +103,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('archive', type=Path)
     parser.add_argument('--stock-exe', type=Path)
-    parser.add_argument('--player-only', action='store_true',
-                        help='Verify only the public player client after fresh SDK setup')
+    scope = parser.add_mutually_exclusive_group()
+    scope.add_argument('--player-only', action='store_true',
+                       help='Verify only the public player client after fresh SDK setup')
+    scope.add_argument('--archive-only', action='store_true',
+                       help='Verify ZIP contents, manifest and links without preparing the toolchain')
     args = parser.parse_args()
     if sys.flags.optimize:
         raise RuntimeError('Do not disable assertions')

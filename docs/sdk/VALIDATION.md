@@ -70,6 +70,11 @@ directory. Under WSL this normally keeps compilation on the Linux filesystem.
 The run directory under `work/sdk-bundle-tests/` keeps the result report or
 the failure log. The input archive is the reusable source artifact.
 
+For documentation-only changes, `--archive-only` checks the ZIP paths, file
+manifest and documentation links in one pass. The SDK workflow selects this
+mode for documentation changes and runs the full check for SDK code, tags or
+manual runs.
+
 The `--player-only` bundle option is a narrower client check. Its report must not
 be described as a full SDK validation. None of these commands flashes firmware,
 connects to a player or accesses a real account.

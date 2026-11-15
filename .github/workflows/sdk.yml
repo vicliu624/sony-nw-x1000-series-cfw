@@ -4,10 +4,10 @@ on:
   push:
     branches: [main]
     tags: ['sdk-v*']
-    paths: ['sdk/**', 'runtime/platform/sdk/**', 'runtime/platform/espnow/**', 'docs/ESPNOW_IMPLEMENTATION.md', 'runtime/apps/sdk-*/**', 'tools/sdk*.py', 'tools/*sdk*.py', 'tools/build_app.py', 'tools/app_registry.py', 'tools/app_presentation.py', 'tools/verify_app_package.py', 'runtime/native/**', 'runtime/store/**', 'runtime/apps/qqmusic/qqmusic_storage.*', 'runtime/apps/qqmusic/qqmusic_volume.*', 'docs/sdk/**', '.github/workflows/sdk.yml']
+    paths: ['sdk/**', 'runtime/platform/**', 'runtime/apps/sdk-*/**', 'runtime/**/README.md', 'tools/*sdk*.py', 'tools/build_app.py', 'tools/native_app_build.py', 'tools/app_registry.py', 'tools/app_presentation.py', 'tools/market_metadata.py', 'tools/verify_app_package.py', 'runtime/native/**', 'runtime/store/**', 'docs/**', 'scripts/upg*.py', 'VERSION', 'third_party/qqmusic-stb/Noto-OFL.txt', 'sources/downloads.json', 'sources/fm-comparison-sources.json', '.github/workflows/sdk.yml']
   pull_request:
     branches: [main]
-    paths: ['sdk/**', 'runtime/platform/sdk/**', 'runtime/platform/espnow/**', 'docs/ESPNOW_IMPLEMENTATION.md', 'runtime/apps/sdk-*/**', 'tools/*sdk*.py', 'tools/build_app.py', 'tools/app_registry.py', 'tools/app_presentation.py', 'tools/verify_app_package.py', 'runtime/native/**', 'runtime/store/**', 'docs/sdk/**', '.github/workflows/sdk.yml']
+    paths: ['sdk/**', 'runtime/platform/**', 'runtime/apps/sdk-*/**', 'runtime/**/README.md', 'tools/*sdk*.py', 'tools/build_app.py', 'tools/native_app_build.py', 'tools/app_registry.py', 'tools/app_presentation.py', 'tools/market_metadata.py', 'tools/verify_app_package.py', 'runtime/native/**', 'runtime/store/**', 'docs/**', 'scripts/upg*.py', 'VERSION', 'third_party/qqmusic-stb/Noto-OFL.txt', 'sources/downloads.json', 'sources/fm-comparison-sources.json', '.github/workflows/sdk.yml']
   workflow_dispatch:
 
 permissions:
@@ -25,10 +25,25 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
+          fetch-depth: 0
+      - name: Select source archive verification scope
+        id: scope
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" != workflow_dispatch && "$GITHUB_REF" != refs/tags/* ]] &&
+             git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null &&
+             git diff --quiet --no-renames "$BASE_SHA" HEAD -- . \
+               ':(exclude,glob)docs/**' ':(exclude,glob)sdk/**/*.md' ':(exclude,glob)runtime/**/README.md'; then
+            echo 'full=false' >> "$GITHUB_OUTPUT"
+          else
+            echo 'full=true' >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
         with:
           python-version: '3.12.3'
       - name: Install SDK toolchain
+        if: steps.scope.outputs.full == 'true'
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y gcc gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi libc6-dev-armel-cross qemu-user p7zip-full libsdl2-dev make
@@ -40,13 +55,22 @@ jobs:
           python tools/check_repository_layout.py
           python -m unittest discover -s tests -p 'test_sdk_*.py' -v
       - name: Verify checkout runtime with original libc
+        if: steps.scope.outputs.full == 'true'
         run: |
           python tools/sdk.py setup
           python tools/test_sdk.py
       - name: Create and verify source-only archive
+        env:
+          FULL_SDK_CHECK: ${{ steps.scope.outputs.full }}
         run: |
           python tools/package_sdk.py
-          python tools/test_sdk_bundle.py "dist/sdk/$(cat sdk/VERSION)/x1000-sdk-$(cat sdk/VERSION)-source.zip" --stock-exe firmware/original/NW-X1000_V1_11.exe
+          version=$(cat sdk/VERSION)
+          archive="dist/sdk/$version/x1000-sdk-$version-source.zip"
+          if [[ "$FULL_SDK_CHECK" == true ]]; then
+            python tools/test_sdk_bundle.py "$archive" --stock-exe firmware/original/NW-X1000_V1_11.exe
+          else
+            python tools/test_sdk_bundle.py "$archive" --archive-only
+          fi
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: x1000-sdk-source
