@@ -1,7 +1,21 @@
 """Offline core, touch, ABI and missing-storage lifecycle checks. No ROM downloads."""
 from pathlib import Path
-import subprocess,hashlib,json,shutil
-ROOT=Path(__file__).resolve().parents[1];w=ROOT/'work/emulator-app-tests';w.mkdir(exist_ok=True);lib=ROOT/'work/arm-signal-tests/lib';rows=[]
+import argparse,subprocess,hashlib,json,shutil
+ROOT=Path(__file__).resolve().parents[1]
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--launcher', required=True, type=Path)
+parser.add_argument('--output', type=Path, help='Use a fresh work directory instead of the package review directory')
+args = parser.parse_args()
+launcher = (ROOT / args.launcher).resolve()
+if (not launcher.is_file() or (ROOT / args.launcher).is_symlink()
+        or not any(launcher.is_relative_to(ROOT / area) for area in ('work', 'dist'))):
+    parser.error('--launcher must select an existing launcher ELF under work/ or dist/')
+launcher_sha256 = hashlib.sha256(launcher.read_bytes()).hexdigest()
+w = (ROOT / (args.output or 'work/emulator-app-tests')).resolve()
+if not w.is_relative_to(ROOT / 'work') or w == ROOT / 'work':
+    parser.error('--output must select a directory below work/')
+w.mkdir(parents=True, exist_ok=args.output is None)
+lib=ROOT/'work/arm-signal-tests/lib';rows=[]
 core=['runtime/apps/emulators/gbc_core.c','runtime/native/sha256.c']+['third_party/gnuboy/'+n+'.c'for n in ['lcd','refresh','lcdc','palette','cpu','mem','rtc','hw','sound']]
 touch=['tools/test_emulator_touch.c','runtime/apps/emulators/platform.c','runtime/native/frontend.c']
 tama=['tools/test_tama_core.c','tools/fixtures/tama_memory_platform.c','third_party/tama-id/color.c','third_party/tama-id/core/tc_all.c']
@@ -35,8 +49,8 @@ for name in ['gbc','tamagotchi-id']:
 # Packaged apps are recognized and executable hashes validate under the production launcher.
 apps=w/'apps';apps.mkdir(exist_ok=True)
 for name in ['gbc','tamagotchi-id']:shutil.copytree(ROOT/'work/emulator-apps'/name/'package',apps/name,dirs_exist_ok=True)
-launcher=ROOT/'dist/0.1.0-dev.16/first-device-test-candidate8/02_PLAYER_FILES/HOMEBREW/launcher/app'
 for command in ['--catalog','--check']:
  r=subprocess.run(['qemu-arm','-cpu','arm926',str(lib/'ld-linux.so.3'),'--library-path',str(lib),str(launcher),command,str(apps)],capture_output=True,text=True,timeout=15);assert r.returncode==0,(command,r.stdout,r.stderr);assert 'gbc'in r.stdout and 'tamagotchi-id'in r.stdout;rows.append({'case':command,'stdout':r.stdout,'exit':r.returncode})
-report={'passed':True,'cases':rows,'scope':'Synthetic original test ROM only; host and real ARM core tests; virtual display/touch and missing /contents reject path. No real ROM, device audio, USB or hardware qualification.','hardware_tested':False}
+assert hashlib.sha256(launcher.read_bytes()).hexdigest() == launcher_sha256
+report={'passed':True,'cases':rows,'launcher':launcher.relative_to(ROOT).as_posix(),'launcher_sha256':launcher_sha256,'scope':'Synthetic original test ROM only; host and real ARM core tests; virtual display/touch and missing /contents reject path. No real ROM, device audio, USB or hardware qualification.','hardware_tested':False}
 (w/'report.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))

@@ -168,5 +168,5 @@ report = {'scope': 'Original root state dispatcher plus bounded forwarding bodie
                      'GUI service bridges and 0x71cb8 command path do not execute their real services.',
                      '420015 deactivation routes added;718c0/71a3c bodies execute with command coordinator and gate/busy helper responses mocked. Deferred430113 event not consumed here.',
                      'No display, touch, audio, USB or physical player restoration is qualified.']}
-(ROOT / 'sources/native-spider-restore-dispatch.json').write_text(json.dumps(report, indent=2) + '\n')
-print('40 root + 39 GUI dispatches, slot4 command3 and slot6 queued command6 distinguished; bounded effects verified')
+if __name__ == '__main__':
+    print(json.dumps(report, indent=2))

@@ -234,3 +234,9 @@ python tools/check_main_warm_manager_cycles.py \
 The last check starts from the retained manager and a supplied Main state. It
 executes three departure/activation cycles and rejects an invalid application ID.
 The completion events and transport are modeled.
+
+The warm replay uses the application table in the retained manager state. For
+independent registration events or operation 8 USB-state translation, pass a
+local `AppList.conf` with `--app-list` to
+`test_player_registration_identity.py` or `check_usb_state_query.py`. Those
+checks record the selected file's hash. USB ioctl responses remain fixtures.

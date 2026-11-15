@@ -7,7 +7,9 @@ from check_main_activation_ack import root_fixture
 from unicorn.arm_const import UC_ARM_REG_R0,UC_ARM_REG_R1,UC_ARM_REG_R2,UC_ARM_REG_R3,UC_ARM_REG_LR,UC_ARM_REG_PC
 if not __debug__:raise RuntimeError('Run without Python optimization')
 ROOT=Path(__file__).resolve().parents[1];base=ROOT/'tools/check_main_activation_ack.py'
-parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--reply-report');parser.add_argument('--report',type=Path);parser.add_argument('--receive-registration-events',action='store_true');parser.add_argument('--native-event-lookup',action='store_true');parser.add_argument('--registered-manager-lookup',action='store_true');parser.add_argument('--native-event-services',action='store_true');parser.add_argument('--dispatch-root-events',action='store_true');parser.add_argument('--execute-coordinator',action='store_true');parser.add_argument('--native-gui-submit',action='store_true');parser.add_argument('--consume-gui-queue',action='store_true');parser.add_argument('--run-gui-worker',action='store_true');parser.add_argument('--complete-gui-token',action='store_true');parser.add_argument('--acknowledge-activation',action='store_true');parser.add_argument('--first-start-queries',action='store_true');parser.add_argument('--first-start-usb-state',type=int,choices=range(5),default=0);options=parser.parse_args()
+parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--reply-report');parser.add_argument('--report',type=Path);parser.add_argument('--receive-registration-events',action='store_true');parser.add_argument('--native-event-lookup',action='store_true');parser.add_argument('--registered-manager-lookup',action='store_true');parser.add_argument('--native-event-services',action='store_true');parser.add_argument('--dispatch-root-events',action='store_true');parser.add_argument('--execute-coordinator',action='store_true');parser.add_argument('--native-gui-submit',action='store_true');parser.add_argument('--consume-gui-queue',action='store_true');parser.add_argument('--run-gui-worker',action='store_true');parser.add_argument('--complete-gui-token',action='store_true');parser.add_argument('--acknowledge-activation',action='store_true');parser.add_argument('--first-start-queries',action='store_true');parser.add_argument('--first-start-usb-state',type=int,choices=range(5),default=0)
+parser.add_argument('--app-list', type=Path, help='AppList.conf fixture for event replay without a retained manager')
+options=parser.parse_args()
 if options.first_start_queries:options.acknowledge_activation=True
 if options.acknowledge_activation:options.complete_gui_token=True
 if options.complete_gui_token:options.run_gui_worker=True
@@ -20,6 +22,15 @@ if options.native_event_services:options.registered_manager_lookup=True
 if options.registered_manager_lookup:options.native_event_lookup=True
 if options.native_event_lookup:options.receive_registration_events=True
 if options.receive_registration_events:assert options.reply_report
+config_path = None
+if options.receive_registration_events and not options.registered_manager_lookup:
+    if options.app_list is None:
+        parser.error('--app-list is required to replay events without a retained manager')
+    from component_receipts import private
+    config_path = private(options.app_list)
+    config_bytes = config_path.read_bytes()
+elif options.app_list is not None:
+    parser.error('--app-list is only used when replaying events without a retained manager')
 reply_source=None
 if options.reply_report:
     from evidence_checks import verify_report
@@ -39,8 +50,8 @@ if options.registered_manager_lookup:
     assert registration_report['registration_reply'] == reply_report['registration_reply']
     manager.hook_del(registration_hook)
     table=struct.unpack('<I',manager.mem_read(0x60000004,4))[0]
-    config_bytes=(ROOT/'work/integration-0.1.0-dev.16/system-overlay/etc/AppList.conf').read_bytes()
-    lookup_session.update({'emulator':manager,'core':0x60000000,'table':table,'queries':0,'config_sha256':hashlib.sha256(config_bytes).hexdigest(),'request_address':0x6001b000})
+    # This table is bound to the saved manager RAM through the registration report.
+    lookup_session.update({'emulator':manager,'core':0x60000000,'table':table,'queries':0,'config_sha256':None,'request_address':0x6001b000})
     registration_preserved={address:bytes(manager.mem_read(address,length)) for address,length in ((0x60006000,0x1b4),(0x60010000,256))}
 
 def hook(uc,pc,size,data):
@@ -104,7 +115,7 @@ def hook(uc,pc,size,data):
     if event_phase and pc==0xeaa0:event_callbacks.append('0xeaa0');return
     if event_phase and not options.native_event_lookup and pc==0xb0800:
         name=bytes(uc.mem_read(a[0],64)).split(b'\0',1)[0].decode()
-        config=(ROOT/'work/integration-0.1.0-dev.16/system-overlay/etc/AppList.conf').read_text()
+        config=config_bytes.decode('utf-8')
         entry=next(line.split() for line in config.splitlines() if line.strip() and not line.lstrip().startswith('#') and line.split()[-1]==name)
         app_id=int(entry[0],16);name_queries.append({'name':name,'id_fixture':app_id})
         uc.mem_write(a[1],struct.pack('<I',app_id));uc.reg_write(UC_ARM_REG_R0,0);uc.reg_write(UC_ARM_REG_PC,uc.reg_read(UC_ARM_REG_LR));return
@@ -136,7 +147,7 @@ def hook(uc,pc,size,data):
         from native_lookup_fixture import lookup,lookup_in_session
         details={}
         if lookup_session:lookup_reply,comparisons=lookup_in_session(lookup_session,packet,details=details)
-        else:lookup_reply,comparisons=lookup(ROOT,packet,session=lookup_session,config_bytes=(ROOT/'work/integration-0.1.0-dev.16/system-overlay/etc/AppList.conf').read_bytes(),details=details)
+        else:lookup_reply,comparisons=lookup(ROOT,packet,session=lookup_session,config_bytes=config_bytes,details=details)
         lookup_requests.append({'packet_hex':packet.hex(),'reply_hex':lookup_reply.hex(),'name':packet[20:].split(b'\0',1)[0].decode(),'parser':details,'comparisons':comparisons})
     elif event_phase and options.native_event_lookup and pc==0x268d48 and a[0]==500:
         assert lookup_reply is not None and a[2]==len(lookup_reply)
@@ -284,7 +295,7 @@ if options.acknowledge_activation:
     assert activation_acks[0]['reply_words']==[16,5,1,0] and activation_acks[0]['client_state_at_send']==1
     assert struct.unpack('<I',manager.mem_read(0x60010000+12,4))[0]==2
     assert struct.unpack('<I',manager.mem_read(0x60000000+0x4b8c,4))[0]==1
-paths=[Path(__file__),base,ROOT/'work/targets-jp/SpiderApp']+([reply_source] if reply_source else [])+([ROOT/'work/integration-0.1.0-dev.16/system-overlay/etc/AppList.conf'] if options.receive_registration_events else [])
+paths=[Path(__file__),base,ROOT/'work/targets-jp/SpiderApp']+([reply_source] if reply_source else [])+([config_path] if config_path else [])
 if options.native_event_lookup:paths += [ROOT/'tools/native_lookup_fixture.py',ROOT/'work/targets-jp/sysmgrd']
 r={'all_bounded_checks_passed':True,'constructor':'0x2652e0','registration_entry':'0x2687c8','stopped_at_send':'0x268c9c','request_words':words,'request_hex':requests[0].hex(),'opened_ports':opened,'client_sequence_after':1,
    'source_hashes':{str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in paths},

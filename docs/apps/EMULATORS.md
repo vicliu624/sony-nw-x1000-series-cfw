@@ -5,6 +5,11 @@ GBC core adapter/scheduler and Tamagotchi iD adapter. tools/build_emulator_apps.
 produces separate gbc and tamagotchi-id packages. Shared code is intentional;
 their manifests and app state remain distinct.
 
+Pass the launcher ELF under review to
+`tools/test_emulator_apps.py --launcher work/<composition>/external/HOMEBREW/launcher/app`.
+Use `--output work/<review>` for a fresh offline test directory. The report
+records the launcher hash used for catalog and package validation.
+
 Keep ROMs and save files on user storage and out of Git/packages. The platform
 preserves the existing Sony stop/ownership boundary. Audio scheduling uses shared
 runtime/platform services and the FM mixer adapter where explicitly linked; this

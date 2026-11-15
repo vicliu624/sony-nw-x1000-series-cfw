@@ -1,12 +1,15 @@
 """Original SpiderApp operation8 -> original manager USB ioctl translation; virtual driver only."""
 from pathlib import Path
-import contextlib,hashlib,io,json,runpy,struct
+import argparse,contextlib,hashlib,io,json,runpy,struct
 from unicorn import UC_HOOK_CODE
 from unicorn.arm_const import UC_ARM_REG_R0,UC_ARM_REG_R1,UC_ARM_REG_R2,UC_ARM_REG_R3,UC_ARM_REG_PC,UC_ARM_REG_LR
 from native_lookup_fixture import lookup,request_in_session
+from component_receipts import private
 if not __debug__:raise RuntimeError('Run without Python optimization')
 ROOT=Path(__file__).resolve().parents[1];base=ROOT/'tools/check_spider_restore_dispatch.py'
-config=ROOT/'work/integration-0.1.0-dev.16/system-overlay/etc/AppList.conf'
+arguments = argparse.ArgumentParser(description=__doc__)
+arguments.add_argument('--app-list', required=True, type=Path)
+config = private(arguments.parse_args().app_list)
 bootstrap=struct.pack('<5I',276,0,1,36,864)+b'SpiderApp\0'+bytes(246)
 assert len(bootstrap)==276
 session={};parser={};reply,_=lookup(ROOT,bootstrap,config_bytes=config.read_bytes(),details=parser,session=session)
@@ -50,5 +53,4 @@ r={'all_bounded_checks_passed':True,'client_wrapper':'0xb0764','client_request':
              'Manager config parsed once by original1574c via bootstrap lookup; same query model reused, no process registration/full startup established.',
              'No actual ioctl/device driver execution. Zero query result does not prove USB physically disconnected: stock authority can mask status, per separate driver evidence.',
              'Core mode2 supplied; rejection modes4/5 and ioctl failures not covered here. No physical device, storage write or firmware output.']}
-(ROOT/'sources/native-usb-state-query.json').write_text(json.dumps(r,indent=2)+'\n')
-print('Original operation8 USB state client/manager translation passed5 raw-state cases')
+print(json.dumps(r, indent=2))
