@@ -61,9 +61,10 @@ python tools/test_sdk_bundle.py dist/sdk/review-source.zip \
 ```
 
 Use a fresh output name; the packager refuses to overwrite an existing archive.
-The bundle test checks every file against its manifest, prepares dependencies
-from the pinned updater, generates minimal/touch-ui/canvas-game apps, renders
-them on the host, builds ARM packages and exercises the service matrix. Original
+The bundle test checks every file against its manifest and prepares dependencies
+once from the pinned updater. The full run checks the host and ARM runtime,
+generates minimal/touch-ui/canvas-game apps, renders them on the host, builds ARM
+packages and exercises the service matrix. Original
 Sony binaries remain local and are not included in the source ZIP.
 Extracted sources, dependencies and fixture binaries use the host's temporary
 directory. Under WSL this normally keeps compilation on the Linux filesystem.

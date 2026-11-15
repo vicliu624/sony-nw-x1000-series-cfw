@@ -74,6 +74,7 @@ def verify_bundle(a, work):
         report.update(scope='player-client-only', clean_inputs=True, original_installer_only=True,
                       public_player_consumer=True, full_sdk_matrix_run=False)
         return 'player-bundle-test-report.json', report
+    run('tools/test_sdk.py')
     checks=[]
     for template in ('minimal','touch-ui','canvas-game'):
         ident='new-'+template
@@ -95,7 +96,8 @@ def verify_bundle(a, work):
     run('tools/test_sdk_storage_stop.py')
     run('tools/test_sdk_espnow.py');run('tools/test_sdk_espnow_full.py');run('tools/test_sdk_espnow_owner.py');run('tools/test_sdk_player_service.py')
     report.update(clean_inputs=True, templates_created_host_rendered_arm_packaged=checks,
-                  external_native_service_client=True, full_sdk_matrix_run=True)
+                  host_and_native_runtime_checked=True, external_native_service_client=True,
+                  full_sdk_matrix_run=True)
     return 'bundle-test-report.json', report
 
 

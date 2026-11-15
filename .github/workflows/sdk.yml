@@ -54,11 +54,6 @@ jobs:
         run: |
           python tools/check_repository_layout.py
           python -m unittest discover -s tests -p 'test_sdk_*.py' -v
-      - name: Verify checkout runtime with original libc
-        if: steps.scope.outputs.full == 'true'
-        run: |
-          python tools/sdk.py setup
-          python tools/test_sdk.py
       - name: Create and verify source-only archive
         env:
           FULL_SDK_CHECK: ${{ steps.scope.outputs.full }}
@@ -67,7 +62,7 @@ jobs:
           version=$(cat sdk/VERSION)
           archive="dist/sdk/$version/x1000-sdk-$version-source.zip"
           if [[ "$FULL_SDK_CHECK" == true ]]; then
-            python tools/test_sdk_bundle.py "$archive" --stock-exe firmware/original/NW-X1000_V1_11.exe
+            python tools/test_sdk_bundle.py "$archive"
           else
             python tools/test_sdk_bundle.py "$archive" --archive-only
           fi

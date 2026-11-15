@@ -421,10 +421,9 @@ a clean CI checkout.
 
 For source archive qualification, build a fresh local SDK archive with
 `tools/package_sdk.py` and pass it to `tools/test_sdk_bundle.py`. This extracts a
-clean SDK and prepares its own pinned libraries. For code changes the SDK
-workflow runs the checkout runtime fixtures with the original loader and libc,
-then runs the service matrix and ESP-NOW client checks from the extracted archive.
-Documentation changes use the archive-only check. The main
+clean SDK and prepares its pinned libraries once. The full SDK workflow runs the
+host and original-libc runtime fixtures, service matrix and ESP-NOW client checks
+from that extracted archive. Documentation changes use the archive-only check. The main
 workflow supplies layout and unit checks on main and its pull requests. SDK tag
 and manual runs perform those source checks independently. Source-only
 reproducibility requires fresh inputs. An SDK archive is not a firmware update
