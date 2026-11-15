@@ -209,9 +209,10 @@ Use reusable local inputs for the updater. The updater
 executables, INI and stock UPG must match the original Japanese 1.11 hashes.
 The managed Root owner uses the radio and helper already in the system image.
 For an older owner whose receipt lists external radio files, supply
-`--radio-inputs` with the exact matching files. The diagnostic preserves an
-original Sony package and supplies a fresh bounded diagnostic record. The
-directory, ZIP and checksum are staged beside the destination. The ZIP's inventory and file hashes are
+`--radio-inputs` with the exact matching files. Keep the original Sony update
+package as a separate retained input. The diagnostic includes its reviewed UPG,
+the updater and a fresh bounded diagnostic record. The directory, ZIP and
+checksum are staged beside the destination. The ZIP's inventory and file hashes are
 checked before publishing. A failed attempt clears its staging files and leaves
 previous deliveries available.
 No pairing keys, configuration or PN journals are supplied. Copying external

@@ -77,9 +77,9 @@ static int pending_send(const uint32_t *snapshot, uint32_t pending) {
     return pending && owned(snapshot, pending);
 }
 
-/* Original wlan_hostcmd_ioctl copies the response's declared size and updates
- * iwreq.length at3f8c. A return of0 alone is insufficient: failed user copying
- * can still reach that return, so every response envelope/echo is checked. */
+/* Sony dev_ioctl leaves the user iwreq unchanged for even ioctl 0x8be4.
+ * wlan_hostcmd_ioctl copies the response payload separately; its header is the
+ * response length. A zero ioctl result can also follow a failed payload copy. */
 static int command(struct xnow_sd8686_full *radio, uint8_t *bytes, unsigned input, unsigned output,
                    unsigned action, unsigned offset, uint32_t address) {
     if (!live(radio))
@@ -95,7 +95,7 @@ static int command(struct xnow_sd8686_full *radio, uint8_t *bytes, unsigned inpu
     strcpy(request.ifr_name, "eth0");
     request.u.data.pointer = bytes;
     request.u.data.length = input;
-    if (frame_original_ioctl(radio->fd, 0x8be4, &request) < 0 || request.u.data.length != output ||
+    if (frame_original_ioctl(radio->fd, 0x8be4, &request) < 0 || request.u.data.length != input ||
         sd8686_get16(bytes) != 0x8086 || sd8686_get16(bytes + 2) != output ||
         sd8686_get16(bytes + 6) || sd8686_get16(bytes + 8) != action ||
         sd8686_get16(bytes + 10) != offset || sd8686_get32(bytes + 12) != address || !live(radio))

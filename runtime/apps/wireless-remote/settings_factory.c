@@ -621,7 +621,10 @@ int wr_settings_factory_tick(struct wr_settings_factory *f){
   if(f->held&&!f->fault_latched)(void)xw_player_host_wireless_remote_retired(&f->radio,0);
   f->fault_latched=1;f->error=b->error?b->error:XW_PLAYER_UNCERTAIN;return f->error;
  }
- if(f->fault_latched)return XW_PLAYER_UNAVAILABLE;
+ if(f->fault_latched){
+  if(b->phase==WR_SETTINGS_RETIRED){b->phase=WR_SETTINGS_FAULT;b->error=f->error;}
+  return XW_PLAYER_UNAVAILABLE;
+ }
  /* The admission callback can reserve a logical lease before fork. If start
   * failed with no process object, no child/owner received that lease. */
  if(f->held&&b->phase==WR_SETTINGS_OFF&&!b->process.state){

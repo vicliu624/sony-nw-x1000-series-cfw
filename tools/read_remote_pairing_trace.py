@@ -168,7 +168,7 @@ def main():
         if row['stage']==23:
             row['exit_detail']=dict(zip(('service_exit','owner_exit','application_error','worker_reason','worker_error','player_close_error'),map(signed,state)))
         if row['stage']==24:
-            row['failure_origin']={1:'storage-guard-or-endpoint',2:'endpoint-prepare',3:'owner-stream',4:'transmit-poll',5:'receive-security'}.get(state[0],'unknown')
+            row['failure_origin']={1:'storage-guard-or-endpoint',2:'endpoint-prepare',3:'owner-stream',4:'transmit-poll',5:'receive-security',6:'link-transport'}.get(state[0],'unknown')
             if state[0] in (2,5) and status==-21:row['failure_domain']='encrypted-counter-storage'
         if row['stage']==25:
             row['startup_stage']=SERVICE_OPERATIONS.get(state[0],'unknown')

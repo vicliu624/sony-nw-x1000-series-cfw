@@ -22,7 +22,7 @@ generated=out/'actual-summary.c'
 packet_start=function(owner,'static int owner_enable_packet_backend(')
 generated.write_text(fixture.read_text().replace('/* ACTUAL_OWNER_REPORT */',
     function(owner,'static void owner_report_retirement(')).replace('/* ACTUAL_PARENT_READER */',
-    function(parent,'void xw_player_pairing_trace_exit(')).replace('/* ACTUAL_FRM1_START */',
+    function(parent,'void xw_player_pairing_trace_exit(const struct wr_supervisor_process *process) {')).replace('/* ACTUAL_FRM1_START */',
     packet_start.replace('owner_enable_packet_backend','owner_enable_frames',1)).replace('/* ACTUAL_BULK_START */',
     packet_start.replace('owner_enable_packet_backend','owner_enable_bulk',1)))
 flags=['-std=c99','-Wall','-Wextra','-Werror','-Wno-misleading-indentation','-I',str(ROOT)]

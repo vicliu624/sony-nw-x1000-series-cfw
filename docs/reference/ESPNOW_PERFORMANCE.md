@@ -29,9 +29,16 @@ result or a promise about the platform's physical ceiling.
 | Path | Result | Evidence scope |
 | --- | --- | --- |
 | Installed dev.34 + Core2 alpha.32 cover | 46.358 s normal drawing, 46.229 s without progress redraws; about 2.8 KiB/s | Physical cached-image trial; not a pure RF benchmark |
+| Installed dev.37 FRM1 ioctl fix + Core2 alpha.32 cover | 149,975 bytes in 22.020 s, 6.65 KiB/s (54.5 kbit/s); 147 replies and zero timeouts | Physical X1060-to-Core2 run with normal drawing and a different cached image; measures application payload throughput |
 | Full BLK1 request/reply/completion | RX55 + TX71 + completion22 = 148 commands | Actual native backend with a synthetic register device |
 | BLK2 read-vector version | RX12 + TX23 + completion6 = 41 commands | Same complete native path, host sanitizers and Sony-libc ARM926 |
 | FRM1 packet transactions | RX6 + TX1 + completion1 = 8 commands; a full 1,536-byte TX/RX pair uses 11 | Native host/ARM code connected to original MCU dispatch/allocator/submit/release instructions |
+
+The dev.37 cover run averaged 142.2 ms from each request to its receive
+callback, then 5.7 ms in the Core2 receive queue. Final decode took 0.292 s
+after the transfer interval. The round trip includes the Walkman application,
+its host-command path and both radio directions. An SDK-only physical
+throughput measurement is still pending.
 
 The BLK2 command vector is fresh for each guard validation. Writes invalidate
 it. Marker/address echoes, lease admission, packet-node identity and pre/post

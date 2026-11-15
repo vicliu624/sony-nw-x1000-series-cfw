@@ -329,12 +329,13 @@ guarantee. No updater, drive operation or controller flash runs during preparati
 ## Files
 
 - 01_PC_UPDATE: unchanged Sony updater, DLLs, INI and licenses with this diagnostic UPG.
-- 02_ORIGINAL_SONY: the original Sony 1.11 updater/package, preserved separately.
 - 03_PLAYER_FILES: {player_files}.
   It contains no pairing keys, configuration, PN journals, apps or saved games.
   Existing Homebrew launcher/apps stay in place. Remote programs and SDK library
   are embedded in the firmware; do not copy old owner.arm/service.arm files.
 {controller_files}- SHA256SUMS.txt and materials.json: exact file identities and review provenance.
+
+Keep the original Sony 1.11 update package separately for stock restoration.
 
 ## Installation
 
@@ -383,11 +384,11 @@ stage; this package makes no automatic repair or recovery promise.
 
 
 def stage_materials(staging, reviewed, controller, updater, radio):
-    for folder in ('01_PC_UPDATE', '02_ORIGINAL_SONY'):
-        for name, source in updater.items():
-            if folder == '01_PC_UPDATE' and name == 'NW_WM_FW.UPG':
-                source = reviewed['upg']
-            checked_copy(source, staging / folder / name)
+    update = staging / '01_PC_UPDATE'
+    for name, source in updater.items():
+        if name == 'NW_WM_FW.UPG':
+            source = reviewed['upg']
+        checked_copy(source, update / name)
     external = staging / '03_PLAYER_FILES'
     for name, source in radio.items():
         checked_copy(source, external / name)

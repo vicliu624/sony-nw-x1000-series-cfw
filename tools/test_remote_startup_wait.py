@@ -42,6 +42,9 @@ def verify_forget(elf, symbols, pthread_plt):
                 result = 0x683400
             elif pc == base + symbols['wr_view_menu_state']:
                 result = 0xc202 if case in ('wrong-page', 'abandoned-dialog') else 0xc203
+            elif pc == base + symbols['hb_monotonic_millis']:
+                uc.mem_write(uc.reg_read(UC_ARM_REG_R0), struct.pack('<Q', 500))
+                result = 0
             elif pc == base + symbols['xw_player_host_remote_pairing_forget']:
                 assert bytes(uc.mem_read(uc.reg_read(UC_ARM_REG_R0), 6)) == address
                 assert uc.reg_read(UC_ARM_REG_R1) == 1
@@ -91,7 +94,8 @@ def main():
     pthread_plt = int(re.search(r'\b([0-9a-f]+) <pthread_self@plt>', disassembly)[1], 16)
     base, area, stop = 0x50000000, 0x70000000, 0x7000ff00
     cases = {}
-    for case in ('queued', 'starting', 'ready', 'failed', 'timeout', 'stop-busy', 'queue-busy', 'parent-queue-retry'):
+    for case in ('queued', 'starting', 'ready', 'ready-at-deadline', 'failed', 'draining',
+                 'timeout', 'fault', 'queue-busy', 'parent-queue-retry'):
         cpu = Uc(UC_ARCH_ARM, UC_MODE_ARM)
         cpu.mem_map(base, 0x100000)
         cpu.mem_map(area, 0x10000)
@@ -106,6 +110,7 @@ def main():
         cpu.mem_write(base + symbols['wait_serial'], struct.pack('<Q', 41))
         events = []
         stop_requests = []
+        phase = {'queued': 1, 'failed': 1, 'draining': 3, 'fault': 5}.get(case, 2)
         ports = {base + symbols[name]: result for name, result in {
             'xw_player_remote_page_image_valid': 1, 'xw_player_remote_view_image_valid': 1,
             'wr_view_menu_context': 0x683400, 'wr_view_menu_state': 0xc202,
@@ -117,17 +122,22 @@ def main():
             registers = [uc.reg_read(reg) for reg in (UC_ARM_REG_R0, UC_ARM_REG_R1, UC_ARM_REG_R2, UC_ARM_REG_R3)]
             if address in ports:
                 result = ports[address]
+            elif address == base + symbols['wr_settings_backend_query']:
+                uc.mem_write(registers[1], struct.pack('<IIii', phase, case == 'queued', 0, 0))
+                result = 0
             elif address == base + symbols['wr_settings_backend_start_result']:
-                stage = {'queued': 0, 'starting': 7, 'failed': 5}.get(case, 9)
+                stage = {'queued': 0, 'starting': 7, 'timeout': 7, 'failed': 5,
+                         'draining': 8, 'fault': 8}.get(case, 9)
                 serial = 41 if case == 'queued' else 42
-                uc.mem_write(registers[1], struct.pack('<Qiiii', serial, stage, -2 if case == 'failed' else 0, 0, 0))
+                error = -2 if case in ('failed', 'draining', 'fault') else 0
+                uc.mem_write(registers[1], struct.pack('<QQiiii', serial, 43, stage, error, 0, 0))
                 result = 0
             elif address == base + symbols['hb_monotonic_millis']:
-                uc.mem_write(registers[0], struct.pack('<Q', 15000 if case in ('timeout', 'stop-busy') else 500))
+                uc.mem_write(registers[0], struct.pack('<Q', 15000 if case in ('timeout', 'ready-at-deadline') else 500))
                 result = 0
             elif address == base + symbols['wr_settings_backend_request_stop']:
                 stop_requests.append(True)
-                result = -4 if case == 'stop-busy' else 1
+                result = 1
             elif address in (0xa57f0, 0x74668, 0x17ca34):
                 events.append([address, *(registers[:3] if address == 0x17ca34 else registers)])
                 first_parent_post = case == 'parent-queue-retry' and address == 0xa57f0 and len(events) == 2
@@ -144,13 +154,21 @@ def main():
             cpu.emu_start(base + symbols['xw_player_host_remote_page_tick'], stop, count=10000)
             assert cpu.reg_read(UC_ARM_REG_PC) == stop
         tick()
+        if case in ('draining', 'timeout'):
+            assert not events and any(cpu.mem_read(base + symbols['waiting'], 4))
+            phase = 4  # The child has exited, but the factory has yet to renew.
+            tick()
+            assert not events and any(cpu.mem_read(base + symbols['waiting'], 4))
+            phase = 1
+            tick()
         if case == 'parent-queue-retry':
             assert any(cpu.mem_read(base + symbols['waiting'], 4))
             assert len(events) == 2
             tick()
             assert events.pop(2) == events[1]
-        completed = case in ('ready', 'failed', 'timeout', 'parent-queue-retry')
-        assert bool(stop_requests) == (case in ('timeout', 'stop-busy'))
+        completed = case in ('ready', 'ready-at-deadline', 'failed', 'draining',
+                             'timeout', 'fault', 'parent-queue-retry')
+        assert len(stop_requests) == (case == 'timeout')
         assert bool(any(cpu.mem_read(base + symbols['waiting'], 4))) != completed, (case, events)
         assert events == (
             [[0xa57f0, 0x20114, 0, 113, 0], [0xa57f0, 0x20106, 0, 97, 11],

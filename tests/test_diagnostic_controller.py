@@ -177,7 +177,8 @@ class DiagnosticOutputTests(unittest.TestCase):
             for name, data in files.items():
                 self.assertEqual(bundle.read(f'example/{name}'), data)
         self.assertEqual(files['01_PC_UPDATE/NW_WM_FW.UPG'], self.firmware.read_bytes())
-        self.assertEqual(files['02_ORIGINAL_SONY/NW_WM_FW.UPG'], self.stock.read_bytes())
+        self.assertEqual([name for name in files if name.endswith('.UPG')], ['01_PC_UPDATE/NW_WM_FW.UPG'])
+        self.assertEqual(self.stock.read_bytes(), b'fixture original')
         self.assertEqual(len(list(self.output.parent.iterdir())), 3)
 
     def test_failed_archive_verification_leaves_no_staging_or_final_outputs(self):

@@ -228,16 +228,25 @@ static void finish_wait(void) {
         return;
     if (!wait_finishing) {
         struct wr_settings_start_result start;
-        if (wr_settings_backend_start_result(page.backend, &start))
+        struct wr_settings_view backend;
+        if (wr_settings_backend_query(page.backend, &backend) ||
+            wr_settings_backend_start_result(page.backend, &start))
             return;
-        unsigned long long now;
-        int timed_out =
-            hb_monotonic_millis(&now) || now < wait_started || now - wait_started >= 15000;
-        if (!timed_out && (start.serial <= wait_serial || start.stage == WR_START_OFFERED))
+        unsigned phase = backend.phase;
+        if (backend.pending || phase == WR_SETTINGS_STOPPING ||
+            phase == WR_SETTINGS_RETIRED)
             return;
-        if (timed_out && (page.backend->pending_enabled ||
-                          wr_settings_backend_request_stop(page.backend) == XW_PLAYER_BUSY))
-            return;
+        if (phase != WR_SETTINGS_FAULT &&
+            (start.serial <= wait_serial ||
+             (phase == WR_SETTINGS_STARTING && start.stage != WR_START_READY))) {
+            unsigned long long now;
+            if (!hb_monotonic_millis(&now) && now >= wait_started && now - wait_started < 15000)
+                return;
+            if (phase == WR_SETTINGS_STARTING) {
+                (void)wr_settings_backend_request_stop(page.backend);
+                return;
+            }
+        }
         wait_finishing = 1;
     }
     if (wait_dialog) {

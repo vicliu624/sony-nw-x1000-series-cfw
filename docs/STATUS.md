@@ -41,8 +41,27 @@ under Sony libc and the selected MCU instructions. It covers modeled manager
 states 2, 3 and 4 and a rejected FRM1 marker. Root/USB admission, physical wake,
 receive membership and the actual failing Settings attempt remain outside this
 replay. See [offline checks](REGRESSION.md#groups).
-Runtime changes and new candidates are on hold pending cause/architecture review.
-The 1 Mbps application target remains unmeasured; see
+The local `dev37-startup-trace` diagnostic uses the current reviewed player
+library and the same FRM1 radio image. Its UPG SHA-256 is
+`77f08a6fca624513119341837076c29dac38affd90bab15f1c0cbbe3acdce644`.
+It records startup results against the initiating request, with separate
+player-service and packet-backend results when available. A physical run reached
+player-service readiness after the native player handshake, and Core2 accepted
+no frames. The trace lacks the request-scoped result and radio-owner exit data.
+Replaying the same ARM build with a reaped child and an outstanding radio lease
+produced the same partial record. The current Settings source retains the matching
+startup result after reap and waits for retirement after a failed or timed-out
+start. The second diagnostic captured an RF link-transport `-4` during startup,
+with zero decoded frames and clean supervisor retirement. The FRM1 host adapter
+compared the user `iwreq` length with the response length even though Sony's
+kernel preserves the request length for ioctl `0x8be4`. Original ARM instruction
+replay confirms the mismatch, and the old adapter fails the matching MCU test.
+The source now validates the response length in the copied command header.
+The user confirmed that Remote works after installing the FRM1 ioctl-fix package
+(UPG SHA-256 `2d67d7f07b368393461ada1c21c1fbba0144bdd4ce84d55f46c7e4a1808115ec`).
+Core2 reported an established authenticated link and downloaded a 149,975-byte
+cover in 22.020 seconds (6.65 KiB/s, 54.5 kbit/s). The SDK-only throughput
+measurement for the 1 Mbps target remains pending; see
 [performance](reference/ESPNOW_PERFORMANCE.md).
 The user reports installing the dev.34 diagnostic. Core2 alpha.30 established
 visible artwork on hardware; alpha.31 supplied mode-write UI, and alpha.32 is
@@ -117,9 +136,9 @@ Mode changes, sleep and USB behavior remain physical acceptance items.
 | Ordinary Wi-Fi handoff | On `native-ipc-01`, the user reports no Wi-Fi drop through Homebrew entry/exit; the diagnostic uses retained mode0/command6. The Remote trial explicitly used Wi-Fi on without a router | Confirm association/data continuity and sleep/wake separately; enabled radio alone is not an IP connection |
 | Remote pairing | Selection-based Core2 pairing and persisted bindings have worked on the test unit | Retain binding across service restart, USB and sleep in the final composition |
 | Remote controls | The user confirmed basic controls on the earlier matched profile; the installed dev.34 profile advertises typed five-mode writes through the original native request/settings order with explicit command negotiation | Physically qualify all five mode changes and restart behavior; old journals remain unchanged |
-| Remote artwork | Cover display works. Two Core2 alpha.32 reads of the same cached 131,872-byte image take about 46 seconds, with/without progress redraws, about 2.8 KiB/s; final decode is about 0.34 seconds. The 150 ms pacing and 120-second cutoff fixes remain | Reduce the X1060 control-command overhead; isolate live ioctl/RF times. Another track returned source I/O and needs separate investigation |
+| Remote artwork | Core2 alpha.32 displayed a 149,975-byte cover in the dev.37 FRM1 trial. Transfer took 22.020 seconds (6.65 KiB/s), followed by 0.292 seconds of decode | Repeat the same test image for a controlled BLK2/FRM1 comparison. Another track returned source I/O and needs separate investigation |
 | Quiet remote sessions | Current sender emits no heartbeat; Core2 has no periodic reconnect or quiet-session expiry | Confirm interaction-driven recovery with the final hardware composition |
-| Packet IO | Installed dev.34 transfers artwork at about 2.8 KiB/s. Offline BLK2 costs 41 complete-path commands; FRM1 costs eight in the native/MCU replay and retains the 1,500-byte command boundary and full packet limits | Measure actual command/PHY timing, qualify the final shared composition and physical lifecycle; no physical FRM1 throughput result exists |
+| Packet IO | Offline BLK2 costs 41 complete-path commands; FRM1 costs eight in the native/MCU replay and retains the 1,500-byte command boundary and full packet limits. Physical FRM1 artwork throughput is 6.65 KiB/s | Measure actual command/PHY timing and SDK-only throughput, and qualify the physical lifecycle |
 | Sleep and recovery | Native observer tests retain qualified wake entry/completion during a pending transition, defer rearm until stable, and reject recovery after exit | Physical screen-off, suspend and wake timing remain unqualified |
 | USB after remote use | `shared-rx-02` hung after confirmed Remote Off. Actual Root stop functions plus the full controller reproduce a source bug: endpoint drain can execute manager RELEASE before the outer receive/sleep cleanup runs. Dev.19 yields at this transition; host/ARM tests pass connected/unassociated, channel-change and cleanup-failure paths | Physical USB recovery remains unverified. New retirement summaries need a fresh diagnostic seed; the old occupied-slot trace does not describe the failed trial |
 | Root capacity | The dev.37 frame layout adds 648 KiB in an ordinary 148 MiB ext2 model using Sony's formatter, with about 27.08 MiB nonreserved margin; full content and inode metadata readback pass | This model does not explain the reported Remote startup failure. Actual NAND geometry, installation and recovery remain unqualified; see [system footprint](SYSTEM_FOOTPRINT.md) |

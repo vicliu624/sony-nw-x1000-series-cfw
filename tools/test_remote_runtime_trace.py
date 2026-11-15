@@ -110,7 +110,11 @@ for blocker in ('remote-child','pairing-child','store-child','activation-pending
   cpu.reg_write(UC_ARM_REG_SP,area+0xf000);cpu.reg_write(UC_ARM_REG_LR,stop)
   cpu.emu_start(base+syms['xw_player_host_remote_auto'],stop+4,count=1000000)
   assert cpu.reg_read(UC_ARM_REG_PC)==stop and not stores,(blocker,stores)
-  for name,value in (('held',0),('phase',1),('pending',0),('child',0),('pair_owner',0),('store_child',0),('ready',0)):
+  # A reaped supervisor's result must reach disk even if RF release is pending.
+  stopping = blocker == 'remote-child' and child_detail and not args.historical
+  for name,value in (('held',int(stopping)),('phase',3 if stopping else 1),('pending',0),
+                     ('child',1234 if stopping else 0),('reaped',int(stopping)),
+                     ('pair_owner',0),('store_child',0),('ready',0)):
    put(base+factory+offsets[name],value)
   cpu.reg_write(UC_ARM_REG_SP,area+0xf000);cpu.reg_write(UC_ARM_REG_LR,stop)
   cpu.emu_start(base+syms['xw_player_host_remote_auto'],stop+4,count=1000000)
@@ -118,6 +122,9 @@ for blocker in ('remote-child','pairing-child','store-child','activation-pending
       ('snapshot',[(1,1),(17,2),(18,3)])]
   assert cpu.reg_read(UC_ARM_REG_PC)==stop and stores==expected,(blocker,stores)
   assert not get(base+syms['trace_pending'])
+  if stopping:
+   put(base+factory+offsets['held'],0)
+   put(base+factory+offsets['phase'],1)
  if latest_build:
   stores.clear()
   for serial in (41,42):

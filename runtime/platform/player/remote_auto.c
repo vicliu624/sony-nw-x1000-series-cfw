@@ -61,6 +61,7 @@ static const uint32_t latest_slots = (1u << (TRACE_SETTINGS_RESULT - 1)) |
 static uint64_t trace_process_id, trace_last_serial;
 static uint64_t trace_child_generation;
 static struct wr_start_failures trace_child_log;
+void xw_player_pairing_trace_exit(const struct wr_supervisor_process *process);
 static int trace_owned(void *context) {
     (void)context;
     return xw_player_host_wireless_player_active() && !xw_player_host_original_exiting() &&
@@ -128,20 +129,19 @@ static void runtime_trace_settings_result(void) {
     const struct wr_settings_backend *backend = &factory.backend;
     const struct wr_settings_start_result *start = &backend->last_start;
     if (!start->serial || start->serial == trace_last_serial || start->stage == WR_START_NONE ||
-        factory.held || backend->pending_enabled ||
-        (backend->phase != WR_SETTINGS_OFF && backend->phase != WR_SETTINGS_RETIRED &&
-         backend->phase != WR_SETTINGS_FAULT) ||
+        backend->pending_enabled ||
+        (!start->child_reaped && (factory.held || backend->phase != WR_SETTINGS_OFF)) ||
         (backend->process.child > 0 && !backend->process.reaped) ||
         (factory.pairing.owner && !factory.pairing.reaped) || factory.pairing_store_job.child > 0 ||
         !trace_owned(0))
         return;
-    trace_last_serial = start->serial;
     if (!trace_process_id) {
         uint64_t token;
         if (remote_random(&token, sizeof token) || !token)
             return;
         trace_process_id = token;
     }
+    trace_last_serial = start->serial;
     uint64_t build = XW_REMOTE_TRACE_BUILD;
     uint32_t payload[12] = {
         (uint32_t)start->result, start->stage, start->child_reaped, (uint32_t)start->child_wait_status,
@@ -153,6 +153,9 @@ static void runtime_trace_settings_result(void) {
     memcpy(trace_payload[TRACE_SETTINGS_RESULT - 1], payload, sizeof payload);
     trace_sequence[TRACE_SETTINGS_RESULT - 1] = 1; /* This slot is its own observation. */
     trace_pending |= 1u << (TRACE_SETTINGS_RESULT - 1);
+    if (start->child_reaped && start->generation && start->generation == backend->process.generation &&
+        trace_child_generation != start->generation)
+        xw_player_pairing_trace_exit(&backend->process);
     if (start->child_reaped && start->generation && start->generation == trace_child_generation) {
         const struct wr_start_failures *log = &trace_child_log;
         uint32_t child[12] = {

@@ -16,6 +16,7 @@
 #include <linux/wireless.h>
 #ifdef XNOW_FRAME_STARTUP_REPLAY
 #include "../../runtime/platform/espnow/xnow_full_control.h"
+#include "../../runtime/platform/espnow/xnow_link.h"
 #include <sys/socket.h>
 #endif
 
@@ -222,7 +223,7 @@ int ioctl(int fd, unsigned long op, ...) {
             transport_dead = 1;
         return -1;
     }
-    request->u.data.length = (unsigned short)used;
+    /* Sony dev_ioctl leaves the outer iwreq unchanged for even ioctl 0x8be4. */
     memcpy(p, response, selected == FAIL_PARTIAL ? 10 : used);
 #ifdef XNOW_FRAME_STARTUP_REPLAY
     if (bad_frame_marker && !action && address == XNOW_RADIO_FRAME_MARKER)
@@ -372,6 +373,18 @@ static void shared_startup(unsigned state, int reject_marker) {
         assert(!!endpoint->transport->packets.submit == !reject_marker);
         assert(!!controller.radio.frames.enabled == !reject_marker);
         assert(submits == sent);
+        if (!reject_marker) {
+            struct xnow_peer broadcast = {.address = {255, 255, 255, 255, 255, 255},
+                                          .channel = 8, .version = 2};
+            uint8_t announce[XNOW_LINK_WIRE_BYTES] = {'X', 'N', 'L', '1', XNOW_LINK_ANNOUNCE};
+            struct xnow_endpoint_result reply;
+            assert(!xnow_endpoint_add(endpoint, &broadcast));
+            assert(!xnow_endpoint_send(endpoint, broadcast.address, announce, sizeof announce));
+            assert(xnow_endpoint_poll(endpoint, &reply) == XNOW_PENDING);
+            assert(endpoint->waiting && submits == ++sent);
+            completed(0);
+            assert(!xnow_endpoint_poll(endpoint, &reply) && !reply.result && !reply.stock_status);
+        }
         xnow_full_control_stop(&controller);
         assert(!xnow_full_control_endpoint(&controller));
         assert(xnow_full_control_step(&controller) == XNOW_SESSION_STOPPING);
