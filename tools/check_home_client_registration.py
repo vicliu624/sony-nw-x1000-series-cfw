@@ -378,5 +378,6 @@ default_report = (
 output = (ROOT / (options.report or default_report)).resolve()
 assert output.suffix == '.json' and any(output.is_relative_to(ROOT/folder) for folder in ('sources','work'))
 output.parent.mkdir(parents=True,exist_ok=True)
-output.write_text(json.dumps(r,indent=2)+'\n')
+with output.open('x' if output.is_relative_to(ROOT/'work') else 'w', encoding='utf-8') as stream:
+    stream.write(json.dumps(r, indent=2) + '\n')
 print('Original Home constructor/registration generates32-byte request and PID-derived ports864/865')

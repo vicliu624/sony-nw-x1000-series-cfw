@@ -208,6 +208,9 @@ accepts existing launch, proxy-exit and Home confirmation captures. Its saved
 manager RAM and writable regions stay beside the report when `--report` points
 under `work/`. The registration check loads that state directly. The separate
 argument-query check is available for the second-entry continuation.
+Registration and warm Main replay require explicit inputs and new report paths.
+The previous aggregate replay and early integration audits are available from
+Git history. Their local captures are historical inputs for focused checks.
 
 ```sh
 python tools/check_proxy_manager_return.py \

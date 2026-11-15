@@ -91,16 +91,18 @@ def replay_registration(return_report, client_request_report=None):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--manager-return-report', default='sources/native-ipc-manager-return.json')
+    parser.add_argument('--manager-return-report', required=True)
     parser.add_argument('--client-request-report')
-    parser.add_argument('--report', type=Path)
+    parser.add_argument('--report', required=True, type=Path)
     options = parser.parse_args()
-    default = 'native-home-ipc-client-registration.json' if options.client_request_report else 'native-home-ipc-registration.json'
-    output = (ROOT / (options.report or Path('sources') / default)).resolve()
-    assert output.suffix == '.json' and any(output.is_relative_to(ROOT/folder) for folder in ('sources', 'work'))
+    output = (ROOT / options.report).resolve()
+    if (output.suffix != '.json' or not output.is_relative_to(ROOT / 'work')
+            or output.exists() or (ROOT / options.report).is_symlink()):
+        parser.error('--report must be a new JSON file under work/')
     _, _, report = replay_registration(options.manager_return_report, options.client_request_report)
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(report, indent=2) + '\n')
+    with output.open('x', encoding='utf-8') as stream:
+        stream.write(json.dumps(report, indent=2) + '\n')
     print('Original Home registration resolves PID432 to app1, allocates port865 and frames activation')
 
 

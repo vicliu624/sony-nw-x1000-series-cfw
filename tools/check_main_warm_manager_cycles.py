@@ -7,13 +7,15 @@ from unicorn.arm_const import UC_ARM_REG_R0,UC_ARM_REG_R1,UC_ARM_REG_R2,UC_ARM_R
 from native_lookup_fixture import request_in_session
 ROOT=Path(__file__).resolve().parents[1];client_source=ROOT/'tools/check_home_client_registration.py'
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument('--registration-report', default='sources/native-home-ipc-client-registration.json')
-parser.add_argument('--report', default='sources/native-main-warm-manager-cycles.json')
+parser.add_argument('--registration-report', required=True)
+parser.add_argument('--report', required=True, type=Path)
 options = parser.parse_args()
 output = (ROOT / options.report).resolve()
-assert output.suffix == '.json' and any(output.is_relative_to(ROOT/folder) for folder in ('sources', 'work'))
-activation_report = (output.with_name(output.stem + '-activation.json') if output.is_relative_to(ROOT/'work')
-                     else ROOT/'sources/native-home-client-registration-active.json')
+if output.suffix != '.json' or not output.is_relative_to(ROOT / 'work') or (ROOT / options.report).is_symlink():
+    parser.error('--report must be a new JSON file under work/')
+activation_report = output.with_name(output.stem + '-activation.json')
+if any(path.exists() or path.is_symlink() for path in (output, activation_report)):
+    parser.error('Warm Main report and companion activation report must be new files')
 previous=sys.argv
 try:
  sys.argv = [str(client_source), '--reply-report', options.registration_report, '--acknowledge-activation', '--report', str(activation_report)]
@@ -51,4 +53,6 @@ rejected,_=request_in_session(manager_session,bytes(bad));rejected_words=list(st
 
 tracked=[Path(__file__),client_source,ROOT/'tools/check_main_activation_ack.py',ROOT/'tools/native_lookup_fixture.py',activation_report,ROOT/options.registration_report,ROOT/'work/targets-jp/SpiderApp',ROOT/'work/targets-jp/sysmgrd']
 report={'passed':True,'initial_warm_state':[3,4],'initial_seed_limit':'Seed uses existing Main2/2 activation prerequisite; native acknowledgement produces initial3/4. This is not cold boot.','invalid_app_control':{'app_id':'0x3ffff','reply':rejected_words,'home_record_unchanged':True},'cycles':transitions,'requests':requests,'source_hashes':{str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for p in tracked},'hardware_tested':False,'limits':['Completion events supplied; preceding GUI workers and real departure/return not executed.','Original client and retained original manager process every reply; not forced success packets.','Initial warm-state prerequisite remains; no real IPC, kernel or rendering qualification.']}
-output.write_text(json.dumps(report,indent=2)+'\n');print('Three warm Main/client cycles accepted by the same original manager; initial-state/completion-event fixtures remain.')
+with output.open('x', encoding='utf-8') as stream:
+    stream.write(json.dumps(report, indent=2) + '\n')
+print('Three warm Main/client cycles accepted by the same original manager; initial-state/completion-event fixtures remain.')
