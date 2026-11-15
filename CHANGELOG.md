@@ -1,6 +1,15 @@
 # Changelog
 
-## Unreleased (0.1.0-dev.37)
+## 0.1.0-dev.38
+
+- Publish the tested shared-radio firmware and its Core2 application together.
+- Deliver cover data in windows of eight chunks, each up to 1,344 bytes.
+  Resume from the last verified byte after a lost chunk. Playback control
+  remains available during download.
+- Keep the cover placeholder on Core2 until the transfer finishes or fails.
+- Update the source SDK service contracts and package the maintained apps.
+
+## 0.1.0-dev.37 development changes
 
 - Apply correlated release claims and cancellation before free to scalar,
   BLK1 and BLK2 radio profiles, as well as FRM1.

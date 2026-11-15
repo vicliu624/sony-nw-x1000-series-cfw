@@ -3,7 +3,19 @@
 Target: Japanese NW-X1050/NW-X1060, based on Sony 1.11. International NWZ-X
 firmware and other Walkman families are comparison material only.
 
-The working tree is **0.1.0-dev.37**; SDK source is **0.2.0-alpha.13**.
+Release versions are **0.1.0-dev.38** for firmware and **0.2.0-alpha.14** for the
+source SDK. Dev.38 includes the shared FRM1 radio and the matched Core2 alpha.32
+application. The NW-X1060 owner confirmed normal operation and accepted the
+artwork download speed on the tested firmware and controller pair. The firmware
+UPG SHA-256 is
+`bdb38a817e1deb09ddcd414fa3a32f8d55933489cce2a6de8fa04cf13aef8171`.
+The installation components match Sony 1.11. Full physical qualification still
+requires separate USB, sleep/wake, router coexistence and NW-X1050 checks.
+See [ESP-NOW performance](reference/ESPNOW_PERFORMANCE.md) for the individual
+measurements.
+
+## Earlier development diagnostics
+
 The experimental native radio archive source is **0.1.0-dev.22**. Its per-link key
 negotiation is connected to the opt-in Root owner and Core2 alpha.29 adapters.
 The matching diagnostic has established a link and delivered authenticated
@@ -60,8 +72,10 @@ The source now validates the response length in the copied command header.
 The user confirmed that Remote works after installing the FRM1 ioctl-fix package
 (UPG SHA-256 `2d67d7f07b368393461ada1c21c1fbba0144bdd4ce84d55f46c7e4a1808115ec`).
 Core2 reported an established authenticated link and downloaded a 149,975-byte
-cover in 22.020 seconds (6.65 KiB/s, 54.5 kbit/s). The SDK-only throughput
-measurement for the 1 Mbps target remains pending; see
+cover in 22.020 seconds (6.65 KiB/s, 54.5 kbit/s). The shared-link RAM test
+peaked at 11.69 KiB/s with fixed waits and 24.53 KiB/s after waiting on ready
+service and owner descriptors. Both used a measured 1 Mbps PHY.
+The 100 KiB/s target remains open; see
 [performance](reference/ESPNOW_PERFORMANCE.md).
 The user reports installing the dev.34 diagnostic. Core2 alpha.30 established
 visible artwork on hardware; alpha.31 supplied mode-write UI, and alpha.32 is
@@ -74,11 +88,7 @@ independent extraction pass, together with 104 immutable offline regressions,
 The controller timing addition has its own build and physical measurements.
 Mode changes and lifecycle acceptance of the new composition are still pending. The mode composition
 requires Core2 alpha.31 or newer.
-The release baselines are firmware **v0.1.0-dev.21** and SDK
-**sdk-v0.2.0-alpha.8**. A public release and the current working tree are
-different configurations. Do not transfer validation claims between them.
-
-General release packaging remains on hold. The user reports installing the
+The user reports installing the
 private `native-ipc-01` diagnostic, fast Homebrew entry/exit and uninterrupted
 Wi-Fi through that handoff. This partial physical acceptance applies to UPG
 SHA-256 `04505d749b354dd5befd8a53ebb454067ad0a74c73034cdf603050d2f119e7e5`.
@@ -132,13 +142,13 @@ Mode changes, sleep and USB behavior remain physical acceptance items.
 | Stock startup, Settings, Homebrew | The user reports `native-ipc-01` installed and Homebrew entry/exit are much faster; timing was not measured. Earlier Settings, English, Graphics and one-HOME passes are separate evidence | Confirm current Settings/app launch/one-HOME behavior and repeated cold startup |
 | Localization | Original Japanese and completed English/Chinese text paths are implemented | Recheck sleep/wake and every installed language with the final composition |
 | External apps | Source SDK, launcher, package validation, native application builds and external storage layout are implemented | Check the complete installed app set after lifecycle changes |
-| Developer SDK architecture | All 36 public service modules and their implementation/header dependency graph are independent of app source; private stock Settings callbacks/layout have a separate platform module | Consumer-specific native composition still needs review; callback device persistence needs qualified ownership, and a general managed task API is not provided; see [delivery gaps](ARCHITECTURE.md#developer-delivery-gaps) |
+| Developer SDK architecture | All public service modules and their implementation/header dependency graph are independent of app source. Private stock Settings callbacks and layouts have a separate platform module | Consumer-specific native composition still needs review. Callback device persistence needs qualified ownership. See [delivery constraints](ARCHITECTURE.md#developer-delivery-constraints) |
 | Ordinary Wi-Fi handoff | On `native-ipc-01`, the user reports no Wi-Fi drop through Homebrew entry/exit; the diagnostic uses retained mode0/command6. The Remote trial explicitly used Wi-Fi on without a router | Confirm association/data continuity and sleep/wake separately; enabled radio alone is not an IP connection |
 | Remote pairing | Selection-based Core2 pairing and persisted bindings have worked on the test unit | Retain binding across service restart, USB and sleep in the final composition |
 | Remote controls | The user confirmed basic controls on the earlier matched profile; the installed dev.34 profile advertises typed five-mode writes through the original native request/settings order with explicit command negotiation | Physically qualify all five mode changes and restart behavior; old journals remain unchanged |
 | Remote artwork | Core2 alpha.32 displayed a 149,975-byte cover in the dev.37 FRM1 trial. Transfer took 22.020 seconds (6.65 KiB/s), followed by 0.292 seconds of decode | Repeat the same test image for a controlled BLK2/FRM1 comparison. Another track returned source I/O and needs separate investigation |
 | Quiet remote sessions | Current sender emits no heartbeat; Core2 has no periodic reconnect or quiet-session expiry | Confirm interaction-driven recovery with the final hardware composition |
-| Packet IO | Offline BLK2 costs 41 complete-path commands; FRM1 costs eight in the native/MCU replay and retains the 1,500-byte command boundary and full packet limits. Physical FRM1 artwork throughput is 6.65 KiB/s | Measure actual command/PHY timing and SDK-only throughput, and qualify the physical lifecycle |
+| Packet IO | Offline BLK2 costs 41 complete-path commands; FRM1 costs eight in the native/MCU replay. Shared FRM1 RAM throughput reached 24.53 KiB/s at 1 Mbps PHY with descriptor readiness | Isolate firmware completion waits and measure the supported Action-frame rates |
 | Sleep and recovery | Native observer tests retain qualified wake entry/completion during a pending transition, defer rearm until stable, and reject recovery after exit | Physical screen-off, suspend and wake timing remain unqualified |
 | USB after remote use | `shared-rx-02` hung after confirmed Remote Off. Actual Root stop functions plus the full controller reproduce a source bug: endpoint drain can execute manager RELEASE before the outer receive/sleep cleanup runs. Dev.19 yields at this transition; host/ARM tests pass connected/unassociated, channel-change and cleanup-failure paths | Physical USB recovery remains unverified. New retirement summaries need a fresh diagnostic seed; the old occupied-slot trace does not describe the failed trial |
 | Root capacity | The dev.37 frame layout adds 648 KiB in an ordinary 148 MiB ext2 model using Sony's formatter, with about 27.08 MiB nonreserved margin; full content and inode metadata readback pass | This model does not explain the reported Remote startup failure. Actual NAND geometry, installation and recovery remain unqualified; see [system footprint](SYSTEM_FOOTPRINT.md) |

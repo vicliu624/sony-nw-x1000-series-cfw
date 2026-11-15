@@ -5,7 +5,7 @@ static uint64_t after(uint64_t now, unsigned delay) {
     return now > UINT64_MAX - delay ? UINT64_MAX : now + delay;
 }
 static void admit_image_budget(struct wr_artwork_progress *job, uint32_t total) {
-    unsigned chunks = (total + XW_ARTWORK_CHUNK - 1u) / XW_ARTWORK_CHUNK;
+    unsigned chunks = (total + WR_ARTWORK_DATA_BYTES - 1u) / WR_ARTWORK_DATA_BYTES;
     unsigned budget = WR_ARTWORK_SETUP_MS + chunks * WR_ARTWORK_CHUNK_BUDGET_MS;
     if (budget < WR_ARTWORK_JOB_MS)
         budget = WR_ARTWORK_JOB_MS;
@@ -17,6 +17,7 @@ static void admit_image_budget(struct wr_artwork_progress *job, uint32_t total) 
 }
 static void clear_transfer(struct wr_artwork_progress *job) {
     job->pending = job->received = job->total = job->attempts = job->complete = job->failed = 0;
+    job->remaining = 0;
 }
 const struct wr_artwork_progress *wr_artwork_client_progress(const struct wr_artwork_client *c) {
     return c ? &c->job : 0;
@@ -35,7 +36,7 @@ enum wr_artwork_observation wr_artwork_client_observe(struct wr_artwork_client *
         unsigned had_context = job->session != 0;
         job->session = 0;
         job->id.value[0] = 0;
-        job->identity_observed = job->pending = job->complete = 0;
+        job->identity_observed = job->pending = job->complete = job->remaining = 0;
         if (!online || !status || !status->session || !(status->valid & XW_PF_TRACK) ||
             !status->id[0])
             return had_context ? WR_ARTWORK_CONTEXT_CHANGED : WR_ARTWORK_UNCHANGED;
@@ -44,9 +45,8 @@ enum wr_artwork_observation wr_artwork_client_observe(struct wr_artwork_client *
         if (!job->session || !job->identity_observed)
             return WR_ARTWORK_UNCHANGED;
         job->identity_observed = 0;
-        /* A late reply cannot append while the source identity is unknown.
-         * Keep its serial for a same-identity read retry after confirmation. */
-        job->pending = 0;
+        /* Resume with a fresh request at the last verified offset. */
+        job->pending = job->remaining = 0;
         return WR_ARTWORK_OBSERVATION_PAUSED;
     }
     if (job->session == status->session && !memcmp(job->id.value, status->id, sizeof status->id)) {
@@ -57,7 +57,9 @@ enum wr_artwork_observation wr_artwork_client_observe(struct wr_artwork_client *
             job->next = now;
         return WR_ARTWORK_OBSERVATION_RESUMED;
     }
+    uint32_t serial = job->serial;
     memset(job, 0, sizeof *job);
+    job->serial = serial;
     job->session = status->session;
     memcpy(job->id.value, status->id, sizeof status->id);
     job->identity_observed = 1;
@@ -71,7 +73,7 @@ int wr_artwork_client_request(struct wr_artwork_client *c, uint64_t now, void *o
         return -1;
     struct wr_artwork_progress *job = &c->job;
     if (!job->session || !job->identity_observed || job->complete || job->failed || job->pending ||
-        now < job->next || now >= job->deadline || (!job->attempts && job->serial == UINT32_MAX))
+        now < job->next || now >= job->deadline || job->serial == UINT32_MAX)
         return -1;
     if (job->attempts >= WR_ARTWORK_ATTEMPT_LIMIT) {
         job->failed = 1;
@@ -79,12 +81,13 @@ int wr_artwork_client_request(struct wr_artwork_client *c, uint64_t now, void *o
     }
     struct wr_artwork_request request = {0};
     request.session = job->session;
-    request.request = job->attempts ? job->serial : job->serial + 1;
+    request.request = job->serial + 1;
     request.offset = job->received;
     request.id = job->id;
     if (wr_artwork_request_encode(out, capacity, &request, key))
         return -1;
     job->pending = job->serial = request.request;
+    job->remaining = WR_ARTWORK_WINDOW_CHUNKS;
     job->attempts++;
     job->next = now;
     return 0;
@@ -94,8 +97,8 @@ int wr_artwork_client_accept(struct wr_artwork_client *c, uint64_t now, const vo
     if (!c)
         return -1;
     struct wr_artwork_progress *job = &c->job;
-    if (!job->session || !job->identity_observed || job->failed ||
-        (!job->pending && !job->attempts) || now >= job->deadline)
+    if (!job->session || !job->identity_observed || job->failed || !job->remaining ||
+        now >= job->deadline)
         return -1;
     struct wr_artwork_reply reply;
     uint32_t expected = job->pending ? job->pending : job->serial;
@@ -103,7 +106,8 @@ int wr_artwork_client_accept(struct wr_artwork_client *c, uint64_t now, const vo
         reply.request != expected || memcmp(&reply.chunk.id, &job->id, sizeof job->id) ||
         reply.chunk.offset != job->received)
         return -1;
-    job->pending = 0;
+    if (reply.result)
+        job->pending = job->remaining = 0;
     job->last_result = reply.result;
     job->replies++;
     if (reply.result == XW_PLAYER_BUSY) {
@@ -141,6 +145,10 @@ int wr_artwork_client_accept(struct wr_artwork_client *c, uint64_t now, const vo
     job->received += reply.chunk.bytes;
     job->complete = job->received == job->total;
     job->attempts = 0;
+    job->remaining--;
+    if (job->complete)
+        job->remaining = 0;
+    job->pending = job->remaining ? job->serial : 0;
     job->next = after(now, WR_ARTWORK_PACE_MS);
     return 0;
 }

@@ -1,4 +1,13 @@
-# X1000 SDK 0.2.0-alpha.13 (unreleased)
+# X1000 SDK 0.2.0-alpha.14
+
+The source archive includes the FRM1 packet backend and the current native
+service contracts. Applications use Linux directly for system information,
+ordinary files and process operations. App-specific image handling lives with
+its consumer. Rebuild source apps against the current service definitions.
+ESP-NOW and the managed Sony player client have independent interfaces and
+permissions. The cover transfer protocol belongs to the remote application.
+
+# X1000 SDK 0.2.0-alpha.13 (development changes)
 
 Adds an optional exact-image FRM1 packet backend. Submit, TX completion, staged
 RX and consumption have distinct outcomes. The protected frame-body limit stays
@@ -17,7 +26,7 @@ Host-sanitizer and original-libc ARM checks connect the real native adapter to
 the exact original MCU dispatch/packet/release path. The representative complete
 exchange costs eight commands instead of 41; this is not a measured physical rate.
 Source apps pin alpha.13, Counter/Canvas move to alpha.7 for embedded SDK identity,
-and Chat moves to dev.6 for the linked native dev.22 archive. No release is made.
+and Chat moves to dev.6 for the linked native dev.22 archive.
 
 # X1000 SDK 0.2.0-alpha.12 (unreleased)
 

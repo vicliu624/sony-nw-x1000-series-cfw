@@ -2,13 +2,9 @@
 
 Source: runtime/apps/device-info. Builder: tools/build_device_info.py.
 
-The app owns its renderer, touch navigation and refresh policy. Shared read-only
-collection and the original statfs ABI adapter live in
-`runtime/platform/system-info/`, exported as the SDK `system-info` module through
-`x1000/services/system_info.h`. This module does not depend on the app's source
-or build recipe. Its bounded text-page snapshot is intended for diagnostics;
-collection uses a shared scratch buffer, so callers must serialize it. A capacity
-snapshot is not storage ownership, a reservation or permission to write.
+The app owns its read-only data collection, text pages, renderer, touch navigation
+and refresh policy. Capacity comes from the original JP1.11 statfs ABI. The
+collector uses a process-local scratch buffer and runs serially on refresh.
 
 Reads CPU/kernel/memory, mounted filesystem capacity and MTD layout. Swipe pages,
 tap to refresh and use BACK TO APPS to return. `--dump` writes stdout; `--help`,

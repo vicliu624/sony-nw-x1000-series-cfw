@@ -73,10 +73,8 @@
       "process",
       "clock-libc",
       "network",
-      "images",
       "volume",
-      "pcm",
-      "files"
+      "pcm"
     ]
   }
 }

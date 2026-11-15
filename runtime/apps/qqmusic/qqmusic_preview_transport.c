@@ -1,7 +1,7 @@
 #define _XOPEN_SOURCE 700
 #include "qqmusic_preview_transport.h"
 #include "qqmusic_preview_wire.h"
-#include "../../../sdk/include/x1000/services/process.h"
+#include "../../native/linux_process.h"
 #include "../../../sdk/include/x1000/services/clock.h"
 #include <sys/stat.h>
 #include <unistd.h>

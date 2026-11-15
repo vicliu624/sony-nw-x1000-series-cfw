@@ -9,10 +9,9 @@ Python runs only on the development computer.
 For app development, start with the [SDK quick start](docs/sdk/README.md).
 For platform changes, read [architecture](docs/ARCHITECTURE.md),
 [platform knowledge](docs/KNOWLEDGE.md) and [contributing](CONTRIBUTING.md).
-The [status table](docs/STATUS.md) distinguishes current source from published
-releases and physical-device results. General release packaging remains on hold
-while lifecycle regressions and developer-facing contracts are reviewed. A local
-candidate for supervised testing is separate from a public release.
+The [status table](docs/STATUS.md) records which features have been checked on
+hardware. The experimental release includes the Japanese firmware, Homebrew apps,
+and the matching Core2 remote for shared Wi-Fi and ESP-NOW.
 
 [Releases](https://github.com/vicliu624/sony-nw-x1000-series-cfw/releases) ·
 [Build guide](docs/BUILD.md) · [Application guides](#applications) ·
@@ -98,9 +97,9 @@ existing native-service apps retain their original guards and formats. The user
 reports previous local builds passed on their unit. Migration tests are offline,
 not new hardware qualification. The source-only SDK contains
 no Sony binaries and does not build or install firmware. This is not yet a
-complete managed app platform: review the [development paths](docs/sdk/README.md#choose-the-supported-development-path)
-and [architecture gaps](docs/ARCHITECTURE.md#developer-delivery-gaps) before
-depending on device persistence or background services.
+complete managed app platform. Review the [development paths](docs/sdk/README.md#choose-the-supported-development-path)
+and [delivery constraints](docs/ARCHITECTURE.md#developer-delivery-constraints)
+before depending on device persistence or background services.
 
 ## Documentation
 

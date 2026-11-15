@@ -1,5 +1,5 @@
 /* Read-only CLI using the same verified stock statfs adapter as Device Info. */
-#include "../../sdk/include/x1000/services/system_info.h"
+#include "../../runtime/apps/device-info/device_info_data.h"
 #include <stdio.h>
 #include <string.h>
 int main(int argc,char **argv){

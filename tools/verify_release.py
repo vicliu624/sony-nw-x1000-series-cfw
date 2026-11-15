@@ -41,6 +41,14 @@ for row in listing.decode('ascii').splitlines()[1:]:
 sys.path.insert(0,str(ROOT/'scripts'));from upg import unpack
 with zipfile.ZipFile(upload/('NW-X1000-'+report['version']+'-firmware.zip')) as z:firmware=z.read('NW_WM_FW.UPG')
 assert digest(firmware)==report['firmware']['firmware_sha256'];_,parts=unpack(firmware,require_stock=False)
+if report['firmware'].get('profile') == 'reviewed-managed-remote':
+ controller = report['controller']
+ name = 'core2-remote-' + controller['version'] + '.zip'
+ assert controller['asset'] == name and name in checksums
+ with zipfile.ZipFile(upload/name) as z:
+  assert sorted(z.namelist()) == ['README.md', 'firmware.bin']
+  image = z.read('firmware.bin')
+  assert len(image) == controller['bytes'] and digest(image) == controller['sha256']
 assert report['firmware']['native_language_settings'] and not report['firmware']['external_language_files_generated']
 assert 'language' not in policy['apps']
 with zipfile.ZipFile(upload/('NW-X1000-'+report['version']+'-player-setup.zip')) as setup:

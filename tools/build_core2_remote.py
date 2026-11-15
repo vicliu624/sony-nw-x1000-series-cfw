@@ -11,7 +11,7 @@ import time
 from app_registry import ROOT
 
 
-def build(platformio, packages_directory=None):
+def build(platformio, packages_directory=None, *, radio_benchmark=False):
     if not platformio.is_file():
         raise FileNotFoundError("PlatformIO executable not found: " + str(platformio))
     project=ROOT/'runtime/apps/wireless-remote/core2';work=ROOT/'work/core2-remote-build'
@@ -22,7 +22,8 @@ def build(platformio, packages_directory=None):
      raise ValueError('Use a dedicated package directory under work/')
     packages_directory.mkdir(parents=True,exist_ok=True)
     environment=dict(os.environ,PYTHONUTF8='1',PYTHONIOENCODING='utf-8',
-                     PLATFORMIO_PACKAGES_DIR=str(packages_directory))
+                     PLATFORMIO_PACKAGES_DIR=str(packages_directory),
+                     X1000_CORE2_RADIO_BENCHMARK=str(int(radio_benchmark)))
     with log.open('w',encoding='utf-8') as output:
      result=subprocess.run([str(pio),'run','-d',str(project)],cwd=ROOT,
                            env=environment,stdout=output,stderr=subprocess.STDOUT)
@@ -41,9 +42,12 @@ def build(platformio, packages_directory=None):
     inputs += [ROOT/'runtime/apps/wireless-remote'/n for n in ('artwork_wire.c','artwork_wire.h','artwork_client.c','artwork_client.h','artwork_image.c','artwork_image.h')]
     inputs += [ROOT/'runtime/platform/player'/name for name in ('artwork.h','player.h','provider.h')]
     inputs += [ROOT/'runtime/platform/espnow'/name for name in ('xnow_link.c','xnow_link.h')]
+    if radio_benchmark:
+     inputs.append(project.parent/'radio_benchmark.h')
     report=dict(built=True,version=(project/'VERSION').read_text().strip(),target='Core2 + Faces Gamepad3',play_mode_write_ui=True,
                 artifacts=artifacts,source_hashes={p.relative_to(ROOT).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in inputs},
                 device_accessed=False,flashed=False,hardware_qualified=False,
+                radio_benchmark=radio_benchmark,
                 limitations=['Library protocol/UI integrated; actual native library/playlist/queue provider capabilities require physical acceptance','Five modes implemented but not physically accepted','Core2 display/touch/Gamepad unqualified'])
     report['packages_directory']=packages_directory.relative_to(ROOT).as_posix()
     destination=ROOT/'work/core2-remote-reviews'/str(time.time_ns());destination.mkdir(parents=True)
@@ -64,8 +68,9 @@ def main():
     )
     parser.add_argument('--packages-directory',type=Path,
                         help='Dedicated PlatformIO package cache under work/, leaving other projects packages intact')
+    parser.add_argument('--radio-benchmark',action='store_true',help='Enable console-only RF measurement')
     args = parser.parse_args()
-    build(args.platformio.resolve(),args.packages_directory)
+    build(args.platformio.resolve(),args.packages_directory,radio_benchmark=args.radio_benchmark)
 
 
 if __name__ == '__main__':

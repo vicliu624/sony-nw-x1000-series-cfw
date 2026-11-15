@@ -4,30 +4,22 @@ import json
 import hashlib
 import os
 from pathlib import Path
-import struct
 import subprocess
 import sys
 import tempfile
 import time
-import zlib
 from app_registry import ROOT
 from sdk import create
 from sdk_services import compile_native, manifest, resolve
-
-def fixture():
-    def chunk(kind,data):return struct.pack('>I',len(data))+kind+data+struct.pack('>I',zlib.crc32(kind+data)&0xffffffff)
-    png=b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',struct.pack('>IIBBBBB',1,1,8,2,0,0,0))+chunk(b'IDAT',zlib.compress(b'\0\xff\0\0'))+chunk(b'IEND',b'')
-    return 'static const unsigned char rgb_fixture[]={'+','.join(map(str,png))+'};\n'
 
 def check_public_consumer(out):
     ident='service-check'
     app_root=out/'client-source'
     definition=create(ident,'minimal','SDK Service Check',app_root)
     (definition/'main.c').write_text((ROOT/'sdk/tests/services.c').read_text())
-    (definition/'rgb-fixture.h').write_text(fixture())
     info=json.loads((definition/'app.json').read_text())
     info['sdk']={'version':(ROOT/'sdk/VERSION').read_text().strip(),'profile':'native-services',
-                 'modules':['startup','display','signals-libc','files','hash','process','network','pcm','fm','unicode-font','images','system-info','volume','packages']}
+                 'modules':['startup','display','signals-libc','hash','process','network','pcm','fm','unicode-font','volume','packages']}
     (definition/'app.json').write_text(json.dumps(info,indent=2)+'\n')
     (definition/'build.json').write_text(json.dumps({'profile':'native-services','sources':['main.c'],'checks':[['--help'],['--version'],['--selftest']]},indent=2)+'\n')
     env=dict(os.environ,QEMU_UNSET_ENV='LD_LIBRARY_PATH,LD_PRELOAD')

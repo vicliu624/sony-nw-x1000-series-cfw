@@ -27,6 +27,12 @@ class SharedDependencyTests(unittest.TestCase):
         self.assertIn('audio-route', resolve(['pcm']))
         self.assertIn('audio-route', resolve(['fm']))
 
+    def test_native_backends_stay_behind_sdk_capabilities(self):
+        modules = manifest()
+        self.assertFalse({'files', 'images', 'system-info'} & modules.keys())
+        self.assertEqual(set(modules['process']['exports']), {'child.h'})
+        self.assertIn('runtime/native/linux_file_ops_posix.c', modules['list-ui']['sources'])
+
 
 if __name__ == '__main__':
     unittest.main()

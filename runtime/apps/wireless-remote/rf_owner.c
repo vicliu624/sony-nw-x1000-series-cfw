@@ -8,6 +8,11 @@
 #include "run_profile.h"
 #include "startup_result.h"
 #include "pairing_store.h"
+#include <poll.h>
+#include <sys/select.h>
+#ifdef WR_RADIO_BENCHMARK
+#include "radio_benchmark.h"
+#endif
 #ifdef XNOW_REMOTE_LINK_KEYS
 #include "../../platform/espnow/xnow_owner_link.h"
 static struct xnow_owner_link owner_link;
@@ -22,6 +27,11 @@ static unsigned retired_link_installs;
 #include "owner_admission.h"
 #include "../../store/deadline.h"
 static struct wr_owner_admission mode_admission;
+static struct pollfd owner_mode_wait_fd(void) {
+    const struct xw_mode_client *client = &mode_admission.client;
+    short events = client->pending ? (client->sent ? POLLIN : POLLOUT) : 0;
+    return (struct pollfd){client->bound ? client->fd : -1, events, 0};
+}
 static int owner_number64(const char *p, uint64_t *out) {
     if (!p || !*p || !out)
         return -1;
@@ -57,7 +67,8 @@ static int owner_mode_await(int retiring) {
         }
         if (rc != XW_MODE_PENDING)
             return -1;
-        usleep(10000);
+        struct pollfd wait = owner_mode_wait_fd();
+        (void)poll(&wait, 1, 10);
     }
 }
 static int owner_mode_start(int fd, const struct xw_wireless_lease *lease) {
@@ -88,6 +99,72 @@ static struct xnow_owner_gate owner_gate;
 static struct xnow_owner_commands owner_commands;
 static struct xnow_owner_stream owner_stream;
 static unsigned pairing_listener;
+
+#ifdef XNOW_RADIO_FRAME_TRANSACTIONS
+/* The Sony select ABI takes two signed 32-bit time fields. Its timeout rounds
+ * up to a tick without the extra tick that sys_poll adds. */
+struct owner_select_time { int32_t seconds, microseconds; };
+typedef char owner_select_abi[(sizeof(fd_set) == 128 && sizeof(struct owner_select_time) == 8) ? 1 : -1];
+extern int owner_stock_select(int, fd_set *, fd_set *, fd_set *, struct owner_select_time *)
+    __asm__("select");
+
+static void wait_tx_completion(struct pollfd *fds, nfds_t count) {
+    if (poll(fds, count, 0))
+        return;
+    fd_set input, output;
+    FD_ZERO(&input);
+    FD_ZERO(&output);
+    int limit = 0;
+    for (nfds_t i = 0; i < count; i++) {
+        int fd = fds[i].fd;
+        if (fd < 0 || fd >= FD_SETSIZE || !fds[i].events)
+            continue;
+        if (fds[i].events & POLLIN)
+            FD_SET(fd, &input);
+        if (fds[i].events & POLLOUT)
+            FD_SET(fd, &output);
+        if (fd >= limit)
+            limit = fd + 1;
+    }
+    struct owner_select_time one_tick = {0, 10000};
+    (void)owner_stock_select(limit, &input, &output, 0, &one_tick);
+}
+#endif
+
+static void wait_owner(void) {
+    int live = !stop_requested && !owner_control.stop_requested && !owner_gate.stopping &&
+               !owner_gate.data_revoked;
+    struct xnow_endpoint *endpoint = live && owner_runtime.prepared
+                                        ? xnow_full_control_endpoint(&owner_control)
+                                        : 0;
+    int input_ready = 0;
+    if (endpoint && !owner_stream.output_bytes) {
+        /* Queueing and submitting are separate steps. Once submitted, the
+         * original driver exposes no waitable packet-completion event. */
+        if ((endpoint->active && !endpoint->waiting) ||
+            (!endpoint->active && (owner_commands.sending || owner_runtime.receive_pending)))
+            return;
+        input_ready = !endpoint->active &&
+            (!owner_runtime.transport_bound ||
+             owner_runtime.transport.ready(owner_runtime.transport.context) == 1);
+    }
+    struct pollfd fds[] = {
+        {live ? owner_stream.input : -1, input_ready ? POLLIN : 0, 0},
+        {live ? owner_stream.output : -1, live && owner_stream.output_bytes ? POLLOUT : 0, 0},
+#ifdef XNOW_REMOTE_MODE_VIEW
+        owner_mode_wait_fd(),
+#endif
+    };
+#ifdef XNOW_RADIO_FRAME_TRANSACTIONS
+    if (!pairing_listener && endpoint && owner_commands.sending && endpoint->active &&
+        endpoint->waiting && endpoint->transport->inflight) {
+        wait_tx_completion(fds, sizeof fds / sizeof fds[0]);
+        return;
+    }
+#endif
+    /* Keep a bounded check for firmware RX/TX and native lifecycle progress. */
+    (void)poll(fds, sizeof fds / sizeof fds[0], 10);
+}
 #ifdef XNOW_REMOTE_MANAGED
 static unsigned pairing_staged;
 static uint8_t staged_record[WR_PAIRING_RECORD_BYTES];
@@ -719,9 +796,15 @@ static int link_clock(void *context, uint64_t *out) {
     return rc;
 }
 static int link_send_allowed(const uint8_t destination[6], const uint8_t *data, size_t bytes) {
+    int allowed = !memcmp(destination, peer_address, 6);
+#ifdef WR_RADIO_BENCHMARK
+    if (allowed)
+        wr_radio_benchmark_observe_send(data, bytes);
+#else
     (void)data;
     (void)bytes;
-    return !memcmp(destination, peer_address, 6);
+#endif
+    return allowed;
 }
 #endif
 static int owner_enable_packet_backend(struct xnow_endpoint *endpoint) {
@@ -1131,8 +1214,12 @@ int main(int argc, char **argv) {
 #ifdef XNOW_REMOTE_LINK_KEYS
     if (!pairing_listener) {
         struct xnow_owner_transport transport;
-        if (xnow_owner_link_transport(&owner_link, &transport) ||
-            xnow_owner_runtime_transport(&owner_runtime, &transport))
+        if (xnow_owner_link_transport(&owner_link, &transport))
+            return owner_startup_failed(writer, cookie, 110);
+#ifdef WR_RADIO_BENCHMARK
+        wr_radio_benchmark_attach(&transport, peer_address, shared);
+#endif
+        if (xnow_owner_runtime_transport(&owner_runtime, &transport))
             return owner_startup_failed(writer, cookie, 110);
     }
 #endif
@@ -1263,6 +1350,6 @@ int main(int argc, char **argv) {
             for (;;)
                 pause();
         }
-        usleep(10000);
+        wait_owner();
     }
 }

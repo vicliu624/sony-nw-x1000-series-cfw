@@ -1,6 +1,6 @@
 #include "qqmusic_preview_binding.h"
 #include "qqmusic_preview_session.h"
-#include "../../../sdk/include/x1000/services/process.h"
+#include "../../native/linux_process.h"
 #include "../../../sdk/include/x1000/services/clock.h"
 #include <string.h>
 static int source_child(void *context,const struct qq_preview_worker_job *worker){

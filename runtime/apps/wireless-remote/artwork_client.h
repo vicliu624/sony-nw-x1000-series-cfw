@@ -7,8 +7,7 @@
 #define WR_ARTWORK_CHUNK_BUDGET_MS 1000u
 #define WR_ARTWORK_JOB_LIMIT_MS 600000u
 #define WR_ARTWORK_REPLY_MS 2000u
-/* The single outstanding authenticated read is the flow-control window.
- * The frontend yields to input each loop; successful replies need no timer. */
+/* Each authenticated read authorizes one bounded window of consecutive data. */
 #define WR_ARTWORK_PACE_MS 0u
 #define WR_ARTWORK_BUSY_MS 300u
 #define WR_ARTWORK_RETRY_MS 100u
@@ -30,7 +29,7 @@ struct wr_artwork_progress {
     struct xw_media_id id;
     uint64_t session, started, deadline, next;
     uint32_t serial, pending, received, total;
-    unsigned attempts, complete, failed, identity_observed;
+    unsigned attempts, remaining, complete, failed, identity_observed;
     int last_result;
     unsigned replies, timeouts, unavailable, restarts, local_rejects;
 };

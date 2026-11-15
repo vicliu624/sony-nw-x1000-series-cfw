@@ -9,7 +9,7 @@ work=ROOT/'work/qqmusic-metadata';work.mkdir(exist_ok=True)
 (work/'report.json').unlink(missing_ok=True)
 lib=ROOT/'work/arm-signal-tests/lib'
 for name,digest in {'libc.so.6':'5afbf3074dfa9ba0478d6670f220ef4d7ec065a255ee856d9093d39210f23812','ld-linux.so.3':'2f007b0809684fde0ac446ad203135c10b4318eb8c10d4160a9f59b32c3c52de'}.items():assert hashlib.sha256((lib/name).read_bytes()).hexdigest()==digest
-core=['runtime/apps/qqmusic/qqmusic_metadata.c','runtime/apps/qqmusic/qqmusic_id3.c','runtime/platform/images/qqmusic_image.c','runtime/platform/images/qqmusic_picture.c','runtime/native/sha256.c','tools/fixtures/qqmusic_metadata.c']
+core=['runtime/apps/qqmusic/qqmusic_metadata.c','runtime/apps/qqmusic/qqmusic_id3.c','runtime/apps/qqmusic/qqmusic_image.c','runtime/apps/qqmusic/qqmusic_picture.c','runtime/native/sha256.c','tools/fixtures/qqmusic_metadata.c']
 sources=core+['runtime/store/stock_tls_compat.c','runtime/store/stock_fs_bridge.c','runtime/store/stock_stat64.c','runtime/store/start.c','runtime/store/start.S']
 stb=ROOT/'third_party/qqmusic-stb';math=ROOT/'work/qqmusic-codec/libm.so.6'
 app=work/'metadata-tests.arm'

@@ -40,14 +40,17 @@ static void cover_survives_unconfirmed_control(void){
   }
   wr_artwork_client_observe(&client,&status,1,now);
   if(goal.request)continue;
-  assert(!wr_artwork_client_request(&client,now,incoming,sizeof incoming,key));
-  queued.kind=XNOW_CLIENT_RX;queued.flags=XNOW_CLIENT_AUTHENTICATED;
-  queued.bytes=WR_ARTWORK_REQUEST_BYTES;memcpy(queued.address,peer,6);
-  assert(wr_sender_step(&sender)==XNOW_CLIENT_PENDING&&!wr_sender_artwork_tick(&sender));
+  if(!client.job.pending){
+   assert(!wr_artwork_client_request(&client,now,incoming,sizeof incoming,key));
+   queued.kind=XNOW_CLIENT_RX;queued.flags=XNOW_CLIENT_AUTHENTICATED;
+   queued.bytes=WR_ARTWORK_REQUEST_BYTES;memcpy(queued.address,peer,6);
+   assert(wr_sender_step(&sender)==XNOW_CLIENT_PENDING);
+  }
+  assert(!wr_sender_artwork_tick(&sender));
   assert(wr_sender_step(&sender)==XNOW_CLIENT_AGAIN&&sender.pending);
   assert(!wr_artwork_client_accept(&client,now,wire,wire_bytes,key));finish(&sender);chunks++;
  }
- assert(expired==1&&chunks==(sizeof picture+XW_ARTWORK_CHUNK-1)/XW_ARTWORK_CHUNK);
+ assert(expired==1&&chunks==(sizeof picture+WR_ARTWORK_DATA_BYTES-1)/WR_ARTWORK_DATA_BYTES);
  assert(client.job.received==sizeof picture&&!memcmp(client.data,picture,sizeof picture));
  assert(!xw_player_close(&player));wr_sender_clear(&sender);
  puts("CONTROL_ARTWORK_PROGRESS_PASS: a slow authenticated cover completes after an accepted but unconfirmed playback goal expires");
@@ -76,7 +79,7 @@ int main(void){
   assert(!memcmp(wire,"WRAR",4));
   queued.kind=XNOW_CLIENT_ACK;queued.request=s.request;queued.operation=4;
   assert(wr_sender_step(&s)==XNOW_CLIENT_PENDING);
-  art_request(&s,i+1,i*XW_ARTWORK_CHUNK);
+  if(i%WR_ARTWORK_WINDOW_CHUNKS==0)art_request(&s,i+1,i*WR_ARTWORK_DATA_BYTES);
   if(i==15)volume=11;
   queued.kind=XNOW_CLIENT_TX;queued.request=s.request;memcpy(queued.address,s.peer,6);
   assert(wr_worker_step(&w,(uint64_t)i*1000)==XW_PLAYER_BUSY);

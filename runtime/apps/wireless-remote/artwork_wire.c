@@ -39,6 +39,7 @@ int wr_artwork_request_encode(void *output, size_t capacity, const struct wr_art
     put(p + 12, r->request);
     put(p + 16, r->offset);
     memcpy(p + 20, r->id.value, 65);
+    p[85] = WR_ARTWORK_WINDOW_CHUNKS;
     if (wr_auth_tag(p + 96, p, 96, key))
         return -1;
     memcpy(output, p, 112);
@@ -49,9 +50,10 @@ int wr_artwork_request_decode(struct wr_artwork_request *out, const void *input,
     if (!out || !input || bytes != 112 || !key)
         return -1;
     const uint8_t *p = input;
-    if (memcmp(p, "WRAQ", 4) || wr_auth_check(p + 96, p, 96, key))
+    if (memcmp(p, "WRAQ", 4) || p[85] != WR_ARTWORK_WINDOW_CHUNKS ||
+        wr_auth_check(p + 96, p, 96, key))
         return -1;
-    for (unsigned i = 85; i < 96; i++)
+    for (unsigned i = 86; i < 96; i++)
         if (p[i])
             return -1;
     struct wr_artwork_request r = {0};
@@ -71,9 +73,9 @@ static int reply_valid(const struct wr_artwork_reply *r) {
     if (r->result)
         return !r->chunk.total && !r->chunk.bytes;
     return r->chunk.total && r->chunk.total <= XW_ARTWORK_MAX && r->chunk.offset < r->chunk.total &&
-           r->chunk.bytes && r->chunk.bytes <= XW_ARTWORK_CHUNK &&
-           r->chunk.bytes == ((r->chunk.total - r->chunk.offset) > XW_ARTWORK_CHUNK
-                                  ? XW_ARTWORK_CHUNK
+           r->chunk.bytes && r->chunk.bytes <= WR_ARTWORK_DATA_BYTES &&
+           r->chunk.bytes == ((r->chunk.total - r->chunk.offset) > WR_ARTWORK_DATA_BYTES
+                                  ? WR_ARTWORK_DATA_BYTES
                                   : r->chunk.total - r->chunk.offset);
 }
 int wr_artwork_reply_encode(void *output, size_t capacity, const struct wr_artwork_reply *r,
@@ -110,7 +112,7 @@ int wr_artwork_reply_decode(struct wr_artwork_reply *out, const void *input, siz
     r.chunk.total = get(p + 85);
     r.chunk.offset = get(p + 89);
     r.chunk.bytes = get(p + 93);
-    if (r.chunk.bytes > XW_ARTWORK_CHUNK ||
+    if (r.chunk.bytes > WR_ARTWORK_DATA_BYTES ||
         bytes != WR_ARTWORK_REPLY_HEADER_BYTES + r.chunk.bytes || !reply_valid(&r))
         return -1;
     memcpy(r.chunk.data, p + 97, r.chunk.bytes);

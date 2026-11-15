@@ -20,16 +20,10 @@
     "qqcheck"
   ],
   "source_relocations": {
-    "runtime/apps/device-info/device_info_data.c": "runtime/platform/system-info/device_info_data.c",
-    "runtime/apps/device-info/device_info_data.h": "runtime/platform/system-info/device_info_data.h",
-    "runtime/apps/device-info/device_info_space.c": "runtime/platform/system-info/device_info_space.c",
     "runtime/apps/qqmusic/qqmusic_storage.c": "runtime/platform/storage/qqmusic_storage.c",
     "runtime/apps/qqmusic/qqmusic_storage.h": "runtime/platform/storage/qqmusic_storage.h",
     "runtime/apps/qqmusic/qqmusic_volume.c": "runtime/platform/storage/qqmusic_volume.c",
     "runtime/apps/qqmusic/qqmusic_volume.h": "runtime/platform/storage/qqmusic_volume.h",
-    "runtime/apps/qqmusic/qqmusic_image.c": "runtime/platform/images/qqmusic_image.c",
-    "runtime/apps/qqmusic/qqmusic_image.h": "runtime/platform/images/qqmusic_image.h",
-    "runtime/apps/qqmusic/qqmusic_picture.c": "runtime/platform/images/qqmusic_picture.c",
     "runtime/apps/fm-radio/fm_audio.c": "runtime/platform/audio/fm_audio.c",
     "runtime/apps/fm-radio/fm_audio.h": "runtime/platform/audio/fm_audio.h",
     "runtime/apps/fm-radio/fm_radio.c": "runtime/platform/fm/fm_radio.c",
@@ -45,6 +39,9 @@
   "preserve_installed_payload": true,
   "user_report": "Previous local app builds passed on the user unit; exact personal package identities not supplied.",
   "excluded_in_progress": "ESP-NOW work is explicitly excluded by the user for this migration.",
+  "app_include_dirs": {
+    "qqmusic": ["third_party/qqmusic-stb"]
+  },
   "app_baselines": {
     "pet": {
       "commit": "1d4ba7e7a3e18f364711e88ae1cb1ac3ae490456",

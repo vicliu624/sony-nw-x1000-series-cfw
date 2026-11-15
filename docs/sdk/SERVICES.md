@@ -15,24 +15,22 @@ See the [lifecycle contract](LIFECYCLE.md).
 
 Header names below are relative to `x1000/services/`. The manifest contains
 the complete export list. Existing C names and structures, including `hb_*`,
-`fm_*`, `dx_*` and `qq_image_*`, remain the public interfaces.
+`fm_*` and `dx_*`, remain the public interfaces.
 
 | Need | Modules | Main headers or guide |
 | --- | --- | --- |
 | Original-libc program entry | `startup` | Supplies the ARM entry; define C `main` |
 | Display and touch | `display` | `display.h`, `touch.h`, `device_io.h` |
 | Stop observation | `signals-libc`, `termination` | `stop.h`, `termination.h` |
-| Files and stock ABI structures | `files`, `abi` | `files.h`, `stat.h`, `stat_layout.h`, `abi.h` |
+| Stock ABI structures and filesystem adapters | `abi` | `stat.h`, `stat_layout.h`, `abi.h` |
 | Hashing | `hash` | `sha256.h` |
-| Parent/child processes | `process` | `process.h`, `child.h` |
+| Managed child execution and reap | `process` | `child.h` |
 | Monotonic deadlines | `clock-libc` or `clock-oabi` | `clock.h`; select one provider |
 | Small text and list presentation | `font5x7`, `list-ui` | `font5x7.h`, `list_ui.h`, `noto_ascii.h`, `presentation.h` |
 | Mount and free-space preflight | `volume` | `volume.h`, `volume_policy.h`; [storage contract](../../runtime/platform/storage/README.md) |
 | Bitmap fonts and dictionary data | `bitmap-font`, `lexicon` | `bitmap_font.h`, `lexicon.h`; [text contract](../../runtime/platform/text/README.md) |
-| PNG/JPEG/RGB565 conversion | `images` | `images.h`; [image contract](../../runtime/platform/images/README.md) |
 | PCM output and routing | `pcm`, `audio-route` | `pcm.h`, `audio_route.h`; [audio contract](../../runtime/platform/audio/README.md) |
 | FM receiver and restoration | `fm` | `fm_model.h`, `fm_tuner.h`, `fm_session.h`, `fm_native.h`; [FM contract](../../runtime/platform/fm/README.md) |
-| Device information | `system-info` | `system_info.h` |
 | DNS, sockets, HTTPS and downloads | `network` | `dns.h`, `connect.h`, `socket.h`, `tls_stream.h`, `tls_platform.h`, `https.h`, `download_stream.h` |
 | Catalog and package installation | `packages` | `market.h`, `repository.h`, `package_app.h`, `package_platform.h` |
 | Original-player client | `player-client`, optionally `player-managed-client` | [Player client](PLAYER_CLIENT.md) |
@@ -41,6 +39,11 @@ the complete export list. Existing C names and structures, including `hb_*`,
 `unicode-font` remains a compatibility aggregate of `bitmap-font` and `lexicon`.
 New applications can select either reader independently. Select one signal
 provider and one clock provider within each executable.
+
+Use stock libc for ordinary file and process operations such as
+`open`, `read`, `close`, `fork`, `waitpid` and `execve`. The SDK's child
+helper manages stop requests and reaping. Filesystem layout and clock adapters
+use the verified Sony ABI when modern headers describe a different layout.
 
 ## Configure and build
 
@@ -111,13 +114,8 @@ restoration results. A socket close alone does not establish hardware retirement
 
 - `volume` provides read-only mount/space checks. The caller still coordinates
   USB access and file publication; account and import policy stay in the app.
-- `images` requires serialized calls and nonoverlapping buffers. Its contract
-  defines per-operation memory and image limits.
 - Font and lexicon readers own their loaded buffer or stream. Qualify resource
   paths before opening and close a context before reusing it.
-- `system-info` provides read-only diagnostic pages. Serialize `hb_info_collect`
-  because it uses shared scratch storage. `hb_info_stock_space` uses the JP1.11
-  statfs ABI; it is not a portable host query or an update-safety check.
 - Networking requires trust anchors, hostname validation and valid TLS time.
   Player and ESP-NOW capabilities have independent lifetimes.
 

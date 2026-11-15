@@ -37,13 +37,21 @@ struct wr_sender {
     uint64_t library_started, library_next;
     unsigned library_active, library_clocked;
     struct wr_artwork_request artwork_request;
-    uint32_t artwork_serial;
+    struct xw_artwork_chunk artwork_source;
+    uint32_t artwork_serial, artwork_next, artwork_total;
     uint8_t artwork_reply[WR_ARTWORK_REPLY_MAX];
-    unsigned artwork_reply_bytes, artwork_ready, artwork_active;
+    unsigned artwork_reply_bytes, artwork_ready, artwork_active; /* pieces left to prepare */
     void *artwork_context;
     int (*artwork_read)(void *, uint32_t, struct xw_artwork_chunk *);
     void *source_context;
     int (*source_alive)(void *);
+#ifdef WR_RADIO_BENCHMARK
+    struct {
+        uint32_t run, bytes, frames, failed, tx_wait_ms;
+        uint64_t started, queued_at;
+        unsigned finishing;
+    } bench;
+#endif
 };
 int wr_sender_init(struct wr_sender *, struct xw_player *, struct xnow_client *,
                    const uint8_t peer[6], const uint8_t key[32], uint64_t session);

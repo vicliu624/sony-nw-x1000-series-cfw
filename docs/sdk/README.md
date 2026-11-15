@@ -15,11 +15,9 @@ custom C main programs. These retain their own renderers, loops, file formats
 and storage policies. The small settings/resource limits below apply to the
 callback profile, not to the existing readers, emulators or music workflows.
 
-Current source development version: **0.2.0-alpha.13**, with checked packet
+The source SDK version is **0.2.0-alpha.14**. It includes checked packet
 transactions and bounded FIFO framing. The managed player client remains experimental.
-This version has not been published. The previous alpha.8
-source archive remains available from
-[SDK releases](https://github.com/vicliu624/sony-nw-x1000-series-cfw/releases/tag/sdk-v0.2.0-alpha.8).
+See the [SDK release archive](https://github.com/vicliu624/sony-nw-x1000-series-cfw/releases/tag/sdk-v0.2.0-alpha.14).
 For wireless applications, read [ESP-NOW services](ESPNOW.md), including the
 explicit encrypted profile and durable user-storage counter requirements.
 
@@ -32,11 +30,10 @@ explicit encrypted profile and durable user-storage counter requirements.
 | Original-player client | [Player client](PLAYER_CLIENT.md) | Experimental, requires a separately supplied service and authorized session |
 | System background task or original Settings entry | Private platform integration | No public generic task-registration API; do not copy Wireless Remote's Sony callbacks into an app |
 
-The SDK is not yet a complete managed application platform. Its 36 public service
-modules are independent of application source; private Sony integration and
-task composition retain the [delivery gaps](../ARCHITECTURE.md#developer-delivery-gaps). Use the foreground
-templates for the smallest supported entry point. A successful host preview or
-ARM build does not establish that every requested device capability is available.
+The foreground templates are the smallest supported entry point. Check which
+persistence and lifecycle capabilities your selected profile provides before
+building against them. See [delivery constraints](../ARCHITECTURE.md#developer-delivery-constraints)
+and [current status](../STATUS.md) for the scope of device validation.
 
 ## 1. Prepare a Linux/WSL development environment
 

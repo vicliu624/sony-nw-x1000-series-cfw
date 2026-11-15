@@ -94,14 +94,19 @@ sender/worker fixture submits a new image request before the prior TX completion
 and checks that a changed volume is sent before another chunk. Previous ordering
 starved this update. There are no idle heartbeat packets in the current version.
 
-Read retries retain their session/request/track/offset identity, allowing a valid
-late reply in the retry gap. A different identity cannot enter assembly. Controls
-are not retransmitted. Successful chunks admit the next read without a fixed
-timer; one outstanding request provides flow control and frontend input has
-priority. The first valid total size admits a fixed size-based job budget,
-bounded by ten minutes from job start; BUSY and retry traffic do not renew it.
-Completed/failed images do not create indefinite background traffic. Offline
-revocation retains byte counters for diagnosis without allowing late assembly.
+One authenticated request authorizes up to eight consecutive 1,344-byte chunks.
+The reply carries its session, request, track, offset and authentication tag.
+The service assembles each radio reply from the existing 1,024-byte player SDK
+slices and retains at most one partial slice in RAM. Control receipts and
+player observations have priority between chunks.
+
+The receiver assembles only the verified contiguous prefix. A missing chunk
+resumes at that prefix with a new request serial after the existing timeout.
+A valid late chunk can continue its window before the replacement request is
+sent. The first valid total size admits a fixed size-based job budget bounded
+by ten minutes from job start. BUSY and retry traffic preserve that deadline.
+Completed/failed images emit no further requests. The PHY and radio lifecycle
+are shared with ordinary Remote control.
 
 A live same-session snapshot without a valid track ID pauses the image job.
 It does not erase received bytes or restart its deadline. New requests,
@@ -111,7 +116,9 @@ The frontend applies observations before processing later queued image replies,
 so a reply cannot append against an identity already marked unknown.
 
 The client owns request, timeout and retry state. Renderers consume a const
-progress view and an image-ready predicate; they do not edit counters. Local
+progress view and an image-ready predicate without editing counters. On Core2,
+the loading placeholder stays visible until the transfer finishes or fails.
+Intermediate progress does not trigger full-screen draws on the receive task. Local
 send refusal retries the same read identity with a bounded budget. Explicit
 user retry keeps serials monotonic and requires a confirmed current track.
 

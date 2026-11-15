@@ -46,28 +46,30 @@ static void transient_track_observation(void){
  assert(!wr_artwork_client_request(&client,100,request,sizeof request,key));
  struct wr_artwork_request asked;assert(!wr_artwork_request_decode(&asked,request,sizeof request,key));
  struct wr_artwork_reply image={0};image.session=17;image.request=asked.request;
- image.chunk.id=asked.id;image.chunk.total=2048;image.chunk.bytes=1024;
- memset(image.chunk.data,0xa5,1024);
+ image.chunk.id=asked.id;image.chunk.total=2*WR_ARTWORK_DATA_BYTES;image.chunk.bytes=WR_ARTWORK_DATA_BYTES;
+ memset(image.chunk.data,0xa5,sizeof image.chunk.data);
  int bytes=wr_artwork_reply_encode(reply,sizeof reply,&image,key);assert(bytes>0);
- assert(!wr_artwork_client_accept(&client,100,reply,bytes,key)&&client.job.received==1024);
- assert(!wr_artwork_client_request(&client,300,request,sizeof request,key));
- assert(!wr_artwork_request_decode(&asked,request,sizeof request,key));
- image.request=asked.request;image.chunk.offset=1024;memset(image.chunk.data,0x5a,1024);
+ assert(!wr_artwork_client_accept(&client,100,reply,bytes,key)&&client.job.received==WR_ARTWORK_DATA_BYTES);
+ assert(wr_artwork_client_request(&client,300,request,sizeof request,key));
+ image.chunk.offset=WR_ARTWORK_DATA_BYTES;memset(image.chunk.data,0x5a,sizeof image.chunk.data);
  bytes=wr_artwork_reply_encode(reply,sizeof reply,&image,key);assert(bytes>0);
  /* A live authenticated status can temporarily lack track identity while
   * AudioC is busy. It is not a session revocation or a different track. */
  wr_artwork_client_observe(&client,&unknown,1,350);
- assert(client.job.session==17&&client.job.received==1024&&!strcmp(client.job.id.value,"song-art"));
+ assert(client.job.session==17&&client.job.received==WR_ARTWORK_DATA_BYTES&&!strcmp(client.job.id.value,"song-art"));
  assert(!wr_artwork_client_image_ready(&client));
  assert(wr_artwork_client_request(&client,500,request,sizeof request,key));
- assert(wr_artwork_client_accept(&client,500,reply,bytes,key)&&client.job.received==1024);
+ assert(wr_artwork_client_accept(&client,500,reply,bytes,key)&&client.job.received==WR_ARTWORK_DATA_BYTES);
  wr_artwork_client_observe(&client,&status,1,1000);
  assert(!wr_artwork_client_request(&client,1000,request,sizeof request,key));
- assert(!wr_artwork_request_decode(&asked,request,sizeof request,key)&&asked.offset==1024&&asked.request==image.request);
+ assert(!wr_artwork_request_decode(&asked,request,sizeof request,key)&&asked.offset==WR_ARTWORK_DATA_BYTES&&asked.request>image.request);
+ assert(wr_artwork_client_accept(&client,1000,reply,bytes,key));
+ image.request=asked.request;
+ bytes=wr_artwork_reply_encode(reply,sizeof reply,&image,key);assert(bytes>0);
  assert(!wr_artwork_client_accept(&client,1000,reply,bytes,key)&&wr_artwork_client_image_ready(&client));
- assert(client.data[0]==0xa5&&client.data[1024]==0x5a);
- wr_artwork_client_observe(&client,&unknown,1,1100);assert(client.job.complete&&client.job.received==2048&&!wr_artwork_client_image_ready(&client));
- wr_artwork_client_observe(&client,&status,1,1200);assert(wr_artwork_client_image_ready(&client)&&client.job.received==2048);
+ assert(client.data[0]==0xa5&&client.data[WR_ARTWORK_DATA_BYTES]==0x5a);
+ wr_artwork_client_observe(&client,&unknown,1,1100);assert(client.job.complete&&client.job.received==image.chunk.total&&!wr_artwork_client_image_ready(&client));
+ wr_artwork_client_observe(&client,&status,1,1200);assert(wr_artwork_client_image_ready(&client)&&client.job.received==image.chunk.total);
  strcpy(status.id,"another-track");wr_artwork_client_observe(&client,&status,1,1300);
  assert(!client.job.complete&&!client.job.received);
  unknown.session=18;wr_artwork_client_observe(&client,&unknown,1,1400);
@@ -82,26 +84,24 @@ static void artwork_retry_boundaries(void){
  wr_artwork_client_observe(&client,&status,1,100);
  assert(!wr_artwork_client_request(&client,100,request,sizeof request,key));
  struct wr_artwork_reply chunk={0};chunk.session=29;chunk.request=client.job.serial;
- chunk.chunk.id=client.job.id;chunk.chunk.total=2048;chunk.chunk.bytes=1024;
- memset(chunk.chunk.data,0xa5,1024);
+ chunk.chunk.id=client.job.id;chunk.chunk.total=2*WR_ARTWORK_DATA_BYTES;chunk.chunk.bytes=WR_ARTWORK_DATA_BYTES;
+ memset(chunk.chunk.data,0xa5,sizeof chunk.chunk.data);
  int count=wr_artwork_reply_encode(wire,sizeof wire,&chunk,key);assert(count>0);
- assert(!wr_artwork_client_accept(&client,100,wire,count,key)&&client.job.received==1024);
- assert(!wr_artwork_client_request(&client,300,request,sizeof request,key));
+ assert(!wr_artwork_client_accept(&client,100,wire,count,key)&&client.job.received==WR_ARTWORK_DATA_BYTES);
  uint32_t first=client.job.serial;uint64_t deadline=client.job.deadline;
  struct wr_artwork_reply changed={0};changed.session=29;changed.request=first;
- changed.result=XW_PLAYER_STALE;changed.chunk.id=client.job.id;changed.chunk.offset=1024;
+ changed.result=XW_PLAYER_STALE;changed.chunk.id=client.job.id;changed.chunk.offset=WR_ARTWORK_DATA_BYTES;
  int bytes=wr_artwork_reply_encode(wire,sizeof wire,&changed,key);assert(bytes>0);
  assert(!wr_artwork_client_accept(&client,300,wire,bytes,key));
  assert(client.job.restarts==1&&!client.job.received&&!client.job.pending&&client.job.deadline==deadline);
  assert(!wr_artwork_client_request(&client,450,request,sizeof request,key));
- chunk.request=client.job.serial;memset(chunk.chunk.data,0xb6,1024);
+ chunk.request=client.job.serial;memset(chunk.chunk.data,0xb6,sizeof chunk.chunk.data);
  count=wr_artwork_reply_encode(wire,sizeof wire,&chunk,key);assert(count>0);
  assert(!wr_artwork_client_accept(&client,450,wire,count,key));
- assert(!wr_artwork_client_request(&client,650,request,sizeof request,key));
- chunk.request=client.job.serial;chunk.chunk.offset=1024;memset(chunk.chunk.data,0xc7,1024);
+ chunk.chunk.offset=WR_ARTWORK_DATA_BYTES;memset(chunk.chunk.data,0xc7,sizeof chunk.chunk.data);
  count=wr_artwork_reply_encode(wire,sizeof wire,&chunk,key);assert(count>0);
  assert(!wr_artwork_client_accept(&client,650,wire,count,key)&&wr_artwork_client_image_ready(&client));
- assert(client.data[0]==0xb6&&client.data[1024]==0xc7);
+ assert(client.data[0]==0xb6&&client.data[WR_ARTWORK_DATA_BYTES]==0xc7);
  assert(!wr_artwork_client_retry(&client,1000));
  deadline=client.job.deadline;
  assert(!wr_artwork_client_request(&client,1000,request,sizeof request,key));
@@ -120,7 +120,7 @@ static void artwork_retry_boundaries(void){
  for(unsigned attempt=0;attempt<WR_ARTWORK_ATTEMPT_LIMIT;attempt++){
   uint64_t now=2000+attempt*WR_ARTWORK_BUSY_MS;
   assert(!wr_artwork_client_request(&client,now,request,sizeof request,key));
-  assert(client.job.serial==first+1);
+  assert(client.job.serial==first+1+attempt);
   wr_artwork_client_send_rejected(&client,now);
  }
  assert(client.job.failed&&client.job.local_rejects==WR_ARTWORK_ATTEMPT_LIMIT);
@@ -231,10 +231,14 @@ int main(void){
  for(unsigned i=0;i<sizeof picture;i++)picture[i]=(unsigned char)i;
  wr_artwork_client_observe(&c,&art,1,100);s.artwork_read=read_cover;
  uint64_t now=100;
+ unsigned artwork_requests=0;
  while(!c.job.complete){
-  assert(!wr_artwork_client_request(&c,now,incoming,sizeof incoming,key));
-  queued.kind=XNOW_CLIENT_RX;queued.flags=XNOW_CLIENT_AUTHENTICATED;queued.bytes=WR_ARTWORK_REQUEST_BYTES;memcpy(queued.address,peer,6);
-  assert(wr_sender_step(&s)==XNOW_CLIENT_PENDING&&s.artwork_active);
+  if(!c.job.pending){
+   assert(!wr_artwork_client_request(&c,now,incoming,sizeof incoming,key));
+   queued.kind=XNOW_CLIENT_RX;queued.flags=XNOW_CLIENT_AUTHENTICATED;queued.bytes=WR_ARTWORK_REQUEST_BYTES;memcpy(queued.address,peer,6);
+   assert(wr_sender_step(&s)==XNOW_CLIENT_PENDING&&s.artwork_active);
+   artwork_requests++;
+  }
   if(!c.job.received){
    struct wr_control command={17,1,XW_OP_PLAY,0};assert(!wr_control_encode(incoming,sizeof incoming,&command,key));
    queued.kind=XNOW_CLIENT_RX;queued.flags=XNOW_CLIENT_AUTHENTICATED;queued.bytes=WR_CONTROL_BYTES;memcpy(queued.address,peer,6);
@@ -247,6 +251,8 @@ int main(void){
   uint32_t received=c.job.received;wire[wire_bytes-1]^=1;assert(wr_artwork_client_accept(&c,now,wire,wire_bytes,key)&&c.job.received==received);wire[wire_bytes-1]^=1;
   assert(!wr_artwork_client_accept(&c,now,wire,wire_bytes,key));finish(&s);now+=200;
  }
+ unsigned artwork_window=WR_ARTWORK_DATA_BYTES*WR_ARTWORK_WINDOW_CHUNKS;
+ assert(artwork_requests==(sizeof picture+artwork_window-1)/artwork_window);
  assert(c.job.total==sizeof picture&&cover_reads==(sizeof picture+XW_ARTWORK_CHUNK-1)/XW_ARTWORK_CHUNK&&!memcmp(c.data,picture,sizeof picture));
  struct wr_artwork_request eof={0};eof.session=17;eof.request=c.job.serial+1;eof.offset=sizeof picture;strcpy(eof.id.value,"song-art");
  assert(!wr_artwork_request_encode(incoming,sizeof incoming,&eof,key));
@@ -266,7 +272,7 @@ int main(void){
  art.session++;wr_artwork_client_observe(&c,&art,1,now+2100);
  assert(!wr_artwork_client_request(&c,now+2100,incoming,sizeof incoming,key));uint32_t original_request=c.job.serial;
  wr_artwork_client_tick(&c,now+4100);assert(!c.job.pending);
- assert(!wr_artwork_client_request(&c,now+4200,incoming,sizeof incoming,key)&&c.job.serial==original_request);
+ assert(!wr_artwork_client_request(&c,now+4200,incoming,sizeof incoming,key)&&c.job.serial>original_request);
  wr_artwork_client_observe(&c,&art,0,now+4300);assert(!c.job.session&&!c.job.complete&&!c.job.pending);
  /* Initial metadata readiness and cover readiness are separate. A finite
   * retry handles late covers; permanent absence never becomes idle polling. */

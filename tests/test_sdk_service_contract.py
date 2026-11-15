@@ -51,10 +51,10 @@ class SDKServiceContract(unittest.TestCase):
         available=manifest()
         available['abi']['api']=2
         self.assertEqual(resolve(['startup'],available),['startup'])
-        with self.assertRaisesRegex(ValueError,'files requires abi API 1'):
-            resolve(['files'],available)
-        available['files']['requires_api']={'abi':2}
-        self.assertEqual(resolve(['files'],available),['abi','files'])
+        with self.assertRaisesRegex(ValueError,'list-ui requires abi API 1'):
+            resolve(['list-ui'],available)
+        available['list-ui']['requires_api']={'abi':2}
+        self.assertEqual(resolve(['list-ui'],available),['abi','list-ui'])
 
     def test_callback_recipe_checks_api_and_embeds_actual_sdk_release(self):
         definition=ROOT/'runtime/apps/sdk-counter'

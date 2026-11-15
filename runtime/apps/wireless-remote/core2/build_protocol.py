@@ -9,8 +9,12 @@ env.BuildSources(env.subst("$BUILD_DIR")+"/pair-auto",str(project.parent),src_fi
 env.BuildSources(env.subst("$BUILD_DIR")+"/artwork",str(project.parent),src_filter=["+<artwork_wire.c>","+<artwork_client.c>","+<artwork_image.c>"])
 
 import json
+import os
 version=(project/"VERSION").read_text().strip()
 output=Path(env.subst("$BUILD_DIR"))/"generated"
 output.mkdir(parents=True,exist_ok=True)
-(output/"remote_version.h").write_text("#define XW_REMOTE_VERSION "+json.dumps(version)+"\n")
+header="#define XW_REMOTE_VERSION "+json.dumps(version)+"\n"
+if os.getenv('X1000_CORE2_RADIO_BENCHMARK')=='1':
+    header+="#define WR_RADIO_BENCHMARK 1\n"
+(output/"remote_version.h").write_text(header)
 env.Append(CPPPATH=[str(output)])

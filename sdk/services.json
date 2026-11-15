@@ -53,21 +53,6 @@
         "termination.h": "runtime/store/termination.h"
       }
     },
-    "files": {
-      "sources": [
-        "runtime/native/linux_file_ops_posix.c"
-      ],
-      "flags": [
-        "-DHB_USE_POSIX_FILES",
-        "-D_FILE_OFFSET_BITS=64"
-      ],
-      "requires": [
-        "abi"
-      ],
-      "exports": {
-        "files.h": "runtime/native/linux_files.h"
-      }
-    },
     "abi": {
       "sources": [
         "runtime/store/stock_fs_bridge.c",
@@ -97,7 +82,6 @@
         "runtime/native/app_process.c"
       ],
       "exports": {
-        "process.h": "runtime/native/linux_process.h",
         "child.h": "runtime/native/app_process.h"
       }
     },
@@ -131,14 +115,20 @@
       }
     },
     "list-ui": {
-      "sources": [],
+      "sources": [
+        "runtime/native/linux_file_ops_posix.c"
+      ],
+      "flags": [
+        "-DHB_USE_POSIX_FILES",
+        "-D_FILE_OFFSET_BITS=64"
+      ],
       "exports": {
         "list_ui.h": "runtime/native/app_list_art.h",
         "noto_ascii.h": "runtime/native/ui_font.h",
         "presentation.h": "runtime/native/app_presentation.h"
       },
       "requires": [
-        "files"
+        "abi"
       ]
     },
     "volume": {
@@ -163,31 +153,6 @@
       "exports": {
         "unicode_font.h": "runtime/platform/text/dictionary_compat.h"
       }
-    },
-    "images": {
-      "sources": [
-        "runtime/platform/images/qqmusic_image.c",
-        "runtime/platform/images/qqmusic_picture.c"
-      ],
-      "requires": [
-        "abi"
-      ],
-      "flags": [
-        "-isystem",
-        "third_party/qqmusic-stb"
-      ],
-      "libraries": [
-        "work/stock-resolver-probe/libm.so.6"
-      ],
-      "exports": {
-        "images.h": "runtime/platform/images/qqmusic_image.h"
-      },
-      "inputs": [
-        "third_party/qqmusic-stb/stb_image.h",
-        "third_party/qqmusic-stb/stb_image_write.h",
-        "third_party/qqmusic-stb/LICENSE",
-        "sources/qqmusic-image-sources.json"
-      ]
     },
     "audio-route": {
       "sources": [
@@ -225,15 +190,6 @@
         "fm_session.h": "runtime/platform/fm/fm_session.h",
         "fm_native.h": "runtime/platform/fm/fm_posix.h",
         "fm_model.h": "runtime/platform/fm/fm_radio.h"
-      }
-    },
-    "system-info": {
-      "sources": [
-        "runtime/platform/system-info/device_info_data.c",
-        "runtime/platform/system-info/device_info_space.c"
-      ],
-      "exports": {
-        "system_info.h": "runtime/platform/system-info/device_info_data.h"
       }
     },
     "network": {

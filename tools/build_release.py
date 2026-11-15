@@ -20,8 +20,45 @@ def tree(folder,prefix=''):
 def player_setup_files(launcher,repository,apps):
  # Language selection belongs to stock Settings; legacy app/packs are not shipped.
  return {**tree(launcher,'HOMEBREW/launcher/'),**tree(repository,'HOMEBREW/repository/'),**tree(apps/'store','HOMEBREW/apps/store/')}
+
+def reviewed_managed_release(args):
+ from prepare_diagnostic_materials import matching_controller, reviewed_inputs
+ from component_receipts import receipt
+
+ reviewed = reviewed_inputs(args.firmware_review, args.allocation_review, args.radio_review)
+ if reviewed['owner'].get('external_radio_inputs_required') is not False:
+  raise ValueError('The managed release must include all required radio files')
+ controller = matching_controller(
+  reviewed['owner'], args.controller_review,
+  play_mode_control=bool(reviewed['supervisor'].get('play_mode_control')),
+  service_review=reviewed['service_review'])
+ if controller is None:
+  raise ValueError('The managed release requires its matching Core2 application')
+ _, service = receipt(reviewed['service_review'])
+ _, client = receipt(controller['review'])
+ for leaf in ('artwork_wire.c', 'artwork_wire.h'):
+  name = 'runtime/apps/wireless-remote/' + leaf
+  if name not in service['source_hashes'] or service['source_hashes'][name] != client['source_hashes'].get(name):
+   raise ValueError('The Core2 and Remote service artwork protocols differ')
+ firmware = {
+  'firmware_sha256': reviewed['firmware']['sha256'],
+  'original_roundtrip_verified': True,
+  'original_installer_kernel_initrd_preserved': True,
+  'native_language_settings': True,
+  'external_language_files_generated': False,
+  'profile': 'reviewed-managed-remote',
+  'ext2_model_nonreserved_margin_bytes': reviewed['model']['model_nonreserved_margin_bytes'],
+  'hardware_qualified': False,
+ }
+ return reviewed['upg'], firmware, controller
+
 def main():
- parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--repository');parser.add_argument('--tag');parser.add_argument('--output',type=Path);parser.add_argument('--skip-bootstrap',action='store_true');a=parser.parse_args()
+ parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--repository');parser.add_argument('--tag');parser.add_argument('--output',type=Path);parser.add_argument('--skip-bootstrap',action='store_true')
+ parser.add_argument('--firmware-review', help='Use the exact UPG from a verified managed firmware review')
+ parser.add_argument('--allocation-review', help='Allocation model for the selected managed UPG')
+ parser.add_argument('--radio-review', help='Passing regression evidence for the selected shared radio')
+ parser.add_argument('--controller-review', help='Build receipt for the matching Core2 application')
+ a=parser.parse_args()
  os.chdir(ROOT)
  write_header()
  # Keep Python's host LD_LIBRARY_PATH for the host interpreter while removing
@@ -32,6 +69,10 @@ def main():
  if tag!='v'+version or not re.fullmatch(r'v[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9.-]+)?',tag):raise ValueError('Tag must equal v<VERSION>')
  out=(a.output or ROOT/'dist'/version/'release').resolve()
  if not out.is_relative_to(ROOT/'dist') or out.exists():raise ValueError('Select a new dist output directory')
+ managed_inputs = (a.firmware_review, a.allocation_review, a.radio_review, a.controller_review)
+ if any(managed_inputs) and not all(managed_inputs):
+  parser.error('All four managed review inputs are required together')
+ managed = reviewed_managed_release(a) if a.firmware_review else None
  out.mkdir(parents=True);upload=out/'upload';upload.mkdir();player=out/'player';apps=player/'HOMEBREW/apps';apps.mkdir(parents=True)
  work=ROOT/'work/ci'/('release-'+str(time.time_ns()));work.mkdir(parents=True);steps=[]
  def run(script,*args):
@@ -70,8 +111,11 @@ def main():
  copy_app('qqmusic',work/'apps/qqmusic')
  base='https://github.com/'+repo+'/releases/download/'+tag+'/'
  catalog=[];release_apps=[]
- from release_firmware import build as firmware_build
- firmware,firmware_report=firmware_build(work/'firmware',player,builtin_localization=True)
+ if managed:
+  firmware,firmware_report,controller=managed
+ else:
+  from release_firmware import build as firmware_build
+  firmware,firmware_report=firmware_build(work/'firmware',player,builtin_localization=True)
  launcher=player/'HOMEBREW/launcher';launcher.mkdir();shutil.copyfile(ROOT/'work/libc-launcher-review/launcher.elf',launcher/'app')
  shutil.copyfile(ROOT/'third_party/qqmusic-stb/Noto-OFL.txt',launcher/'Noto-OFL.txt')
  descriptions_by_id=descriptions()
@@ -114,6 +158,12 @@ def main():
  archive(upload/('source-'+version+'.zip'),source)
  commit=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
  report={'version':version,'tag':tag,'repository':repo,'source_commit':commit,'apps':release_apps,'firmware':firmware_report,'catalog_sha256':digest(listing),'catalog_bytes':len(listing),'steps':steps,'source_files':len(source),'private_terminal_key_published':False,'physical_device_accessed':False,'hardware_qualified':False}
+ if managed:
+  name='core2-remote-'+controller['version']+'.zip'
+  archive(upload/name,{'firmware.bin':controller['binary'].read_bytes(),
+    'README.md':(ROOT/'runtime/apps/wireless-remote/core2/README.md').read_bytes()})
+  report['controller']={'asset':name,'version':controller['version'],'bytes':controller['bytes'],
+    'sha256':controller['sha256']}
  (upload/'release-manifest.json').write_text(json.dumps(report,indent=2)+'\n')
  notes=ROOT/'docs/releases'/(version+'.md')
  (upload/'RELEASE_NOTES.md').write_text(notes.read_text(encoding='utf-8-sig') if notes.is_file() else '# X1000 experimental '+version+'\n\nJapanese NW-X1050/NW-X1060 only. See the source documentation and verification reports. Firmware preserves the original installer/kernel/initrd; installation and recovery are not hardware-qualified. Copy player-setup files to visible storage before using the launcher/market. App ZIPs and catalog assets are verified independently. No account data, ROMs, music or terminal private keys are included. Terminal requires personal PC pairing.\n')

@@ -1,7 +1,7 @@
 #include "qqmusic_font.h"
 #include "qqmusic_asset.h"
 #include "qqmusic_ui.h"
-#include "../../../sdk/include/x1000/services/images.h"
+#include "qqmusic_image.h"
 #include "../../../sdk/include/x1000/services/sha256.h"
 #include <string.h>
 #define STB_TRUETYPE_IMPLEMENTATION

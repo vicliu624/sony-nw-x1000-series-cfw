@@ -34,6 +34,9 @@
 #include "../../pairing_auto.h"
 #include "driver/gpio.h"
 #include "esp_rom_sys.h"
+#ifdef WR_RADIO_BENCHMARK
+#include "../../radio_benchmark.h"
+#endif
 
 static auto &display = M5.Display;
 static M5Canvas canvas(&M5.Display);
@@ -42,7 +45,7 @@ static wr_artwork_client *artwork;
 static bool cover_attempted, cover_decoded;
 /* Explicit console profiling only. Fixed RAM counters; no timer/air traffic. */
 static struct {
-    bool active, quiet, cancelled;
+    bool active, cancelled;
     uint32_t request, replies, renders;
     uint64_t started, sent, finished, rtt_sum, rtt_min, rtt_max;
     uint64_t queue_sum, queue_max, render_sum, render_max, decode;
@@ -93,11 +96,17 @@ struct packet {
     uint8_t source[6],
         data[WR_ARTWORK_REPLY_MAX > WR_LIBRARY_REPLY_BYTES ? WR_ARTWORK_REPLY_MAX
                                                            : WR_LIBRARY_REPLY_BYTES],
+#ifdef WR_RADIO_BENCHMARK
+        phy_rate, phy_mode,
+#endif
         channel;
     unsigned bytes;
     uint64_t arrived;
     bool broadcast;
 };
+#ifdef WR_RADIO_BENCHMARK
+static_assert(sizeof(packet::data) >= WR_BENCH_HEADER + WR_BENCH_MAX_PAYLOAD);
+#endif
 static wr_library_client library;
 static uint32_t library_parent_offset;
 static QueueHandle_t packets;
@@ -147,6 +156,101 @@ static esp_err_t radio_send(const uint8_t *address, const uint8_t *data, size_t 
     portEXIT_CRITICAL(&radio_counts_lock);
     return result;
 }
+#ifdef WR_RADIO_BENCHMARK
+static struct {
+    uint32_t run, payload, frames, seen[WR_BENCH_FRAMES / 32];
+    uint32_t legacy_rates[32], other_phy;
+    uint64_t started, first, last;
+    bool sender_summary, driver_summary;
+} bench;
+
+static bool bench_start(unsigned bytes) {
+    if (!wr_bench_payload(bytes) || bench.run || !receiver.paired || !radio_link.ready() ||
+        !radio_tx_idle())
+        return false;
+    uint32_t run = esp_random();
+    if (!run)
+        return false;
+    uint8_t data[WR_BENCH_HEADER] = {'W', 'B', 'T', '1'};
+    wr_bench_put(data + 4, run);
+    wr_bench_put(data + 8, bytes);
+    uint64_t now = uint64_t(esp_timer_get_time());
+    if (radio_send(receiver.address, data, sizeof data) != ESP_OK)
+        return false;
+    bench = {};
+    bench.run = run;
+    bench.payload = bytes;
+    bench.started = now;
+    return true;
+}
+
+static void bench_finish(bool complete) {
+    std::printf("REMOTE_RF_BENCH_RESULT complete=%u payload=%lu frames=%lu bytes=%lu span_us=%llu "
+                "request_to_last_us=%llu sender_summary=%u driver_summary=%u other_phy=%lu\n",
+                unsigned(complete), (unsigned long)bench.payload, (unsigned long)bench.frames,
+                (unsigned long)(bench.frames * bench.payload),
+                (unsigned long long)(bench.frames ? bench.last - bench.first : 0),
+                (unsigned long long)(bench.frames ? bench.last - bench.started : 0),
+                unsigned(bench.sender_summary), unsigned(bench.driver_summary),
+                (unsigned long)bench.other_phy);
+    for (unsigned rate = 0; rate < 32; rate++)
+        if (bench.legacy_rates[rate])
+            std::printf("REMOTE_RF_BENCH_PHY mode=0 rate_code=0x%02x frames=%lu\n",
+                        rate, (unsigned long)bench.legacy_rates[rate]);
+    bench.run = 0;
+}
+
+static void bench_receive(const packet &p) {
+    if (!bench.run || p.bytes < 8 || wr_bench_get(p.data + 4) != bench.run ||
+        std::memcmp(p.source, receiver.address, 6))
+        return;
+    if (p.bytes == WR_BENCH_SUMMARY && !std::memcmp(p.data, "WBTE", 4)) {
+        bench.sender_summary = true;
+        std::printf("REMOTE_RF_BENCH_SENDER frames=%lu failures=%lu elapsed_ms=%lu tx_wait_ms=%lu\n",
+                    (unsigned long)wr_bench_get(p.data + 8),
+                    (unsigned long)wr_bench_get(p.data + 12),
+                    (unsigned long)wr_bench_get(p.data + 16),
+                    (unsigned long)wr_bench_get(p.data + 20));
+    } else if (p.bytes == WR_BENCH_TIMING && !std::memcmp(p.data, "WBTM", 4)) {
+        bench.driver_summary = true;
+        std::printf("REMOTE_RF_BENCH_DRIVER submit_calls=%lu submit_ms=%lu completion_calls=%lu "
+                    "completion_ms=%lu other_calls=%lu other_ms=%lu\n",
+                    (unsigned long)wr_bench_get(p.data + 8), (unsigned long)wr_bench_get(p.data + 12),
+                    (unsigned long)wr_bench_get(p.data + 16), (unsigned long)wr_bench_get(p.data + 20),
+                    (unsigned long)wr_bench_get(p.data + 24), (unsigned long)wr_bench_get(p.data + 28));
+        const uint8_t *spans = p.data + 32;
+        std::printf("REMOTE_RF_BENCH_SPANS observed=%lu service_to_owner_ms=%lu pre_submit_ms=%lu "
+                    "submit_span_ms=%lu first_check_ms=%lu completion_span_ms=%lu "
+                    "known_pending_ms=%lu first_done=%lu\n",
+                    (unsigned long)wr_bench_get(spans + 4 * WR_BENCH_OBSERVED),
+                    (unsigned long)wr_bench_get(spans + 4 * WR_BENCH_SERVICE_TO_OWNER),
+                    (unsigned long)wr_bench_get(spans + 4 * WR_BENCH_PRE_SUBMIT),
+                    (unsigned long)wr_bench_get(spans + 4 * WR_BENCH_SUBMIT_SPAN),
+                    (unsigned long)wr_bench_get(spans + 4 * WR_BENCH_FIRST_CHECK),
+                    (unsigned long)wr_bench_get(spans + 4 * WR_BENCH_COMPLETION_SPAN),
+                    (unsigned long)wr_bench_get(spans + 4 * WR_BENCH_KNOWN_PENDING),
+                    (unsigned long)wr_bench_get(spans + 4 * WR_BENCH_FIRST_DONE));
+    } else if (p.bytes == WR_BENCH_HEADER + bench.payload && !std::memcmp(p.data, "WBTD", 4)) {
+        unsigned seq = p.data[8];
+        if (seq >= WR_BENCH_FRAMES || (bench.seen[seq / 32] & (1u << (seq % 32))))
+            return;
+        for (unsigned i = WR_BENCH_HEADER; i < p.bytes; i++)
+            if (p.data[i] != seq)
+                return;
+        bench.seen[seq / 32] |= 1u << (seq % 32);
+        if (!bench.frames)
+            bench.first = p.arrived;
+        bench.last = p.arrived;
+        bench.frames++;
+        if (p.phy_mode == 0)
+            bench.legacy_rates[p.phy_rate]++;
+        else
+            bench.other_phy++;
+    }
+    if (bench.sender_summary && bench.driver_summary)
+        bench_finish(true);
+}
+#endif
 static void sent(const esp_now_send_info_t *info, esp_now_send_status_t result) {
     wr_tx_frame_observation frame = {};
     bool observed = info && info->data && wr_tx_frame_observe(info->data, info->data_len, &frame);
@@ -207,12 +311,11 @@ static bool retry_cover() {
     draw_status();
     return true;
 }
-static bool profile_cover(bool quiet) {
+static bool profile_cover() {
     if (!retry_cover())
         return false;
     cover_profile = {};
     cover_profile.active = true;
-    cover_profile.quiet = quiet;
     cover_profile.started = uint64_t(esp_timer_get_time());
     cover_profile.rtt_min = UINT64_MAX;
     return true;
@@ -398,7 +501,12 @@ static void receive(const esp_now_recv_info_t *info, const uint8_t *data, int by
     bool link = bytes == XNOW_LINK_WIRE_BYTES && !std::memcmp(data, "XNL1", 4);
     bool cover = bytes >= WR_ARTWORK_REPLY_HEADER_BYTES && bytes <= int(WR_ARTWORK_REPLY_MAX) &&
                  !std::memcmp(data, "WRAR", 4);
-    if (!link && !cover && !wr_status_frame(data, size_t(bytes)) && bytes != WR_HEARTBEAT_BYTES &&
+    bool benchmark = false;
+#ifdef WR_RADIO_BENCHMARK
+    benchmark = !std::memcmp(data, "WBTD", 4) || !std::memcmp(data, "WBTE", 4) ||
+                !std::memcmp(data, "WBTM", 4);
+#endif
+    if (!link && !cover && !benchmark && !wr_status_frame(data, size_t(bytes)) && bytes != WR_HEARTBEAT_BYTES &&
         bytes != WR_CONTROL_BYTES && bytes != WR_SESSION_BYTES && bytes != WR_MODE_BYTES &&
         bytes != WR_LIBRARY_REPLY_BYTES && bytes != WR_PAIRING_CONFIRM_BYTES &&
         bytes != WR_PAIR_AUTO_OFFER_BYTES) {
@@ -416,6 +524,10 @@ static void receive(const esp_now_recv_info_t *info, const uint8_t *data, int by
     p.arrived = uint64_t(esp_timer_get_time());
     p.bytes = unsigned(bytes);
     p.channel = info->rx_ctrl->channel;
+#ifdef WR_RADIO_BENCHMARK
+    p.phy_rate = info->rx_ctrl->rate;
+    p.phy_mode = info->rx_ctrl->sig_mode;
+#endif
     p.broadcast = info->des_addr && !std::memcmp(info->des_addr, pairing_broadcast, 6);
     std::memcpy(p.source, info->src_addr, 6);
     std::memcpy(p.data, data, size_t(bytes));
@@ -936,12 +1048,12 @@ static void status() {
     if (artwork && wr_artwork_client_image_ready(artwork))
         (void)wr_artwork_dimensions(artwork->data, wr_artwork_client_progress(artwork)->total,
                                     &image_width, &image_height);
-    std::printf("REMOTE_COVER_PROFILE active=%u quiet=%u cancelled=%u replies=%lu "
+    std::printf("REMOTE_COVER_PROFILE active=%u cancelled=%u replies=%lu "
                 "elapsed_us=%llu rtt_sum_us=%llu rtt_min_us=%llu rtt_max_us=%llu "
                 "queue_sum_us=%llu queue_max_us=%llu renders=%lu render_sum_us=%llu "
                 "render_max_us=%llu decode_us=%llu width=%u height=%u\n",
-                unsigned(cover_profile.active), unsigned(cover_profile.quiet),
-                unsigned(cover_profile.cancelled), (unsigned long)cover_profile.replies,
+                unsigned(cover_profile.active), unsigned(cover_profile.cancelled),
+                (unsigned long)cover_profile.replies,
                 (unsigned long long)(cover_profile.finished >= cover_profile.started
                     ? cover_profile.finished - cover_profile.started : 0),
                 (unsigned long long)cover_profile.rtt_sum,
@@ -1048,12 +1160,11 @@ static void artwork_step() {
         cover_profile.active = false;
         cover_profile.cancelled = true;
     }
-    static unsigned shown_progress = UINT32_MAX;
-    unsigned presentation = progress->total ? progress->received * 100u / progress->total : 0;
-    presentation |= progress->failed ? 256u : progress->complete ? 512u : 0;
-    if (presentation != shown_progress) {
-        shown_progress = presentation;
-        if (page == REMOTE_PAGE_PLAYER && !(cover_profile.active && cover_profile.quiet))
+    /* A full LCD redraw stalls the task that drains incoming artwork frames. */
+    static bool shown_failure;
+    if (bool(progress->failed) != shown_failure) {
+        shown_failure = progress->failed;
+        if (page == REMOTE_PAGE_PLAYER)
             draw_status();
     }
     if (wr_artwork_client_image_ready(artwork) && !cover_attempted) {
@@ -1260,14 +1371,8 @@ static void render_status() {
         else if (online) {
             const wr_artwork_progress *cover = wr_artwork_client_progress(artwork);
             if (cover && cover->session) {
-                char caption[24];
-                if (cover->failed || (cover->complete && !cover_decoded))
-                    std::snprintf(caption, sizeof caption, "Tap to retry");
-                else if (cover->total)
-                    std::snprintf(caption, sizeof caption, "Cover %u%%",
-                                  unsigned(cover->received * 100u / cover->total));
-                else
-                    std::snprintf(caption, sizeof caption, "Reading cover");
+                const char *caption =
+                    cover->failed || cover->complete ? "Tap to retry" : "Reading cover";
                 g.fillRoundRect(22, 116, 90, 22, 4, bg);
                 g.setTextColor(muted);
                 g.drawString(caption, 25, 122);
@@ -1426,6 +1531,17 @@ void setup() {
                     std::puts("REMOTE_COMMAND_REJECTED");
                 else if (!std::strcmp(command, "status"))
                     status();
+#ifdef WR_RADIO_BENCHMARK
+                else if (!std::strncmp(command, "rf-bench ", 9)) {
+                    unsigned bytes;
+                    char extra;
+                    bool idle = !pending_command && !library.pending && !pairing_active &&
+                        (!artwork || !wr_artwork_client_progress(artwork)->pending);
+                    std::puts(idle && std::sscanf(command + 9, "%u%c", &bytes, &extra) == 1 &&
+                                      bench_start(bytes) ? "REMOTE_RF_BENCH_STARTED"
+                                                         : "REMOTE_RF_BENCH_REJECTED");
+                }
+#endif
                 else if (!std::strcmp(command, "connect"))
                     request_connection();
                 else if (!std::strcmp(command, "cover-retry")) {
@@ -1433,11 +1549,9 @@ void setup() {
                         std::puts("REMOTE_COVER_RETRY");
                     } else
                         std::puts("REMOTE_COVER_NO_CONFIRMED_TRACK");
-                } else if (!std::strcmp(command, "cover-profile") ||
-                           !std::strcmp(command, "cover-profile-quiet")) {
-                    bool quiet = !std::strcmp(command, "cover-profile-quiet");
-                    std::puts(profile_cover(quiet) ? "REMOTE_COVER_PROFILE_STARTED"
-                                                  : "REMOTE_COVER_NO_CONFIRMED_TRACK");
+                } else if (!std::strcmp(command, "cover-profile")) {
+                    std::puts(profile_cover() ? "REMOTE_COVER_PROFILE_STARTED"
+                                              : "REMOTE_COVER_NO_CONFIRMED_TRACK");
                 } else if (!std::strcmp(command, "pair-start")) {
                     select_page(REMOTE_PAGE_PAIRING);
                     bool started = start_pairing();
@@ -1491,6 +1605,13 @@ void setup() {
             }
             if (!radio_link.ready() || p.broadcast)
                 continue;
+#ifdef WR_RADIO_BENCHMARK
+            if (!std::memcmp(p.data, "WBTD", 4) || !std::memcmp(p.data, "WBTE", 4) ||
+                !std::memcmp(p.data, "WBTM", 4)) {
+                bench_receive(p);
+                continue;
+            }
+#endif
             received_frames++;
             if (wr_status_frame(p.data, p.bytes) && receiver.paired) {
                 wr_status decoded;
@@ -1676,6 +1797,12 @@ void setup() {
         }
         pairing_step();
         keyboard_step();
+#ifdef WR_RADIO_BENCHMARK
+        if (bench.run && (!radio_link.ready() || uint64_t(esp_timer_get_time()) - bench.started >=
+                         (WR_BENCH_TIMEOUT_MS + 5000u) * 1000ull))
+            bench_finish(false);
+        if (!bench.run)
+#endif
         artwork_step();
         if (redraw_pending)
             render_status();

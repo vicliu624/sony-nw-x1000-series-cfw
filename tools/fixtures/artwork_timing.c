@@ -27,8 +27,8 @@ static void reply(uint64_t now, unsigned total, int result) {
     if (!result) {
         response.chunk.total = total;
         response.chunk.bytes = total - response.chunk.offset;
-        if (response.chunk.bytes > XW_ARTWORK_CHUNK)
-            response.chunk.bytes = XW_ARTWORK_CHUNK;
+        if (response.chunk.bytes > WR_ARTWORK_DATA_BYTES)
+            response.chunk.bytes = WR_ARTWORK_DATA_BYTES;
         for (unsigned i = 0; i < response.chunk.bytes; ++i)
             response.chunk.data[i] = (uint8_t)(response.chunk.offset + i);
     }
@@ -43,11 +43,11 @@ static void observed_large_cover(int require_unpaced) {
     while (!client.job.complete) {
         wr_artwork_client_tick(&client, now);
         assert(!client.job.failed);
-        assert(!wr_artwork_client_request(&client, now, wire, sizeof wire, key));
-        now += 800;
+        if (!client.job.pending)
+            assert(!wr_artwork_client_request(&client, now, wire, sizeof wire, key));
+        now += 1100;
         reply(now, 161505, 0);
-        /* One outstanding read provides flow control. A completed reply need
-         * not incur an additional fixed delay before the next read. */
+        /* Each successful reply advances the burst without imposed pacing. */
         if (require_unpaced)
             assert(client.job.next == now);
         now = client.job.next;
@@ -57,7 +57,7 @@ static void observed_large_cover(int require_unpaced) {
     for (unsigned i = 0; i < client.job.received; ++i)
         assert(client.data[i] == (uint8_t)i);
     assert(wr_artwork_client_request(&client, now + 1000000, wire, sizeof wire, key));
-    puts("ARTWORK_SLOW_PROGRESS_PASS: 161505 bytes at 800 ms/response complete beyond 120 seconds without forced reply pacing");
+    puts("ARTWORK_SLOW_PROGRESS_PASS: 161505 bytes at 1100 ms/response complete beyond 120 seconds without forced reply pacing");
 }
 
 static void bounded_failure(void) {
@@ -82,8 +82,42 @@ static void bounded_failure(void) {
     puts("ARTWORK_BUDGET_BOUND_PASS: BUSY never extends admission, size-derived jobs have a fixed absolute cap, failed/completed jobs emit no idle reads");
 }
 
+static void recover_missing_chunk(void) {
+    const unsigned total = 3 * WR_ARTWORK_DATA_BYTES;
+    begin(100);
+    assert(!wr_artwork_client_request(&client, 100, wire, sizeof wire, key));
+    reply(200, total, 0);
+    uint32_t original = client.job.serial;
+    struct wr_artwork_reply delayed = {0};
+    delayed.session = client.job.session;
+    delayed.request = original;
+    delayed.chunk.id = client.job.id;
+    delayed.chunk.total = total;
+    delayed.chunk.offset = 2 * WR_ARTWORK_DATA_BYTES;
+    delayed.chunk.bytes = WR_ARTWORK_DATA_BYTES;
+    int bytes = wr_artwork_reply_encode(wire, sizeof wire, &delayed, key);
+    assert(bytes > 0 && wr_artwork_client_accept(&client, 300, wire, (size_t)bytes, key));
+    assert(client.job.received == WR_ARTWORK_DATA_BYTES);
+    wr_artwork_client_tick(&client, 2200);
+    assert(!client.job.pending && client.job.timeouts == 1);
+    assert(!wr_artwork_client_request(&client, 2300, wire, sizeof wire, key));
+    struct wr_artwork_request resume;
+    assert(!wr_artwork_request_decode(&resume, wire, WR_ARTWORK_REQUEST_BYTES, key));
+    assert(resume.offset == WR_ARTWORK_DATA_BYTES && resume.request > original);
+    delayed.chunk.offset = resume.offset;
+    bytes = wr_artwork_reply_encode(wire, sizeof wire, &delayed, key);
+    assert(bytes > 0 && wr_artwork_client_accept(&client, 2301, wire, (size_t)bytes, key));
+    reply(2310, total, 0);
+    reply(2320, total, 0);
+    assert(wr_artwork_client_image_ready(&client));
+    for (unsigned i = 0; i < total; i++)
+        assert(client.data[i] == (uint8_t)i);
+    puts("ARTWORK_WINDOW_RESUME_PASS: a gap resumes at the last verified offset with a new serial");
+}
+
 int main(int argc, char **argv) {
     observed_large_cover(argc < 2 || strcmp(argv[1], "budget") != 0);
     bounded_failure();
+    recover_missing_chunk();
     return 0;
 }

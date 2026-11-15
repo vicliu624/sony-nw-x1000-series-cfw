@@ -1,5 +1,5 @@
 /* External native C Device Info, read-only /proc + stock filesystem stats. */
-#include "../../../sdk/include/x1000/services/system_info.h"
+#include "device_info_data.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

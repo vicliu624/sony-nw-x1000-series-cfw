@@ -2,29 +2,27 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <fcntl.h>
+#include <unistd.h>
 #include <x1000/services/display.h>
 #include <x1000/services/touch.h>
 #include <x1000/services/stat.h>
-#include <x1000/services/files.h>
 #include <x1000/services/sha256.h>
-#include <x1000/services/process.h>
+#include <x1000/services/child.h>
 #include <x1000/services/url.h>
 #include <x1000/services/dns.h>
 #include <x1000/services/clock.h>
 #include <x1000/services/pcm.h>
 #include <x1000/services/fm_tuner.h>
 #include <x1000/services/unicode_font.h>
-#include <x1000/services/images.h>
-#include <x1000/services/system_info.h>
 #include <x1000/services/volume_policy.h>
 #include <x1000/services/package_platform.h>
 #include <x1000/services/package_canvas.h>
-#include "rgb-fixture.h"
 #ifndef HB_BUILD_VERSION
 #define HB_BUILD_VERSION "unknown"
 #endif
 static unsigned short pixels[240u*432u];
-static long (*volatile process_function)(void)=hb_linux_fork;
+static int (*volatile run_child)(const char *, const char *, char *const[], volatile int *) = hb_process_run;
 static int tune(void *context,int frequency){*(int *)context=frequency;return 0;}
 static int sample(void *context,int *strength){(void)context;*strength=55;return 1;}
 static int selftest(void){
@@ -33,7 +31,6 @@ static int selftest(void){
     struct hb_sha256 hash;unsigned char digest[32];hb_sha256_init(&hash);hb_sha256_update(&hash,(const unsigned char *)"abc",3);hb_sha256_final(&hash,digest);
     if(digest[0]!=0xba||digest[31]!=0xad)return 2;
     const char *utf8="\xe4\xbd\xa0";if(dx_utf8(&utf8)!=0x4f60||*utf8)return 3;
-    unsigned short thumbnail[4];if(qq_image_thumbnail(rgb_fixture,sizeof rgb_fixture,thumbnail,2)||thumbnail[0]!=0xf800)return 4;
     struct hb_https_url url;if(hb_https_url_parse("https://example.test/a?b=1",&url)||url.port!=443||strcmp(url.host,"example.test"))return 5;
     if(!hb_https_url_parse("http://example.test/",&url))return 6;
     struct hb_dns_query dns;hb_dns_init(&dns);if(dns.state!=HB_DNS_EMPTY)return 7;hb_dns_release(&dns);
@@ -50,10 +47,13 @@ static int selftest(void){
     painter.rect(painter.context,0,0,1,1,0x1234);if(pixels[0]!=0x1234)return 13;
     struct hb_store_platform platform;if(hb_store_native_platform(&platform)||!platform.open||!platform.close)return 14;
     struct hb_target_stat st;if(hb_target_lstat("sdk/VERSION",&st)||st.st_size<1)return 15;
-    long fd=hb_file_open_read("sdk/VERSION");char buffer[64];if(fd<0||hb_file_read((int)fd,buffer,sizeof buffer)<1||hb_file_close((int)fd))return 16;
-    if(!process_function)return 17;
-    char size[38];hb_info_size(size,34359738368ULL);if(strcmp(size,"32.0 GiB"))return 18;
-    puts("SDK services: display types, Unicode, images, URL/TLS dependencies, clock, PCM, FM model, large-volume planning, package canvas, stock files and process API passed");return 0;
+    int fd = open("sdk/VERSION", O_RDONLY);
+    if (fd < 0) return 16;
+    char buffer[64];
+    ssize_t bytes = read(fd, buffer, sizeof buffer);
+    if (close(fd) || bytes < 1) return 16;
+    if (!run_child) return 17;
+    puts("SDK services: display types, Unicode, URL/TLS dependencies, clock, PCM, FM model, large-volume planning, package canvas, stock files and process API passed");return 0;
 }
 int main(int argc,char **argv){
     if(argc==2&&!strcmp(argv[1],"--help")){puts("Native SDK service client: --selftest uses memory and ordinary source files, no network account or hardware.");return 0;}

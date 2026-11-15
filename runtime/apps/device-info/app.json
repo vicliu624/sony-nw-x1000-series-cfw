@@ -22,8 +22,7 @@
       "startup",
       "display",
       "signals-libc",
-      "font5x7",
-      "system-info"
+      "font5x7"
     ]
   }
 }

@@ -4,7 +4,9 @@
 #include "../../platform/player/artwork.h"
 #define WR_ARTWORK_REQUEST_BYTES 112u
 #define WR_ARTWORK_REPLY_HEADER_BYTES 113u
-#define WR_ARTWORK_REPLY_MAX (WR_ARTWORK_REPLY_HEADER_BYTES + XW_ARTWORK_CHUNK)
+#define WR_ARTWORK_DATA_BYTES 1344u
+#define WR_ARTWORK_WINDOW_CHUNKS 8u
+#define WR_ARTWORK_REPLY_MAX (WR_ARTWORK_REPLY_HEADER_BYTES + WR_ARTWORK_DATA_BYTES)
 struct wr_artwork_request {
     uint64_t session;
     uint32_t request, offset;
@@ -14,7 +16,11 @@ struct wr_artwork_reply {
     uint64_t session;
     uint32_t request;
     int32_t result;
-    struct xw_artwork_chunk chunk;
+    struct {
+        struct xw_media_id id;
+        uint32_t total, offset, bytes;
+        uint8_t data[WR_ARTWORK_DATA_BYTES];
+    } chunk;
 };
 #ifdef __cplusplus
 extern "C" {

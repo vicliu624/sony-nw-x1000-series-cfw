@@ -40,7 +40,7 @@ for name,digest in {'libc.so.6':'5afbf3074dfa9ba0478d6670f220ef4d7ec065a255ee856
 tremor=['mdct','block','window','synthesis','info','floor1','floor0','vorbisfile','res012','mapping0','registry','codebook','sharedbook']
 shine=['bitstream','huffman','l3bitstream','l3loop','l3mdct','l3subband','layer3','reservoir','tables']
 third=[vendor/'tremor'/(n+'.c') for n in tremor]+[vendor/'ogg/src/framing.c',vendor/'ogg/src/bitwise.c']+[vendor/'shine/src/lib'/(n+'.c') for n in shine]
-own=['runtime/apps/qqmusic/qqmusic_import.c','runtime/apps/qqmusic/qqmusic_codec.c','tools/fixtures/qqmusic_codec.c','runtime/apps/qqmusic/qqmusic_qmc_codec.c','runtime/apps/qqmusic/qqmusic_qmc.c','runtime/apps/qqmusic/qqmusic_protocol.c','runtime/apps/qqmusic/qqmusic_session.c','runtime/apps/qqmusic/qqmusic_metadata.c','runtime/apps/qqmusic/qqmusic_id3.c','runtime/platform/images/qqmusic_image.c','runtime/platform/images/qqmusic_picture.c','runtime/native/sha256.c','runtime/store/stock_tls_compat.c','runtime/store/stock_fs_bridge.c','runtime/store/stock_stat64.c','runtime/store/start.c','runtime/store/start.S']
+own=['runtime/apps/qqmusic/qqmusic_import.c','runtime/apps/qqmusic/qqmusic_codec.c','tools/fixtures/qqmusic_codec.c','runtime/apps/qqmusic/qqmusic_qmc_codec.c','runtime/apps/qqmusic/qqmusic_qmc.c','runtime/apps/qqmusic/qqmusic_protocol.c','runtime/apps/qqmusic/qqmusic_session.c','runtime/apps/qqmusic/qqmusic_metadata.c','runtime/apps/qqmusic/qqmusic_id3.c','runtime/apps/qqmusic/qqmusic_image.c','runtime/apps/qqmusic/qqmusic_picture.c','runtime/native/sha256.c','runtime/store/stock_tls_compat.c','runtime/store/stock_fs_bridge.c','runtime/store/stock_stat64.c','runtime/store/start.c','runtime/store/start.S']
 if file_import:
     own[2]='tools/fixtures/qqmusic_file_import.c'
     own+=[('runtime/platform/storage/' if n in ('volume','storage') else 'runtime/apps/qqmusic/')+'qqmusic_'+n+'.c' for n in ('file_import','mp3','publish','source','output','directory','stage','stage_volume','volume','storage','asset')]+['runtime/store/https_url.c']
@@ -83,8 +83,7 @@ flags+=network_flags
 if file_import:flags+=['-DHB_STORE_SONY_LIBC']
 objects=[]
 shared_storage_headers=sorted((ROOT/'runtime/platform/storage').glob('*.h'))
-shared_image_headers=sorted((ROOT/'runtime/platform/images').glob('*.h'))
-header_key=b''.join(p.read_bytes() for p in sorted((ROOT/'runtime/apps/qqmusic').glob('*.h')))+b''.join(p.read_bytes() for p in shared_storage_headers+shared_image_headers)+b''.join(p.read_bytes() for p in sorted(vendor.rglob('*.h')))+config.encode()
+header_key=b''.join(p.read_bytes() for p in sorted((ROOT/'runtime/apps/qqmusic').glob('*.h')))+b''.join(p.read_bytes() for p in shared_storage_headers)+b''.join(p.read_bytes() for p in sorted(vendor.rglob('*.h')))+config.encode()
 dependencies=['tools/fixtures/qqmusic_volume.c'] if file_import and not device_app else []
 if live_session:dependencies+=['runtime/apps/qqmusic/qqmusic_main.c']
 if network_import and not job_import:dependencies+=['tools/fixtures/qqmusic_transfer_import.h']
@@ -94,7 +93,7 @@ if audio_preview:header_key+=(profile_dir/'qqmusic_preview_profile.h').read_byte
 for i,path in enumerate(third+[ROOT/p for p in own]):
     obj=work/(str(i)+'-'+path.stem+'.o')
     extra=profile_flags if (live_session and path.name=='qqmusic_live_session.c') or (device_app and path.name=='qqmusic_main.c') else []
-    cmd=['arm-linux-gnueabi-gcc',*flags,*extra,*(['-Wall','-Wextra','-Werror'] if path.is_relative_to(ROOT/'runtime/apps') or path.is_relative_to(ROOT/'runtime/platform/storage') or path.is_relative_to(ROOT/'runtime/platform/images') or path.is_relative_to(ROOT/'tools/fixtures') else []),'-c',str(path),'-o',str(obj)]
+    cmd=['arm-linux-gnueabi-gcc',*flags,*extra,*(['-Wall','-Wextra','-Werror'] if path.is_relative_to(ROOT/'runtime/apps') or path.is_relative_to(ROOT/'runtime/platform/storage') or path.is_relative_to(ROOT/'tools/fixtures') else []),'-c',str(path),'-o',str(obj)]
     key=hashlib.sha256(path.read_bytes()+header_key+'\n'.join(cmd[:-2]).encode()).hexdigest();stamp=obj.with_suffix('.key')
     if not obj.exists() or not stamp.exists() or stamp.read_text()!=key:
         sdk_run(cmd,cwd=ROOT,check=True);stamp.write_text(key)
@@ -108,7 +107,6 @@ report={'built':True,'tested':False,'device_tested':False,'objective_complete':F
         'image_provenance_sha256':hashlib.sha256((ROOT/'sources/qqmusic-image-sources.json').read_bytes()).hexdigest(),
         'generator_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
         'shared_storage_header_hashes':{p.relative_to(ROOT).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in shared_storage_headers},
-        'shared_image_header_hashes':{p.relative_to(ROOT).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in shared_image_headers},
         'limits':['Portable C only, no codec inline ARM assembly.','No device performance/heap qualification, user-volume adapter or app integration.']}
 if network_import:report['network_dependencies']={str(Path(p).relative_to(ROOT)):hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in network_libs[1:]}
 report['audio_preview_enabled']=audio_preview
@@ -118,7 +116,7 @@ if '--host' in sys.argv or '--asan' in sys.argv:
                 '-I'+str(work/'include'),'-I'+str(vendor/'ogg/include'),'-I'+str(vendor/'tremor'),'-I'+str(vendor/'shine/src/lib')]
     host_flags+=['-isystem',str(stb)]
     sanitizer=['-g','-O1','-fsanitize=address','-fno-omit-frame-pointer'] if '--asan' in sys.argv else []
-    host_own=[p for p in own if p.startswith('runtime/apps/') or p.startswith('runtime/platform/storage/') or p.startswith('runtime/platform/images/') or p.startswith('tools/fixtures/') or p=='runtime/native/sha256.c']
+    host_own=[p for p in own if p.startswith('runtime/apps/') or p.startswith('runtime/platform/storage/') or p.startswith('tools/fixtures/') or p=='runtime/native/sha256.c']
     sdk_run(['gcc-12',*host_flags,*sanitizer,*wrap,*[str(p) for p in third],*[str(ROOT/p) for p in host_own],'-lm','-o',str(work/(suffix+('.asan' if sanitizer else '.host')))],cwd=ROOT,check=True)
     report['host_artifact_sha256']=hashlib.sha256((work/(suffix+('.asan' if sanitizer else '.host'))).read_bytes()).hexdigest()
     (work/build_name).write_text(json.dumps(report,indent=2)+'\n')

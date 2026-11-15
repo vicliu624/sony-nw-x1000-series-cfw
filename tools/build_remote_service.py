@@ -29,7 +29,7 @@ SERVICE_SOURCES = [
 ]
 
 
-def build(output=None, *, fixture_sources=(), fixture_flags=()):
+def build(output=None, *, fixture_sources=(), fixture_flags=(), radio_benchmark=False):
     out = fresh_work(output or ROOT / 'work/remote-service-build' / str(time.time_ns()))
     libs = stock_libraries(include_rt=True)
     artifact = out / SERVICE_LEAF
@@ -40,6 +40,8 @@ def build(output=None, *, fixture_sources=(), fixture_flags=()):
         '-no-pie', '-fno-pie', '-nostdlib', '-Wl,--hash-style=sysv,--build-id=none',
     ]
     sources = [*SERVICE_SOURCES, *fixture_sources]
+    if radio_benchmark:
+        flags.append('-DWR_RADIO_BENCHMARK')
     compiler = ['arm-linux-gnueabi-gcc', *flags, *fixture_flags]
     inputs = gcc_project_dependencies(ROOT, compiler, sources)
     inputs.update(('tools/build_remote_service.py', 'tools/component_receipts.py', 'tools/evidence_checks.py'))
@@ -63,6 +65,7 @@ def build(output=None, *, fixture_sources=(), fixture_flags=()):
                   sha256=digest(artifact), original_libc_arm_entry_checks=not (fixture_sources or fixture_flags),
                   device_accessed=False, radio_started=False, live_capability_run_verified=False,
                   command_negotiation_supported=True,
+                  radio_benchmark=radio_benchmark,
                   linked_library_hashes=linked_hashes, source_hashes=source_hashes)
     if fixture_sources or fixture_flags:
         report['fixture_only'] = True
@@ -80,8 +83,9 @@ def reviewed_service(review):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, help='New build directory below work/')
+    parser.add_argument('--radio-benchmark', action='store_true', help='Enable the paired RAM data producer')
     args = parser.parse_args()
-    _, report = build(args.output)
+    _, report = build(args.output, radio_benchmark=args.radio_benchmark)
     print(json.dumps(report, indent=2))
 
 

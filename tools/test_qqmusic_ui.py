@@ -20,7 +20,7 @@ lib=ROOT/'work/arm-signal-tests/lib';mathlib=ROOT/'work/qqmusic-codec/libm.so.6'
 for name,digest in {'libc.so.6':'5afbf3074dfa9ba0478d6670f220ef4d7ec065a255ee856d9093d39210f23812','ld-linux.so.3':'2f007b0809684fde0ac446ad203135c10b4318eb8c10d4160a9f59b32c3c52de'}.items():
  assert hashlib.sha256((lib/name).read_bytes()).hexdigest()==digest
 modules=('session','protocol','json','credential','catalog','cgi','cookie','http','response','login','app','resource','export','ui')
-core=['runtime/apps/qqmusic/qqmusic_'+name+'.c' for name in modules]+['runtime/platform/images/qqmusic_image.c','runtime/store/https_url.c','runtime/native/sha256.c','tools/fixtures/qqmusic_ui.c']
+core=['runtime/apps/qqmusic/qqmusic_'+name+'.c' for name in modules]+['runtime/apps/qqmusic/qqmusic_image.c','runtime/store/https_url.c','runtime/native/sha256.c','tools/fixtures/qqmusic_ui.c']
 common=['-std=c99','-Wall','-Wextra','-Werror','-isystem','third_party/qqmusic-stb']
 arm=work/'ui-tests.arm'
 subprocess.run(['arm-linux-gnueabi-gcc',*common,'-Os','-march=armv5te','-marm','-mfloat-abi=soft','-ffreestanding','-fno-builtin','-fno-pie','-nostdlib','-no-pie','-Wl,--hash-style=sysv','-Wl,--build-id=none','-Wl,--dynamic-linker=/lib/ld-linux.so.3',*core,'runtime/store/stock_tls_compat.c','runtime/store/stock_fs_bridge.c','runtime/store/stock_stat64.c','runtime/store/start.c','runtime/store/start.S',str(lib/'libc.so.6'),str(lib/'ld-linux.so.3'),str(mathlib),'-lgcc','-o',str(arm)],cwd=ROOT,check=True)

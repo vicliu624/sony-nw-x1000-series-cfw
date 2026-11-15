@@ -8,7 +8,7 @@ for name,digest in manifest['files'].items():assert hashlib.sha256((stb/name).re
 lib=ROOT/'work/arm-signal-tests/lib';math=ROOT/'work/qqmusic-codec/libm.so.6'
 for name,digest in {'libc.so.6':'5afbf3074dfa9ba0478d6670f220ef4d7ec065a255ee856d9093d39210f23812','ld-linux.so.3':'2f007b0809684fde0ac446ad203135c10b4318eb8c10d4160a9f59b32c3c52de'}.items():assert hashlib.sha256((lib/name).read_bytes()).hexdigest()==digest
 assert math.is_file(),'Build codec fixture to extract pinned stock libm first'
-core=['runtime/platform/images/qqmusic_image.c','runtime/platform/images/qqmusic_picture.c','runtime/apps/qqmusic/qqmusic_metadata.c','runtime/apps/qqmusic/qqmusic_id3.c','runtime/native/sha256.c','tools/fixtures/qqmusic_artwork.c']
+core=['runtime/apps/qqmusic/qqmusic_image.c','runtime/apps/qqmusic/qqmusic_picture.c','runtime/apps/qqmusic/qqmusic_metadata.c','runtime/apps/qqmusic/qqmusic_id3.c','runtime/native/sha256.c','tools/fixtures/qqmusic_artwork.c']
 sources=core+['runtime/store/stock_tls_compat.c','runtime/store/stock_fs_bridge.c','runtime/store/stock_stat64.c','runtime/store/start.c','runtime/store/start.S']
 app=work/'artwork-tests.arm'
 flags=['-std=c99','-O2','-Wall','-Wextra','-Werror','-isystem',str(stb)]

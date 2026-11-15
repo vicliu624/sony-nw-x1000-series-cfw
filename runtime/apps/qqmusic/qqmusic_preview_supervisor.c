@@ -3,7 +3,7 @@
 #endif
 #include "qqmusic_preview_supervisor.h"
 #include "qqmusic_preview_owners.h"
-#include "../../../sdk/include/x1000/services/process.h"
+#include "../../native/linux_process.h"
 #include "../../../sdk/include/x1000/services/stop.h"
 #include <sys/stat.h>
 #include <sys/wait.h>

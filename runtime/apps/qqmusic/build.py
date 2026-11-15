@@ -51,7 +51,7 @@ if args.audio_preview:
 lib=ROOT/'work/arm-signal-tests/lib';resolver=ROOT/'work/stock-resolver-probe';crypto=ROOT/'work/external-tls-probe';math=ROOT/'work/qqmusic-codec/libm.so.6'
 for name,digest in {'libc.so.6':'5afbf3074dfa9ba0478d6670f220ef4d7ec065a255ee856d9093d39210f23812','ld-linux.so.3':'2f007b0809684fde0ac446ad203135c10b4318eb8c10d4160a9f59b32c3c52de'}.items():assert hashlib.sha256((lib/name).read_bytes()).hexdigest()==digest
 modules=('session','protocol','json','credential','catalog','cgi','cookie','http','response','login','app','resource','export','ui','image','runtime','identity','qimei','tls','network','loop','devices','entry','program','asset','volume','storage','main')
-sources=[('runtime/platform/storage/' if n in ('volume','storage') else 'runtime/platform/images/' if n in ('image','picture') else 'runtime/apps/qqmusic/')+'qqmusic_'+n+'.c' for n in modules]
+sources=[('runtime/platform/storage/' if n in ('volume','storage') else 'runtime/apps/qqmusic/')+'qqmusic_'+n+'.c' for n in modules]
 sources+=['runtime/store/'+n+'.c' for n in ('https_url','resolver','connect_step','socket_step','tls_socket_step','deadline','tls_platform','stock_tls_compat','stock_fs_bridge','stock_stat64','start')]
 sources+=['runtime/store/start.S','runtime/native/sha256.c','runtime/native/linux_devices.c','runtime/native/frontend.c','runtime/native/linux_signals.c','runtime/native/syscalls.S']
 if args.live_session:

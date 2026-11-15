@@ -23,7 +23,10 @@ from sdk_build import fresh_work
 def build(*, sdk_review=None, rx_diagnostic_radio=None, external_radio_inputs=None,
           legacy_radio=False, output=None,
           window_seconds=None, power_off_exit=False, mode_view_required=False,
-          managed_session=False, root_cold=False, data_leaf='espnow-test', link_keys=False):
+          managed_session=False, root_cold=False, data_leaf='espnow-test', link_keys=False,
+          radio_benchmark=False):
+    if radio_benchmark and (not link_keys or legacy_radio):
+        raise ValueError('--radio-benchmark requires the managed FRM1 link profile')
     if root_cold and not managed_session:
         raise ValueError('--root-cold requires --managed-session')
     if rx_diagnostic_radio is not None and not root_cold:
@@ -67,6 +70,8 @@ def build(*, sdk_review=None, rx_diagnostic_radio=None, external_radio_inputs=No
     else:
         payload, manifest = reviewed_radio(rx_diagnostic_radio)
         review = payload.parent
+    if radio_benchmark and not manifest.get('frame_transactions'):
+        raise ValueError('--radio-benchmark requires FRM1')
     manifest_path = review / 'manifest.json'
     radio = review / 'candidate/sd8686.bin'
     radio_inputs = [path.relative_to(ROOT).as_posix() for path in
@@ -129,6 +134,9 @@ def build(*, sdk_review=None, rx_diagnostic_radio=None, external_radio_inputs=No
     if managed_session:flags+=['-DXNOW_REMOTE_MANAGED']
     if root_cold:flags+=['-DXNOW_REMOTE_ROOT_COLD']
     if link_keys:flags+=['-DXNOW_REMOTE_LINK_KEYS']
+    if radio_benchmark:
+        sources.append('runtime/apps/wireless-remote/radio_benchmark.c')
+        flags+=['-DWR_RADIO_BENCHMARK','-Wl,--wrap=ioctl']
     compiler=['arm-linux-gnueabi-gcc',*flags]
     libraries=[archive,crypto,cnmgr,*libs.values()]
     link_args=[str(archive),str(crypto),str(cnmgr),'-Wl,--no-as-needed',str(libs['libpthread.so.0']),
@@ -249,6 +257,7 @@ def main():
     radio.add_argument('--rx-diagnostic-radio', type=Path, help='Reviewed exact-image build directory under work/')
     radio.add_argument('--legacy-radio', action='store_true', help='Use the pinned user-volume lab radio profile')
     parser.add_argument('--link-keys', action='store_true')
+    parser.add_argument('--radio-benchmark', action='store_true', help='Opt in to paired RAM transfer timing')
     try:
         _, report = build(**vars(parser.parse_args()))
     except (OSError, ValueError) as error:

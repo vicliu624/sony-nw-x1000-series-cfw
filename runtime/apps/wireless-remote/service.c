@@ -163,6 +163,48 @@ static int radio_retired(void *context) {
     (void)context;
     return wr_radio_retirement_poll(&retirement);
 }
+static int running_timeout(uint64_t now) {
+    if (radio.event_ready)
+        return 0;
+    uint64_t deadline = now + 200;
+    if (!sender.pending) {
+        if (sender.receipt_ready || sender.session_ready || sender.library_ready ||
+            sender.artwork_ready
+#ifdef WR_RADIO_BENCHMARK
+            || sender.bench.run
+#endif
+        )
+            return 0;
+        if (worker.next_sample < deadline)
+            deadline = worker.next_sample;
+        if (sender.artwork_active && worker.settling_until < deadline)
+            deadline = worker.settling_until;
+        if (sender.library_active && sender.library_clocked && sender.library_next + 100 < deadline)
+            deadline = sender.library_next + 100;
+    }
+    if (sender.library_active && sender.library_clocked && sender.library_started + 2000 < deadline)
+        deadline = sender.library_started + 2000;
+    /* A due local operation still pending after the turn has no ready event. */
+    return deadline > now ? (int)(deadline - now) : 10;
+}
+
+static void wait_service(int stop_fd, uint64_t now) {
+    if (worker.phase == WR_WORKER_RUNNING) {
+        if (stopping)
+            return;
+        struct pollfd fds[] = {{stop_fd, POLLIN, 0},
+                               {radio.input, radio.request_bytes ? 0 : POLLIN, 0},
+                               {radio.output, radio.request_bytes ? POLLOUT : 0, 0}};
+        int timeout = running_timeout(now);
+        if (timeout && poll(fds, 3, timeout) < 0 && errno != EINTR)
+            stopping = 1;
+    } else {
+        struct pollfd receipt = {worker.phase == WR_WORKER_RADIO_RETIRE ? handoff.reader : -1,
+                                 POLLIN, 0};
+        (void)poll(&receipt, 1, 10);
+    }
+}
+
 static int finish_radio(void) {
     if (radio.used && !radio.fault)
         xnow_client_close(&radio);
@@ -327,6 +369,6 @@ int main(int argc, char **argv) {
             for (;;)
                 poll(0, 0, 1000);
         }
-        poll(0, 0, 10);
+        wait_service(count == 6 ? fds[5] : -1, now);
     }
 }

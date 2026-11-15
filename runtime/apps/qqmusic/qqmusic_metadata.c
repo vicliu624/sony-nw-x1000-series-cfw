@@ -1,5 +1,5 @@
 #include "qqmusic_metadata.h"
-#include "../../../sdk/include/x1000/services/images.h"
+#include "qqmusic_image.h"
 #include "../../../sdk/include/x1000/services/sha256.h"
 #include <string.h>
 extern int sony_snprintf(char *,size_t,const char *,...) __asm__("snprintf");

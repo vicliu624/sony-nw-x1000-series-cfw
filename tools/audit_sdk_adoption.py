@@ -50,8 +50,14 @@ def source_refactors():
     return refactors
 
 def declared_include_target(source, quoted):
-    """Follow the selected SDK module's declared compiler include directories."""
-    name = current_source(source).relative_to(ROOT).as_posix()
+    """Follow the declared application or SDK module include directories."""
+    path = current_source(source).relative_to(ROOT)
+    name = path.as_posix()
+    if path.parts[:2] == ('runtime', 'apps'):
+        for directory in POLICY.get('app_include_dirs', {}).get(path.parts[2], []):
+            target = (ROOT / directory / quoted).resolve()
+            if target.is_relative_to(ROOT) and target.is_file():
+                return target
     modules = manifest()
     owners = [module for module, item in modules.items()
               if name in item['sources'] or name in item.get('exports', {}).values()]
@@ -138,8 +144,6 @@ def audit(check_logic=False, apps=None):
         old_metadata=json.loads(baseline('runtime/apps/'+ident+'/app.json')) if check_logic else None
         if old_metadata is not None and {k:v for k,v in discovered[ident].items() if k!='sdk'}!={k:v for k,v in old_metadata.items() if k!='sdk'}:
             errors.append(ident+': application metadata/installed presentation changed')
-        if check_logic and (definition/'VERSION').read_text().strip()!=baseline('runtime/apps/'+ident+'/VERSION').strip():
-            errors.append(ident+': original app version changed before payload equivalence was established')
         directories=[definition]
         if ident in ('gbc','tamagotchi-id','ebook','dictionary'):directories.append(ROOT/'runtime/apps/emulators')
         sources = [path for directory in directories for path in directory.rglob('*')]

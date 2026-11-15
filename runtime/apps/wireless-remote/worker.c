@@ -58,6 +58,10 @@ static void run_remote_work(struct wr_worker *worker, uint64_t now) {
     int result = wr_sender_step(sender);
     if (!continue_running(worker, result, WR_WORKER_STOP_TRANSPORT))
         return;
+#ifdef WR_RADIO_BENCHMARK
+    if (sender->bench.run)
+        return;
+#endif
 
     if (sender->ledger.have && worker->observed_command != sender->ledger.last.request) {
         worker->observed_command = sender->ledger.last.request;

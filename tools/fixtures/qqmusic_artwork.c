@@ -1,4 +1,4 @@
-#include "../../runtime/platform/images/qqmusic_image.h"
+#include "../../runtime/apps/qqmusic/qqmusic_image.h"
 #include "../../runtime/apps/qqmusic/qqmusic_metadata.h"
 #include <assert.h>
 #include <string.h>

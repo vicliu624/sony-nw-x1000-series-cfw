@@ -23,6 +23,16 @@ local input set, not an exemption from stock component checks.
 The launcher check and Hello package use the same Hello build. The release
 workflow checks the store's download planner independently after packaging.
 
+To release a tested managed Remote image, give the same builder
+`--firmware-review`, `--allocation-review`, `--radio-review` and
+`--controller-review`. The packager verifies the complete firmware inventory
+against its reviewed layout and independent extraction. It copies the reviewed
+UPG and the matching Core2 application, with their link and artwork protocols
+checked against the source receipts. The default GitHub workflow uses the
+standard localization build. For a reviewed managed release, run
+`tools/verify_release.py <release-directory>` on the local assembly and publish
+its upload directory with `tools/publish_release.py` on the matching version tag.
+
 The firmware profile is built from original Japanese1.11 components and current
 Homebrew/error-message/built-in localization sources. It preserves the original
 installer, kernel and initrd, adds the launcher registration/resources, and uses
@@ -40,6 +50,8 @@ profile, not a claim of byte identity with a historical numbered candidate.
 - `catalog.tsv` plus flat, hash-indexed per-file release assets used by the market.
 - `market-source.zip`: a pinned catalog snapshot and public CA configuration.
 - `terminal-computer.zip`: PC client/pairing tool, with no private identity.
+- `core2-remote-<controller-version>.zip`: matching ESP32 application for
+  reviewed managed releases.
 - Source archive, manifests, release notes and SHA256SUMS.
 
 No ROMs, saves, account state, downloaded music, terminal private keys or original
@@ -96,10 +108,10 @@ claim; login/download/import/playback qualification remains outstanding.
 
 ## Publishing
 
-Pull requests run offline checks without write permissions. Main/manual builds
-produce workflow artifacts. A matching version tag, or an explicit manual publish
-on that tag, publishes experimental release assets with contents:write permission
-confined to the publish job. The pipeline must finish verification before publishing.
+Pull requests run offline checks without write permissions. A manual workflow
+run on the matching version tag can publish its verified experimental assets,
+with contents:write permission confined to the publish job. A review-based
+assembly uses the same publisher after local asset verification.
 Assets are uploaded to a draft, their remote inventory/size/digest is checked, and
 only then is the release made public. Published version releases are not clobbered;
 a failed draft upload can be resumed with the same verified inventory.
