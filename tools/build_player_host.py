@@ -31,7 +31,21 @@ def build_player_library(library, sources, flags, *, trace_identity=False):
     libgcc_sha256 = hashlib.sha256(libgcc.read_bytes()).hexdigest()
     compile_receipt = dict(compiler=version, libgcc_sha256=libgcc_sha256)
     if trace_identity:
-        inputs = json.dumps([before, flags, version, libgcc_sha256],
+        # Fingerprint generated input contents without their private output directory.
+        # The build receipt below still keeps the actual compiler inputs and command.
+        output_prefix = library.parent.relative_to(ROOT).as_posix() + '/'
+        trace_hashes = {
+            ('<output>/' + name.removeprefix(output_prefix) if name.startswith(output_prefix) else name): digest
+            for name, digest in before.items()
+        }
+        trace_flags = []
+        for flag in flags:
+            option, value = ('-I', flag[2:]) if flag.startswith('-I') else ('', flag)
+            path = Path(value)
+            if path.is_absolute() and path.is_relative_to(library.parent):
+                flag = option + '<output>/' + path.relative_to(library.parent).as_posix()
+            trace_flags.append(flag)
+        inputs = json.dumps([trace_hashes, sources, trace_flags, version, libgcc_sha256],
                             sort_keys=True).encode('utf-8')
         identity = hashlib.sha256(inputs).hexdigest()[:16]
         compiler.append('-DXW_REMOTE_TRACE_BUILD=0x' + identity + 'ULL')
@@ -189,7 +203,7 @@ def build(engine_provider=False,managed_host=False,native_prepare=False,builtin_
                 sleep_header=work/'sleep-profile.h'
                 sleep_guards=','.join('{'+g['address']+'u,'+str(g['bytes'])+'u,'+digest_initializer(g['sha256'])+'}' for g in sleep_composition['guards'])
                 sleep_header.write_text('#define XW_PLAYER_NATIVE_SLEEP\n#define XW_NATIVE_SLEEP_GUARDS {'+sleep_guards+'}\n')
-                rf_header.write_text(rf_header.read_text()+'#include "'+str(sleep_header)+'"\n')
+                rf_header.write_text(rf_header.read_text()+'#include "'+sleep_header.name+'"\n')
     settings_visible_count=None;artwork_composition=None
     if stock_artwork_fix:from stock_artwork_fix import compose as compose_artwork
     if native_prepare:

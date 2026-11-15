@@ -69,11 +69,13 @@ image against the host's compile contract.
 The build and runtime dependencies differ. The startup wrapper is rebuilt by
 layout assembly. It carries the player library's path and can use the same
 bytes whenever its own build inputs match. It carries no child hash or size.
-Rebuilding in another output directory can change the player's generated trace
-identifier. A relink can also change a component's symbol string table, in turn
-changing the identity embedded by its supervisor. Use ELF program headers and
-section contents to locate an executable difference. Deployment validation
-continues to use the full hashes of the actual files.
+The player fingerprints generated headers by content and path relative to the
+build directory. Its receipt records the exact inputs and compiler arguments.
+The shared ARM entry declares a stable ELF source name, so GCC's temporary
+object name does not cascade into the supervisor's child hashes. With the same
+toolchain and inputs, two managed builds in separate directories reproduced the
+service, owner, supervisor, player library, and modified SpiderApp byte for byte.
+Deployment validation continues to use the full hashes of the actual files.
 
 ```mermaid
 flowchart LR

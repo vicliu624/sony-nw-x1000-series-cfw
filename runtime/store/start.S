@@ -1,4 +1,5 @@
 .syntax unified
+.file "start.S"
 .arm
 .global _start
 .type _start,%function
