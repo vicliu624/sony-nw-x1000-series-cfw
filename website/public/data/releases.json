@@ -1,6 +1,147 @@
 {
-  "fetchedAt": "2026-10-28T08:41:48.755Z",
+  "fetchedAt": "2026-11-16T01:29:11.015Z",
   "releases": [
+    {
+      "tag_name": "v0.1.0-dev.38",
+      "name": "X1000 v0.1.0-dev.38 (experimental)",
+      "prerelease": true,
+      "published_at": "2026-11-15T19:01:38Z",
+      "html_url": "https://github.com/vicliu624/sony-nw-x1000-series-cfw/releases/tag/v0.1.0-dev.38",
+      "assets": [
+        {
+          "name": "core2-remote-0.1.0-alpha.32.zip",
+          "size": 904038,
+          "browser_download_url": "https://github.com/vicliu624/sony-nw-x1000-series-cfw/releases/download/v0.1.0-dev.38/core2-remote-0.1.0-alpha.32.zip",
+          "digest": "sha256:db0945279c9bb6118b36a926bffbf0b233707fcaa1c2d39b153b77283a786c95"
+        },
+        {
+          "name": "device-info-0.1.0-dev.22.zip",
+          "size": 17222,
+          "browser_download_url": "https://github.com/vicliu624/sony-nw-x1000-series-cfw/releases/download/v0.1.0-dev.38/device-info-0.1.0-dev.22.zip",
+          "digest": "sha256:140485d57aef9ede6b8c7c06d967d6a1502dced525c4426dd0b7be8d68f1f5dc"
+        },
+        {
+          "name": "diagnostics-0.1.0-dev.22.zip",
+          "size": 13146,
+          "browser_download_url": "https://github.com/vicliu624/sony-nw-x1000-series-cfw/releases/download/v0.1.0-dev.38/diagnostics-0.1.0-dev.22.zip",
+          "digest": "sha256:65f59a82855967296dad4b5f32c7918acb059810d6f68708ef151b1471ad8e0f"
+        },
+        {
+          "name": "dictionary-0.1.0-alpha.3.zip",
+          "size": 30040115,
+          "browser_download_url": "https://github.com/vicliu624/sony-nw-x1000-series-cfw/releases/download/v0.1.0-dev.38/dictionary-0.1.0-alpha.3.zip",
+          "digest": "sha256:e93e0e506ff316c3d3c7bebe7edc777efd7cc72f7a04f4499ce70aff87dec16b"
+        },
+        {
+          "name": "ebook-0.2.0-alpha.4.zip",
+          "size": 873518,
+          "browser_download_url": "https://github.com/vicliu624/sony-nw-x1000-series-cfw/releases/download/v0.1.0-dev.38/ebook-0.2.0-alpha.4.zip",
+          "digest": "sha256:6e805465f0aa4e4a09d789f7cfc88efe36a3fc7074507851802ff2d0dbec29f9"
+        },
+        {
+          "name": "fm-radio-0.1.0-dev.22.zip",
+          "size": 28998,
+          "browser_download_url": "https://github.com/vicliu624/sony-nw-x1000-series-cfw/releases/download/v0.1.0-dev.38/fm-radio-0.1.0-dev.22.zip",
+          "digest": "sha256:c058f41b0bd0968a0489bb0d0e3dc9704556fabc7375ab71ae1616f784b5f655"
+        },
+        {
+          "name": "gbc-0.1.0-alpha.10.zip",
+          "size": 59388,
+          "browser_download_url": "https://github.com/vicliu624/sony-nw-x1000-series-cfw/releases/download/v0.1.0-dev.38/gbc-0.1.0-alpha.10.zip",
+          "digest": "sha256:5b0de2d4205cabc1ea3e9cabb15db5105a8c2b0da9270514ec13b7d3e3a39134"
+        },
+        {
+          "name": "graphics-demo-0.1.0-dev.22.zip",
+          "size": 12336,
+          "browser_download_url": "https://github.com/vicliu624/sony-nw-x1000-series-cfw/releases/download/v0.1.0-dev.38/graphics-demo-0.1.0-dev.22.zip",
+          "digest": "sha256:e324f2ffc0799b52ddc231362729fa4cefefef01d793089cae68563e477982f9"
+        },
+        {
+          "name": "hello-0.1.0-dev.22.zip",
+          "size": 7819,
+          "browser_download_url": "https://github.com/vicliu624/sony-nw-x1000-series-cfw/releases/download/v0.1.0-dev.38/hello-0.1.0-dev.22.zip",
+          "digest": "sha256:5b63d19ac743857a7344ae874d6f79474d41797c3f3f4cedd404ad5bca79dc6f"
+        },
+        {
+          "name": "key-check-0.1.0-dev.22.zip",
+          "size": 12649,
+          "browser_download_url": "https://github.com/vicliu624/sony-nw-x1000-series-cfw/releases/download/v0.1.0-dev.38/key-check-0.1.0-dev.22.zip",
+          "digest": "sha256:53a55805fa17c539c96fa8de9c47eb7128d627f3639a554824a40516fd394f3e"
+        },
+        {
+          "name": "market-source.zip",
+          "size": 4077,
+          "browser_download_url": "https://github.com/vicliu624/sony-nw-x1000-series-cfw/releases/download/v0.1.0-dev.38/market-source.zip",
+          "digest": "sha256:39011f3735b2fdc9d7ca8b2f0c9137c481eddd737649dac380ba667b9a751cca"
+        },
+        {
+          "name": "NW-X1000-0.1.0-dev.38-firmware.zip",
+          "size": 46260095,
+          "browser_download_url": "https://github.com/vicliu624/sony-nw-x1000-series-cfw/releases/download/v0.1.0-dev.38/NW-X1000-0.1.0-dev.38-firmware.zip",
+          "digest": "sha256:952191ffdc5d980e28ace07ab328cca2d42fed7653ea3ad2c70dc83c2c603c87"
+        },
+        {
+          "name": "NW-X1000-0.1.0-dev.38-player-setup.zip",
+          "size": 153002,
+          "browser_download_url": "https://github.com/vicliu624/sony-nw-x1000-series-cfw/releases/download/v0.1.0-dev.38/NW-X1000-0.1.0-dev.38-player-setup.zip",
+          "digest": "sha256:b8923924e80f2f4a5a7cc27d26d46baf7bd7244e7fdcd23f5d09ca2f4c6cfee8"
+        },
+        {
+          "name": "qqmusic-0.1.1-alpha.4.zip",
+          "size": 2543546,
+          "browser_download_url": "https://github.com/vicliu624/sony-nw-x1000-series-cfw/releases/download/v0.1.0-dev.38/qqmusic-0.1.1-alpha.4.zip",
+          "digest": "sha256:5ccbda7ec47d7830debb281aa2f1d32e0f8109b1ee5fd0762e6d93aa0fe51be6"
+        },
+        {
+          "name": "release-manifest.json",
+          "size": 6824,
+          "browser_download_url": "https://github.com/vicliu624/sony-nw-x1000-series-cfw/releases/download/v0.1.0-dev.38/release-manifest.json",
+          "digest": "sha256:a21346a5d30600408c4b452a64bbcfba288f6a54d829012e526f911fc33fc270"
+        },
+        {
+          "name": "RELEASE_NOTES.md",
+          "size": 1978,
+          "browser_download_url": "https://github.com/vicliu624/sony-nw-x1000-series-cfw/releases/download/v0.1.0-dev.38/RELEASE_NOTES.md",
+          "digest": "sha256:3ca6725df5462a25b35fdb5e7a3aad2e8e45feb53bda55dc5eaddaec3d417ab8"
+        },
+        {
+          "name": "SHA256SUMS",
+          "size": 15339,
+          "browser_download_url": "https://github.com/vicliu624/sony-nw-x1000-series-cfw/releases/download/v0.1.0-dev.38/SHA256SUMS",
+          "digest": "sha256:a60759d0438a0f9fe36a182e025d73ecb703368ed6f9d8a1518fe693de7bff4e"
+        },
+        {
+          "name": "source-0.1.0-dev.38.zip",
+          "size": 5659142,
+          "browser_download_url": "https://github.com/vicliu624/sony-nw-x1000-series-cfw/releases/download/v0.1.0-dev.38/source-0.1.0-dev.38.zip",
+          "digest": "sha256:e1bf569ee24e39957611ed9c458a1d58cc3b76c84a87ae1c552a9cd02a5cbdd4"
+        },
+        {
+          "name": "store-0.1.0-dev.22.zip",
+          "size": 129288,
+          "browser_download_url": "https://github.com/vicliu624/sony-nw-x1000-series-cfw/releases/download/v0.1.0-dev.38/store-0.1.0-dev.22.zip",
+          "digest": "sha256:7a92aac3f96f3229477b3e0aab7dec8cdc553dbe21eb5f114c41c8d1ea818884"
+        },
+        {
+          "name": "tamagotchi-id-0.1.0-alpha.10.zip",
+          "size": 53856,
+          "browser_download_url": "https://github.com/vicliu624/sony-nw-x1000-series-cfw/releases/download/v0.1.0-dev.38/tamagotchi-id-0.1.0-alpha.10.zip",
+          "digest": "sha256:44d487a7e71d60f6ed7dd225e553fa0590f7c7c6fb55151d1bbf1f203596a6f0"
+        },
+        {
+          "name": "terminal-0.1.0-dev.23.zip",
+          "size": 59907,
+          "browser_download_url": "https://github.com/vicliu624/sony-nw-x1000-series-cfw/releases/download/v0.1.0-dev.38/terminal-0.1.0-dev.23.zip",
+          "digest": "sha256:b85f5e5995c75da533e74e816e142d401a02e1d27837c6bdc51c030b3a7cd12b"
+        },
+        {
+          "name": "terminal-computer.zip",
+          "size": 8285,
+          "browser_download_url": "https://github.com/vicliu624/sony-nw-x1000-series-cfw/releases/download/v0.1.0-dev.38/terminal-computer.zip",
+          "digest": "sha256:a2a735e108a5e12001055704838d48fc76e67d6da01263493ae048a13b1aa8af"
+        }
+      ]
+    },
     {
       "tag_name": "v0.1.0-dev.21",
       "name": "X1000 v0.1.0-dev.21 (experimental)",

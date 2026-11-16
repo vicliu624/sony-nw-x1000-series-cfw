@@ -25,7 +25,7 @@ static volatile int stop_requested;
 static const uint8_t pairing_broadcast[6] = {255, 255, 255, 255, 255, 255};
 static uint8_t peer_address[6] = {2, 1, 2, 3, 4, 5};
 static unsigned membership_count, opens, closes, endpoint_calls, ready_events;
-static int socket_failure, security_failure, endpoint_failure;
+static int backend_failure, socket_failure, security_failure, endpoint_failure;
 static int parent_failure, stop_in_security, stop_in_peer;
 static unsigned parent_checks;
 static uint32_t pairing_queue_head, pairing_queue_drops;
@@ -142,6 +142,12 @@ int hb_monotonic_millis(unsigned long long *now)
     return 0;
 }
 
+static int owner_enable_packet_backend(struct xnow_endpoint *endpoint)
+{
+    assert(endpoint == &owner_control.endpoint);
+    return backend_failure;
+}
+
 /* ACTUAL_OWNER_PREPARE */
 
 static void setup(int pairing, int shared)
@@ -155,7 +161,7 @@ static void setup(int pairing, int shared)
     pairing_listener = pairing;
     stop_requested = 0;
     opens = closes = endpoint_calls = ready_events = 0;
-    socket_failure = security_failure = endpoint_failure = 0;
+    backend_failure = socket_failure = security_failure = endpoint_failure = 0;
     parent_failure = stop_in_security = stop_in_peer = 0;
     parent_checks = 0;
 }
@@ -180,6 +186,11 @@ int main(void)
         }
     }
     for (int pairing = 0; pairing <= 1; pairing++) {
+        setup(pairing, 1);
+        backend_failure = -73;
+        assert(owner_prepare(NULL, &owner_control.endpoint, owner_control.local_mac) == -1);
+        assert(!opens && !endpoint_calls && !ready_events && !parent_checks);
+
         for (int failure = 1; failure <= 2; failure++) {
             setup(pairing, 1);
             socket_failure = failure;

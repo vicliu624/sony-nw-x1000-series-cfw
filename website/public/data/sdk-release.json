@@ -1,10 +1,10 @@
 {
-  "version": "0.2.0-alpha.1",
-  "url": "https://github.com/vicliu624/sony-nw-x1000-series-cfw/releases/tag/sdk-v0.2.0-alpha.1",
+  "version": "0.2.0-alpha.14",
+  "url": "https://github.com/vicliu624/sony-nw-x1000-series-cfw/releases/tag/sdk-v0.2.0-alpha.14",
   "asset": {
-    "url": "https://github.com/vicliu624/sony-nw-x1000-series-cfw/releases/download/sdk-v0.2.0-alpha.1/x1000-sdk-0.2.0-alpha.1-source.zip",
-    "name": "x1000-sdk-0.2.0-alpha.1-source.zip",
-    "bytes": 372161,
-    "sha256": "e272c6904b75afe60a2b4fedd8b9a282dea8717e67b73580e23557a651b168d4"
+    "url": "https://github.com/vicliu624/sony-nw-x1000-series-cfw/releases/download/sdk-v0.2.0-alpha.14/x1000-sdk-0.2.0-alpha.14-source.zip",
+    "name": "x1000-sdk-0.2.0-alpha.14-source.zip",
+    "bytes": 703030,
+    "sha256": "b2fe9e222d0af584a804f44daf61b7a69300e761f9e911bfbc0826ec4c89c62e"
   }
 }

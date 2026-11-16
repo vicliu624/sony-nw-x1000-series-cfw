@@ -15,11 +15,23 @@ permissions:
   contents: read
 
 concurrency:
-  group: x1000-pages-${{ github.event_name == 'pull_request' && github.ref || 'production' }}
+  group: x1000-pages-${{ (github.event_name == 'pull_request' || github.event_name == 'release') && github.ref || 'production' }}
   cancel-in-progress: true
 
 jobs:
+  refresh:
+    if: github.event_name == 'release'
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: write
+    steps:
+      - name: Request deployment from main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh workflow run pages.yml --ref main
   build:
+    if: github.event_name != 'release'
     runs-on: ubuntu-24.04
     defaults:
       run:
@@ -28,7 +40,6 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-          ref: ${{ github.event_name == 'release' && 'main' || github.ref }}
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
@@ -45,7 +56,7 @@ jobs:
         with:
           path: dist/website
   deploy:
-    if: github.event_name == 'release' || (github.event_name != 'pull_request' && github.ref == 'refs/heads/main')
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-24.04
     permissions:

@@ -3,6 +3,9 @@ import { JSDOM, VirtualConsole } from "jsdom";
 import { readFile, readdir } from "node:fs/promises";
 import assert from "node:assert/strict";
 const output = new URL("../../dist/website/", import.meta.url);
+const policy = JSON.parse(
+  await readFile(new URL("../../config/release.json", import.meta.url), "utf8"),
+);
 const catalog = JSON.parse(
   await readFile(new URL("data/catalog.json", output), "utf8"),
 );
@@ -76,13 +79,13 @@ try {
   await tick();
   await tick();
   assert.match(w.document.querySelector("h1").textContent, /你的 Walkman/);
-  assert.equal(catalog.apps.length, 14);
+  assert.deepEqual(catalog.apps.map((app) => app.id), policy.apps);
   await click(button("EN"));
   assert.equal(w.document.documentElement.lang, "en");
   assert.match(w.document.querySelector("h1").textContent, /Your Walkman/);
   assert.equal(w.localStorage.getItem("x1000-language"), "en");
   await route("apps");
-  assert.equal(w.document.querySelectorAll(".app-card").length, 14);
+  assert.equal(w.document.querySelectorAll(".app-card").length, policy.apps.length);
   await click(button("Music & radio"));
   assert.equal(w.document.querySelectorAll(".app-card").length, 2);
   await click(button("All apps"));
@@ -114,12 +117,20 @@ try {
   );
   await choose("model-label", "NW-X1060");
   await click(w.document.querySelector('input[type="checkbox"]'));
-  assert.equal(
-    w.document.querySelectorAll(".download-grid .download-link").length,
-    2,
+  const latest = snapshot.releases[0];
+  assert.ok(latest, "The release snapshot must contain a firmware release");
+  const expectedDownloads = ["firmware", "player-setup"].map((kind) => {
+    const name = `NW-X1000-${latest.tag_name.slice(1)}-${kind}.zip`;
+    const asset = latest.assets.find((entry) => entry.name === name);
+    assert.ok(asset, `Missing download in ${latest.tag_name}: ${name}`);
+    return asset.browser_download_url;
+  });
+  assert.deepEqual(
+    [...w.document.querySelectorAll(".download-grid .download-link")].map(
+      (link) => link.href,
+    ),
+    expectedDownloads,
   );
-  for (const a of w.document.querySelectorAll(".download-grid .download-link"))
-    assert.ok(a.href.includes("/v0.1.0-dev.21/"));
   await choose("model-label", "Another model");
   assert.equal(
     w.document.querySelectorAll(".download-grid .download-link").length,
@@ -153,7 +164,7 @@ try {
   assert.equal(w.document.documentElement.lang, "zh-CN");
   assert.equal(errors.length, 0, errors.map((e) => e.message).join("\n"));
   console.log(
-    "Production DOM checks passed: bilingual navigation, 14 apps, category/search, app details, real downloads, model/risk gating and guides. Visual layout remains unverified.",
+    "Production DOM checks passed: bilingual navigation, release catalog, category/search, app details, real downloads, model/risk gating and guides. Visual layout remains unverified.",
   );
 } finally {
   dom.window.close();
