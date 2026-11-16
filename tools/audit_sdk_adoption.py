@@ -140,7 +140,11 @@ def audit(check_logic=False, apps=None):
                        if (path:=definition/name).is_file())
         imports=[];unchanged=[]
         builder=(definition/'build.py').read_text()
-        if 'sdk_compiler' not in builder:errors.append(ident+': builder bypasses SDK compiler contract')
+        if ('from native_app_build import build' in builder.splitlines()
+                and (definition/'build.json').is_file()):
+            checked.add(ROOT/'tools/native_app_build.py')
+        elif 'sdk_compiler' not in builder:
+            errors.append(ident+': builder bypasses SDK compiler contract')
         old_metadata=json.loads(baseline('runtime/apps/'+ident+'/app.json')) if check_logic else None
         if old_metadata is not None and {k:v for k,v in discovered[ident].items() if k!='sdk'}!={k:v for k,v in old_metadata.items() if k!='sdk'}:
             errors.append(ident+': application metadata/installed presentation changed')
